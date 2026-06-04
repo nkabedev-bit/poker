@@ -1,49 +1,40 @@
 import { updateTournamentSettings } from "@/app/admin/settings/actions";
+import { savePrizes } from "@/app/admin/extras/actions";
+import {
+  saveBlindTemplate,
+  saveBlindLevels,
+} from "@/app/admin/blinds/actions";
+import { BlindsEditor } from "@/components/admin/blinds-editor";
+import { PrizesEditor } from "@/components/admin/prizes-editor";
 import { SettingsForm } from "@/components/admin/settings-form";
-import { demoTournament } from "@/lib/demo-state";
-import { hasPublicEnv } from "@/lib/env";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import type { Tournament } from "@/lib/timer/types";
+import { loadAdminState } from "@/lib/admin-state";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  if (!hasPublicEnv()) {
-    return (
-      <SettingsForm
-        action={updateTournamentSettings}
-        publicUrl="/screen/demo"
-        tournament={demoTournament}
-      />
-    );
-  }
+  const state = await loadAdminState();
 
-  const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("tournaments")
-    .select("id, name, logo_url, starting_stack, registration_minutes, registration_status, public_token")
-    .limit(1)
-    .single();
-
-  if (!data) {
+  if (!state) {
     return <div className="poker-panel">Турнир не найден.</div>;
   }
 
-  const tournament: Tournament = {
-    id: data.id as string,
-    name: data.name as string,
-    logoUrl: data.logo_url as string | null,
-    startingStack: data.starting_stack as number,
-    registrationMinutes: data.registration_minutes as number,
-    registrationStatus: data.registration_status as Tournament["registrationStatus"],
-    publicToken: data.public_token as string,
-  };
-
   return (
-    <SettingsForm
-      action={updateTournamentSettings}
-      publicUrl={`/screen/${tournament.publicToken}`}
-      tournament={tournament}
-    />
+    <div className="settings-stack">
+      <SettingsForm
+        action={updateTournamentSettings}
+        extras={state.extras}
+        publicUrl={`/screen/${state.tournament.publicToken}`}
+        tournament={state.tournament}
+      />
+      <BlindsEditor
+        blindTemplates={state.extras.blindTemplates}
+        levels={state.blindLevels}
+        reentryEnabled={state.extras.settings.reentryEnabled}
+        returnTo="/admin/settings"
+        saveBlindTemplate={saveBlindTemplate}
+        saveLevels={saveBlindLevels}
+      />
+      <PrizesEditor initialPlaces={state.extras.prizes} saveAction={savePrizes} />
+    </div>
   );
 }

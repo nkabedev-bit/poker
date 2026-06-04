@@ -1,44 +1,111 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { BlindLevel } from "@/lib/timer/types";
+import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { blindPresets, type BlindPresetName } from "@/lib/timer/presets";
+import type {
+  BlindLevel,
+  BlindTemplate,
+  BlindTemplateLevel,
+} from "@/lib/timer/types";
 
 type BlindsEditorProps = {
+  blindTemplates: BlindTemplate[];
   levels: BlindLevel[];
-  applyPreset: (formData: FormData) => void | Promise<void>;
+  reentryEnabled?: boolean;
+  returnTo?: string;
+  saveBlindTemplate: (formData: FormData) => void | Promise<void>;
   saveLevels: (formData: FormData) => void | Promise<void>;
 };
 
-function emptyLevel(levelOrder: number): BlindLevel {
+const presetButtons: Array<[BlindPresetName, string]> = [
+  ["turbo", "⚡ Турбо"],
+  ["standard", "🃏 Стандарт"],
+  ["deep", "🐢 Глубокий"],
+];
+
+function makeLevelFromTemplate(
+  level: BlindTemplateLevel,
+  index: number,
+): BlindLevel {
+  return {
+    id: crypto.randomUUID(),
+    levelOrder: index + 1,
+    smallBlind: level.smallBlind,
+    bigBlind: level.bigBlind,
+    ante: level.isBreak ? null : 0,
+    reentryCloses: level.isBreak ? false : Boolean(level.reentryCloses),
+    durationSeconds: level.durationSeconds,
+    isBreak: level.isBreak,
+    breakDurationSeconds: level.breakDurationSeconds,
+  };
+}
+
+function makeBlindLevel(levelOrder: number, prev?: BlindLevel): BlindLevel {
+  const smallBlind = prev && !prev.isBreak && prev.smallBlind
+    ? prev.smallBlind * 2
+    : 100;
+  const bigBlind = prev && !prev.isBreak && prev.bigBlind
+    ? prev.bigBlind * 2
+    : 200;
   return {
     id: crypto.randomUUID(),
     levelOrder,
-    smallBlind: 100,
-    bigBlind: 200,
+    smallBlind,
+    bigBlind,
     ante: 0,
-    durationSeconds: 1200,
+    reentryCloses: false,
+    durationSeconds: prev?.durationSeconds ?? 1200,
     isBreak: false,
     breakDurationSeconds: null,
   };
 }
 
+function makeBreakLevel(levelOrder: number): BlindLevel {
+  return {
+    id: crypto.randomUUID(),
+    levelOrder,
+    smallBlind: null,
+    bigBlind: null,
+    ante: null,
+    reentryCloses: false,
+    durationSeconds: 600,
+    isBreak: true,
+    breakDurationSeconds: 600,
+  };
+}
+
 function parsePositiveOrNull(value: string) {
   if (value.trim() === "") return null;
-
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
-function parseAnte(value: string) {
-  if (value.trim() === "") return 0;
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorProps) {
+export function BlindsEditor({
+  blindTemplates,
+  levels,
+  reentryEnabled = true,
+  returnTo = "/admin/blinds",
+  saveBlindTemplate,
+  saveLevels,
+}: BlindsEditorProps) {
   const [rows, setRows] = useState<BlindLevel[]>(levels);
-  const serialized = useMemo(() => JSON.stringify(rows), [rows]);
+  const templateFormRef = useRef<HTMLFormElement>(null);
+  const templateNameRef = useRef<HTMLInputElement>(null);
+  const serialized = useMemo(
+    () => JSON.stringify(
+      reentryEnabled ? rows : rows.map((row) => ({ ...row, reentryCloses: false })),
+    ),
+    [reentryEnabled, rows],
+  );
+
+  function preventInputSubmit(event: KeyboardEvent<HTMLFormElement>) {
+    if (
+      event.key === "Enter" &&
+      event.target instanceof HTMLInputElement
+    ) {
+      event.preventDefault();
+    }
+  }
 
   function updateRow(index: number, patch: Partial<BlindLevel>) {
     setRows((current) =>
@@ -49,7 +116,16 @@ export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorPr
   }
 
   function addLevel() {
-    setRows((current) => [...current, emptyLevel(current.length + 1)]);
+    setRows((current) => {
+      const prev = current[current.length - 1];
+      return [...current, makeBlindLevel(current.length + 1, prev)];
+    });
+  }
+
+  function addBreak() {
+    setRows((current) => {
+      return [...current, makeBreakLevel(current.length + 1)];
+    });
   }
 
   function removeLevel(index: number) {
@@ -60,118 +136,251 @@ export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorPr
     );
   }
 
+  function toggleReentryCutoff(index: number, checked: boolean) {
+    setRows((current) =>
+      current.map((row, rowIndex) => ({
+        ...row,
+        reentryCloses: checked && rowIndex === index && !row.isBreak,
+      })),
+    );
+  }
+
+  function applyPreset(preset: BlindPresetName) {
+    setRows(blindPresets[preset].map(makeLevelFromTemplate));
+  }
+
+  function applyTemplate(templateId: string) {
+    const template = blindTemplates.find((item) => item.id === templateId);
+    if (!template) return;
+    setRows(template.levels.map(makeLevelFromTemplate));
+  }
+
+  function promptAndSaveTemplate() {
+    const templateName = window.prompt("Название шаблона блайндов");
+    const cleaned = templateName?.trim();
+    if (!cleaned || !templateNameRef.current) return;
+
+    templateNameRef.current.value = cleaned;
+    templateFormRef.current?.requestSubmit();
+  }
+
+  // Compute display level numbers (skip breaks in level count)
+  const levelNumbers: number[] = [];
+  let levelCount = 0;
+  for (const row of rows) {
+    if (row.isBreak) {
+      levelNumbers.push(0);
+    } else {
+      levelCount++;
+      levelNumbers.push(levelCount);
+    }
+  }
+
   return (
-    <div className="poker-panel blinds-editor">
-      <div className="panel-heading">
+    <div className="poker-panel blinds-editor-v2">
+      {/* Header with presets */}
+      <div className="be2-header">
         <div>
-          <p className="eyebrow">Структура блайндов</p>
-          <h2>Уровни турнира</h2>
+          <h2 className="be2-title">🃏 Структура блайндов</h2>
+          <p className="be2-preset-label">Готовые шаблоны:</p>
         </div>
-        <div className="preset-row">
-          {[
-            ["turbo", "Турбо"],
-            ["standard", "Стандарт"],
-            ["deep", "Глубокий стек"],
-          ].map(([preset, label]) => (
-            <form action={applyPreset} key={preset}>
-              <input name="preset" type="hidden" value={preset} />
-              <button className="gold-outline-button" type="submit">
-                {label}
-              </button>
-            </form>
+        <div className="be2-preset-row">
+          {presetButtons.map(([preset, label]) => (
+            <button
+              className="be2-preset-btn"
+              key={preset}
+              type="button"
+              onClick={() => applyPreset(preset)}
+            >
+              {label}
+            </button>
           ))}
         </div>
       </div>
-      <form action={saveLevels} className="levels-form">
+
+      <div className="be2-template-row">
+        <label className="be2-template-field">
+          <span>Выбор шаблона</span>
+          <select
+            aria-label="Выбор шаблона блайндов"
+            defaultValue=""
+            onChange={(event) => applyTemplate(event.target.value)}
+          >
+            <option value="">Выберите шаблон</option>
+            {blindTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
+                {template.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="be2-template-save-btn"
+          type="button"
+          onClick={promptAndSaveTemplate}
+        >
+          💾 Сохранить шаблон блайндов
+        </button>
+      </div>
+
+      <form action={saveBlindTemplate} className="sr-only" ref={templateFormRef}>
+        <input name="returnTo" type="hidden" value={returnTo} />
         <input name="levels" type="hidden" value={serialized} />
-        <div className="levels-grid levels-header">
-          <span>#</span>
+        <input name="templateName" ref={templateNameRef} type="hidden" />
+      </form>
+
+      <form action={saveLevels} className="be2-form" onKeyDown={preventInputSubmit}>
+        <input name="levels" type="hidden" value={serialized} />
+        <input name="returnTo" type="hidden" value={returnTo} />
+
+        {/* Column headers */}
+        <div className={`be2-col-headers${reentryEnabled ? "" : " be2-col-headers--no-reentry"}`}>
+          <span></span>
           <span>SB</span>
           <span>BB</span>
-          <span>Ante</span>
-          <span>Мин</span>
-          <span>Перерыв</span>
-          <span />
+          {reentryEnabled ? <span>Конец ре-энтри</span> : null}
+          <span>Время</span>
+          <span></span>
         </div>
-        {rows.map((row, index) => (
-          <div className="levels-grid" key={row.id}>
-            <input
-              aria-label="Порядок уровня"
-              min={1}
-              type="number"
-              value={row.levelOrder}
-              onChange={(event) =>
-                updateRow(index, { levelOrder: Number(event.target.value) })
-              }
-            />
-            <input
-              aria-label="Малый блайнд"
-              disabled={row.isBreak}
-              min={1}
-              type="number"
-              value={row.smallBlind ?? ""}
-              onChange={(event) =>
-                updateRow(index, { smallBlind: parsePositiveOrNull(event.target.value) })
-              }
-            />
-            <input
-              aria-label="Большой блайнд"
-              disabled={row.isBreak}
-              min={1}
-              type="number"
-              value={row.bigBlind ?? ""}
-              onChange={(event) =>
-                updateRow(index, { bigBlind: parsePositiveOrNull(event.target.value) })
-              }
-            />
-            <input
-              aria-label="Ante"
-              disabled={row.isBreak}
-              min={0}
-              type="number"
-              value={row.ante ?? 0}
-              onChange={(event) =>
-                updateRow(index, { ante: parseAnte(event.target.value) })
-              }
-            />
-            <input
-              aria-label="Длительность уровня"
-              min={1}
-              type="number"
-              value={Math.round(row.durationSeconds / 60)}
-              onChange={(event) =>
-                updateRow(index, {
-                  durationSeconds: Number(event.target.value) * 60,
-                  breakDurationSeconds: row.isBreak
-                    ? Number(event.target.value) * 60
-                    : row.breakDurationSeconds,
-                })
-              }
-            />
-            <input
-              aria-label="Это перерыв"
-              checked={row.isBreak}
-              type="checkbox"
-              onChange={(event) =>
-                updateRow(index, {
-                  isBreak: event.target.checked,
-                  breakDurationSeconds: event.target.checked
-                    ? row.durationSeconds
-                    : null,
-                })
-              }
-            />
-            <button className="ghost-button" type="button" onClick={() => removeLevel(index)}>
-              Удалить
-            </button>
-          </div>
-        ))}
-        <div className="button-row">
-          <button className="green-button" type="button" onClick={addLevel}>
+
+        {/* Rows */}
+        <div className="be2-rows">
+          {rows.map((row, index) => (
+            <div
+              className={`be2-row${row.isBreak ? " be2-row--break" : ""}${!row.isBreak && !reentryEnabled ? " be2-row--no-reentry" : ""}`}
+              key={row.id}
+            >
+              {/* Level badge */}
+              <div className="be2-level-badge">
+                {row.isBreak ? (
+                  <span className="be2-break-badge">☕</span>
+                ) : (
+                  <span className="be2-num-badge">{levelNumbers[index]}</span>
+                )}
+              </div>
+
+              {row.isBreak ? (
+                /* Break row */
+                <>
+                  <div className="be2-break-label">Перерыв</div>
+                  <div className="be2-break-duration be2-duration-field">
+                    <span className="be2-mobile-label">Минуты</span>
+                    <div className="be2-duration-input">
+                      <input
+                        aria-label="Длительность перерыва"
+                        className="be2-input"
+                        inputMode="numeric"
+                        min={1}
+                        pattern="[0-9]*"
+                        type="number"
+                        value={Math.round(row.durationSeconds / 60) || ""}
+                        onChange={(e) => {
+                          const mins = parsePositiveOrNull(e.target.value);
+                          if (mins) {
+                            updateRow(index, {
+                              durationSeconds: mins * 60,
+                              breakDurationSeconds: mins * 60,
+                            });
+                          }
+                        }}
+                      />
+                      <span className="muted">мин</span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                /* Normal level row */
+                <>
+                  <label className="be2-field be2-field--sb">
+                    <span className="be2-mobile-label">SB</span>
+                    <input
+                      aria-label="Малый блайнд"
+                      className="be2-input"
+                      inputMode="numeric"
+                      min={1}
+                      pattern="[0-9]*"
+                      type="number"
+                      value={row.smallBlind ?? ""}
+                      onChange={(e) =>
+                        updateRow(index, { smallBlind: parsePositiveOrNull(e.target.value) })
+                      }
+                    />
+                  </label>
+                  <label className="be2-field be2-field--bb">
+                    <span className="be2-mobile-label">BB</span>
+                    <input
+                      aria-label="Большой блайнд"
+                      className="be2-input"
+                      inputMode="numeric"
+                      min={1}
+                      pattern="[0-9]*"
+                      type="number"
+                      value={row.bigBlind ?? ""}
+                      onChange={(e) =>
+                        updateRow(index, { bigBlind: parsePositiveOrNull(e.target.value) })
+                      }
+                    />
+                  </label>
+                  {reentryEnabled ? (
+                    <label className="be2-field be2-field--reentry">
+                      <span className="be2-mobile-label">Конец ре-энтри</span>
+                      <input
+                        aria-label="Конец ре-энтри"
+                        checked={Boolean(row.reentryCloses)}
+                        className="be2-reentry-checkbox"
+                        type="checkbox"
+                        onChange={(e) => toggleReentryCutoff(index, e.target.checked)}
+                      />
+                      <span className="be2-reentry-text">Конец ре-энтри</span>
+                    </label>
+                  ) : null}
+                  <div className="be2-duration-field">
+                    <span className="be2-mobile-label">Минуты</span>
+                    <div className="be2-duration-input">
+                      <input
+                        aria-label="Длительность уровня"
+                        className="be2-input"
+                        inputMode="numeric"
+                        min={1}
+                        pattern="[0-9]*"
+                        type="number"
+                        value={Math.round(row.durationSeconds / 60) || ""}
+                        onChange={(e) => {
+                          const mins = parsePositiveOrNull(e.target.value);
+                          if (mins) {
+                            updateRow(index, { durationSeconds: mins * 60 });
+                          }
+                        }}
+                      />
+                      <span className="muted">мин</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Delete */}
+              <button
+                aria-label="Удалить уровень"
+                className="be2-delete-btn"
+                type="button"
+                onClick={() => removeLevel(index)}
+              >
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="be2-actions">
+          <button className="be2-add-btn" type="button" onClick={addLevel}>
             + Уровень
           </button>
-          <button className="gold-button" type="submit">
-            Сохранить структуру
+          <button className="be2-break-btn" type="button" onClick={addBreak}>
+            + Перерыв
+          </button>
+          <button className="be2-save-btn" type="submit">
+            💾 Сохранить
           </button>
         </div>
       </form>

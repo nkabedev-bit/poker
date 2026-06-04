@@ -7,15 +7,26 @@ export type TimerStatus =
 
 export type RegistrationStatus = "open" | "closed";
 
+export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off";
+
 export type BlindLevel = {
   id: string;
   levelOrder: number;
   smallBlind: number | null;
   bigBlind: number | null;
   ante: number | null;
+  reentryCloses: boolean;
   durationSeconds: number;
   isBreak: boolean;
   breakDurationSeconds: number | null;
+};
+
+export type BlindTemplateLevel = Omit<BlindLevel, "id">;
+
+export type BlindTemplate = {
+  id: string;
+  name: string;
+  levels: BlindTemplateLevel[];
 };
 
 export type Tournament = {
@@ -26,6 +37,76 @@ export type Tournament = {
   registrationMinutes: number;
   registrationStatus: RegistrationStatus;
   publicToken: string;
+};
+
+export type TournamentPlayer = {
+  id: string;
+  name: string;
+  stack: number;
+  table: number | null;
+  seat: number | null;
+  rebuys: number;
+  addons: number;
+  bountyCount: number;
+  status: "active" | "eliminated";
+  finishPlace: number | null;
+  registeredVia?: "admin" | "client_bot";
+  telegramId?: number | null;
+};
+
+export type TournamentExtras = {
+  blindTemplates: BlindTemplate[];
+  clientBot: {
+    ratingUrl: string;
+    registrationCode: string;
+    scheduleText: string;
+  };
+  settings: {
+    addonChips: number;
+    addonMinutes: number;
+    addonPrice: number;
+    blindAlertCustomSoundName: string | null;
+    blindAlertCustomSoundUrl: string | null;
+    blindAlertSeconds: number;
+    blindAlertSound: BlindAlertSound;
+    buyIn: number;
+    isBounty: boolean;
+    maxPlayersPerTable: number;
+    maxReentries: number;
+    rebuyPrice: number;
+    reentryEnabled: boolean;
+    tablesCount: number;
+  };
+  players: TournamentPlayer[];
+  prizes: Array<{
+    bonuses: string[];
+    place: number;
+  }>;
+  pts: {
+    bountyPoints: number;
+    bountyTemplates: Array<{
+      bountyPoints: number;
+      id: string;
+      name: string;
+    }>;
+    chatId: string;
+    enabled: boolean;
+    firstPlace: number;
+    placePoints: number[];
+    placeTemplates: Array<{
+      id: string;
+      name: string;
+      placePoints: number[];
+    }>;
+    secondPlace: number;
+    templates: Array<{
+      bountyPoints: number;
+      id: string;
+      name: string;
+      placePoints: number[];
+    }>;
+    thirdPlace: number;
+  };
 };
 
 export type TimerState = {
@@ -41,4 +122,5 @@ export type PublicTournamentState = {
   tournament: Tournament;
   timerState: TimerState;
   blindLevels: BlindLevel[];
+  extras: TournamentExtras;
 };

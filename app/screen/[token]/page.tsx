@@ -14,5 +14,11 @@ export default async function ScreenPage({ params }: ScreenPageProps) {
 
   if (!state) notFound();
 
-  return <PublicScreen initialState={state} token={token} />;
+  return (
+    <PublicScreen
+      initialState={state}
+      serverNowIso={new Date().toISOString()}
+      token={token}
+    />
+  );
 }

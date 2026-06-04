@@ -1,8 +1,9 @@
 import "server-only";
 
-import { demoPublicState } from "@/lib/demo-state";
+import { loadDemoPublicState } from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { mergeTournamentExtras } from "@/lib/tournament-extras";
 import type {
   BlindLevel,
   PublicTournamentState,
@@ -34,6 +35,7 @@ type PublicStateRpc = {
     small_blind: number | null;
     big_blind: number | null;
     ante: number | null;
+    reentry_closes?: boolean | null;
     duration_seconds: number;
     is_break: boolean;
     break_duration_seconds: number | null;
@@ -70,6 +72,7 @@ function mapBlindLevel(row: PublicStateRpc["blindLevels"][number]): BlindLevel {
     smallBlind: row.small_blind,
     bigBlind: row.big_blind,
     ante: row.ante,
+    reentryCloses: Boolean(row.reentry_closes),
     durationSeconds: row.duration_seconds,
     isBreak: row.is_break,
     breakDurationSeconds: row.break_duration_seconds,
@@ -80,7 +83,7 @@ export async function loadPublicState(
   token: string,
 ): Promise<PublicTournamentState | null> {
   if (!hasPublicEnv()) {
-    return token === "demo" ? demoPublicState : null;
+    return token === "demo" ? loadDemoPublicState() : null;
   }
 
   const supabase = createSupabaseAdminClient();
@@ -93,10 +96,16 @@ export async function loadPublicState(
   if (!data) return null;
 
   const state = data as PublicStateRpc;
+  const { data: extras } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", state.tournament.id)
+    .maybeSingle();
 
   return {
     tournament: mapTournament(state.tournament),
     timerState: mapTimerState(state.timerState),
     blindLevels: state.blindLevels.map(mapBlindLevel),
+    extras: mergeTournamentExtras(extras?.data),
   };
 }

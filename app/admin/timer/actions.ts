@@ -5,7 +5,10 @@ import { redirect } from "next/navigation";
 import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { calculateRemainingSeconds } from "@/lib/timer/calculate";
+import { loadDemoPublicState, saveDemoExtras, saveDemoTimerState, saveDemoTournamentSettings } from "@/lib/demo-overrides";
+import { getEffectiveTimerState } from "@/lib/timer/calculate";
+import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import { saveTournamentExtras } from "@/lib/tournament-extras";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 type TimerContext = {
@@ -17,10 +20,18 @@ type TimerContext = {
   timerState: TimerState;
   blindLevels: BlindLevel[];
 };
-
 async function loadTimerContext(): Promise<TimerContext> {
   if (!hasPublicEnv()) {
-    redirect("/admin/timer?demo=1");
+    const demoState = await loadDemoPublicState();
+    return {
+      tournament: {
+        id: demoState.tournament.id,
+        public_token: demoState.tournament.publicToken,
+        registration_minutes: demoState.tournament.registrationMinutes,
+      },
+      timerState: demoState.timerState,
+      blindLevels: demoState.blindLevels,
+    };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -40,7 +51,7 @@ async function loadTimerContext(): Promise<TimerContext> {
 
   const { data: levels } = await supabase
     .from("blind_levels")
-    .select("id, level_order, small_blind, big_blind, ante, duration_seconds, is_break, break_duration_seconds")
+    .select("id, level_order, small_blind, big_blind, ante, reentry_closes, duration_seconds, is_break, break_duration_seconds")
     .eq("tournament_id", tournament.id)
     .order("level_order", { ascending: true });
 
@@ -60,6 +71,7 @@ async function loadTimerContext(): Promise<TimerContext> {
       smallBlind: row.small_blind as number | null,
       bigBlind: row.big_blind as number | null,
       ante: row.ante as number | null,
+      reentryCloses: Boolean(row.reentry_closes),
       durationSeconds: row.duration_seconds as number,
       isBreak: row.is_break as boolean,
       breakDurationSeconds: row.break_duration_seconds as number | null,
@@ -68,20 +80,38 @@ async function loadTimerContext(): Promise<TimerContext> {
 }
 
 async function updateTimerState(values: Record<string, unknown>) {
-  const context = await loadTimerContext();
-  const supabase = await createSupabaseServerClient();
+  try {
+    const context = await loadTimerContext();
 
-  await supabase
-    .from("timer_state")
-    .update(values)
-    .eq("tournament_id", context.tournament.id);
+    if (!hasPublicEnv()) {
+      await saveDemoTimerState({
+        status: (values.status as TimerState["status"]) ?? context.timerState.status,
+        currentLevelIndex: (values.current_level_index as number) ?? context.timerState.currentLevelIndex,
+        levelStartedAt: (values.level_started_at !== undefined ? values.level_started_at as string | null : context.timerState.levelStartedAt),
+        pausedRemainingSeconds: (values.paused_remaining_seconds !== undefined ? values.paused_remaining_seconds as number | null : context.timerState.pausedRemainingSeconds),
+        registrationClosesAt: (values.registration_closes_at !== undefined ? values.registration_closes_at as string | null : context.timerState.registrationClosesAt),
+        finishedAt: (values.finished_at !== undefined ? values.finished_at as string | null : context.timerState.finishedAt),
+      });
+      revalidatePath("/admin/timer");
+      return;
+    }
 
-  await broadcastPublicState(context.tournament.public_token);
-  revalidatePath("/admin/timer");
+    const supabase = await createSupabaseServerClient();
+
+    await supabase
+      .from("timer_state")
+      .update(values)
+      .eq("tournament_id", context.tournament.id);
+
+    await broadcastPublicState(context.tournament.public_token);
+    revalidatePath("/admin/timer");
+  } catch (error) {
+    console.error("Error in updateTimerState:", error);
+    throw error;
+  }
 }
 
 export async function startTimer() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
 
   const context = await loadTimerContext();
   const now = new Date();
@@ -99,11 +129,28 @@ export async function startTimer() {
   });
 }
 
-export async function pauseTimer() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
-
+export async function restartTournament() {
   const context = await loadTimerContext();
-  const remaining = calculateRemainingSeconds(
+  const now = new Date();
+  const registrationClosesAt =
+    context.tournament.registration_minutes > 0
+      ? new Date(now.getTime() + context.tournament.registration_minutes * 60_000)
+      : null;
+
+  await updateTimerState({
+    status: "running",
+    current_level_index: 0,
+    level_started_at: now.toISOString(),
+    paused_remaining_seconds: null,
+    registration_closes_at: registrationClosesAt?.toISOString() ?? null,
+    finished_at: null,
+  });
+}
+
+export async function pauseTimer() {
+  console.log("pauseTimer called");
+  const context = await loadTimerContext();
+  const { remainingSeconds: remaining, currentLevelIndex } = getEffectiveTimerState(
     context.timerState,
     context.blindLevels,
     new Date(),
@@ -111,12 +158,12 @@ export async function pauseTimer() {
 
   await updateTimerState({
     status: "paused",
+    current_level_index: currentLevelIndex,
     paused_remaining_seconds: remaining,
   });
 }
 
 export async function resumeTimer() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
 
   const context = await loadTimerContext();
   const current = context.blindLevels[context.timerState.currentLevelIndex] ?? null;
@@ -132,11 +179,16 @@ export async function resumeTimer() {
 }
 
 export async function nextLevel() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
 
   const context = await loadTimerContext();
+  const { currentLevelIndex } = getEffectiveTimerState(
+    context.timerState,
+    context.blindLevels,
+    new Date()
+  );
+  
   const nextIndex = Math.min(
-    context.timerState.currentLevelIndex + 1,
+    currentLevelIndex + 1,
     Math.max(0, context.blindLevels.length - 1),
   );
 
@@ -149,10 +201,15 @@ export async function nextLevel() {
 }
 
 export async function previousLevel() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
 
   const context = await loadTimerContext();
-  const previousIndex = Math.max(0, context.timerState.currentLevelIndex - 1);
+  const { currentLevelIndex } = getEffectiveTimerState(
+    context.timerState,
+    context.blindLevels,
+    new Date()
+  );
+
+  const previousIndex = Math.max(0, currentLevelIndex - 1);
 
   await updateTimerState({
     status: "running",
@@ -163,9 +220,21 @@ export async function previousLevel() {
 }
 
 export async function closeRegistration() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
-
   const context = await loadTimerContext();
+
+  if (!hasPublicEnv()) {
+    const demoState = await loadDemoPublicState();
+    await saveDemoTournamentSettings({
+      logoUrl: demoState.tournament.logoUrl,
+      name: demoState.tournament.name,
+      registrationMinutes: demoState.tournament.registrationMinutes,
+      startingStack: demoState.tournament.startingStack,
+      registrationStatus: "closed",
+    });
+    revalidatePath("/admin/timer");
+    return;
+  }
+
   const supabase = await createSupabaseServerClient();
 
   await supabase
@@ -178,11 +247,19 @@ export async function closeRegistration() {
 }
 
 export async function finishTournament() {
-  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
-
+  console.log("finishTournament called");
   await updateTimerState({
     status: "finished",
     finished_at: new Date().toISOString(),
     paused_remaining_seconds: null,
   });
+
+  if (!hasPublicEnv()) {
+    await saveDemoExtras(getFinishTournamentExtrasPatch());
+    revalidatePath("/admin/players");
+    return;
+  }
+
+  await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/timer");
+  revalidatePath("/admin/players");
 }

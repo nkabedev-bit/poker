@@ -4,6 +4,7 @@ import type {
   TimerState,
   Tournament,
 } from "@/lib/timer/types";
+import { defaultTournamentExtras } from "@/lib/tournament-extras";
 
 export const demoTournament: Tournament = {
   id: "demo",
@@ -22,6 +23,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: 25,
     bigBlind: 50,
     ante: 0,
+    reentryCloses: false,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -32,6 +34,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: 50,
     bigBlind: 100,
     ante: 0,
+    reentryCloses: false,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -42,6 +45,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: 75,
     bigBlind: 150,
     ante: 0,
+    reentryCloses: false,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -52,6 +56,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: 100,
     bigBlind: 200,
     ante: 0,
+    reentryCloses: false,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -62,6 +67,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: null,
     bigBlind: null,
     ante: null,
+    reentryCloses: false,
     durationSeconds: 600,
     isBreak: true,
     breakDurationSeconds: 600,
@@ -72,6 +78,7 @@ export const demoBlindLevels: BlindLevel[] = [
     smallBlind: 150,
     bigBlind: 300,
     ante: 0,
+    reentryCloses: false,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -91,4 +98,5 @@ export const demoPublicState: PublicTournamentState = {
   tournament: demoTournament,
   timerState: demoTimerState,
   blindLevels: demoBlindLevels,
+  extras: defaultTournamentExtras,
 };
