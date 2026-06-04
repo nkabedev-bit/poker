@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { GripVertical } from "lucide-react";
+import { useMemo, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
 import { blindPresets, type BlindPresetName } from "@/lib/timer/presets";
 import type {
   BlindLevel,
@@ -80,6 +81,10 @@ function parsePositiveOrNull(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function renumberRows(rows: BlindLevel[]) {
+  return rows.map((row, rowIndex) => ({ ...row, levelOrder: rowIndex + 1 }));
+}
+
 export function BlindsEditor({
   blindTemplates,
   levels,
@@ -89,6 +94,8 @@ export function BlindsEditor({
   saveLevels,
 }: BlindsEditorProps) {
   const [rows, setRows] = useState<BlindLevel[]>(levels);
+  const [draggedRowId, setDraggedRowId] = useState<string | null>(null);
+  const draggedIndexRef = useRef<number | null>(null);
   const templateFormRef = useRef<HTMLFormElement>(null);
   const templateNameRef = useRef<HTMLInputElement>(null);
   const serialized = useMemo(
@@ -130,10 +137,57 @@ export function BlindsEditor({
 
   function removeLevel(index: number) {
     setRows((current) =>
-      current
-        .filter((_, rowIndex) => rowIndex !== index)
-        .map((row, rowIndex) => ({ ...row, levelOrder: rowIndex + 1 })),
+      renumberRows(current.filter((_, rowIndex) => rowIndex !== index)),
     );
+  }
+
+  function moveRow(fromIndex: number, toIndex: number) {
+    setRows((current) => {
+      if (
+        fromIndex === toIndex ||
+        fromIndex < 0 ||
+        toIndex < 0 ||
+        fromIndex >= current.length ||
+        toIndex >= current.length
+      ) {
+        return current;
+      }
+
+      const next = [...current];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      return renumberRows(next);
+    });
+  }
+
+  function clearDragState() {
+    draggedIndexRef.current = null;
+    setDraggedRowId(null);
+  }
+
+  function startRowDrag(event: DragEvent<HTMLButtonElement>, index: number) {
+    draggedIndexRef.current = index;
+    setDraggedRowId(rows[index]?.id ?? null);
+    if (event.dataTransfer) {
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", rows[index]?.id ?? String(index));
+    }
+  }
+
+  function allowRowDrop(event: DragEvent<HTMLDivElement>, index: number) {
+    if (draggedIndexRef.current === null || draggedIndexRef.current === index) return;
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "move";
+    }
+  }
+
+  function dropRow(event: DragEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    const fromIndex = draggedIndexRef.current;
+    clearDragState();
+    if (fromIndex === null) return;
+    moveRow(fromIndex, index);
   }
 
   function toggleReentryCutoff(index: number, checked: boolean) {
@@ -236,6 +290,7 @@ export function BlindsEditor({
         {/* Column headers */}
         <div className={`be2-col-headers${reentryEnabled ? "" : " be2-col-headers--no-reentry"}`}>
           <span></span>
+          <span></span>
           <span>SB</span>
           <span>BB</span>
           {reentryEnabled ? <span>Конец ре-энтри</span> : null}
@@ -247,9 +302,23 @@ export function BlindsEditor({
         <div className="be2-rows">
           {rows.map((row, index) => (
             <div
-              className={`be2-row${row.isBreak ? " be2-row--break" : ""}${!row.isBreak && !reentryEnabled ? " be2-row--no-reentry" : ""}`}
+              className={`be2-row${row.isBreak ? " be2-row--break" : ""}${!row.isBreak && !reentryEnabled ? " be2-row--no-reentry" : ""}${draggedRowId === row.id ? " be2-row--dragging" : ""}`}
               key={row.id}
+              onDragOver={(event) => allowRowDrop(event, index)}
+              onDrop={(event) => dropRow(event, index)}
             >
+              <button
+                aria-label={`Перетащить ${row.isBreak ? "перерыв" : `уровень ${levelNumbers[index]}`}`}
+                className="be2-drag-handle"
+                draggable
+                title="Перетащить"
+                type="button"
+                onDragEnd={clearDragState}
+                onDragStart={(event) => startRowDrag(event, index)}
+              >
+                <GripVertical aria-hidden="true" size={16} strokeWidth={2.4} />
+              </button>
+
               {/* Level badge */}
               <div className="be2-level-badge">
                 {row.isBreak ? (

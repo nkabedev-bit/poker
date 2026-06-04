@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { join } from "path";
 import { z } from "zod";
 import { saveDemoExtras, saveDemoTournamentSettings } from "@/lib/demo-overrides";
-import { parseLogoDataUrl, type LogoUploadPayload } from "@/lib/admin/logo-upload";
+import { parseLogoDataUrl, prepareLogoImage, type LogoUploadPayload } from "@/lib/admin/logo-upload";
 import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -141,11 +141,7 @@ export async function updateTournamentSettings(formData: FormData) {
 
     const logo = await getLogoUpload(formData);
     if (logo) {
-      const sharp = (await import("sharp")).default;
-      const resized = await sharp(logo.bytes)
-        .resize(400, 200, { fit: "inside", withoutEnlargement: true })
-        .png({ compressionLevel: 9 })
-        .toBuffer();
+      const resized = await prepareLogoImage(logo.bytes);
       const destPath = join(process.cwd(), "public", "demo-logo.png");
       await writeFile(destPath, resized);
       logoUrl = "/demo-logo.png";
@@ -217,11 +213,7 @@ export async function updateTournamentSettings(formData: FormData) {
   const logo = await getLogoUpload(formData);
 
   if (logo) {
-    const sharp = (await import("sharp")).default;
-    const resized = await sharp(logo.bytes)
-      .resize(400, 200, { fit: "inside", withoutEnlargement: true })
-      .png({ compressionLevel: 9 })
-      .toBuffer();
+    const resized = await prepareLogoImage(logo.bytes);
     const path = `${tournament.id}/${Date.now()}.png`;
     const { error: uploadError } = await supabase.storage
       .from("tournament-logos")

@@ -20,7 +20,8 @@ type SettingsFormProps = {
   action: (formData: FormData) => void | Promise<void>;
 };
 
-const maxLogoSize = 1024 * 1024;
+const maxLogoSize = 4 * 1024 * 1024;
+const maxSoundSize = 1024 * 1024;
 
 type LogoUpload = {
   dataUrl: string;
@@ -54,7 +55,7 @@ export function SettingsForm({
       return;
     }
     if (file.size > maxLogoSize) {
-      setLogoError("Файл больше 1 MB");
+      setLogoError("Файл больше 4 MB");
       return;
     }
 
@@ -80,7 +81,7 @@ export function SettingsForm({
     setSoundError(null);
 
     if (!file) return;
-    if (file.size > maxLogoSize) { // 1 MB limit
+    if (file.size > maxSoundSize) {
       setSoundError("Файл больше 1 MB");
       return;
     }
@@ -91,13 +92,6 @@ export function SettingsForm({
 
   return (
     <form action={action} className="poker-panel settings-form">
-      {logoUpload ? (
-        <>
-          <input name="logoDataUrl" type="hidden" value={logoUpload.dataUrl} />
-          <input name="logoFileName" type="hidden" value={logoUpload.name} />
-          <input name="logoFileType" type="hidden" value={logoUpload.type} />
-        </>
-      ) : null}
       <input name="buyIn" type="hidden" value={settings.buyIn} />
       <input name="rebuyPrice" type="hidden" value={settings.rebuyPrice} />
       <input name="addonPrice" type="hidden" value={settings.addonPrice} />
@@ -203,7 +197,7 @@ export function SettingsForm({
                 ? logoError
                 : logoUpload
                   ? `Выбран: ${logoUpload.name}`
-                  : "PNG до 1 MB"}
+                  : "PNG до 4 MB"}
             </span>
             <label className="logo-url-field">
               Или ссылка на логотип

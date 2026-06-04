@@ -720,7 +720,7 @@ p {
 
 .be2-col-headers {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 128px 130px 36px;
+  grid-template-columns: 28px 32px 1fr 1fr 128px 130px 36px;
   gap: 6px;
   align-items: center;
   padding: 0 2px;
@@ -738,7 +738,7 @@ p {
 
 .be2-row {
   display: grid;
-  grid-template-columns: 32px 1fr 1fr 128px 130px 36px;
+  grid-template-columns: 28px 32px 1fr 1fr 128px 130px 36px;
   gap: 6px;
   align-items: center;
   border-radius: 7px;
@@ -750,7 +750,7 @@ p {
 
 .be2-col-headers--no-reentry,
 .be2-row--no-reentry {
-  grid-template-columns: 32px 1fr 1fr 130px 36px;
+  grid-template-columns: 28px 32px 1fr 1fr 130px 36px;
 }
 
 .be2-row:hover {
@@ -759,7 +759,7 @@ p {
 }
 
 .be2-row--break {
-  grid-template-columns: 32px 1fr 130px 36px;
+  grid-template-columns: 28px 32px 1fr 130px 36px;
   background: rgb(30 50 80 / 0.25);
   border-color: rgb(36 112 216 / 0.25);
 }
@@ -767,6 +767,33 @@ p {
 .be2-row--break:hover {
   border-color: rgb(36 112 216 / 0.4);
   background: rgb(30 50 80 / 0.35);
+}
+
+.be2-row--dragging {
+  opacity: 0.55;
+}
+
+.be2-drag-handle {
+  width: 24px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 6px;
+  background: rgb(255 255 255 / 0.03);
+  color: var(--poker-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.be2-drag-handle:hover {
+  border-color: rgb(201 168 76 / 0.35);
+  background: rgb(201 168 76 / 0.1);
+  color: var(--poker-gold);
+}
+
+.be2-drag-handle:active {
+  cursor: grabbing;
 }
 
 .be2-level-badge {
@@ -1544,7 +1571,7 @@ p {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(160px, 17vw, 240px) minmax(0, 1fr) clamp(160px, 17vw, 240px);
+  grid-template-columns: clamp(160px, 15vw, 240px) minmax(0, 1fr) clamp(170px, 16vw, 300px);
   overflow: hidden;
 }
 
@@ -1636,6 +1663,13 @@ p {
 }
 
 .public-main {
+  --public-logo-top: clamp(12px, 1.4vh, 20px);
+  --public-logo-box: min(48vh, 540px);
+  --public-logo-gap: clamp(16px, 2vh, 28px);
+  --public-timer-offset: calc(
+    var(--public-logo-top) + var(--public-logo-box) + var(--public-logo-gap)
+  );
+
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -1659,20 +1693,50 @@ p {
   overflow: hidden;
 }
 
-/* Фоновый логотип на экране игроков */
-.public-logo-bg {
+.public-logo-spotlight {
   position: absolute;
-  top: 35%;
+  top: var(--public-logo-top);
   left: 50%;
-  transform: translate(-50%, -50%);
-  width: min(70%, 55vh);
-  height: auto;
-  max-height: 75%;
-  object-fit: contain;
-  opacity: 0.13;
+  width: min(82%, 58vh, 620px);
+  height: var(--public-logo-box);
+  display: grid;
+  place-items: center;
+  transform: translateX(-50%);
   pointer-events: none;
   z-index: 0;
-  filter: drop-shadow(0 0 40px rgb(201 168 76 / 0.3));
+}
+
+.public-logo-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: 10% -8% 4%;
+  background:
+    radial-gradient(ellipse at 18% 52%, rgb(255 226 128 / 0.18), transparent 42%),
+    radial-gradient(ellipse at 82% 52%, rgb(201 168 76 / 0.16), transparent 42%);
+  filter: blur(10px);
+}
+
+.public-logo-halo {
+  position: absolute;
+  width: 122%;
+  height: 58%;
+  background:
+    radial-gradient(ellipse at 8% 50%, rgb(201 168 76 / 0.24), transparent 38%),
+    radial-gradient(ellipse at 92% 50%, rgb(201 168 76 / 0.2), transparent 38%);
+  filter: blur(16px);
+}
+
+.public-logo-clear {
+  position: relative;
+  z-index: 1;
+  width: 96%;
+  max-width: 560px;
+  max-height: 520px;
+  object-fit: contain;
+  opacity: 0.98;
+  filter:
+    drop-shadow(0 10px 22px rgb(0 0 0 / 0.85))
+    drop-shadow(0 0 16px rgb(201 168 76 / 0.3));
 }
 
 .public-logo-placeholder {
@@ -1701,8 +1765,9 @@ p {
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  padding-bottom: clamp(12px, 3vh, 40px);
+  justify-content: flex-start;
+  padding-top: var(--public-timer-offset);
+  padding-bottom: clamp(8px, 1.4vh, 18px);
   overflow: hidden;
 }
 
@@ -1744,7 +1809,7 @@ p {
 .timer-display {
   font-family: var(--font-geist-mono), monospace;
   color: #fff;
-  font-size: clamp(72px, 13vw, 170px);
+  font-size: clamp(60px, 10vw, 128px);
   font-weight: 900;
   line-height: 1;
   text-align: center;
@@ -1779,7 +1844,7 @@ p {
 }
 
 .public-blinds-summary {
-  width: min(92%, 650px);
+  width: min(86%, 590px);
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0;
@@ -1792,8 +1857,8 @@ p {
 
 .public-blinds-summary div {
   display: grid;
-  gap: 4px;
-  padding: clamp(12px, 2vh, 24px) clamp(16px, 3vw, 32px);
+  gap: 2px;
+  padding: clamp(8px, 1.1vh, 13px) clamp(12px, 2.4vw, 22px);
   text-align: center;
 }
 
@@ -1813,7 +1878,7 @@ p {
   display: grid;
   justify-items: center;
   color: #fff;
-  font-size: clamp(32px, 6vh, 76px);
+  font-size: clamp(28px, 4.4vh, 58px);
   font-weight: 900;
   line-height: 1.05;
   text-shadow: 0 0 25px rgb(0 0 0), 0 3px 6px rgb(0 0 0);
@@ -1821,7 +1886,7 @@ p {
 
 .public-blinds-summary div + div strong {
   color: rgb(255 255 255 / 0.74);
-  font-size: clamp(26px, 4.5vh, 58px);
+  font-size: clamp(22px, 3.4vh, 44px);
 }
 
 .public-blinds-summary i {
@@ -1857,25 +1922,25 @@ p {
 .public-players-counts {
   display: flex;
   justify-content: center;
-  gap: 18px;
+  gap: 12px;
   color: #9ca3af;
-  font-size: 10px;
+  font-size: 9px;
   text-transform: uppercase;
 }
 
 .public-players-counts strong {
   color: #fca5a5;
-  font-size: 18px;
+  font-size: 14px;
 }
 
 .public-final-table {
-  margin-top: 5px;
+  margin-top: 4px;
   border: 1px solid rgb(201 168 76 / 0.6);
   border-radius: 6px;
   background: rgb(201 168 76 / 0.12);
   color: #c9a84c;
-  padding: 4px 8px;
-  font-size: 10px;
+  padding: 3px 6px;
+  font-size: 9px;
   font-weight: 900;
   text-align: center;
   text-transform: uppercase;
@@ -1890,33 +1955,44 @@ p {
 
 .public-player-mini-list div {
   display: grid;
-  grid-template-columns: 32px 1fr;
-  gap: 4px;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 3px;
   align-items: center;
   border: 1px solid rgb(255 255 255 / 0.08);
   border-radius: 3px;
   background: rgb(255 255 255 / 0.04);
-  height: clamp(14px, 2.2vh, 22px);
-  padding: 0 4px;
+  height: clamp(13px, 2vh, 20px);
+  padding: 0 3px;
 }
 
 .public-player-mini-list div.public-player-mini-list-item--name-only {
-  grid-template-columns: 1fr;
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .public-player-mini-list span {
   color: var(--poker-gold);
-  font-size: clamp(8px, 1.05vh, 9px);
+  font-size: clamp(7px, 0.9vh, 8px);
   font-weight: 900;
   line-height: 1;
 }
 
-.public-player-mini-list strong {
+.public-player-name-frame {
+  min-width: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
   overflow: hidden;
+}
+
+.public-player-mini-list strong,
+.public-player-name {
+  display: block;
+  flex: 0 0 auto;
   color: #fff;
-  font-size: clamp(9px, 1.25vh, 11px);
+  font-size: clamp(8px, 1.05vh, 10px);
   line-height: 1;
-  text-overflow: ellipsis;
+  max-width: none;
+  transform-origin: left center;
   white-space: nowrap;
 }
 
@@ -1925,17 +2001,17 @@ p {
 }
 
 .public-player-mini-list--cozy div {
-  grid-template-columns: 42px 1fr;
-  height: clamp(24px, 3.1vh, 34px);
-  padding: 0 6px;
+  grid-template-columns: 34px minmax(0, 1fr);
+  height: clamp(20px, 2.6vh, 28px);
+  padding: 0 4px;
 }
 
 .public-player-mini-list--cozy span {
-  font-size: clamp(9px, 1.3vh, 12px);
+  font-size: clamp(8px, 1.1vh, 10px);
 }
 
 .public-player-mini-list--cozy strong {
-  font-size: clamp(12px, 1.8vh, 17px);
+  font-size: clamp(10px, 1.5vh, 14px);
 }
 
 .public-player-mini-list--roomy {
@@ -1943,17 +2019,17 @@ p {
 }
 
 .public-player-mini-list--roomy div {
-  grid-template-columns: 52px 1fr;
-  height: clamp(36px, 5vh, 56px);
-  padding: 0 8px;
+  grid-template-columns: 38px minmax(0, 1fr);
+  height: clamp(28px, 3.8vh, 42px);
+  padding: 0 5px;
 }
 
 .public-player-mini-list--roomy span {
-  font-size: clamp(11px, 1.7vh, 15px);
+  font-size: clamp(9px, 1.3vh, 12px);
 }
 
 .public-player-mini-list--roomy strong {
-  font-size: clamp(17px, 2.8vh, 26px);
+  font-size: clamp(13px, 2vh, 19px);
 }
 
 .public-player-mini-list--hero {
@@ -1961,17 +2037,17 @@ p {
 }
 
 .public-player-mini-list--hero div {
-  grid-template-columns: 64px 1fr;
-  height: clamp(48px, 7vh, 82px);
-  padding: 0 10px;
+  grid-template-columns: 44px minmax(0, 1fr);
+  height: clamp(36px, 5.2vh, 60px);
+  padding: 0 6px;
 }
 
 .public-player-mini-list--hero span {
-  font-size: clamp(12px, 2vh, 18px);
+  font-size: clamp(10px, 1.6vh, 14px);
 }
 
 .public-player-mini-list--hero strong {
-  font-size: clamp(22px, 4vh, 36px);
+  font-size: clamp(16px, 3vh, 26px);
 }
 
 @media (max-width: 760px) {
@@ -2103,30 +2179,36 @@ p {
   }
 
   .be2-row {
-    grid-template-columns: 32px minmax(0, 1fr) minmax(0, 1fr) 36px;
+    grid-template-columns: 28px 32px minmax(0, 1fr) minmax(0, 1fr) 36px;
     gap: 8px;
     align-items: end;
     padding: 10px;
   }
 
-  .be2-row:not(.be2-row--break) .be2-level-badge {
+  .be2-drag-handle {
     grid-column: 1;
     grid-row: 1 / span 2;
     align-self: center;
   }
 
-  .be2-field--sb {
+  .be2-row:not(.be2-row--break) .be2-level-badge {
     grid-column: 2;
-    grid-row: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
 
-  .be2-field--bb {
+  .be2-field--sb {
     grid-column: 3;
     grid-row: 1;
   }
 
+  .be2-field--bb {
+    grid-column: 4;
+    grid-row: 1;
+  }
+
   .be2-field--reentry {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 2;
   }
 
@@ -2136,12 +2218,12 @@ p {
   }
 
   .be2-row:not(.be2-row--break) .be2-duration-field {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 2;
   }
 
   .be2-delete-btn {
-    grid-column: 4;
+    grid-column: 5;
     grid-row: 1 / span 2;
     align-self: center;
   }
@@ -2172,28 +2254,28 @@ p {
   }
 
   .be2-row--break {
-    grid-template-columns: 32px minmax(0, 1fr) 36px;
+    grid-template-columns: 28px 32px minmax(0, 1fr) 36px;
   }
 
   .be2-row--break .be2-level-badge {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 1 / span 2;
     align-self: center;
   }
 
   .be2-row--break .be2-break-label {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
     align-self: center;
   }
 
   .be2-row--break .be2-break-duration {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 2;
   }
 
   .be2-row--break .be2-delete-btn {
-    grid-column: 3;
+    grid-column: 4;
     grid-row: 1 / span 2;
   }
 
@@ -2292,7 +2374,15 @@ p {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1100px) and (max-aspect-ratio: 4 / 3) {
+  .public-logo-spotlight {
+    display: none;
+  }
+
+  .public-timer-panel {
+    padding-top: 0;
+  }
+
   .public-board {
     display: flex;
   }
@@ -2388,7 +2478,7 @@ p {
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1100px) and (max-aspect-ratio: 4 / 3) {
   .public-tv-body {
     grid-template-rows: minmax(0, 1fr) minmax(260px, 40vh);
   }
@@ -2406,7 +2496,7 @@ p {
   }
 
   .public-player-mini-list--cozy div {
-    grid-template-columns: 36px 1fr;
+    grid-template-columns: 36px minmax(0, 1fr);
     height: clamp(18px, 3.2vh, 28px);
     padding: 0 5px;
   }
@@ -2420,7 +2510,7 @@ p {
   }
 
   .public-player-mini-list--roomy div {
-    grid-template-columns: 44px 1fr;
+    grid-template-columns: 44px minmax(0, 1fr);
     height: clamp(28px, 5vh, 42px);
     padding: 0 7px;
   }
@@ -2434,7 +2524,7 @@ p {
   }
 
   .public-player-mini-list--hero div {
-    grid-template-columns: 52px 1fr;
+    grid-template-columns: 52px minmax(0, 1fr);
     height: clamp(38px, 7vh, 58px);
     padding: 0 8px;
   }
@@ -2445,5 +2535,218 @@ p {
 
   .public-player-mini-list--hero strong {
     font-size: clamp(18px, 4.2vh, 28px);
+  }
+}
+
+@media (max-height: 800px) and (min-aspect-ratio: 4 / 3) {
+  .public-header {
+    min-height: clamp(50px, 8vh, 64px);
+    padding: 0 clamp(8px, 1vw, 14px);
+  }
+
+  .public-brand {
+    width: clamp(210px, 26vw, 320px);
+    gap: 8px;
+  }
+
+  .public-brand img {
+    width: clamp(34px, 4.6vw, 46px);
+    height: clamp(28px, 4vh, 36px);
+  }
+
+  .public-header h1 {
+    font-size: clamp(11px, 1.35vw, 16px);
+  }
+
+  .public-brand p,
+  .chip-bank span {
+    font-size: clamp(8px, 1vw, 10px);
+  }
+
+  .public-center-title {
+    max-width: 34vw;
+    font-size: clamp(14px, 2.6vw, 34px);
+  }
+
+  .public-header-tools {
+    gap: clamp(5px, 0.8vw, 10px);
+  }
+
+  .chip-bank strong {
+    font-size: clamp(12px, 1.4vw, 15px);
+  }
+
+  .public-icon-button {
+    width: clamp(32px, 5vh, 40px);
+    height: clamp(32px, 5vh, 40px);
+    font-size: clamp(16px, 2.8vh, 20px);
+  }
+
+  .volume-slider {
+    width: clamp(50px, 7vw, 72px);
+  }
+
+  .public-tv-body {
+    grid-template-columns:
+      clamp(130px, 15vw, 200px)
+      minmax(0, 1fr)
+      clamp(145px, 17vw, 230px);
+  }
+
+  .public-blinds-panel h2 {
+    padding-bottom: 2px;
+    font-size: clamp(16px, 1.8vw, 24px);
+  }
+
+  .public-level-stats {
+    gap: clamp(8px, 1.4vw, 16px);
+    padding-bottom: 3px;
+    font-size: clamp(8px, 0.9vw, 10px);
+  }
+
+  .public-level-stats strong {
+    font-size: clamp(12px, 1.6vw, 16px);
+  }
+
+  .public-level-grid {
+    grid-template-columns: clamp(26px, 3.2vw, 36px) 1fr 1fr clamp(28px, 3.4vw, 36px);
+    min-height: clamp(18px, 3.1vh, 23px);
+    margin-bottom: 1px;
+    font-size: clamp(10px, 1.15vw, 12px);
+  }
+
+  .public-level-grid--no-ante {
+    grid-template-columns: clamp(26px, 3.2vw, 36px) 1fr 1fr;
+    font-size: clamp(11px, 1.35vw, 15px);
+  }
+
+  .public-level-header {
+    min-height: clamp(16px, 2.8vh, 20px);
+    margin-bottom: 2px;
+    font-size: clamp(8px, 0.95vw, 10px);
+  }
+
+  .public-main {
+    --public-logo-top: clamp(6px, 1vh, 10px);
+    --public-logo-box: min(30vh, 260px);
+    --public-logo-gap: clamp(6px, 1vh, 10px);
+  }
+
+  .public-logo-spotlight {
+    width: min(58%, 38vh, 320px);
+  }
+
+  .public-logo-clear {
+    max-width: 300px;
+    max-height: 250px;
+  }
+
+  .public-timer-panel {
+    padding-bottom: clamp(4px, 0.9vh, 8px);
+  }
+
+  .public-round-row {
+    gap: 3px;
+    padding: clamp(4px, 0.8vh, 7px) 8px;
+  }
+
+  .public-round-row > strong {
+    font-size: clamp(8px, 1.1vh, 10px);
+  }
+
+  .public-round-row > span {
+    gap: 6px;
+    border-radius: 7px;
+    padding: clamp(4px, 0.9vh, 6px) clamp(9px, 1.4vw, 14px);
+    font-size: clamp(10px, 1.35vw, 14px);
+  }
+
+  .timer-display {
+    font-size: clamp(54px, 8.2vw, 98px);
+  }
+
+  .public-progress-labels {
+    margin-bottom: clamp(4px, 1vh, 8px);
+    font-size: clamp(8px, 1vw, 10px);
+  }
+
+  .public-blinds-summary {
+    width: min(92%, 520px);
+    border-radius: 8px;
+  }
+
+  .public-blinds-summary div {
+    gap: 1px;
+    padding: clamp(5px, 0.9vh, 8px) clamp(8px, 1.7vw, 16px);
+  }
+
+  .public-blinds-summary p {
+    font-size: clamp(9px, 1.2vw, 12px);
+  }
+
+  .public-blinds-summary strong {
+    font-size: clamp(24px, 4.4vw, 48px);
+    line-height: 1;
+  }
+
+  .public-blinds-summary div + div strong {
+    font-size: clamp(19px, 3.4vw, 36px);
+  }
+
+  .public-blinds-summary i {
+    margin: clamp(2px, 0.7vh, 4px) 0;
+  }
+
+  .public-blinds-summary em {
+    margin-top: clamp(2px, 0.7vh, 4px);
+    font-size: clamp(12px, 2.2vw, 22px);
+  }
+
+  .public-break-title {
+    min-height: clamp(64px, 15vh, 100px);
+    font-size: clamp(20px, 3.4vw, 38px) !important;
+  }
+
+  .public-players-panel {
+    padding: 4px 3px;
+  }
+
+  .public-players-counts {
+    gap: clamp(6px, 1vw, 10px);
+    font-size: clamp(7px, 0.9vw, 9px);
+  }
+
+  .public-players-counts strong {
+    font-size: clamp(10px, 1.3vw, 13px);
+  }
+
+  .public-final-table {
+    margin-top: 3px;
+    padding: 2px 4px;
+    font-size: clamp(7px, 0.9vw, 9px);
+  }
+
+  .public-player-mini-list {
+    margin-top: 3px;
+  }
+
+  .public-player-mini-list div {
+    grid-template-columns: clamp(22px, 3vw, 28px) minmax(0, 1fr);
+    height: clamp(11px, 2.2vh, 17px);
+  }
+
+  .public-player-mini-list--cozy div {
+    grid-template-columns: clamp(24px, 3.3vw, 32px) minmax(0, 1fr);
+    height: clamp(17px, 3.2vh, 24px);
+  }
+
+  .public-player-mini-list--roomy div {
+    grid-template-columns: clamp(28px, 3.9vw, 38px) minmax(0, 1fr);
+    height: clamp(24px, 4.7vh, 34px);
+  }
+
+  .public-player-mini-list--hero div {
+    grid-template-columns: clamp(34px, 4.6vw, 44px) minmax(0, 1fr);
+    height: clamp(32px, 6.2vh, 48px);
   }
 }

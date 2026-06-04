@@ -4,6 +4,8 @@ export type LogoUploadPayload = {
   type: string;
 };
 
+export const LOGO_MAX_DIMENSION = 1200;
+
 type LogoDataUrlInput = {
   dataUrl: string;
   name: string;
@@ -27,4 +29,16 @@ export function parseLogoDataUrl({
     name: cleanLogoFileName(name),
     type: type || match[1],
   };
+}
+
+export async function prepareLogoImage(bytes: Buffer) {
+  const sharp = (await import("sharp")).default;
+
+  return sharp(bytes)
+    .resize(LOGO_MAX_DIMENSION, LOGO_MAX_DIMENSION, {
+      fit: "inside",
+      withoutEnlargement: true,
+    })
+    .png({ compressionLevel: 9 })
+    .toBuffer();
 }

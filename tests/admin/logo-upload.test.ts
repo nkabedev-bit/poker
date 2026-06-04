@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseLogoDataUrl } from "@/lib/admin/logo-upload";
+import sharp from "sharp";
+import { parseLogoDataUrl, prepareLogoImage } from "@/lib/admin/logo-upload";
 
 describe("parseLogoDataUrl", () => {
   it("decodes PNG data URLs into upload payload", () => {
@@ -24,5 +25,24 @@ describe("parseLogoDataUrl", () => {
         type: "text/plain",
       }),
     ).toBeNull();
+  });
+
+  it("keeps large square logos sharp enough for the public screen", async () => {
+    const source = await sharp({
+      create: {
+        width: 1254,
+        height: 1254,
+        channels: 4,
+        background: { r: 200, g: 0, b: 0, alpha: 1 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const result = await prepareLogoImage(source);
+    const metadata = await sharp(result).metadata();
+
+    expect(metadata.width).toBe(1200);
+    expect(metadata.height).toBe(1200);
   });
 });

@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+const MAX_INIT_DATA_AGE_SECONDS = 24 * 60 * 60;
+
 export function validateInitData(initData: string): { ok: boolean; userId?: number } {
   try {
     const params = new URLSearchParams(initData);
@@ -26,8 +28,8 @@ export function validateInitData(initData: string): { ok: boolean; userId?: numb
     }
 
     const authDate = Number(params.get("auth_date"));
-    // Проверка, что подпись не старше 1 часа
-    if (Date.now() / 1000 - authDate > 3600) {
+    // TMA can stay open for a full tournament day while the phone is locked.
+    if (Date.now() / 1000 - authDate > MAX_INIT_DATA_AGE_SECONDS) {
       return { ok: false };
     }
 
