@@ -25,6 +25,7 @@ export default function ClientRegisterPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [checkingCode, setCheckingCode] = useState(false);
 
   const loadMe = useCallback(async () => {
     try {
@@ -41,6 +42,33 @@ export default function ClientRegisterPage() {
     const timeout = window.setTimeout(() => void loadMe(), 0);
     return () => window.clearTimeout(timeout);
   }, [loadMe]);
+
+  const checkCode = async () => {
+    setCheckingCode(true);
+    setError("");
+    try {
+      const res = await fetch("/api/client-tma/validate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ code }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.message ?? "Не удалось проверить код.");
+        return;
+      }
+      if (!data.valid) {
+        setError("Ошибка. Код неверный.");
+        getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("error");
+        return;
+      }
+      setStep("table");
+    } catch {
+      setError("Что-то пошло не так. Попробуйте ещё раз.");
+    } finally {
+      setCheckingCode(false);
+    }
+  };
 
   const register = async (table: number) => {
     setSubmitting(true);
@@ -126,10 +154,8 @@ export default function ClientRegisterPage() {
           />
           <PrimaryButton
             disabled={!code.trim()}
-            onClick={() => {
-              setError("");
-              setStep("table");
-            }}
+            loading={checkingCode}
+            onClick={() => void checkCode()}
           >
             Продолжить
           </PrimaryButton>
@@ -149,12 +175,6 @@ export default function ClientRegisterPage() {
               </button>
             ))}
           </div>
-          <button
-            onClick={() => setStep("code")}
-            className="w-full text-center text-sm text-white/45"
-          >
-            ← Изменить код
-          </button>
         </GlassCard>
       )}
 
