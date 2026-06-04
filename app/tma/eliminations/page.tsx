@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
-import { Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
+import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
-type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated" };
+type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null };
 
 export default function TMAEliminationsPage() {
   const { initData } = useTMA();
@@ -13,6 +13,8 @@ export default function TMAEliminationsPage() {
   const [reentryAvailable, setReentryAvailable] = useState(true);
   const [reentryEnabled, setReentryEnabled] = useState(false);
   const [maxReentries, setMaxReentries] = useState(1);
+  const [tablesCount, setTablesCount] = useState(1);
+  const [tableFilter, setTableFilter] = useState("");
   const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
   
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
@@ -30,6 +32,7 @@ export default function TMAEliminationsPage() {
       setMaxReentries(Number(data.maxReentries) || 1);
       setReentryAvailable(data.reentryAvailable !== false);
       setReentryEnabled(Boolean(data.reentryEnabled));
+      setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
       setPlayers(data.players || []);
     }
   }, [initData]);
@@ -45,7 +48,15 @@ export default function TMAEliminationsPage() {
     return () => window.clearTimeout(timeout);
   }, [fetchPlayers]);
 
+  const tableOptions = useMemo(
+    () => Array.from({ length: tablesCount }, (_, index) => index + 1),
+    [tablesCount],
+  );
+  const selectedTableNumber = tableFilter ? Number(tableFilter) : null;
   const activePlayers = players.filter(p => p.status === "active");
+  const visibleActivePlayers = selectedTableNumber
+    ? activePlayers.filter((player) => player.table === selectedTableNumber)
+    : activePlayers;
   const canAskForReentry = Boolean(
     eliminatedPlayer &&
     reentryEnabled &&
@@ -61,6 +72,14 @@ export default function TMAEliminationsPage() {
     setIsMulti(false);
     setSearch("");
     setStep(isBounty ? 1 : 2);
+  };
+
+  const returnToEliminationsList = () => {
+    setStep(0);
+    setEliminatedPlayer(null);
+    setSelectedKillers([]);
+    setIsMulti(false);
+    setSearch("");
   };
 
   const toggleKiller = (p: Player) => {
@@ -181,6 +200,22 @@ export default function TMAEliminationsPage() {
         <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl text-sm mb-4">
           Нажмите на игрока, чтобы зафиксировать его вылет из турнира.
         </div>
+
+        <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-4">
+          Фильтр по столу
+          <select
+            className="mt-1 w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
+            value={tableFilter}
+            onChange={(event) => setTableFilter(event.target.value)}
+          >
+            <option value="">Все столы</option>
+            {tableOptions.map((tableNumber) => (
+              <option key={tableNumber} value={tableNumber}>
+                Стол {tableNumber}
+              </option>
+            ))}
+          </select>
+        </label>
         
         {lastElimId && (
           <button onClick={handleUndo} className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-hint-color)] p-3 rounded-lg flex items-center justify-center gap-2 mb-4">
@@ -189,7 +224,7 @@ export default function TMAEliminationsPage() {
         )}
 
         <div className="space-y-2">
-          {activePlayers.map(p => (
+          {visibleActivePlayers.map(p => (
             <button 
               key={p.id} 
               onClick={() => startElimination(p)}
@@ -198,16 +233,29 @@ export default function TMAEliminationsPage() {
               🟢 {p.name}
             </button>
           ))}
-          {activePlayers.length === 0 && <div className="text-center text-gray-500 py-10">Все выбыли</div>}
+          {visibleActivePlayers.length === 0 && <div className="text-center text-gray-500 py-10">{selectedTableNumber ? "Нет активных игроков за этим столом" : "Все выбыли"}</div>}
         </div>
       </div>
     );
   }
 
   if (step === 1) {
-    const filtered = activePlayers.filter(p => p.id !== eliminatedPlayer?.id && p.name.toLowerCase().includes(search.toLowerCase()));
+    const filtered = activePlayers.filter(
+      (p) =>
+        p.id !== eliminatedPlayer?.id &&
+        (!selectedTableNumber || p.table === eliminatedPlayer?.table) &&
+        p.name.toLowerCase().includes(search.toLowerCase()),
+    );
     return (
       <div className="space-y-4">
+        <button
+          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
+          type="button"
+          onClick={returnToEliminationsList}
+        >
+          <ChevronLeft size={18} /> Назад к списку
+        </button>
+
         <h2 className="text-lg font-bold">Кто выбил: <span className="text-red-400">{eliminatedPlayer?.name}</span>?</h2>
         
         <div className="relative">
@@ -286,7 +334,7 @@ export default function TMAEliminationsPage() {
         </div>
 
         <button 
-          onClick={() => { setStep(0); setEliminatedPlayer(null); setSelectedKillers([]); }}
+          onClick={returnToEliminationsList}
           className="text-[var(--tg-theme-hint-color)] underline mt-4"
         >
           Отмена (назад)

@@ -1,61 +1,46 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
-import { z } from "zod";
+import { parseTournamentImportPayload } from "@/lib/admin/import-export";
+import {
+  saveDemoBlindLevels,
+  saveDemoExtras,
+  saveDemoTimerState,
+  saveDemoTournamentSettings,
+} from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-
-const importSchema = z.object({
-  tournament: z.object({
-    name: z.string().trim().min(1).max(80),
-    logoUrl: z.string().url().nullable().optional(),
-    startingStack: z.number().int().positive(),
-    registrationMinutes: z.number().int().min(0).max(1440),
-    registrationStatus: z.enum(["open", "closed"]).optional(),
-  }),
-  timerState: z.object({
-    status: z.enum(["not_started", "running", "paused", "break", "finished"]).optional(),
-    currentLevelIndex: z.number().int().min(0).optional(),
-    levelStartedAt: z.string().nullable().optional(),
-    pausedRemainingSeconds: z.number().int().min(0).nullable().optional(),
-    registrationClosesAt: z.string().nullable().optional(),
-    finishedAt: z.string().nullable().optional(),
-  }).optional(),
-  blindLevels: z.array(z.object({
-    levelOrder: z.number().int().positive(),
-    smallBlind: z.number().int().positive().nullable(),
-    bigBlind: z.number().int().positive().nullable(),
-    ante: z.number().int().nonnegative().nullable(),
-    reentryCloses: z.boolean().default(false),
-    durationSeconds: z.number().int().positive(),
-    isBreak: z.boolean(),
-    breakDurationSeconds: z.number().int().positive().nullable(),
-  })).min(1),
-});
-
-function normalizeImportedLevels(levels: z.infer<typeof importSchema>["blindLevels"]) {
-  let cutoffUsed = false;
-
-  return levels.map((level) => {
-    const reentryCloses = !level.isBreak && level.reentryCloses && !cutoffUsed;
-    if (reentryCloses) cutoffUsed = true;
-
-    return {
-      ...level,
-      ante: level.isBreak ? null : 0,
-      reentryCloses,
-    };
-  });
-}
+import { saveTournamentExtras } from "@/lib/tournament-extras";
 
 export async function POST(request: Request) {
-  const parsed = importSchema.safeParse(await request.json().catch(() => null));
+  const parsed = parseTournamentImportPayload(await request.json().catch(() => null));
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid import file" }, { status: 400 });
   }
 
   if (!hasPublicEnv()) {
+    const timerState = parsed.data.timerState;
+
+    await saveDemoTournamentSettings({
+      logoUrl: parsed.data.tournament.logoUrl ?? null,
+      name: parsed.data.tournament.name,
+      registrationMinutes: parsed.data.tournament.registrationMinutes,
+      registrationStatus: parsed.data.tournament.registrationStatus ?? "open",
+      startingStack: parsed.data.tournament.startingStack,
+    });
+    await saveDemoBlindLevels(parsed.data.blindLevels);
+    if (timerState) {
+      await saveDemoTimerState({
+        status: timerState.status ?? "not_started",
+        currentLevelIndex: timerState.currentLevelIndex ?? 0,
+        levelStartedAt: timerState.levelStartedAt ?? null,
+        pausedRemainingSeconds: timerState.pausedRemainingSeconds ?? null,
+        registrationClosesAt: timerState.registrationClosesAt ?? null,
+        finishedAt: timerState.finishedAt ?? null,
+      });
+    }
+    await saveDemoExtras(parsed.data.extrasPatch);
     return NextResponse.json({ ok: true, demo: true });
   }
 
@@ -89,12 +74,12 @@ export async function POST(request: Request) {
 
   await supabase.from("blind_levels").delete().eq("tournament_id", tournament.id);
   await supabase.from("blind_levels").insert(
-    normalizeImportedLevels(parsed.data.blindLevels).map((level) => ({
+    parsed.data.blindLevels.map((level) => ({
       tournament_id: tournament.id,
       level_order: level.levelOrder,
       small_blind: level.isBreak ? null : level.smallBlind,
       big_blind: level.isBreak ? null : level.bigBlind,
-      ante: level.isBreak ? null : 0,
+      ante: level.isBreak ? null : level.ante,
       reentry_closes: level.isBreak ? false : level.reentryCloses,
       duration_seconds: level.durationSeconds,
       is_break: level.isBreak,
@@ -115,6 +100,7 @@ export async function POST(request: Request) {
     })
     .eq("tournament_id", tournament.id);
 
+  await saveTournamentExtras(parsed.data.extrasPatch, "/admin/settings");
   await broadcastPublicState(tournament.public_token as string);
   revalidatePath("/admin/settings");
   revalidatePath("/admin/blinds");

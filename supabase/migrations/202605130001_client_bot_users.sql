@@ -6,8 +6,9 @@ create table if not exists public.client_bot_users (
   first_name text,
   last_name text,
   display_name text,
+  pending_display_name text,
   state text not null default 'idle'
-    check (state in ('idle', 'awaiting_registration_code', 'awaiting_registration_name')),
+    check (state in ('idle', 'awaiting_registration_code', 'awaiting_registration_name', 'awaiting_nickname_confirmation', 'awaiting_registration_table')),
   registered_player_id text,
   registered_at timestamptz,
   created_at timestamptz not null default now(),

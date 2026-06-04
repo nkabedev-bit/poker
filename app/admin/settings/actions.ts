@@ -31,11 +31,13 @@ const SOUND_MIME_TYPES = new Set([
 
 const settingsSchema = z.object({
   addonChips: z.coerce.number().int().min(0),
+  addonEnabled: z.enum(["yes", "no"]).default("no"),
   addonMinutes: z.coerce.number().int().min(0),
   addonPrice: z.coerce.number().int().min(0),
   buyIn: z.coerce.number().int().min(0),
   isBounty: z.coerce.boolean().optional(),
   logoUrl: z.string().trim().url().or(z.literal("")).optional(),
+  maxAddons: z.coerce.number().int().min(1).default(1),
   maxPlayersPerTable: z.coerce.number().int().positive(),
   maxReentries: z.coerce.number().int().min(1).default(1),
   name: z.string().trim().min(1).max(80),
@@ -113,11 +115,13 @@ async function getLogoUpload(formData: FormData): Promise<LogoUploadPayload | nu
 export async function updateTournamentSettings(formData: FormData) {
   const parsed = settingsSchema.safeParse({
     addonChips: formData.get("addonChips"),
+    addonEnabled: formData.get("addonEnabled") === "yes" ? "yes" : "no",
     addonMinutes: formData.get("addonMinutes"),
     addonPrice: formData.get("addonPrice"),
     buyIn: formData.get("buyIn"),
     isBounty: formData.get("isBounty") === "on",
     logoUrl: formData.get("logoUrl"),
+    maxAddons: formData.get("maxAddons") ?? 1,
     maxPlayersPerTable: formData.get("maxPlayersPerTable"),
     maxReentries: formData.get("maxReentries") ?? 1,
     name: formData.get("name"),
@@ -176,10 +180,12 @@ export async function updateTournamentSettings(formData: FormData) {
     await saveDemoExtras({
       settings: {
         addonChips: parsed.data.addonChips,
+        addonEnabled: parsed.data.addonEnabled === "yes",
         addonMinutes: parsed.data.addonMinutes,
         addonPrice: parsed.data.addonPrice,
         buyIn: parsed.data.buyIn,
         isBounty: Boolean(parsed.data.isBounty),
+        maxAddons: parsed.data.maxAddons,
         maxPlayersPerTable: parsed.data.maxPlayersPerTable,
         maxReentries: parsed.data.maxReentries,
         rebuyPrice: parsed.data.rebuyPrice,
@@ -271,10 +277,12 @@ export async function updateTournamentSettings(formData: FormData) {
     {
       settings: {
         addonChips: parsed.data.addonChips,
+        addonEnabled: parsed.data.addonEnabled === "yes",
         addonMinutes: parsed.data.addonMinutes,
         addonPrice: parsed.data.addonPrice,
         buyIn: parsed.data.buyIn,
         isBounty: Boolean(parsed.data.isBounty),
+        maxAddons: parsed.data.maxAddons,
         maxPlayersPerTable: parsed.data.maxPlayersPerTable,
         maxReentries: parsed.data.maxReentries,
         rebuyPrice: parsed.data.rebuyPrice,

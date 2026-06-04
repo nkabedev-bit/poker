@@ -12,7 +12,7 @@ import {
   getBlindAlertPlayback,
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
-import type { BlindAlertSound, PublicTournamentState } from "@/lib/timer/types";
+import type { BlindAlertSound, PublicTournamentState, TournamentPlayer } from "@/lib/timer/types";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { TimerDisplay } from "@/components/public/timer-display";
 
@@ -36,6 +36,8 @@ type GeneratedBlindAlertSound = Exclude<BlindAlertSound, "custom" | "off">;
 
 const CURSOR_IDLE_HIDE_MS = 2500;
 const PUBLIC_PLAYERS_LIMIT = 28;
+const PUBLIC_TABLE_ROTATION_MS = 20_000;
+const FINAL_TABLE_ACTIVE_PLAYERS = 7;
 const MIN_PUBLIC_PLAYER_NAME_FONT_SIZE = 7;
 const MIN_PUBLIC_PLAYER_NAME_SCALE = 0.48;
 const PUBLIC_PLAYER_NAME_FIT_SAFETY = 0.985;
@@ -68,6 +70,40 @@ function getPublicPlayersDensity(count: number) {
   if (count <= 13) return "roomy";
   if (count <= 21) return "cozy";
   return "compact";
+}
+
+function getPublicPlayerItemClassName({
+  isBounty,
+  isEliminated,
+}: {
+  isBounty: boolean;
+  isEliminated: boolean;
+}) {
+  const classes = [];
+  if (!isBounty) classes.push("public-player-mini-list-item--name-only");
+  if (isEliminated) classes.push("public-player-mini-list-item--eliminated");
+  return classes.length > 0 ? classes.join(" ") : undefined;
+}
+
+export function getRotatingPublicTableNumbers(
+  players: TournamentPlayer[],
+  tablesCount: number,
+) {
+  const safeTablesCount = Math.max(1, Math.trunc(tablesCount || 1));
+  const activeTableNumbers = new Set<number>();
+
+  for (const player of players) {
+    if (player.status !== "active") continue;
+    if (!Number.isInteger(player.table)) continue;
+    if (player.table < 1 || player.table > safeTablesCount) continue;
+
+    activeTableNumbers.add(player.table);
+  }
+
+  const tableNumbers = Array.from({ length: safeTablesCount }, (_, index) => index + 1)
+    .filter((tableNumber) => activeTableNumbers.has(tableNumber));
+
+  return tableNumbers.length > 0 ? tableNumbers : [1];
 }
 
 function PublicPlayerName({ name }: { name: string }) {
@@ -252,6 +288,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   const volumeRef = useRef(7);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isCursorHidden, setIsCursorHidden] = useState(false);
+  const [displayedTableIndex, setDisplayedTableIndex] = useState(0);
   const audioContextRef = useRef<AudioContext | null>(null);
   const boardRef = useRef<HTMLElement>(null);
   const cursorHideTimeoutRef = useRef<number | null>(null);
@@ -382,13 +419,61 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   }, [current, remainingSeconds, state.blindLevels, currentLevelIndex]);
   const activePlayers = state.extras.players.filter((player) => player.status === "active");
   const eliminatedPlayers = state.extras.players.filter((player) => player.status === "eliminated");
-  const visibleActivePlayers = activePlayers.slice(0, PUBLIC_PLAYERS_LIMIT);
-  const playersDensity = getPublicPlayersDensity(visibleActivePlayers.length);
+  const tablesCount = Math.max(1, Math.trunc(state.extras.settings.tablesCount || 1));
+  const rotatingTableNumbers = useMemo(
+    () => getRotatingPublicTableNumbers(state.extras.players, tablesCount),
+    [state.extras.players, tablesCount],
+  );
+  const displayedTableNumber =
+    rotatingTableNumbers[displayedTableIndex % rotatingTableNumbers.length] ?? 1;
+  const isFinalTableMode = activePlayers.length <= FINAL_TABLE_ACTIVE_PLAYERS;
+  const playerOriginalOrder = new Map(
+    state.extras.players.map((player, index) => [player.id, index]),
+  );
+  const compareActivePublicPlayers = (a: TournamentPlayer, b: TournamentPlayer) =>
+    (a.table ?? Number.MAX_SAFE_INTEGER) - (b.table ?? Number.MAX_SAFE_INTEGER)
+    || (a.seat ?? Number.MAX_SAFE_INTEGER) - (b.seat ?? Number.MAX_SAFE_INTEGER)
+    || (playerOriginalOrder.get(a.id) ?? 0) - (playerOriginalOrder.get(b.id) ?? 0);
+  const compareEliminatedPublicPlayers = (a: TournamentPlayer, b: TournamentPlayer) =>
+    (a.finishPlace ?? Number.MAX_SAFE_INTEGER) - (b.finishPlace ?? Number.MAX_SAFE_INTEGER)
+    || (playerOriginalOrder.get(a.id) ?? 0) - (playerOriginalOrder.get(b.id) ?? 0);
+  const displayedPlayers = [
+    ...(isFinalTableMode
+      ? activePlayers
+      : activePlayers.filter((player) => player.table === displayedTableNumber)
+    ).sort(compareActivePublicPlayers),
+    ...(isFinalTableMode
+      ? eliminatedPlayers.filter(
+        (player) =>
+          player.finishPlace !== null && player.finishPlace <= FINAL_TABLE_ACTIVE_PLAYERS,
+      )
+      : eliminatedPlayers.filter((player) => player.table === displayedTableNumber)
+    ).sort(compareEliminatedPublicPlayers),
+  ];
+  const visiblePublicPlayers = displayedPlayers.slice(0, PUBLIC_PLAYERS_LIMIT);
+  const playersDensity = getPublicPlayersDensity(visiblePublicPlayers.length);
+  const publicPlayersTitle = isFinalTableMode
+    ? "🏆 ФИНАЛЬНЫЙ СТОЛ"
+    : `НОМЕР СТОЛА ${displayedTableNumber}`;
   const totalReentries = state.extras.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
+  const totalAddonChips = state.extras.players.reduce(
+    (sum, player) =>
+      sum + (player.addonChipsTotal ?? (player.addons || 0) * state.extras.settings.addonChips),
+    0,
+  );
   const totalChips =
     state.extras.players.length > 0
       ? (state.extras.players.length + totalReentries) * state.tournament.startingStack
+        + totalAddonChips
       : state.tournament.startingStack;
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setDisplayedTableIndex((index) => (index + 1) % rotatingTableNumbers.length);
+    }, PUBLIC_TABLE_ROTATION_MS);
+
+    return () => window.clearInterval(interval);
+  }, [rotatingTableNumbers.length]);
 
   async function toggleFullscreen() {
     if (document.fullscreenElement) {
@@ -611,14 +696,17 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
             <span>🎯 Активные <strong>{activePlayers.length}</strong></span>
             <span>💀 Выбыли <strong>{eliminatedPlayers.length}</strong></span>
           </div>
-          <div className="public-final-table">🏆 ФИНАЛЬНЫЙ СТОЛ</div>
+          <div className="public-final-table">{publicPlayersTitle}</div>
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
-            {visibleActivePlayers.map((player) => (
+            {visiblePublicPlayers.map((player) => (
               <div
-                className={isBounty ? undefined : "public-player-mini-list-item--name-only"}
+                className={getPublicPlayerItemClassName({
+                  isBounty,
+                  isEliminated: player.status === "eliminated",
+                })}
                 key={player.id}
               >
-                {isBounty ? <span>🎯 {formatBountyCount(player.bountyCount)}</span> : null}
+                {isBounty ? <span>💰 {formatBountyCount(player.bountyCount)}</span> : null}
                 <PublicPlayerName name={player.name} />
               </div>
             ))}

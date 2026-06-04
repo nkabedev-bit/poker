@@ -1969,11 +1969,21 @@ p {
   grid-template-columns: minmax(0, 1fr);
 }
 
+.public-player-mini-list div.public-player-mini-list-item--eliminated {
+  border-color: rgb(156 163 175 / 0.18);
+  background: rgb(107 114 128 / 0.16);
+}
+
 .public-player-mini-list span {
   color: var(--poker-gold);
   font-size: clamp(7px, 0.9vh, 8px);
   font-weight: 900;
   line-height: 1;
+}
+
+.public-player-mini-list div.public-player-mini-list-item--eliminated span,
+.public-player-mini-list div.public-player-mini-list-item--eliminated .public-player-name {
+  color: #9ca3af;
 }
 
 .public-player-name-frame {

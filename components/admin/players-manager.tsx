@@ -12,6 +12,7 @@ type PlayersManagerProps = {
 function newPlayer(startingStack: number): TournamentPlayer {
   return {
     addons: 0,
+    addonChipsTotal: 0,
     bountyCount: 0,
     finishPlace: null,
     id: crypto.randomUUID(),

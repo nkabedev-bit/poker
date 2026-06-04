@@ -52,8 +52,11 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     isBounty: extras.settings.isBounty,
+    addonEnabled: extras.settings.addonEnabled,
+    maxAddons: extras.settings.maxAddons,
     maxReentries: extras.settings.maxReentries,
     players: extras.players || [],
+    tablesCount: extras.settings.tablesCount,
     reentryAvailable: extras.settings.reentryEnabled
       ? isReentryAvailable(timerState, blindLevels, new Date())
       : false,
@@ -88,6 +91,7 @@ export async function POST(request: Request) {
     status: "active" as const,
     rebuys: 0,
     addons: 0,
+    addonChipsTotal: 0,
     bountyCount: 0,
     finishPlace: null,
   };

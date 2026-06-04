@@ -44,6 +44,7 @@ export function SettingsForm({
   const [soundFile, setSoundFile] = useState<File | null>(null);
   const [soundError, setSoundError] = useState<string | null>(null);
   const [reentryEnabled, setReentryEnabled] = useState(settings.reentryEnabled);
+  const [addonEnabled, setAddonEnabled] = useState(settings.addonEnabled);
 
   function updateLogoUpload(file: File | undefined) {
     setLogoUpload(null);
@@ -159,6 +160,32 @@ export function SettingsForm({
               pattern="[0-9]*"
               type="number"
               defaultValue={settings.maxReentries}
+            />
+          </label>
+        ) : null}
+        <label>
+          Добавить аддон
+          <select
+            aria-label="Добавить аддон"
+            name="addonEnabled"
+            value={addonEnabled ? "yes" : "no"}
+            onChange={(event) => setAddonEnabled(event.target.value === "yes")}
+          >
+            <option value="no">Нет</option>
+            <option value="yes">Да</option>
+          </select>
+        </label>
+        {addonEnabled ? (
+          <label>
+            Кол-во аддонов
+            <input
+              aria-label="Кол-во аддонов"
+              inputMode="numeric"
+              min={1}
+              name="maxAddons"
+              pattern="[0-9]*"
+              type="number"
+              defaultValue={settings.maxAddons}
             />
           </label>
         ) : null}

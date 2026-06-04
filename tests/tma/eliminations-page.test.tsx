@@ -132,4 +132,68 @@ describe("TMAEliminationsPage", () => {
     });
     expect(screen.queryByText(/использует ли игрок ре-энтри/i)).toBeNull();
   });
+
+  it("filters eliminations and bounty killers by selected table", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/tma/players") {
+        return Response.json({
+          isBounty: true,
+          tablesCount: 2,
+          players: [
+            { id: "player-1", name: "Table 1 Out", table: 1, status: "active" },
+            { id: "player-2", name: "Table 1 Killer", table: 1, status: "active" },
+            { id: "player-3", name: "Table 2 Killer", table: 2, status: "active" },
+          ],
+        });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    await screen.findByRole("button", { name: /table 1 out/i });
+    expect(screen.getByRole("button", { name: /table 2 killer/i })).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("Фильтр по столу"), { target: { value: "1" } });
+
+    expect(screen.getByRole("button", { name: /table 1 out/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /table 2 killer/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /table 1 out/i }));
+    await screen.findByText(/кто выбил/i);
+
+    expect(screen.getByRole("button", { name: /table 1 killer/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /table 2 killer/i })).toBeNull();
+  });
+
+  it("returns to the eliminations list when the wrong player was selected", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/tma/players") {
+          return Response.json({
+            isBounty: true,
+            players: [
+              { id: "player-1", name: "Wrong Player", status: "active" },
+              { id: "player-2", name: "Right Player", status: "active" },
+            ],
+          });
+        }
+
+        return Response.json({ ok: true });
+      }),
+    );
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /wrong player/i }));
+    await screen.findByText(/кто выбил/i);
+
+    fireEvent.click(screen.getByRole("button", { name: /назад к списку/i }));
+
+    await screen.findByRole("button", { name: /right player/i });
+    expect(screen.queryByText(/кто выбил/i)).toBeNull();
+  });
 });

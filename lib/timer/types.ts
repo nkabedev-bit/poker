@@ -47,6 +47,7 @@ export type TournamentPlayer = {
   seat: number | null;
   rebuys: number;
   addons: number;
+  addonChipsTotal?: number;
   bountyCount: number;
   status: "active" | "eliminated";
   finishPlace: number | null;
@@ -63,6 +64,7 @@ export type TournamentExtras = {
   };
   settings: {
     addonChips: number;
+    addonEnabled: boolean;
     addonMinutes: number;
     addonPrice: number;
     blindAlertCustomSoundName: string | null;
@@ -72,6 +74,7 @@ export type TournamentExtras = {
     buyIn: number;
     isBounty: boolean;
     maxPlayersPerTable: number;
+    maxAddons: number;
     maxReentries: number;
     rebuyPrice: number;
     reentryEnabled: boolean;

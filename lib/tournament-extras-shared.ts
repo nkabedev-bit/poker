@@ -24,6 +24,7 @@ export const defaultTournamentExtras: TournamentExtras = {
   },
   settings: {
     addonChips: 15000,
+    addonEnabled: false,
     addonMinutes: 0,
     addonPrice: 150,
     blindAlertCustomSoundName: null,
@@ -33,6 +34,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     buyIn: 100,
     isBounty: false,
     maxPlayersPerTable: 10,
+    maxAddons: 1,
     maxReentries: 1,
     rebuyPrice: 100,
     reentryEnabled: false,
