@@ -8,6 +8,7 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const params = await searchParams;
   const hasError = params.error === "invalid_credentials";
+  const hasMissingEnv = params.error === "missing_env";
 
   return (
     <main className="login-page">
@@ -35,6 +36,11 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
               required
             />
           </label>
+          {hasMissingEnv ? (
+            <p className="form-error">
+              Supabase env vars не настроены. Заполни .env.local, чтобы войти в админку.
+            </p>
+          ) : null}
           {hasError ? (
             <p className="form-error">Неверный email или пароль.</p>
           ) : null}
