@@ -94,10 +94,11 @@ export function getRotatingPublicTableNumbers(
 
   for (const player of players) {
     if (player.status !== "active") continue;
-    if (!Number.isInteger(player.table)) continue;
-    if (player.table < 1 || player.table > safeTablesCount) continue;
+    const tableNumber = player.table;
+    if (tableNumber === null || !Number.isInteger(tableNumber)) continue;
+    if (tableNumber < 1 || tableNumber > safeTablesCount) continue;
 
-    activeTableNumbers.add(player.table);
+    activeTableNumbers.add(tableNumber);
   }
 
   const tableNumbers = Array.from({ length: safeTablesCount }, (_, index) => index + 1)
