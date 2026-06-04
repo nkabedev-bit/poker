@@ -1,5 +1,22 @@
 import { google, type sheets_v4 } from "googleapis";
+import {
+  buildClientBotProfileSheetRow,
+  CLIENT_BOT_PROFILE_SHEET_HEADERS,
+  type ClientBotProfileAnswers,
+} from "@/lib/client-bot/registration";
 import type { PtsStandingRow } from "@/lib/pts-rating";
+
+const ELIMINATION_SHEET_HEADERS = [
+  "Вылетел",
+  "Кто получает баунти",
+  "Время вылета",
+  "Ре-энтри",
+  "",
+  "Место",
+  "Игрок",
+  "PTS",
+  "Кол-во баунти",
+];
 
 function getTodaySheetName() {
   const d = new Date();
@@ -26,6 +43,7 @@ async function getOrCreateSheet(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   sheetName: string,
+  headers = ELIMINATION_SHEET_HEADERS,
 ) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const exists = meta.data.sheets?.some(
@@ -45,31 +63,43 @@ async function getOrCreateSheet(
         },
       });
 
-      await updateSheetHeaders(sheets, spreadsheetId, sheetName);
+      await updateSheetHeaders(sheets, spreadsheetId, sheetName, headers);
     } catch {
       // Игнорируем ошибку, если лист уже был создан параллельно
       console.log("Sheet creation race condition handled");
     }
   }
 
-  await updateSheetHeaders(sheets, spreadsheetId, sheetName);
+  await updateSheetHeaders(sheets, spreadsheetId, sheetName, headers);
 }
 
 async function updateSheetHeaders(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   sheetName: string,
+  headers = ELIMINATION_SHEET_HEADERS,
 ) {
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!A1:I1`,
+    range: `'${sheetName}'!A1:${getSheetColumnName(headers.length)}1`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [
-        ["Вылетел", "Кто получает баунти", "Время вылета", "Ре-энтри", "", "Место", "Игрок", "PTS", "Кол-во баунти"],
-      ],
+      values: [headers],
     },
   });
+}
+
+function getSheetColumnName(columnNumber: number) {
+  let value = Math.max(1, Math.floor(columnNumber));
+  let name = "";
+
+  while (value > 0) {
+    const remainder = (value - 1) % 26;
+    name = String.fromCharCode(65 + remainder) + name;
+    value = Math.floor((value - 1) / 26);
+  }
+
+  return name;
 }
 
 export async function appendEliminationRow(data: {
@@ -125,6 +155,48 @@ export async function appendEliminationRow(data: {
   await updatePtsStandingsRows(sheets, spreadsheetId, sheetName, data.standingsRows);
 
   return { rowId, sheetName };
+}
+
+export async function appendClientBotProfileRow(data: {
+  answers: ClientBotProfileAnswers;
+  submittedAt?: Date;
+  telegramId: number;
+  username: string | null;
+}) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    console.warn("Google Sheets not configured");
+    return { sheetName: "анкеты" };
+  }
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const sheetName = "анкеты";
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+  await getOrCreateSheet(
+    sheets,
+    spreadsheetId,
+    sheetName,
+    CLIENT_BOT_PROFILE_SHEET_HEADERS,
+  );
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `'${sheetName}'!A:${getSheetColumnName(CLIENT_BOT_PROFILE_SHEET_HEADERS.length)}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: [
+        buildClientBotProfileSheetRow({
+          answers: data.answers,
+          submittedAt: data.submittedAt ?? new Date(),
+          telegramId: data.telegramId,
+          username: data.username,
+        }),
+      ],
+    },
+  });
+
+  return { sheetName };
 }
 
 async function updatePtsStandingsRows(

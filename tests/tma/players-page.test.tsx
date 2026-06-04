@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TMAPlayersPage from "@/app/tma/players/page";
 
@@ -9,6 +9,7 @@ describe("TMAPlayersPage", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it("filters players by selected table", async () => {
@@ -79,5 +80,35 @@ describe("TMAPlayersPage", () => {
       );
     });
     await waitFor(() => expect(screen.getByText("3")).toBeTruthy());
+  });
+
+  it("refreshes the players list every 5 seconds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          players: [
+            { id: "player-1", name: "Deleted Elsewhere", table: 1, seat: 1, stack: 1000, status: "active" },
+          ],
+        }),
+      )
+      .mockResolvedValue(Response.json({ players: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Deleted Elsewhere")).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(screen.queryByText("Deleted Elsewhere")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

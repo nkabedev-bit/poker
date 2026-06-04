@@ -1,10 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { useVisiblePolling } from "../use-visible-polling";
 import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
 type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null };
+type PlayersResponse = {
+  isBounty?: boolean;
+  maxReentries?: number;
+  players?: Player[];
+  reentryAvailable?: boolean;
+  reentryEnabled?: boolean;
+  tablesCount?: number;
+};
+
+function createClientRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+}
 
 export default function TMAEliminationsPage() {
   const { initData } = useTMA();
@@ -21,21 +34,31 @@ export default function TMAEliminationsPage() {
   const [selectedKillers, setSelectedKillers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
   const [isMulti, setIsMulti] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastElimId, setLastElimId] = useState<string | null>(null);
   const [lastSheetInfo, setLastSheetInfo] = useState<{rowId: number, sheetName: string} | null>(null);
+  const confirmInFlightRef = useRef(false);
+  const submitInFlightRef = useRef(false);
+  const clientRequestIdRef = useRef<string | null>(null);
+
+  const applyPlayersResponse = useCallback((data: PlayersResponse) => {
+    setIsBounty(Boolean(data.isBounty));
+    setMaxReentries(Number(data.maxReentries) || 1);
+    setReentryAvailable(data.reentryAvailable !== false);
+    setReentryEnabled(Boolean(data.reentryEnabled));
+    setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
+    setPlayers(data.players || []);
+  }, []);
 
   const fetchPlayers = useCallback(async () => {
     const res = await fetch("/api/tma/players", { headers: { "X-Telegram-Init-Data": initData } });
     if (res.ok) {
-      const data = await res.json();
-      setIsBounty(Boolean(data.isBounty));
-      setMaxReentries(Number(data.maxReentries) || 1);
-      setReentryAvailable(data.reentryAvailable !== false);
-      setReentryEnabled(Boolean(data.reentryEnabled));
-      setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
-      setPlayers(data.players || []);
+      const data = (await res.json()) as PlayersResponse;
+      applyPlayersResponse(data);
+      return data;
     }
-  }, [initData]);
+    return null;
+  }, [applyPlayersResponse, initData]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -47,6 +70,7 @@ export default function TMAEliminationsPage() {
     }, 0);
     return () => window.clearTimeout(timeout);
   }, [fetchPlayers]);
+  useVisiblePolling(() => void fetchPlayers(), step === 0);
 
   const tableOptions = useMemo(
     () => Array.from({ length: tablesCount }, (_, index) => index + 1),
@@ -57,34 +81,46 @@ export default function TMAEliminationsPage() {
   const visibleActivePlayers = selectedTableNumber
     ? activePlayers.filter((player) => player.table === selectedTableNumber)
     : activePlayers;
-  const canAskForReentry = Boolean(
-    eliminatedPlayer &&
-    reentryEnabled &&
-    reentryAvailable &&
-    (eliminatedPlayer.rebuys ?? 0) < maxReentries,
+  const canPlayerUseReentry = useCallback(
+    (player: Player | null, data?: PlayersResponse | null) => {
+      if (!player) return false;
+
+      const latestMaxReentries = Number(data?.maxReentries ?? maxReentries) || 1;
+      const latestReentryEnabled = data ? Boolean(data.reentryEnabled) : reentryEnabled;
+      const latestReentryAvailable = data ? data.reentryAvailable !== false : reentryAvailable;
+
+      return (
+        latestReentryEnabled &&
+        latestReentryAvailable &&
+        (player.rebuys ?? 0) < latestMaxReentries
+      );
+    },
+    [maxReentries, reentryAvailable, reentryEnabled],
   );
 
   const startElimination = (p: Player) => {
     const tg = getTelegramWebApp();
-    tg?.HapticFeedback.impactOccurred("medium");
+    tg?.HapticFeedback?.impactOccurred?.("medium");
     setEliminatedPlayer(p);
     setSelectedKillers([]);
     setIsMulti(false);
     setSearch("");
+    clientRequestIdRef.current = null;
     setStep(isBounty ? 1 : 2);
   };
 
-  const returnToEliminationsList = () => {
+  const returnToEliminationsList = useCallback(() => {
     setStep(0);
     setEliminatedPlayer(null);
     setSelectedKillers([]);
     setIsMulti(false);
     setSearch("");
-  };
+    clientRequestIdRef.current = null;
+  }, []);
 
   const toggleKiller = (p: Player) => {
     const tg = getTelegramWebApp();
-    tg?.HapticFeedback.impactOccurred("light");
+    tg?.HapticFeedback?.impactOccurred?.("light");
     if (!isMulti) {
       setSelectedKillers([p]);
       setStep(2); // Go straight to confirm
@@ -98,13 +134,19 @@ export default function TMAEliminationsPage() {
   };
 
   const submitElimination = useCallback(async (usesReentry: boolean) => {
+    if (!eliminatedPlayer || submitInFlightRef.current) return;
+
+    submitInFlightRef.current = true;
+    setIsSubmitting(true);
     const tg = getTelegramWebApp();
-    tg?.MainButton.showProgress();
+    tg?.MainButton?.showProgress?.();
     
     try {
       const share = selectedKillers.length > 0 ? 1 / selectedKillers.length : 0;
+      clientRequestIdRef.current ||= createClientRequestId();
       
       const payload = {
+        client_request_id: clientRequestIdRef.current,
         eliminated_id: eliminatedPlayer!.id,
         bounty_split: isBounty && selectedKillers.length > 1,
         killers: isBounty ? selectedKillers.map(k => ({ id: k.id, name: k.name, share })) : [],
@@ -119,7 +161,7 @@ export default function TMAEliminationsPage() {
 
       if (res.ok) {
         const data = await res.json();
-        tg?.HapticFeedback.notificationOccurred("success");
+        tg?.HapticFeedback?.notificationOccurred?.("success");
         
         localStorage.setItem("tma_last_elim", data.elimination.id);
         if (data.sheetsRowId) {
@@ -132,15 +174,48 @@ export default function TMAEliminationsPage() {
         setStep(0);
         setEliminatedPlayer(null);
         setSelectedKillers([]);
+        clientRequestIdRef.current = null;
         void fetchPlayers();
       } else {
         tg?.showAlert("Ошибка сохранения");
       }
     } finally {
-      tg?.MainButton.hideProgress();
-      tg?.MainButton.hide();
+      submitInFlightRef.current = false;
+      setIsSubmitting(false);
+      tg?.MainButton?.hideProgress?.();
+      tg?.MainButton?.hide?.();
     }
   }, [eliminatedPlayer, fetchPlayers, initData, isBounty, selectedKillers]);
+
+  const confirmElimination = useCallback(async () => {
+    if (confirmInFlightRef.current || submitInFlightRef.current) return;
+
+    confirmInFlightRef.current = true;
+    setIsSubmitting(true);
+    try {
+      const data = await fetchPlayers();
+      const latestPlayer =
+        data?.players?.find((player) => player.id === eliminatedPlayer?.id) ?? eliminatedPlayer;
+
+      if (data && latestPlayer?.status !== "active") {
+        const tg = getTelegramWebApp();
+        tg?.showAlert("Игрок уже выбыл");
+        returnToEliminationsList();
+        return;
+      }
+
+      if (canPlayerUseReentry(latestPlayer, data)) {
+        setEliminatedPlayer(latestPlayer);
+        setStep(3);
+        return;
+      }
+
+      await submitElimination(false);
+    } finally {
+      confirmInFlightRef.current = false;
+      if (!submitInFlightRef.current) setIsSubmitting(false);
+    }
+  }, [canPlayerUseReentry, eliminatedPlayer, fetchPlayers, returnToEliminationsList, submitElimination]);
 
   const handleUndo = async () => {
     const tg = getTelegramWebApp();
@@ -151,7 +226,7 @@ export default function TMAEliminationsPage() {
           headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
           body: JSON.stringify(lastSheetInfo || {})
         });
-        tg.HapticFeedback.notificationOccurred("success");
+        tg.HapticFeedback?.notificationOccurred?.("success");
         localStorage.removeItem("tma_last_elim");
         localStorage.removeItem("tma_last_elim_sheet");
         setLastElimId(null);
@@ -161,35 +236,37 @@ export default function TMAEliminationsPage() {
     });
   };
 
+  const disabledClass = isSubmitting ? " opacity-60 cursor-not-allowed" : "";
+
   // Telegram MainButton integration
   useEffect(() => {
     const tg = getTelegramWebApp();
-    if (!tg) return;
+    const mainButton = tg?.MainButton;
+    if (!mainButton) return;
 
     if (step === 1 && isBounty && isMulti) {
-      tg.MainButton.setText(`ДАЛЕЕ (${selectedKillers.length})`);
-      tg.MainButton.show();
-      const onClick = () => setStep(2);
-      tg.MainButton.onClick(onClick);
-      return () => { tg.MainButton.offClick(onClick); tg.MainButton.hide(); };
+      mainButton.setText(isSubmitting ? "СОХРАНЯЕМ..." : `ДАЛЕЕ (${selectedKillers.length})`);
+      mainButton.show();
+      const onClick = () => {
+        if (!isSubmitting) setStep(2);
+      };
+      mainButton.onClick(onClick);
+      return () => { mainButton.offClick(onClick); mainButton.hide(); };
     } 
     
     if (step === 2) {
-      tg.MainButton.setText("✅ ПОДТВЕРДИТЬ ВЫБЫВАНИЕ");
-      tg.MainButton.show();
+      mainButton.setText(isSubmitting ? "СОХРАНЯЕМ..." : "✅ ПОДТВЕРДИТЬ ВЫБЫВАНИЕ");
+      mainButton.show();
       const onClick = () => {
-        if (canAskForReentry) {
-          setStep(3);
-        } else {
-          void submitElimination(false);
-        }
+        if (isSubmitting) return;
+        void confirmElimination();
       };
-      tg.MainButton.onClick(onClick);
-      return () => { tg.MainButton.offClick(onClick); tg.MainButton.hide(); };
+      mainButton.onClick(onClick);
+      return () => { mainButton.offClick(onClick); mainButton.hide(); };
     }
 
-    tg.MainButton.hide();
-  }, [step, isBounty, isMulti, selectedKillers, eliminatedPlayer, canAskForReentry, submitElimination]);
+    mainButton.hide();
+  }, [step, isBounty, isMulti, selectedKillers, eliminatedPlayer, confirmElimination, isSubmitting]);
 
   if (step === 0) {
     return (
@@ -218,7 +295,13 @@ export default function TMAEliminationsPage() {
         </label>
         
         {lastElimId && (
-          <button onClick={handleUndo} className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-hint-color)] p-3 rounded-lg flex items-center justify-center gap-2 mb-4">
+          <button
+            className={`w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-hint-color)] p-3 rounded-lg flex items-center justify-center gap-2 mb-4${disabledClass}`}
+            disabled={isSubmitting}
+            onClick={() => {
+              if (!isSubmitting) void handleUndo();
+            }}
+          >
             <Undo2 size={16} /> Отменить последнее выбывание
           </button>
         )}
@@ -226,9 +309,12 @@ export default function TMAEliminationsPage() {
         <div className="space-y-2">
           {visibleActivePlayers.map(p => (
             <button 
+              disabled={isSubmitting}
               key={p.id} 
-              onClick={() => startElimination(p)}
-              className="w-full text-left p-4 bg-[var(--tg-theme-secondary-bg-color)] rounded-lg font-semibold"
+              onClick={() => {
+                if (!isSubmitting) startElimination(p);
+              }}
+              className={`w-full text-left p-4 bg-[var(--tg-theme-secondary-bg-color)] rounded-lg font-semibold${disabledClass}`}
             >
               🟢 {p.name}
             </button>
@@ -249,9 +335,12 @@ export default function TMAEliminationsPage() {
     return (
       <div className="space-y-4">
         <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
+          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${disabledClass}`}
+          disabled={isSubmitting}
           type="button"
-          onClick={returnToEliminationsList}
+          onClick={() => {
+            if (!isSubmitting) returnToEliminationsList();
+          }}
         >
           <ChevronLeft size={18} /> Назад к списку
         </button>
@@ -271,14 +360,22 @@ export default function TMAEliminationsPage() {
 
         <div className="flex gap-2">
           <button 
-            onClick={() => setIsMulti(!isMulti)} 
-            className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}`}
+            disabled={isSubmitting}
+            onClick={() => {
+              if (!isSubmitting) setIsMulti(!isMulti);
+            }} 
+            className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}${disabledClass}`}
           >
             👥 Поделить баунти
           </button>
           <button 
-            onClick={() => { setSelectedKillers([]); setStep(2); }} 
-            className="flex-1 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm font-medium"
+            disabled={isSubmitting}
+            onClick={() => {
+              if (isSubmitting) return;
+              setSelectedKillers([]);
+              setStep(2);
+            }} 
+            className={`flex-1 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm font-medium${disabledClass}`}
           >
             🚫 Никто
           </button>
@@ -289,9 +386,12 @@ export default function TMAEliminationsPage() {
             const isSelected = selectedKillers.some(k => k.id === p.id);
             return (
               <button 
+                disabled={isSubmitting}
                 key={p.id} 
-                onClick={() => toggleKiller(p)}
-                className={`w-full text-left p-4 rounded-lg flex items-center justify-between ${isSelected ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)]"}`}
+                onClick={() => {
+                  if (!isSubmitting) toggleKiller(p);
+                }}
+                className={`w-full text-left p-4 rounded-lg flex items-center justify-between ${isSelected ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)]"}${disabledClass}`}
               >
                 <span>{p.name}</span>
                 {isMulti && (isSelected ? <CheckSquare size={18} /> : <Square size={18} />)}
@@ -333,9 +433,22 @@ export default function TMAEliminationsPage() {
           ) : null}
         </div>
 
+        <button
+          disabled={isSubmitting}
+          onClick={() => {
+            if (!isSubmitting) void confirmElimination();
+          }}
+          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+        >
+          {isSubmitting ? "Сохраняем..." : "Подтвердить выбывание"}
+        </button>
+
         <button 
-          onClick={returnToEliminationsList}
-          className="text-[var(--tg-theme-hint-color)] underline mt-4"
+          disabled={isSubmitting}
+          onClick={() => {
+            if (!isSubmitting) returnToEliminationsList();
+          }}
+          className={`text-[var(--tg-theme-hint-color)] underline mt-4${disabledClass}`}
         >
           Отмена (назад)
         </button>
@@ -353,21 +466,30 @@ export default function TMAEliminationsPage() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button
-            onClick={() => void submitElimination(true)}
-            className="p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold"
+            disabled={isSubmitting}
+            onClick={() => {
+              if (!isSubmitting) void submitElimination(true);
+            }}
+            className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
           >
-            Да
+            {isSubmitting ? "Сохраняем..." : "Да"}
           </button>
           <button
-            onClick={() => void submitElimination(false)}
-            className="p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold"
+            disabled={isSubmitting}
+            onClick={() => {
+              if (!isSubmitting) void submitElimination(false);
+            }}
+            className={`p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
           >
-            Нет
+            {isSubmitting ? "Сохраняем..." : "Нет"}
           </button>
         </div>
         <button
-          onClick={() => setStep(2)}
-          className="text-[var(--tg-theme-hint-color)] underline mt-4"
+          disabled={isSubmitting}
+          onClick={() => {
+            if (!isSubmitting) setStep(2);
+          }}
+          className={`text-[var(--tg-theme-hint-color)] underline mt-4${disabledClass}`}
         >
           Назад
         </button>

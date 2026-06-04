@@ -56,6 +56,7 @@ describe("PTS rating", () => {
 
   it("keeps a re-entry player active, skips finish place, and awards bounty shares", () => {
     const result = recordPtsElimination({
+      bountyChipAward: 200,
       eliminatedId: "b",
       isBounty: true,
       killers: [
@@ -75,6 +76,14 @@ describe("PTS rating", () => {
     });
     expect(result.players.find((p) => p.id === "a")?.bountyCount).toBe(0.5);
     expect(result.players.find((p) => p.id === "c")?.bountyCount).toBe(0.5);
+    expect(result.players.find((p) => p.id === "a")).toMatchObject({
+      bountyChipsTotal: 100,
+      stack: 10100,
+    });
+    expect(result.players.find((p) => p.id === "c")).toMatchObject({
+      bountyChipsTotal: 100,
+      stack: 10100,
+    });
   });
 
   it("assigns second place to final eliminated player, first place to survivor, and finishes tournament", () => {

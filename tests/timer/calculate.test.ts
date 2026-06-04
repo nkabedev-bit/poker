@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   calculateRemainingSeconds,
+  getBountyChipAward,
   getCurrentAndNextLevel,
   isReentryAvailable,
 } from "@/lib/timer/calculate";
@@ -167,5 +168,43 @@ describe("isReentryAvailable", () => {
 
   it("closes re-entry when the tournament is finished", () => {
     expect(isReentryAvailable(timerState(0, "finished"), cutoffLevels, new Date("2026-04-28T17:00:00Z"))).toBe(false);
+  });
+});
+
+describe("getBountyChipAward", () => {
+  const bountyLevels: BlindLevel[] = [
+    { ...levels[0], id: "l1", levelOrder: 1, bigBlind: 100 },
+    {
+      id: "break-1",
+      levelOrder: 2,
+      smallBlind: null,
+      bigBlind: null,
+      ante: null,
+      reentryCloses: false,
+      durationSeconds: 300,
+      isBreak: true,
+      breakDurationSeconds: 300,
+    },
+    { ...levels[1], id: "l2", levelOrder: 3, bigBlind: 200 },
+    {
+      id: "last-break",
+      levelOrder: 4,
+      smallBlind: null,
+      bigBlind: null,
+      ante: null,
+      reentryCloses: false,
+      durationSeconds: 300,
+      isBreak: true,
+      breakDurationSeconds: 300,
+    },
+    { ...levels[1], id: "l3", levelOrder: 5, bigBlind: 500 },
+  ];
+
+  it("awards two current big blinds before the last break", () => {
+    expect(getBountyChipAward(bountyLevels, 2)).toBe(400);
+  });
+
+  it("awards one current big blind after the last break", () => {
+    expect(getBountyChipAward(bountyLevels, 4)).toBe(500);
   });
 });

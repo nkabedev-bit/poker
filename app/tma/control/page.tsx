@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { useVisiblePolling } from "../use-visible-polling";
 import { Pause, Play, SkipBack, SkipForward, Square } from "lucide-react";
 import type { TimerState } from "@/lib/timer/types";
 
@@ -23,6 +24,7 @@ export default function TMAControlPage() {
     const timeout = window.setTimeout(() => void fetchState(), 0);
     return () => window.clearTimeout(timeout);
   }, [fetchState]);
+  useVisiblePolling(() => void fetchState());
 
   const confirmAction = () => {
     const tg = getTelegramWebApp();

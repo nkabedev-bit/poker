@@ -38,6 +38,7 @@ describe("TMAEliminationsPage", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
     delete window.Telegram;
   });
 
@@ -133,6 +134,119 @@ describe("TMAEliminationsPage", () => {
     expect(screen.queryByText(/использует ли игрок ре-энтри/i)).toBeNull();
   });
 
+  it("checks fresh re-entry state before confirming an elimination", async () => {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players") {
+        const firstLoad = fetchMock.mock.calls.filter(([url]) => String(url) === "/api/tma/players").length === 1;
+
+        return Response.json({
+          isBounty: false,
+          maxReentries: 1,
+          reentryAvailable: !firstLoad,
+          reentryEnabled: !firstLoad,
+          players: [{ id: "player-1", name: "Player 1", rebuys: 0, status: "active" }],
+        });
+      }
+
+      if (String(input) === "/api/tma/eliminations" && init?.method === "POST") {
+        return Response.json({ elimination: { id: "elim-1" } });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /player 1/i }));
+    await screen.findByText(/всё верно/i);
+
+    await waitFor(() => expect(mainButtonClick).toBeTypeOf("function"));
+    await act(async () => {
+      mainButtonClick?.();
+    });
+
+    await screen.findByText(/использует ли игрок ре-энтри/i);
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/tma/eliminations",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("submits only once when confirmation is tapped twice", async () => {
+    const postResolvers: Array<(response: Response) => void> = [];
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players") {
+        return Promise.resolve(
+          Response.json({
+            isBounty: false,
+            reentryAvailable: false,
+            players: [{ id: "player-1", name: "Player 1", status: "active" }],
+          }),
+        );
+      }
+
+      if (String(input) === "/api/tma/eliminations" && init?.method === "POST") {
+        return new Promise<Response>((resolve) => postResolvers.push(resolve));
+      }
+
+      return Promise.resolve(Response.json({ ok: true }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /player 1/i }));
+    await screen.findByText(/всё верно/i);
+
+    const confirmButton = screen.getByRole("button", { name: /подтвердить выбывание/i });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      const posts = fetchMock.mock.calls.filter(
+        ([input, init]) => String(input) === "/api/tma/eliminations" && init?.method === "POST",
+      );
+      expect(posts).toHaveLength(1);
+      expect(String(posts[0][1]?.body)).toContain('"client_request_id":');
+    });
+
+    postResolvers[0]?.(Response.json({ elimination: { id: "elim-1" } }));
+  });
+
+  it("opens the confirmation step when Telegram haptics are unavailable", async () => {
+    window.Telegram = {
+      WebApp: {
+        ...createTelegramWebApp(),
+        HapticFeedback: undefined,
+      } as unknown as TelegramWebApp,
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/tma/players") {
+          return Response.json({
+            isBounty: false,
+            players: [{ id: "player-1", name: "Player 1", status: "active" }],
+          });
+        }
+
+        return Response.json({ ok: true });
+      }),
+    );
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /player 1/i }));
+
+    await screen.findByText(/всё верно/i);
+  });
+
   it("filters eliminations and bounty killers by selected table", async () => {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === "/api/tma/players") {
@@ -195,5 +309,33 @@ describe("TMAEliminationsPage", () => {
 
     await screen.findByRole("button", { name: /right player/i });
     expect(screen.queryByText(/кто выбил/i)).toBeNull();
+  });
+
+  it("refreshes the eliminations list every 5 seconds on the list step", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        Response.json({
+          players: [{ id: "player-1", name: "Eliminated Elsewhere", status: "active" }],
+        }),
+      )
+      .mockResolvedValue(Response.json({ players: [] }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("button", { name: /eliminated elsewhere/i })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(screen.queryByRole("button", { name: /eliminated elsewhere/i })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

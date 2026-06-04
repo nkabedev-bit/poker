@@ -82,6 +82,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
 
         await auth.supabase.from("timer_state").update({
           status: "running",
+          current_level_index: 0,
           level_started_at: now.toISOString(),
           paused_remaining_seconds: null,
           registration_closes_at: registrationClosesAt?.toISOString() ?? null,
@@ -116,6 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
     } else if (action === "finish") {
       await auth.supabase.from("timer_state").update({
         status: "finished",
+        current_level_index: 0,
         finished_at: now.toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);

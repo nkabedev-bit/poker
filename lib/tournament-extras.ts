@@ -1,6 +1,7 @@
 import "server-only";
 
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -17,12 +18,15 @@ export {
   type TournamentExtrasPatch,
 } from "@/lib/tournament-extras-shared";
 
-export async function loadTournamentExtras(tournamentId?: string): Promise<TournamentExtras> {
+export async function loadTournamentExtras(
+  tournamentId?: string,
+  supabaseClient?: SupabaseClient,
+): Promise<TournamentExtras> {
   if (!hasPublicEnv() || !tournamentId) {
     return defaultTournamentExtras;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = supabaseClient ?? (await createSupabaseServerClient());
   const { data } = await supabase
     .from("tournament_extras")
     .select("data")
@@ -35,6 +39,7 @@ export async function loadTournamentExtras(tournamentId?: string): Promise<Tourn
 export async function saveTournamentExtras(
   patch: TournamentExtrasPatch,
   redirectTo: string,
+  supabaseClient?: SupabaseClient,
 ) {
   if (!hasPublicEnv()) {
     revalidatePath("/admin");
@@ -42,7 +47,7 @@ export async function saveTournamentExtras(
     return;
   }
 
-  const supabase = await createSupabaseServerClient();
+  const supabase = supabaseClient ?? (await createSupabaseServerClient());
   const { data: tournament } = await supabase
     .from("tournaments")
     .select("id, public_token")
@@ -51,7 +56,7 @@ export async function saveTournamentExtras(
 
   if (!tournament) return;
 
-  const current = await loadTournamentExtras(tournament.id as string);
+  const current = await loadTournamentExtras(tournament.id as string, supabase);
   const next = mergeTournamentExtras({
     ...current,
     ...patch,

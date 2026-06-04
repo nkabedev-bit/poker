@@ -122,6 +122,7 @@ export async function startTimer() {
 
   await updateTimerState({
     status: "running",
+    current_level_index: 0,
     level_started_at: now.toISOString(),
     paused_remaining_seconds: null,
     registration_closes_at: registrationClosesAt?.toISOString() ?? null,
@@ -250,6 +251,7 @@ export async function finishTournament() {
   console.log("finishTournament called");
   await updateTimerState({
     status: "finished",
+    current_level_index: 0,
     finished_at: new Date().toISOString(),
     paused_remaining_seconds: null,
   });

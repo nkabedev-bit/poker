@@ -88,6 +88,37 @@ export function getCurrentAndNextLevel(
   };
 }
 
+export function getBountyChipAward(
+  levels: BlindLevel[],
+  currentLevelIndex: number,
+): number {
+  const currentIndex = Math.max(0, Math.trunc(currentLevelIndex));
+  const lastBreakIndex = levels.findLastIndex((level) => level.isBreak);
+  const multiplier = lastBreakIndex !== -1 && currentIndex > lastBreakIndex ? 1 : 2;
+  const currentLevel = levels[currentIndex];
+  const currentBigBlind = currentLevel && !currentLevel.isBreak ? currentLevel.bigBlind : null;
+
+  if (currentBigBlind && currentBigBlind > 0) {
+    return currentBigBlind * multiplier;
+  }
+
+  for (let index = currentIndex - 1; index >= 0; index--) {
+    const level = levels[index];
+    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
+      return level.bigBlind * multiplier;
+    }
+  }
+
+  for (let index = currentIndex + 1; index < levels.length; index++) {
+    const level = levels[index];
+    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
+      return level.bigBlind * multiplier;
+    }
+  }
+
+  return 0;
+}
+
 export function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, "0");

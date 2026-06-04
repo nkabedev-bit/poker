@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TMAControlPage from "@/app/tma/control/page";
 import type { TimerState } from "@/lib/timer/types";
@@ -19,6 +19,7 @@ describe("TMAControlPage", () => {
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   function mockTimerFetch(timerState: TimerState) {
@@ -96,5 +97,36 @@ describe("TMAControlPage", () => {
     expect(screen.queryByText("ТАЙМЕР")).toBeNull();
     expect(screen.queryByText("ТЕКУЩИЕ БЛАЙНДЫ")).toBeNull();
     expect(screen.queryByText(/МБ:/i)).toBeNull();
+  });
+
+  it("refreshes timer controls every 5 seconds", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(Response.json({ timerState: pausedTimerState }))
+      .mockResolvedValue(
+        Response.json({
+          timerState: {
+            ...pausedTimerState,
+            status: "running",
+          },
+        }),
+      );
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAControlPage />);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+      await Promise.resolve();
+    });
+    expect(screen.getByRole("button", { name: /воспроизведение/i })).toBeTruthy();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
+    expect(screen.getByRole("button", { name: /пауза/i })).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

@@ -26,10 +26,10 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
   const id = (await params).id;
-  const extras = await loadTournamentExtras(t.id);
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
   const filtered = extras.players.filter((p) => p.id !== id);
 
-  await saveTournamentExtras({ players: filtered }, "/tma/players");
+  await saveTournamentExtras({ players: filtered }, "/tma/players", auth.supabase);
 
   return new NextResponse(null, { status: 204 });
 }
@@ -50,7 +50,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   const action = String(body.action ?? "");
 
   const id = (await params).id;
-  const extras = await loadTournamentExtras(t.id);
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
 
   if (action === "move_table") {
     const tableNumber = getTableNumber(body.table);
@@ -74,7 +74,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Player not found" }, { status: 404 });
     }
 
-    await saveTournamentExtras({ players }, "/tma/players");
+    await saveTournamentExtras({ players }, "/tma/players", auth.supabase);
 
     return NextResponse.json({ player: updatedPlayer });
   }
@@ -117,7 +117,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
   }
 
-  await saveTournamentExtras({ players }, "/tma/players");
+  await saveTournamentExtras({ players }, "/tma/players", auth.supabase);
 
   return NextResponse.json({ player: updatedPlayer });
 }

@@ -11,6 +11,7 @@ import { saveTournamentExtras } from "@/lib/tournament-extras";
 const playerSchema = z.object({
   addons: z.number().int().min(0),
   addonChipsTotal: z.number().int().min(0).optional(),
+  bountyChipsTotal: z.number().min(0).optional(),
   bountyCount: z.number().min(0),
   finishPlace: z.number().int().positive().nullable(),
   id: z.string(),

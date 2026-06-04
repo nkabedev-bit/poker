@@ -3,11 +3,14 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  getPublicChipBankTotal,
+  getPublicPlayerBadges,
   getRotatingPublicTableNumbers,
   getGeneratedBlindAlertAudioUrl,
   getPublicSoundIcon,
 } from "@/components/public/public-screen";
-import type { TournamentPlayer } from "@/lib/timer/types";
+import { defaultTournamentExtras } from "@/lib/tournament-extras-shared";
+import type { PublicTournamentState, TournamentPlayer } from "@/lib/timer/types";
 
 function player(
   id: string,
@@ -94,5 +97,52 @@ describe("getRotatingPublicTableNumbers", () => {
         3,
       ),
     ).toEqual([1, 3]);
+  });
+});
+
+describe("getPublicPlayerBadges", () => {
+  it("shows earned bounty and hides zero re-entry count", () => {
+    expect(getPublicPlayerBadges({ bountyCount: 1.5, rebuys: 0 }, true)).toEqual(["💰 1,5"]);
+  });
+
+  it("hides zero bounty and shows re-entry count only after player used it", () => {
+    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 2 }, true)).toEqual(["🎟️ 2"]);
+    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 2 }, false)).toEqual(["🎟️ 2"]);
+    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 0 }, true)).toEqual([]);
+  });
+});
+
+describe("getPublicChipBankTotal", () => {
+  it("adds bounty chips awarded for eliminations to the public chip bank", () => {
+    const state: PublicTournamentState = {
+      tournament: {
+        id: "tournament-1",
+        logoUrl: null,
+        name: "Poker",
+        publicToken: "token",
+        registrationMinutes: 60,
+        registrationStatus: "open",
+        startingStack: 1000,
+      },
+      timerState: {
+        currentLevelIndex: 0,
+        finishedAt: null,
+        levelStartedAt: null,
+        pausedRemainingSeconds: null,
+        registrationClosesAt: null,
+        status: "not_started",
+      },
+      blindLevels: [],
+      extras: {
+        ...defaultTournamentExtras,
+        players: [
+          { ...player("a", 1), bountyChipsTotal: 200 },
+          { ...player("b", 1), rebuys: 1 },
+          { ...player("c", 1), addonChipsTotal: 150 },
+        ],
+      },
+    };
+
+    expect(getPublicChipBankTotal(state)).toBe(4350);
   });
 });

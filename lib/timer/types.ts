@@ -48,6 +48,7 @@ export type TournamentPlayer = {
   rebuys: number;
   addons: number;
   addonChipsTotal?: number;
+  bountyChipsTotal?: number;
   bountyCount: number;
   status: "active" | "eliminated";
   finishPlace: number | null;

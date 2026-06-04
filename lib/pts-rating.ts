@@ -33,6 +33,10 @@ function roundBountyCount(value: number) {
   return Number(value.toFixed(6));
 }
 
+function roundChipCount(value: number) {
+  return Number(value.toFixed(6));
+}
+
 export function createDefaultPlacePoints() {
   return Array.from({ length: PTS_PLACE_COUNT }, () => 0);
 }
@@ -84,6 +88,7 @@ export function normalizePtsBountyTemplates(value: unknown): PtsBountyTemplate[]
 }
 
 export function recordPtsElimination(input: {
+  bountyChipAward?: number;
   eliminatedId: string;
   isBounty: boolean;
   killers: KillerShare[];
@@ -132,9 +137,12 @@ export function recordPtsElimination(input: {
 
     const bountyShare = bountyByPlayerId.get(player.id);
     if (bountyShare) {
+      const bountyChips = roundChipCount(bountyShare * Math.max(0, input.bountyChipAward ?? 0));
       next = {
         ...next,
+        bountyChipsTotal: roundChipCount((next.bountyChipsTotal || 0) + bountyChips),
         bountyCount: roundBountyCount((next.bountyCount || 0) + bountyShare),
+        stack: roundChipCount((next.stack || 0) + bountyChips),
       };
     }
 

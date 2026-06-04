@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { useVisiblePolling } from "../use-visible-polling";
 import { ArrowRightLeft, BadgePlus, ChevronLeft, Plus, Trash2, Users } from "lucide-react";
 
 type Player = {
@@ -55,6 +56,7 @@ export default function TMAPlayersPage() {
     const timeout = window.setTimeout(() => void fetchPlayers(), 0);
     return () => window.clearTimeout(timeout);
   }, [fetchPlayers]);
+  useVisiblePolling(() => void fetchPlayers());
 
   useEffect(() => {
     const tg = getTelegramWebApp();

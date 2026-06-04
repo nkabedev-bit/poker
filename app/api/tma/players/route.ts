@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
-  const extras = await loadTournamentExtras(t.id);
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
   const { data: timerRow } = await auth.supabase
     .from("timer_state")
     .select("*")
@@ -81,7 +81,7 @@ export async function POST(request: Request) {
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
-  const extras = await loadTournamentExtras(t.id);
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
   const newPlayer = {
     id: crypto.randomUUID(),
     name,
@@ -92,13 +92,15 @@ export async function POST(request: Request) {
     rebuys: 0,
     addons: 0,
     addonChipsTotal: 0,
+    bountyChipsTotal: 0,
     bountyCount: 0,
     finishPlace: null,
   };
 
   await saveTournamentExtras(
     { players: [...extras.players, newPlayer] },
-    "/tma/players"
+    "/tma/players",
+    auth.supabase,
   );
 
   return NextResponse.json({ player: newPlayer });

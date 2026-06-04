@@ -29,16 +29,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) throw error;
 
     // Restore player status
-    const extras = await loadTournamentExtras(t.id);
+    const extras = await loadTournamentExtras(t.id, auth.supabase);
     const bountyEntries: Array<[string, number]> = [];
+    const bountyChipEntries: Array<[string, number]> = [];
     for (const killer of Array.isArray(log.killers) ? log.killers : []) {
-      const id = String((killer as { id?: unknown }).id ?? "");
-      const share = Number((killer as { share?: unknown }).share ?? 0);
+      const item = killer as { bountyChips?: unknown; id?: unknown; share?: unknown };
+      const id = String(item.id ?? "");
+      const share = Number(item.share ?? 0);
+      const bountyChips = Number(item.bountyChips ?? 0);
       if (id && share > 0) {
         bountyEntries.push([id, share]);
       }
+      if (id && bountyChips > 0) {
+        bountyChipEntries.push([id, bountyChips]);
+      }
     }
     const bountyByPlayerId = new Map<string, number>(bountyEntries);
+    const bountyChipsByPlayerId = new Map<string, number>(bountyChipEntries);
     const updatedPlayers = extras.players.map((player) => {
       let restored =
         player.id === log.eliminated_id
@@ -48,14 +55,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         restored = { ...restored, finishPlace: null };
       }
       const bountyShare = bountyByPlayerId.get(player.id);
-      if (!bountyShare) return restored;
+      const bountyChips = bountyChipsByPlayerId.get(player.id) ?? 0;
+      if (!bountyShare && !bountyChips) return restored;
 
       return {
         ...restored,
-        bountyCount: Math.max(0, Number(((restored.bountyCount || 0) - bountyShare).toFixed(6))),
+        bountyChipsTotal: Math.max(0, Number(((restored.bountyChipsTotal || 0) - bountyChips).toFixed(6))),
+        bountyCount: Math.max(0, Number(((restored.bountyCount || 0) - (bountyShare ?? 0)).toFixed(6))),
+        stack: Math.max(0, Number(((restored.stack || 0) - bountyChips).toFixed(6))),
       };
     });
-    await saveTournamentExtras({ players: updatedPlayers }, "/tma/eliminations");
+    await saveTournamentExtras({ players: updatedPlayers }, "/tma/eliminations", auth.supabase);
 
     // Try cancel in Sheets if body contains row info
     try {

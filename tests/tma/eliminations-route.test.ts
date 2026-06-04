@@ -51,10 +51,40 @@ function player(id: string, name: string): TournamentPlayer {
   };
 }
 
-function createSupabaseMock() {
+function createSupabaseMock(options: { existingBountyLog?: unknown; recentBountyLog?: unknown } = {}) {
   const timerUpdate = vi.fn((payload: unknown) => ({
     eq: vi.fn(async () => ({ data: payload, error: null })),
   }));
+  const createBountyLogSelectChain = () => {
+    const filters: Array<[string, unknown]> = [];
+    const chain = {
+      eq: vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return chain;
+      }),
+      gte: vi.fn((column: string, value: unknown) => {
+        filters.push([column, value]);
+        return chain;
+      }),
+      limit: vi.fn(() => chain),
+      maybeSingle: vi.fn(async () => {
+        const clientRequestId = filters.find(([column]) => column === "client_request_id")?.[1];
+        if (clientRequestId) {
+          return { data: options.existingBountyLog ?? null, error: null };
+        }
+
+        const eliminatedId = filters.find(([column]) => column === "eliminated_id")?.[1];
+        if (eliminatedId) {
+          return { data: options.recentBountyLog ?? null, error: null };
+        }
+
+        return { data: null, error: null };
+      }),
+      order: vi.fn(() => chain),
+    };
+
+    return chain;
+  };
 
   return {
     from: vi.fn((table: string) => {
@@ -94,6 +124,7 @@ function createSupabaseMock() {
 
       if (table === "bounty_log") {
         return {
+          select: vi.fn(createBountyLogSelectChain),
           insert: vi.fn(() => ({
             select: vi.fn(() => ({
               single: vi.fn(async () => ({ data: { id: "bounty-1" }, error: null })),
@@ -135,6 +166,13 @@ describe("TMA eliminations route", () => {
     expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
       { players: [] },
       "/tma/eliminations",
+      supabase,
+    );
+    expect(supabase.timerUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        current_level_index: 0,
+        status: "finished",
+      }),
     );
   });
 
@@ -166,6 +204,7 @@ describe("TMA eliminations route", () => {
         ]),
       }),
       "/tma/eliminations",
+      supabase,
     );
     expect(mocks.appendEliminationRow).toHaveBeenCalledWith(
       expect.objectContaining({ usesReentry: false }),
@@ -205,9 +244,76 @@ describe("TMA eliminations route", () => {
         ]),
       }),
       "/tma/eliminations",
+      supabase,
     );
     expect(mocks.appendEliminationRow).toHaveBeenCalledWith(
       expect.objectContaining({ usesReentry: false }),
     );
+  });
+
+  it("rejects duplicate elimination when the player is no longer active", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("a", "A"),
+          player("b", "B"),
+          { ...player("out", "Out"), status: "eliminated", finishPlace: 3 },
+        ],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out" }),
+      }),
+    );
+
+    expect(response.status).toBe(409);
+    expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
+  });
+
+  it("returns the existing elimination when the client request id was already recorded", async () => {
+    const supabase = createSupabaseMock({ existingBountyLog: { id: "bounty-existing" } });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ client_request_id: "request-1", eliminated_id: "out", uses_reentry: true }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ duplicate: true, elimination: { id: "bounty-existing" } });
+    expect(mocks.loadTournamentExtras).not.toHaveBeenCalled();
+    expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
+  });
+
+  it("returns the recent elimination when the same player was recorded in the last 30 seconds", async () => {
+    const supabase = createSupabaseMock({ recentBountyLog: { id: "bounty-recent", eliminated_id: "out" } });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out", uses_reentry: false }),
+      }),
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ duplicate: true, elimination: { id: "bounty-recent", eliminated_id: "out" } });
+    expect(mocks.loadTournamentExtras).not.toHaveBeenCalled();
+    expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
   });
 });

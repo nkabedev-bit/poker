@@ -65,6 +65,17 @@ function formatBountyCount(value: number) {
   });
 }
 
+export function getPublicPlayerBadges(player: Pick<TournamentPlayer, "bountyCount" | "rebuys">, isBounty: boolean) {
+  const badges: string[] = [];
+  const bountyCount = Math.max(0, player.bountyCount || 0);
+  const reentryCount = Math.max(0, Math.trunc(player.rebuys || 0));
+
+  if (isBounty && bountyCount > 0) badges.push(`💰 ${formatBountyCount(bountyCount)}`);
+  if (reentryCount > 0) badges.push(`🎟️ ${formatBountyCount(reentryCount)}`);
+
+  return badges;
+}
+
 function getPublicPlayersDensity(count: number) {
   if (count <= 6) return "hero";
   if (count <= 13) return "roomy";
@@ -73,14 +84,14 @@ function getPublicPlayersDensity(count: number) {
 }
 
 function getPublicPlayerItemClassName({
-  isBounty,
+  hasBadges,
   isEliminated,
 }: {
-  isBounty: boolean;
+  hasBadges: boolean;
   isEliminated: boolean;
 }) {
   const classes = [];
-  if (!isBounty) classes.push("public-player-mini-list-item--name-only");
+  if (!hasBadges) classes.push("public-player-mini-list-item--name-only");
   if (isEliminated) classes.push("public-player-mini-list-item--eliminated");
   return classes.length > 0 ? classes.join(" ") : undefined;
 }
@@ -105,6 +116,25 @@ export function getRotatingPublicTableNumbers(
     .filter((tableNumber) => activeTableNumbers.has(tableNumber));
 
   return tableNumbers.length > 0 ? tableNumbers : [1];
+}
+
+export function getPublicChipBankTotal(state: PublicTournamentState) {
+  const totalReentries = state.extras.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
+  const totalAddonChips = state.extras.players.reduce(
+    (sum, player) =>
+      sum + (player.addonChipsTotal ?? (player.addons || 0) * state.extras.settings.addonChips),
+    0,
+  );
+  const totalBountyChips = state.extras.players.reduce(
+    (sum, player) => sum + (player.bountyChipsTotal || 0),
+    0,
+  );
+
+  return state.extras.players.length > 0
+    ? (state.extras.players.length + totalReentries) * state.tournament.startingStack
+      + totalAddonChips
+      + totalBountyChips
+    : state.tournament.startingStack;
 }
 
 function PublicPlayerName({ name }: { name: string }) {
@@ -456,17 +486,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   const publicPlayersTitle = isFinalTableMode
     ? "🏆 ФИНАЛЬНЫЙ СТОЛ"
     : `НОМЕР СТОЛА ${displayedTableNumber}`;
-  const totalReentries = state.extras.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
-  const totalAddonChips = state.extras.players.reduce(
-    (sum, player) =>
-      sum + (player.addonChipsTotal ?? (player.addons || 0) * state.extras.settings.addonChips),
-    0,
-  );
-  const totalChips =
-    state.extras.players.length > 0
-      ? (state.extras.players.length + totalReentries) * state.tournament.startingStack
-        + totalAddonChips
-      : state.tournament.startingStack;
+  const totalChips = getPublicChipBankTotal(state);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -699,18 +719,24 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           </div>
           <div className="public-final-table">{publicPlayersTitle}</div>
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
-            {visiblePublicPlayers.map((player) => (
-              <div
-                className={getPublicPlayerItemClassName({
-                  isBounty,
-                  isEliminated: player.status === "eliminated",
-                })}
-                key={player.id}
-              >
-                {isBounty ? <span>💰 {formatBountyCount(player.bountyCount)}</span> : null}
-                <PublicPlayerName name={player.name} />
-              </div>
-            ))}
+            {visiblePublicPlayers.map((player) => {
+              const badges = getPublicPlayerBadges(player, isBounty);
+
+              return (
+                <div
+                  className={getPublicPlayerItemClassName({
+                    hasBadges: badges.length > 0,
+                    isEliminated: player.status === "eliminated",
+                  })}
+                  key={player.id}
+                >
+                  {badges.length > 0 ? (
+                    <span className="public-player-badges">{badges.join(" | ")} |</span>
+                  ) : null}
+                  <PublicPlayerName name={player.name} />
+                </div>
+              );
+            })}
           </div>
         </aside>
       </div>

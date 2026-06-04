@@ -4,7 +4,7 @@ import { appendEliminationRow } from "@/lib/google-sheets";
 import { buildPtsStandingsRows, recordPtsElimination } from "@/lib/pts-rating";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
-import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
+import { getBountyChipAward, getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
@@ -13,6 +13,8 @@ type Killer = {
   name: string;
   share: number;
 };
+
+const SAME_PLAYER_DUPLICATE_WINDOW_SECONDS = 30;
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
@@ -27,11 +29,44 @@ export async function POST(request: Request) {
     if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
     const body = await request.json();
-    const { eliminated_id, bounty_split, killers, uses_reentry } = body;
+    const { eliminated_id, bounty_split, client_request_id, killers, uses_reentry } = body;
+    const clientRequestId = typeof client_request_id === "string" ? client_request_id.trim() : "";
 
-    const extras = await loadTournamentExtras(t.id);
+    if (clientRequestId) {
+      const { data: existingElimination } = await auth.supabase
+        .from("bounty_log")
+        .select("*")
+        .eq("tournament_id", t.id)
+        .eq("client_request_id", clientRequestId)
+        .maybeSingle();
+
+      if (existingElimination) {
+        return NextResponse.json({ duplicate: true, elimination: existingElimination });
+      }
+    }
+
+    const duplicateCutoff = new Date(Date.now() - SAME_PLAYER_DUPLICATE_WINDOW_SECONDS * 1000).toISOString();
+    const { data: recentElimination } = await auth.supabase
+      .from("bounty_log")
+      .select("*")
+      .eq("tournament_id", t.id)
+      .eq("eliminated_id", eliminated_id)
+      .eq("cancelled", false)
+      .gte("recorded_at", duplicateCutoff)
+      .order("recorded_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (recentElimination) {
+      return NextResponse.json({ duplicate: true, elimination: recentElimination });
+    }
+
+    const extras = await loadTournamentExtras(t.id, auth.supabase);
     const eliminatedPlayer = extras.players.find(p => p.id === eliminated_id);
     if (!eliminatedPlayer) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+    if (eliminatedPlayer.status !== "active") {
+      return NextResponse.json({ error: "Player already eliminated" }, { status: 409 });
+    }
 
     const isBounty = extras.settings.isBounty;
     const sanitizedKillers: Killer[] = isBounty && Array.isArray(killers)
@@ -73,8 +108,18 @@ export async function POST(request: Request) {
       extras.settings.reentryEnabled &&
       playerReentries < maxReentries &&
       isReentryAvailable(timerState, blindLevels, now);
+    const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
+    const bountyChipAward =
+      isBounty && sanitizedKillers.length > 0
+        ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
+        : 0;
+    const killersWithBountyChips = sanitizedKillers.map((killer) => ({
+      ...killer,
+      bountyChips: Number((killer.share * bountyChipAward).toFixed(6)),
+    }));
 
     const eliminationResult = recordPtsElimination({
+      bountyChipAward,
       eliminatedId: eliminated_id,
       isBounty,
       killers: sanitizedKillers,
@@ -86,11 +131,13 @@ export async function POST(request: Request) {
         ? getFinishTournamentExtrasPatch()
         : { players: eliminationResult.players },
       "/tma/eliminations",
+      auth.supabase,
     );
 
     if (eliminationResult.tournamentFinished) {
       await auth.supabase.from("timer_state").update({
         status: "finished",
+        current_level_index: 0,
         finished_at: new Date().toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
@@ -104,7 +151,8 @@ export async function POST(request: Request) {
       eliminated_name: eliminatedPlayer.name,
       finish_place: eliminationResult.finishPlace,
       bounty_split: isBounty ? bounty_split || false : false,
-      killers: sanitizedKillers,
+      client_request_id: clientRequestId || null,
+      killers: killersWithBountyChips,
       recorded_by: auth.userId,
     }).select().single();
 
@@ -112,8 +160,7 @@ export async function POST(request: Request) {
 
     let currentRound = 1;
     if (blindLevels.length > 0) {
-      const eff = getEffectiveTimerState(timerState, blindLevels, now);
-      currentRound = blindLevels[eff.currentLevelIndex]?.levelOrder || 1;
+      currentRound = blindLevels[currentTimerState.currentLevelIndex]?.levelOrder || 1;
     }
 
     // Append to Sheets

@@ -64,7 +64,8 @@ describe("TMA players route", () => {
   });
 
   it("returns table count from tournament settings", async () => {
-    mocks.requireTmaAuth.mockResolvedValue({ supabase: createSupabaseMock(), userId: 42 });
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
       mergeTournamentExtras({
         settings: {
@@ -79,10 +80,12 @@ describe("TMA players route", () => {
 
     expect(response.status).toBe(200);
     expect(data.tablesCount).toBe(4);
+    expect(mocks.loadTournamentExtras).toHaveBeenCalledWith("tournament-1", supabase);
   });
 
   it("moves a player to another table", async () => {
-    mocks.requireTmaAuth.mockResolvedValue({ supabase: createSupabaseMock(), userId: 42 });
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
       mergeTournamentExtras({
         settings: {
@@ -128,6 +131,7 @@ describe("TMA players route", () => {
         ],
       },
       "/tma/players",
+      supabase,
     );
   });
 });
