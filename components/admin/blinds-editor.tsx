@@ -15,11 +15,25 @@ function emptyLevel(levelOrder: number): BlindLevel {
     levelOrder,
     smallBlind: 100,
     bigBlind: 200,
-    ante: null,
+    ante: 0,
     durationSeconds: 1200,
     isBreak: false,
     breakDurationSeconds: null,
   };
+}
+
+function parsePositiveOrNull(value: string) {
+  if (value.trim() === "") return null;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseAnte(value: string) {
+  if (value.trim() === "") return 0;
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
 export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorProps) {
@@ -97,7 +111,7 @@ export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorPr
               type="number"
               value={row.smallBlind ?? ""}
               onChange={(event) =>
-                updateRow(index, { smallBlind: Number(event.target.value) || null })
+                updateRow(index, { smallBlind: parsePositiveOrNull(event.target.value) })
               }
             />
             <input
@@ -107,7 +121,7 @@ export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorPr
               type="number"
               value={row.bigBlind ?? ""}
               onChange={(event) =>
-                updateRow(index, { bigBlind: Number(event.target.value) || null })
+                updateRow(index, { bigBlind: parsePositiveOrNull(event.target.value) })
               }
             />
             <input
@@ -115,9 +129,9 @@ export function BlindsEditor({ levels, applyPreset, saveLevels }: BlindsEditorPr
               disabled={row.isBreak}
               min={0}
               type="number"
-              value={row.ante ?? ""}
+              value={row.ante ?? 0}
               onChange={(event) =>
-                updateRow(index, { ante: Number(event.target.value) || null })
+                updateRow(index, { ante: parseAnte(event.target.value) })
               }
             />
             <input

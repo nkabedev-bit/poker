@@ -21,7 +21,7 @@ create table public.blind_levels (
   level_order integer not null check (level_order > 0),
   small_blind integer,
   big_blind integer,
-  ante integer,
+  ante integer default 0 check (ante >= 0),
   duration_seconds integer not null check (duration_seconds > 0),
   is_break boolean not null default false,
   break_duration_seconds integer,
@@ -115,10 +115,10 @@ on conflict (id) do nothing;
 
 insert into public.blind_levels (tournament_id, level_order, small_blind, big_blind, ante, duration_seconds, is_break)
 values
-  ('00000000-0000-0000-0000-000000000001', 1, 25, 50, null, 1200, false),
-  ('00000000-0000-0000-0000-000000000001', 2, 50, 100, null, 1200, false),
-  ('00000000-0000-0000-0000-000000000001', 3, 75, 150, null, 1200, false),
-  ('00000000-0000-0000-0000-000000000001', 4, 100, 200, 25, 1200, false)
+  ('00000000-0000-0000-0000-000000000001', 1, 25, 50, 0, 1200, false),
+  ('00000000-0000-0000-0000-000000000001', 2, 50, 100, 0, 1200, false),
+  ('00000000-0000-0000-0000-000000000001', 3, 75, 150, 0, 1200, false),
+  ('00000000-0000-0000-0000-000000000001', 4, 100, 200, 0, 1200, false)
 on conflict (tournament_id, level_order) do nothing;
 
 insert into public.timer_state (tournament_id)
