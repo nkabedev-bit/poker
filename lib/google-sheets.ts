@@ -86,6 +86,26 @@ export function getEliminationSheetName(sessionStartedAt?: string | null) {
   return getTodaySheetName(sessionStartedAt ? new Date(sessionStartedAt) : new Date());
 }
 
+// A stored sheets-session timestamp is only meaningful while it belongs to the current
+// Moscow day. If it is from an earlier day (a previous game whose session was never reset)
+// or absent/invalid, treat it as "no session" so the sheets fall back to the real current
+// date automatically — no `/clearsheet` needed between games on different days.
+export function getEffectiveSessionStart(
+  sessionStartedAt: string | null | undefined,
+  now = new Date(),
+): string | null {
+  if (!sessionStartedAt) return null;
+
+  const started = new Date(sessionStartedAt);
+  if (Number.isNaN(started.getTime())) return null;
+
+  const a = getMoscowDateParts(started);
+  const b = getMoscowDateParts(now);
+  const sameMoscowDay = a.day === b.day && a.month === b.month && a.year === b.year;
+
+  return sameMoscowDay ? sessionStartedAt : null;
+}
+
 function formatMoscowTime(value: string | null) {
   const date = value ? new Date(value) : new Date();
   return date.toLocaleTimeString("ru-RU", {
@@ -501,7 +521,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     .eq("tournament_id", tournamentId)
     .maybeSingle();
   const extras = mergeTournamentExtras(data?.data);
-  const sessionStartedAt = extras.settings.sheetsSessionStartedAt;
+  const sessionStartedAt = getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt);
   const fallbackDayRange = getMoscowDayRange();
   const logStartIso = sessionStartedAt ?? fallbackDayRange.startIso;
   let logsQuery = supabase
@@ -587,7 +607,9 @@ export async function syncVipSheet(supabase: SupabaseClient, tournamentId: strin
   const auth = await getAuth();
   const sheets = google.sheets({ version: "v4", auth });
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-  const gameDate = getEliminationSheetName(extras.settings.sheetsSessionStartedAt);
+  const gameDate = getEliminationSheetName(
+    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
+  );
 
   await writeVipSheet(sheets, spreadsheetId, gameDate, extras.players);
 }
