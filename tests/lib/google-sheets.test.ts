@@ -107,12 +107,12 @@ describe("Google Sheets tournament day sync helpers", () => {
 });
 
 describe("VIP sheet", () => {
-  it("selects VIP players by explicit category or by registration number 19-27", () => {
+  it("selects VIP players solely by registration number 19-27 (category is ignored)", () => {
     const players = [
-      vipPlayer("a", "Alice", { category: "VIP" }),
-      vipPlayer("b", "Bob", { category: "Normal" }),
-      vipPlayer("c", "Carol", { registrationNumber: 23 }),
-      vipPlayer("d", "Dave", { registrationNumber: 5 }),
+      vipPlayer("a", "Alice", { registrationNumber: 19 }),
+      vipPlayer("b", "Bob", { registrationNumber: 5, category: "VIP" }),
+      vipPlayer("c", "Carol", { registrationNumber: 27 }),
+      vipPlayer("d", "Dave", { category: "VIP" }), // no number -> not VIP
     ];
 
     expect(getVipPlayersForGame(players)).toEqual(["Alice", "Carol"]);
@@ -152,5 +152,53 @@ describe("VIP sheet", () => {
     // Alice is VIP in both games (count 2), Carol in one (count 1).
     expect(grid[1]).toEqual(["Alice", 2, "", "Alice", "Alice"]);
     expect(grid[2]).toEqual(["Carol", 1, "", "", "Carol"]);
+  });
+
+  it("does NOT wipe a populated game column when the roster is empty", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", "1", "", "Alice"],
+      ["Carol", "1", "", "Carol"],
+    ];
+
+    const grid = buildVipSheetGrid(existing, "04/06", []);
+
+    expect(grid).toEqual([
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", 1, "", "Alice"],
+      ["Carol", 1, "", "Carol"],
+    ]);
+  });
+
+  it("preserves manually-added summary players that are not in the roster", () => {
+    // Owner hand-added Javmaz & Anderson and deleted the game columns.
+    const existing = [
+      ["Игрок", "Раз в VIP", ""],
+      ["Javmaz", "1", ""],
+      ["Anderson", "1", ""],
+    ];
+
+    const grid = buildVipSheetGrid(existing, "11/06", ["Alice"]);
+
+    expect(grid[0]).toEqual(["Игрок", "Раз в VIP", "", "11/06"]);
+    expect(grid[1]).toEqual(["Javmaz", 1, "", "Alice"]);
+    expect(grid[2]).toEqual(["Anderson", 1, "", ""]);
+    expect(grid[3]).toEqual(["Alice", 1, "", ""]);
+  });
+
+  it("preserves stored counts instead of recomputing them from columns", () => {
+    // Count is 2 but only one column survives (the other was deleted by hand).
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", "2", "", "Alice"],
+    ];
+
+    const grid = buildVipSheetGrid(existing, "04/06", ["Alice"]);
+
+    // Alice already recorded for 04/06 -> no bump, count stays 2 (not reset to 1).
+    expect(grid).toEqual([
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", 2, "", "Alice"],
+    ]);
   });
 });

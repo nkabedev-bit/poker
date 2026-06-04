@@ -140,8 +140,9 @@ export function getSheetStandingsPlayers(
 }
 
 function isVipPlayer(player: TournamentPlayer) {
-  if (player.category === "VIP") return true;
-  if (player.category === "Normal") return false;
+  // VIP membership is decided purely by the registration number range
+  // (lib/player-registration-number.ts), so a stale/missing category cannot
+  // mis-classify a player.
   return isVipRegistrationNumber(player.registrationNumber);
 }
 
@@ -163,6 +164,7 @@ export function getVipPlayersForGame(players: TournamentPlayer[]) {
 }
 
 type VipGameColumn = { date: string; names: string[] };
+type VipSummaryEntry = { name: string; count: number };
 
 function parseVipGameColumns(grid: string[][]): VipGameColumn[] {
   const headerRow = grid[0] ?? [];
@@ -184,35 +186,57 @@ function parseVipGameColumns(grid: string[][]): VipGameColumn[] {
   return columns;
 }
 
-// Rebuild the full VIP grid: an A/B summary (player name + number of games as VIP)
-// anchored at the top-left, a spacer column, then one column per game date. Today's
-// date reuses its existing column when present (idempotent re-sync) and is otherwise
-// appended to the right.
+// Read the existing A/B summary (player name + "Раз в VIP" count) as-is, preserving order.
+// Counts are preserved (not recomputed) so manual edits and prior games survive.
+function parseVipSummary(grid: string[][]): VipSummaryEntry[] {
+  const summary: VipSummaryEntry[] = [];
+
+  for (let row = 1; row < grid.length; row += 1) {
+    const name = String(grid[row]?.[0] ?? "").trim();
+    if (!name) continue;
+    const count = Number(grid[row]?.[1]);
+    summary.push({ name, count: Number.isFinite(count) ? count : 0 });
+  }
+
+  return summary;
+}
+
+// Additively merge today's VIP players into the VIP grid. This NEVER removes a name,
+// blanks a column, or drops a summary row — it only appends newly-seen VIP players to
+// today's game column and bumps their "Раз в VIP" counter by 1 (once per game, because a
+// name already present in today's column is skipped on repeat syncs). The A/B summary is
+// preserved as read, so manual edits and previously recorded games are kept intact.
 export function buildVipSheetGrid(
   existingGrid: string[][],
   todayDate: string,
   todayNames: string[],
 ): (string | number)[][] {
   const columns = parseVipGameColumns(existingGrid);
-  const existingIndex = columns.findIndex((column) => column.date === todayDate);
+  const summary = parseVipSummary(existingGrid);
+  const summaryIndex = new Map(summary.map((entry, index) => [entry.name, index]));
 
-  if (existingIndex >= 0) {
-    columns[existingIndex] = { date: todayDate, names: todayNames };
-  } else if (todayNames.length > 0) {
-    columns.push({ date: todayDate, names: todayNames });
+  let todayColumn = columns.find((column) => column.date === todayDate);
+  if (!todayColumn && todayNames.length > 0) {
+    todayColumn = { date: todayDate, names: [] };
+    columns.push(todayColumn);
   }
 
-  const counts = new Map<string, number>();
-  for (const column of columns) {
-    for (const name of column.names) {
-      counts.set(name, (counts.get(name) ?? 0) + 1);
+  if (todayColumn) {
+    const alreadyRecorded = new Set(todayColumn.names);
+    for (const name of todayNames) {
+      if (alreadyRecorded.has(name)) continue;
+      alreadyRecorded.add(name);
+      todayColumn.names.push(name);
+
+      const existing = summaryIndex.get(name);
+      if (existing === undefined) {
+        summaryIndex.set(name, summary.length);
+        summary.push({ name, count: 1 });
+      } else {
+        summary[existing].count += 1;
+      }
     }
   }
-
-  const summary = [...counts.entries()].sort((a, b) => {
-    if (b[1] !== a[1]) return b[1] - a[1];
-    return a[0].localeCompare(b[0], "ru-RU");
-  });
 
   const bodyRowCount = Math.max(
     summary.length,
@@ -232,8 +256,8 @@ export function buildVipSheetGrid(
   for (let row = 0; row < bodyRowCount; row += 1) {
     const summaryEntry = summary[row];
     const line: (string | number)[] = [
-      summaryEntry ? summaryEntry[0] : "",
-      summaryEntry ? summaryEntry[1] : "",
+      summaryEntry ? summaryEntry.name : "",
+      summaryEntry ? summaryEntry.count : "",
       "",
       ...columns.map((column) => column.names[row] ?? ""),
     ];
