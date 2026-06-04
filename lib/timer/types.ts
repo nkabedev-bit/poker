@@ -86,6 +86,7 @@ export type TournamentExtras = {
     rebuyPrice: number;
     reentryEnabled: boolean;
     sheetsSessionStartedAt: string | null;
+    statsCountedAt: string | null;
     tablesCount: number;
   };
   players: TournamentPlayer[];

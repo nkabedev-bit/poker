@@ -40,6 +40,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     rebuyPrice: 100,
     reentryEnabled: false,
     sheetsSessionStartedAt: null,
+    statsCountedAt: null,
     tablesCount: 3,
   },
   players: [],

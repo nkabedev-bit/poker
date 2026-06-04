@@ -102,6 +102,7 @@ function createSupabaseMock() {
 
       throw new Error(`Unexpected table: ${table}`);
     }),
+    rpc: vi.fn(async () => ({ data: null, error: null })),
     timerUpdate,
   };
 }

@@ -78,10 +78,9 @@ export const CLIENT_BOT_MENU_REGISTRATION_CALLBACK = "client_menu:registration";
 export const CLIENT_BOT_MENU_RATING_CALLBACK = "client_menu:rating";
 export const CLIENT_BOT_MENU_SCHEDULE_CALLBACK = "client_menu:schedule";
 
-type ClientBotInlineButton = {
-  callback_data: string;
-  text: string;
-};
+type ClientBotInlineButton =
+  | { callback_data: string; text: string }
+  | { text: string; web_app: { url: string } };
 
 type ClientBotInlineReplyMarkup = {
   inline_keyboard: ClientBotInlineButton[][];
@@ -167,9 +166,23 @@ export function buildQuestionnaireStepReplyMarkup(stepId: ClientBotProfileStepId
   };
 }
 
+export function getClientMiniAppUrl() {
+  const explicit = process.env.CLIENT_TMA_URL?.trim();
+  if (explicit) return explicit;
+
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+  return host ? `https://${host.replace(/\/+$/, "")}/client` : "";
+}
+
 export function buildClientBotMainMenuReplyMarkup(): ClientBotInlineReplyMarkup {
+  const miniAppUrl = getClientMiniAppUrl();
+  const miniAppRows: ClientBotInlineButton[][] = miniAppUrl
+    ? [[{ text: "🎰 Открыть приложение", web_app: { url: miniAppUrl } }]]
+    : [];
+
   return {
     inline_keyboard: [
+      ...miniAppRows,
       [
         {
           callback_data: CLIENT_BOT_MENU_REGISTRATION_CALLBACK,

@@ -184,6 +184,12 @@ export async function POST(request: Request) {
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
       await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
+      const { error: statsError } = await auth.supabase.rpc("accumulate_client_bot_stats", {
+        p_tournament_id: t.id,
+      });
+      if (statsError) {
+        console.error("Failed to accumulate client bot stats", statsError);
+      }
       await broadcastPublicState(t.public_token);
     }
 

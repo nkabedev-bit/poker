@@ -94,7 +94,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           await saveTournamentExtrasFromContext(
             auth.supabase,
             context,
-            { settings: { sheetsSessionStartedAt: now.toISOString() } },
+            { settings: { sheetsSessionStartedAt: now.toISOString(), statsCountedAt: null } },
           );
         }
       }
@@ -138,6 +138,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           context,
           getFinishTournamentExtrasPatch(),
         );
+      }
+
+      const { error: statsError } = await auth.supabase.rpc("accumulate_client_bot_stats", {
+        p_tournament_id: t.id,
+      });
+      if (statsError) {
+        console.error("Failed to accumulate client bot stats", statsError);
       }
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
