@@ -1,36 +1,111 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Poker Tournament Timer MVP
 
-## Getting Started
+Веб-приложение для живого покерного турнира: организатор управляет настройками и таймером в админке, а публичный экран открывается по секретной ссылке и обновляется через интернет.
 
-First, run the development server:
+## Что внутри
+
+- Next.js App Router.
+- Supabase Auth для входа организатора.
+- Supabase Postgres для одного активного турнира.
+- Supabase Storage для логотипа турнира.
+- Supabase Realtime Broadcast для обновления публичного экрана.
+- Публичный экран по секретному токену без логина.
+- Таймер без записи каждой секунды в базу: сервер хранит состояние, экран считает секунды локально.
+
+## Локальный запуск
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+corepack pnpm install
+cp .env.example .env.local
+corepack pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открыть:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- `http://localhost:3000/login`
+- `http://localhost:3000/admin/settings`
+- `http://localhost:3000/screen/<public-token>`
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+Заполни `.env.local` локально и эти же переменные в Vercel:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-or-publishable-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+ADMIN_EMAIL=admin@example.com
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+`SUPABASE_SERVICE_ROLE_KEY` должен быть только server-side secret. Не публикуй его в браузере и не коммить `.env.local`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Supabase Setup
 
-## Deploy on Vercel
+1. Создай новый Supabase project.
+2. Открой SQL Editor.
+3. Выполни SQL из `supabase/migrations/202604280001_poker_mvp.sql`.
+4. В Authentication создай пользователя-организатора с email/password.
+5. Скопируй значения из Project Settings:
+   - Project URL -> `NEXT_PUBLIC_SUPABASE_URL`
+   - anon/publishable key -> `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - service_role key -> `SUPABASE_SERVICE_ROLE_KEY`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+После миграции появится демо-турнир `POKER CLUB / DEMO`, стартовые блайнды и `public_token`.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Получить публичный токен можно запросом в Supabase SQL Editor:
+
+```sql
+select public_token from public.tournaments limit 1;
+```
+
+## Vercel Deploy
+
+1. Создай GitHub repo и запушь проект.
+2. Импортируй repo в Vercel.
+3. Добавь environment variables из `.env.example`.
+4. Deploy.
+
+Build command:
+
+```bash
+corepack pnpm build
+```
+
+Install command:
+
+```bash
+corepack pnpm install
+```
+
+## Проверки
+
+```bash
+corepack pnpm test
+corepack pnpm lint
+corepack pnpm build
+```
+
+E2E smoke test публичного экрана требует реальный Supabase token:
+
+```bash
+TEST_PUBLIC_TOKEN=<public-token> corepack pnpm e2e
+```
+
+Без `TEST_PUBLIC_TOKEN` e2e тест корректно пропускается.
+
+## Основные маршруты
+
+- `/login` - вход организатора.
+- `/admin/settings` - название, логотип, стартовый стек, регистрация, публичная ссылка.
+- `/admin/blinds` - структура блайндов, ante, длительность, пресеты.
+- `/admin/timer` - старт, пауза, следующий/предыдущий уровень, закрытие регистрации, завершение.
+- `/screen/[publicToken]` - публичный экран для телевизора/проектора.
+
+## Superpowers Docs
+
+- `docs/superpowers/specs/2026-04-28-poker-tournament-mvp-design.md`
+- `docs/superpowers/plans/2026-04-28-poker-tournament-mvp.md`
+
+## Reference Screenshots
+
+Папки со скриншотами в корне проекта оставлены как визуальный reference для дальнейшей доводки дизайна.
