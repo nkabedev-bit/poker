@@ -80,7 +80,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               {children}
             </main>
 
-            <nav className="fixed inset-x-0 bottom-0 z-20 flex h-[calc(4.75rem+env(safe-area-inset-bottom))] items-start justify-around border-t border-white/10 bg-[#0b120d]/90 px-2 pt-2 backdrop-blur-xl">
+            <nav className="fixed inset-x-0 bottom-0 z-20 flex items-stretch justify-around border-t border-white/10 bg-[#0b120d]/90 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),14px)] backdrop-blur-xl">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = item.match(pathname);
