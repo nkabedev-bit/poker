@@ -86,10 +86,16 @@ export function getEliminationSheetName(sessionStartedAt?: string | null) {
   return getTodaySheetName(sessionStartedAt ? new Date(sessionStartedAt) : new Date());
 }
 
-// A stored sheets-session timestamp is only meaningful while it belongs to the current
-// Moscow day. If it is from an earlier day (a previous game whose session was never reset)
-// or absent/invalid, treat it as "no session" so the sheets fall back to the real current
-// date automatically — no `/clearsheet` needed between games on different days.
+// A single game (registration + play) fits comfortably in this window, while the gap to
+// the next game is typically ~a day. So a session younger than this belongs to the current
+// game; an older one is a leftover from a previous game whose session was never reset.
+const SESSION_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+
+// Decide whether a stored sheets-session timestamp still describes the current game. We use
+// its AGE rather than the calendar day so a game that runs past midnight keeps a single date
+// label (no split at 00:00), while a stale timestamp from an earlier game is ignored — the
+// sheets then fall back to the real current date automatically, with no `/clearsheet` needed
+// between games.
 export function getEffectiveSessionStart(
   sessionStartedAt: string | null | undefined,
   now = new Date(),
@@ -99,11 +105,10 @@ export function getEffectiveSessionStart(
   const started = new Date(sessionStartedAt);
   if (Number.isNaN(started.getTime())) return null;
 
-  const a = getMoscowDateParts(started);
-  const b = getMoscowDateParts(now);
-  const sameMoscowDay = a.day === b.day && a.month === b.month && a.year === b.year;
+  const age = now.getTime() - started.getTime();
+  if (age > SESSION_MAX_AGE_MS) return null;
 
-  return sameMoscowDay ? sessionStartedAt : null;
+  return sessionStartedAt;
 }
 
 function formatMoscowTime(value: string | null) {

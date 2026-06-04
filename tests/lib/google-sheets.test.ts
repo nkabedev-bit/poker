@@ -57,25 +57,28 @@ describe("Google Sheets tournament day sync helpers", () => {
     expect(getEliminationSheetName("2026-05-30T20:30:00.000Z")).toBe("30/05");
   });
 
-  it("keeps the session start when it is on the current Moscow day", () => {
-    // Session at Moscow 2026-06-04 08:00, now at Moscow 2026-06-04 21:00 -> same day.
+  it("keeps a recent session start (current game)", () => {
+    // Session 5 hours ago -> still the current game.
     expect(
-      getEffectiveSessionStart("2026-06-04T05:00:00.000Z", new Date("2026-06-04T18:00:00.000Z")),
-    ).toBe("2026-06-04T05:00:00.000Z");
+      getEffectiveSessionStart("2026-06-04T13:00:00.000Z", new Date("2026-06-04T18:00:00.000Z")),
+    ).toBe("2026-06-04T13:00:00.000Z");
   });
 
-  it("treats a session start from an earlier day as stale (falls back to today)", () => {
+  it("keeps a single date label for a game that runs past midnight", () => {
+    // Game started Moscow 2026-06-04 22:00 (UTC 19:00); now Moscow 2026-06-05 01:00 (UTC 22:00).
+    const sessionStart = "2026-06-04T19:00:00.000Z";
+    const afterMidnight = new Date("2026-06-04T22:00:00.000Z");
+    const effective = getEffectiveSessionStart(sessionStart, afterMidnight);
+    expect(effective).toBe(sessionStart);
+    // Label stays on the start day, no split to 05/06.
+    expect(getEliminationSheetName(effective)).toBe("04/06");
+  });
+
+  it("treats a session start older than a game span as stale (falls back to today)", () => {
     // Stale 31/05 session while the real game is on 04/06 -> ignored.
     expect(
       getEffectiveSessionStart("2026-05-31T20:00:00.000Z", new Date("2026-06-04T18:00:00.000Z")),
     ).toBeNull();
-  });
-
-  it("compares by Moscow day, not UTC day", () => {
-    // Session at UTC 2026-06-03 22:00 = Moscow 2026-06-04 01:00; now Moscow 2026-06-04 -> same day.
-    expect(
-      getEffectiveSessionStart("2026-06-03T22:00:00.000Z", new Date("2026-06-04T18:00:00.000Z")),
-    ).toBe("2026-06-03T22:00:00.000Z");
   });
 
   it("returns null for an absent or invalid session start", () => {
