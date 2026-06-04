@@ -102,13 +102,31 @@ describe("getRotatingPublicTableNumbers", () => {
 
 describe("getPublicPlayerBadges", () => {
   it("shows earned bounty and hides zero re-entry count", () => {
-    expect(getPublicPlayerBadges({ bountyCount: 1.5, rebuys: 0 }, true)).toEqual(["💰 1,5"]);
+    expect(getPublicPlayerBadges({ bountyCount: 1.5, mysteryBountyPoints: 0, rebuys: 0 }, true)).toEqual(["💰 1,5"]);
   });
 
   it("hides zero bounty and shows re-entry count only after player used it", () => {
-    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 2 }, true)).toEqual(["🎟️ 2"]);
-    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 2 }, false)).toEqual(["🎟️ 2"]);
-    expect(getPublicPlayerBadges({ bountyCount: 0, rebuys: 0 }, true)).toEqual([]);
+    expect(getPublicPlayerBadges({ bountyCount: 0, mysteryBountyPoints: 0, rebuys: 2 }, true)).toEqual(["🎟️ 2"]);
+    expect(getPublicPlayerBadges({ bountyCount: 0, mysteryBountyPoints: 0, rebuys: 2 }, false)).toEqual(["🎟️ 2"]);
+    expect(getPublicPlayerBadges({ bountyCount: 0, mysteryBountyPoints: 0, rebuys: 0 }, true)).toEqual([]);
+  });
+
+  it("shows mystery bounty PTS badge when bountyType is mystery", () => {
+    expect(
+      getPublicPlayerBadges({ bountyCount: 2, mysteryBountyPoints: 150, rebuys: 0 }, true, "mystery"),
+    ).toEqual(["💰 2", "🎲 150 PTS"]);
+  });
+
+  it("does not show mystery badge when bountyType is standard", () => {
+    expect(
+      getPublicPlayerBadges({ bountyCount: 2, mysteryBountyPoints: 150, rebuys: 0 }, true, "standard"),
+    ).toEqual(["💰 2"]);
+  });
+
+  it("shows mystery badge with zero bounty count when only points exist", () => {
+    expect(
+      getPublicPlayerBadges({ bountyCount: 0, mysteryBountyPoints: 50, rebuys: 0 }, true, "mystery"),
+    ).toEqual(["🎲 50 PTS"]);
   });
 });
 

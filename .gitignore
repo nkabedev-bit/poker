@@ -39,6 +39,7 @@ yarn-error.log*
 
 # local brainstorming and test artifacts
 .superpowers
+scratch
 playwright-report
 test-results
 

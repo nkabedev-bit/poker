@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendClientBotMainMenuButton,
+  buildClientBotMainMenuButtonReplyMarkup,
+  buildClientBotMainMenuReplyMarkup,
   buildClientBotProfileSheetRow,
   buildClientBotPlayer,
+  buildClientBotRegistrationSuccessText,
   buildNicknameConfirmationText,
   buildProfileNicknameConfirmationText,
   buildQuestionnaireStepReplyMarkup,
   CLIENT_BOT_PROFILE_INTRO_TEXT,
+  CLIENT_BOT_REGISTRATION_FULL_MESSAGE,
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
   CLIENT_BOT_PROFILE_STEPS,
   buildTableSelectionReplyMarkup,
@@ -48,6 +53,21 @@ describe("client bot registration", () => {
     expect(player.id).toEqual(expect.any(String));
   });
 
+  it("builds registration success text with the player number", () => {
+    expect(
+      buildClientBotRegistrationSuccessText({
+        name: "Ace High",
+        registrationNumber: 17,
+      }),
+    ).toBe("Вы зарегистрированы. Ваш номер - 17");
+  });
+
+  it("defines the full-capacity registration text", () => {
+    expect(CLIENT_BOT_REGISTRATION_FULL_MESSAGE).toBe(
+      "Все места заняты, уточните ситуацию у админов",
+    );
+  });
+
   it("builds nickname confirmation text before the nickname is locked", () => {
     expect(buildNicknameConfirmationText("Ace High")).toBe(
       "Вы правильно ввели никнейм: Ace High?\nОн закрепится за вами и изменить его впоследствии будет нельзя.",
@@ -66,6 +86,31 @@ describe("client bot registration", () => {
           { callback_data: "table_select:4", text: "4" },
           { callback_data: "table_select:5", text: "5" },
         ],
+      ],
+    });
+  });
+
+  it("builds inline main menu controls for post-profile bot messages", () => {
+    expect(buildClientBotMainMenuReplyMarkup()).toEqual({
+      inline_keyboard: [
+        [{ callback_data: "client_menu:registration", text: "Регистрация" }],
+        [{ callback_data: "client_menu:rating", text: "Рейтинговая таблица" }],
+        [{ callback_data: "client_menu:schedule", text: "Расписание турниров" }],
+      ],
+    });
+
+    expect(buildClientBotMainMenuButtonReplyMarkup()).toEqual({
+      inline_keyboard: [[{ callback_data: "client_menu:main", text: "Главное меню" }]],
+    });
+
+    expect(
+      appendClientBotMainMenuButton({
+        inline_keyboard: [[{ callback_data: "table_select:1", text: "1" }]],
+      }),
+    ).toEqual({
+      inline_keyboard: [
+        [{ callback_data: "table_select:1", text: "1" }],
+        [{ callback_data: "client_menu:main", text: "Главное меню" }],
       ],
     });
   });

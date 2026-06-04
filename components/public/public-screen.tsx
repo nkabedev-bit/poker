@@ -25,7 +25,12 @@ type PublicScreenProps = {
 async function fetchPublicState(token: string) {
   const response = await fetch(`/api/public-state/${token}`, { cache: "no-store" });
   if (!response.ok) throw new Error("Unable to refresh public state");
-  return (await response.json()) as PublicTournamentState;
+  const state = (await response.json()) as PublicTournamentState;
+  const serverTimeHeader = response.headers.get("Date");
+  return {
+    state,
+    serverNowIso: serverTimeHeader ? new Date(serverTimeHeader).toISOString() : new Date().toISOString(),
+  };
 }
 
 type AudioWindow = Window & {
@@ -65,12 +70,22 @@ function formatBountyCount(value: number) {
   });
 }
 
-export function getPublicPlayerBadges(player: Pick<TournamentPlayer, "bountyCount" | "rebuys">, isBounty: boolean) {
+export function getPublicPlayerBadges(
+  player: Pick<TournamentPlayer, "bountyCount" | "mysteryBountyPoints" | "rebuys">,
+  isBounty: boolean,
+  bountyType?: string,
+) {
   const badges: string[] = [];
   const bountyCount = Math.max(0, player.bountyCount || 0);
   const reentryCount = Math.max(0, Math.trunc(player.rebuys || 0));
+  const mysteryPts = Math.max(0, player.mysteryBountyPoints || 0);
 
-  if (isBounty && bountyCount > 0) badges.push(`💰 ${formatBountyCount(bountyCount)}`);
+  if (isBounty && bountyType === "mystery") {
+    if (bountyCount > 0) badges.push(`💰 ${formatBountyCount(bountyCount)}`);
+    if (mysteryPts > 0) badges.push(`🎲 ${formatBountyCount(mysteryPts)} PTS`);
+  } else if (isBounty && bountyCount > 0) {
+    badges.push(`💰 ${formatBountyCount(bountyCount)}`);
+  }
   if (reentryCount > 0) badges.push(`🎟️ ${formatBountyCount(reentryCount)}`);
 
   return badges;
@@ -308,9 +323,44 @@ export function getPublicSoundIcon({
   return volume >= 7 ? "🔊" : volume >= 3 ? "🔉" : "🔈";
 }
 
+function createTimerWorker(): Worker | null {
+  if (typeof window === "undefined" || typeof Worker === "undefined" || typeof Blob === "undefined" || typeof URL === "undefined") {
+    return null;
+  }
+  try {
+    const code = `
+      let intervalId = null;
+      self.onmessage = (e) => {
+        if (e.data === 'start') {
+          if (intervalId) clearInterval(intervalId);
+          intervalId = setInterval(() => self.postMessage('tick'), 1000);
+        } else if (e.data === 'stop') {
+          if (intervalId) clearInterval(intervalId);
+          intervalId = null;
+        }
+      };
+    `;
+    const blob = new Blob([code], { type: "application/javascript" });
+    return new Worker(URL.createObjectURL(blob));
+  } catch (err) {
+    console.warn("Failed to create inline Web Worker:", err);
+    return null;
+  }
+}
+
 export function PublicScreen({ initialState, serverNowIso, token }: PublicScreenProps) {
+  const clockOffsetRef = useRef<number>(0);
+  const isFirstRender = useRef(true);
+
+  if (isFirstRender.current) {
+    const clientNow = Date.now();
+    const serverTime = new Date(serverNowIso).getTime();
+    clockOffsetRef.current = serverTime - clientNow;
+    isFirstRender.current = false;
+  }
+
   const [state, setState] = useState(initialState);
-  const [now, setNow] = useState(() => new Date(serverNowIso));
+  const [now, setNow] = useState(() => new Date(Date.now() + clockOffsetRef.current));
   const [soundEnabled, setSoundEnabled] = useState(
     initialState.extras.settings.blindAlertSound !== "off",
   );
@@ -330,6 +380,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   const blindAlertCustomSoundUrl = state.extras.settings.blindAlertCustomSoundUrl;
   const blindAlertSeconds = state.extras.settings.blindAlertSeconds;
   const isBounty = state.extras.settings.isBounty;
+  const bountyType = state.extras.settings.bountyType;
   const soundIcon = getPublicSoundIcon({
     sound: blindAlertSound,
     soundEnabled,
@@ -338,14 +389,36 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   });
 
   const refresh = useCallback(async () => {
-    const nextState = await fetchPublicState(token);
-    setState(nextState);
-    setNow(new Date());
+    try {
+      const { state: nextState, serverNowIso: nextServerNowIso } = await fetchPublicState(token);
+      setState(nextState);
+      const clientNow = Date.now();
+      const serverTime = new Date(nextServerNowIso).getTime();
+      clockOffsetRef.current = serverTime - clientNow;
+      setNow(new Date(Date.now() + clockOffsetRef.current));
+    } catch (error) {
+      console.error(error);
+    }
   }, [token]);
 
   useEffect(() => {
-    const tick = window.setInterval(() => setNow(new Date()), 1000);
-    return () => window.clearInterval(tick);
+    const worker = createTimerWorker();
+    if (!worker) {
+      const tick = window.setInterval(() => {
+        setNow(new Date(Date.now() + clockOffsetRef.current));
+      }, 1000);
+      return () => window.clearInterval(tick);
+    }
+
+    worker.postMessage("start");
+    worker.onmessage = () => {
+      setNow(new Date(Date.now() + clockOffsetRef.current));
+    };
+
+    return () => {
+      worker.postMessage("stop");
+      worker.terminate();
+    };
   }, []);
 
   useEffect(() => {
@@ -355,6 +428,35 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
     document.addEventListener("fullscreenchange", onFullscreenChange);
     return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, []);
+
+  useEffect(() => {
+    let wakeLock: any = null;
+
+    async function requestWakeLock() {
+      try {
+        if (typeof window !== "undefined" && "wakeLock" in navigator) {
+          wakeLock = await (navigator as any).wakeLock.request("screen");
+          console.log("Wake Lock active");
+        }
+      } catch (err) {
+        console.warn("Wake Lock failed to request:", err);
+      }
+    }
+
+    requestWakeLock();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible" && !wakeLock) {
+        requestWakeLock();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      wakeLock?.release();
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -720,7 +822,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <div className="public-final-table">{publicPlayersTitle}</div>
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
             {visiblePublicPlayers.map((player) => {
-              const badges = getPublicPlayerBadges(player, isBounty);
+              const badges = getPublicPlayerBadges(player, isBounty, bountyType);
 
               return (
                 <div

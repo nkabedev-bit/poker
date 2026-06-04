@@ -214,7 +214,7 @@ function formatNumberInput(value: number) {
 }
 
 export function LeaderboardTables({ extras }: { extras: TournamentExtras }) {
-  const rows = buildPtsStandingsRows(extras.players, extras.pts);
+  const rows = buildPtsStandingsRows(extras.players, { ...extras.pts, bountyType: extras.settings.bountyType });
 
   return (
     <section className="poker-panel leaderboard-panel">

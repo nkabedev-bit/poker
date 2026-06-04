@@ -1,10 +1,37 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { markRowCancelled } from "@/lib/google-sheets";
+import { syncTournamentToSheets } from "@/lib/google-sheets";
+import { getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
+import type { TournamentPlayer } from "@/lib/timer/types";
+
+type BountyLog = {
+  eliminated_id: string;
+  finish_place: number | null;
+  id: string;
+  killers: unknown;
+  players_before?: unknown;
+  eliminated_name?: string | null;
+  uses_reentry?: boolean | null;
+  mystery_bounty_points?: number | null;
+  sheets_row_id?: number | null;
+  sheets_sheet_name?: string | null;
+};
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+function isTournamentPlayers(value: unknown): value is TournamentPlayer[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const player = item as Partial<TournamentPlayer>;
+    return typeof player.id === "string" && typeof player.name === "string";
+  });
+}
+
+function getFallbackRollbackPlayers(log: BountyLog, players: TournamentPlayer[]) {
+  return getTargetedEliminationRollbackPlayers(log, players);
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -17,69 +44,50 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();
     if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
-    // Cancel in Supabase
     const { data: log, error } = await auth.supabase
       .from("bounty_log")
-      .update({ cancelled: true, cancelled_at: new Date().toISOString() })
+      .select("*")
       .eq("id", id)
       .eq("tournament_id", t.id)
-      .select()
       .single();
 
     if (error) throw error;
 
-    // Restore player status
-    const extras = await loadTournamentExtras(t.id, auth.supabase);
-    const bountyEntries: Array<[string, number]> = [];
-    const bountyChipEntries: Array<[string, number]> = [];
-    for (const killer of Array.isArray(log.killers) ? log.killers : []) {
-      const item = killer as { bountyChips?: unknown; id?: unknown; share?: unknown };
-      const id = String(item.id ?? "");
-      const share = Number(item.share ?? 0);
-      const bountyChips = Number(item.bountyChips ?? 0);
-      if (id && share > 0) {
-        bountyEntries.push([id, share]);
-      }
-      if (id && bountyChips > 0) {
-        bountyChipEntries.push([id, bountyChips]);
-      }
-    }
-    const bountyByPlayerId = new Map<string, number>(bountyEntries);
-    const bountyChipsByPlayerId = new Map<string, number>(bountyChipEntries);
-    const updatedPlayers = extras.players.map((player) => {
-      let restored =
-        player.id === log.eliminated_id
-          ? { ...player, finishPlace: null, status: "active" as const }
-          : player;
-      if (log.finish_place === 2 && restored.finishPlace === 1) {
-        restored = { ...restored, finishPlace: null };
-      }
-      const bountyShare = bountyByPlayerId.get(player.id);
-      const bountyChips = bountyChipsByPlayerId.get(player.id) ?? 0;
-      if (!bountyShare && !bountyChips) return restored;
+    const typedLog = log as BountyLog;
 
-      return {
-        ...restored,
-        bountyChipsTotal: Math.max(0, Number(((restored.bountyChipsTotal || 0) - bountyChips).toFixed(6))),
-        bountyCount: Math.max(0, Number(((restored.bountyCount || 0) - (bountyShare ?? 0)).toFixed(6))),
-        stack: Math.max(0, Number(((restored.stack || 0) - bountyChips).toFixed(6))),
-      };
+    const { data: updatedPlayersResult, error: rpcError } = await auth.supabase.rpc("cancel_player_elimination", {
+      p_tournament_id: t.id,
+      p_eliminated_id: typedLog.eliminated_id,
+      p_finish_place: typedLog.finish_place,
+      p_killers: typedLog.killers,
+      p_mystery_points: typedLog.mystery_bounty_points ?? 0,
+      p_uses_reentry: typedLog.uses_reentry ?? false,
+      p_players_before: null,
     });
-    await saveTournamentExtras({ players: updatedPlayers }, "/tma/eliminations", auth.supabase);
 
-    // Try cancel in Sheets if body contains row info
-    try {
-      const body = await request.json();
-      if (body.sheetName && body.rowId) {
-        await markRowCancelled(body.sheetName, body.rowId);
+    if (rpcError) throw rpcError;
+
+    const updatedPlayers = updatedPlayersResult as TournamentPlayer[];
+
+    const { error: deleteError } = await auth.supabase
+      .from("bounty_log")
+      .delete()
+      .eq("id", id)
+      .eq("tournament_id", t.id);
+
+    if (deleteError) throw deleteError;
+
+    after(async () => {
+      try {
+        await syncTournamentToSheets(auth.supabase, t.id);
+      } catch (sheetError) {
+        console.error("Non-critical cancel sheets sync error:", sheetError);
       }
-    } catch {
-      // Body parse error or missing fields, ignore sheets update
-      console.log("No sheet info provided for cancellation");
-    }
+    });
 
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
+    console.error("Cancel elimination outer catch error:", err);
     return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

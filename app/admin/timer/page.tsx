@@ -14,6 +14,7 @@ export default async function TimerPage() {
       extras={state.extras}
       registrationStatus={state.tournament.registrationStatus}
       timerState={state.timerState}
+      serverNowIso={new Date().toISOString()}
     />
   );
 }

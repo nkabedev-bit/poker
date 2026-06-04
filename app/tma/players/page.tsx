@@ -3,13 +3,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { ArrowRightLeft, BadgePlus, ChevronLeft, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, BadgePlus, ChevronLeft, RotateCcw, Plus, Trash2, Users } from "lucide-react";
+import { formatPlayerNameWithRegistrationNumber } from "@/lib/player-registration-number";
 
 type Player = {
   addons?: number;
   addonChipsTotal?: number;
   id: string;
   name: string;
+  registrationNumber?: number | null;
   table: number;
   seat: number;
   stack: number;
@@ -84,7 +86,9 @@ export default function TMAPlayersPage() {
             setName("");
             await fetchPlayers();
           } else {
+            const data = await res.json().catch(() => null);
             tg.HapticFeedback.notificationOccurred("error");
+            tg.showAlert(data?.error ?? "Ошибка добавления игрока");
           }
         } finally {
           tg.MainButton.hideProgress();
@@ -197,6 +201,34 @@ export default function TMAPlayersPage() {
     tg?.showAlert("Ошибка пересадки");
   };
 
+  const submitRestorePlayer = async () => {
+    const tg = getTelegramWebApp();
+    if (!selectedPlayer) return;
+
+    tg?.showConfirm(`Вернуть игрока ${selectedPlayer.name} в игру?`, async (confirmed: boolean) => {
+      if (!confirmed) return;
+
+      const res = await fetch(`/api/tma/players/${selectedPlayer.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Telegram-Init-Data": initData,
+        },
+        body: JSON.stringify({ action: "restore_player" }),
+      });
+
+      if (res.ok) {
+        tg?.HapticFeedback.notificationOccurred("success");
+        await fetchPlayers();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      tg?.HapticFeedback.notificationOccurred("error");
+      tg?.showAlert(data?.error ?? "Ошибка возврата игрока");
+    });
+  };
+
   const tableOptions = useMemo(
     () => Array.from({ length: tablesCount }, (_, index) => index + 1),
     [tablesCount],
@@ -215,8 +247,9 @@ export default function TMAPlayersPage() {
       <div className="space-y-4">
         <h2 className="text-xl font-bold mb-4">Новый игрок</h2>
         <div>
-          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1">Имя</label>
+          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1" htmlFor="new-player-name">Имя</label>
           <input
+            id="new-player-name"
             type="text"
             className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-black font-semibold border-none rounded p-3 outline-none"
             value={name}
@@ -225,8 +258,9 @@ export default function TMAPlayersPage() {
           />
         </div>
         <div>
-          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1">Стол</label>
+          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1" htmlFor="new-player-table">Стол</label>
           <input
+            id="new-player-table"
             type="number"
             className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-black font-semibold border-none rounded p-3 outline-none"
             value={table}
@@ -256,7 +290,7 @@ export default function TMAPlayersPage() {
 
         <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
           <div>
-            <h1 className="text-xl font-bold">{selectedPlayer.name}</h1>
+            <h1 className="text-xl font-bold">{formatPlayerNameWithRegistrationNumber(selectedPlayer)}</h1>
             <p className="text-sm text-[var(--tg-theme-hint-color)]">
               {selectedPlayer.status === "active" ? "Активен" : "Выбыл"}
             </p>
@@ -281,32 +315,44 @@ export default function TMAPlayersPage() {
           </div>
         </div>
 
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
-          <label className="block text-xs text-[var(--tg-theme-hint-color)]">
-            Пересадить за стол
-            <select
-              className="mt-1 w-full bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
-              value={moveTable}
-              onChange={(event) => setMoveTable(event.target.value)}
+        {selectedPlayer.status === "active" && (
+          <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
+            <label className="block text-xs text-[var(--tg-theme-hint-color)]">
+              Пересадить за стол
+              <select
+                className="mt-1 w-full bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
+                value={moveTable}
+                onChange={(event) => setMoveTable(event.target.value)}
+              >
+                {tableOptions.map((tableNumber) => (
+                  <option key={tableNumber} value={tableNumber}>
+                    Стол {tableNumber}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
+              disabled={Number(moveTable) === selectedPlayer.table}
+              type="button"
+              onClick={() => void submitMoveTable()}
             >
-              {tableOptions.map((tableNumber) => (
-                <option key={tableNumber} value={tableNumber}>
-                  Стол {tableNumber}
-                </option>
-              ))}
-            </select>
-          </label>
-          <button
-            className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
-            disabled={Number(moveTable) === selectedPlayer.table}
-            type="button"
-            onClick={() => void submitMoveTable()}
-          >
-            <ArrowRightLeft size={18} /> Сохранить стол
-          </button>
-        </div>
+              <ArrowRightLeft size={18} /> Сохранить стол
+            </button>
+          </div>
+        )}
 
-        {showAddonForm ? (
+        {selectedPlayer.status === "eliminated" && (
+          <button
+            className="w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-3 rounded flex items-center justify-center gap-2"
+            type="button"
+            onClick={() => void submitRestorePlayer()}
+          >
+            <RotateCcw size={18} /> Вернуть в игру
+          </button>
+        )}
+
+        {selectedPlayer.status === "active" && showAddonForm ? (
           <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
             <label className="block text-xs text-[var(--tg-theme-hint-color)]">
               Кол-во фишек
@@ -340,7 +386,7 @@ export default function TMAPlayersPage() {
               </button>
             </div>
           </div>
-        ) : (
+        ) : selectedPlayer.status === "active" ? (
           <button
             className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
             disabled={!selectedPlayerCanAddon}
@@ -349,7 +395,7 @@ export default function TMAPlayersPage() {
           >
             <BadgePlus size={18} /> Добавить аддон
           </button>
-        )}
+        ) : null}
       </div>
     );
   }
@@ -361,6 +407,7 @@ export default function TMAPlayersPage() {
           <Users size={20} /> Игроки сегодня
         </h1>
         <button 
+          aria-label="Добавить игрока"
           onClick={() => {
             setShowAddForm(true);
             getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
@@ -409,7 +456,7 @@ export default function TMAPlayersPage() {
             >
               <div className={`w-3 h-3 rounded-full ${p.status === "active" ? "bg-green-500" : "bg-red-500"}`} />
               <div className="min-w-0">
-                <div className="font-semibold">{p.name}</div>
+                <div className="font-semibold">{formatPlayerNameWithRegistrationNumber(p)}</div>
                 <div className="text-xs text-[var(--tg-theme-hint-color)]">
                   {p.status === "active" ? `Ст. ${p.table} / Место ${p.seat} / Стек: ${p.stack}` : "Выбыл"}
                 </div>

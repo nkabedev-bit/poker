@@ -74,6 +74,7 @@ const settingsSchema = z.object({
   blindAlertCustomSoundUrl: nullableStoredUrlSchema.optional(),
   blindAlertSeconds: z.number().int().min(1).max(300).optional(),
   blindAlertSound: blindAlertSoundSchema.optional(),
+  bountyType: z.enum(["standard", "mystery"]).optional(),
   buyIn: z.number().int().min(0).optional(),
   isBounty: z.boolean().optional(),
   maxPlayersPerTable: z.number().int().positive().optional(),

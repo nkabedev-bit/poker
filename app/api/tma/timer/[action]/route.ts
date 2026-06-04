@@ -88,6 +88,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           registration_closes_at: registrationClosesAt?.toISOString() ?? null,
           finished_at: null,
         }).eq("tournament_id", t.id);
+
+        const context = await loadCurrentTournamentContext(auth.supabase);
+        if (context) {
+          await saveTournamentExtrasFromContext(
+            auth.supabase,
+            context,
+            { settings: { sheetsSessionStartedAt: now.toISOString() } },
+          );
+        }
       }
     } else if (action === "pause") {
       const { remainingSeconds, currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, now);

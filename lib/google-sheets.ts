@@ -1,10 +1,14 @@
 import { google, type sheets_v4 } from "googleapis";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildClientBotProfileSheetRow,
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
-import type { PtsStandingRow } from "@/lib/pts-rating";
+import { buildPtsStandingsRows, type PtsStandingRow } from "@/lib/pts-rating";
+import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
+import type { TournamentPlayer } from "@/lib/timer/types";
 
 const ELIMINATION_SHEET_HEADERS = [
   "Вылетел",
@@ -18,11 +22,229 @@ const ELIMINATION_SHEET_HEADERS = [
   "Кол-во баунти",
 ];
 
-function getTodaySheetName() {
-  const d = new Date();
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  return `${day}/${month}`;
+const VIP_SHEET_NAME = "VIP";
+const VIP_SHEET_HEADERS = ["Игрок", "Раз в VIP"];
+// Game-date columns start after the summary (A, B) and a spacer column (C).
+const VIP_FIRST_GAME_COLUMN_INDEX = 3;
+
+const MOSCOW_TIME_ZONE = "Europe/Moscow";
+const MOSCOW_UTC_OFFSET_HOURS = 3;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+type MoscowDateParts = {
+  day: number;
+  month: number;
+  year: number;
+};
+
+type BountyLogSheetRow = {
+  eliminated_name: string | null;
+  killers: unknown;
+  players_after?: unknown;
+  recorded_at: string | null;
+  uses_reentry: boolean | null;
+};
+
+function getMoscowDateParts(date = new Date()): MoscowDateParts {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: MOSCOW_TIME_ZONE,
+    year: "numeric",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    day: value("day"),
+    month: value("month"),
+    year: value("year"),
+  };
+}
+
+function getSheetNameForDate(date = new Date()) {
+  const { day, month } = getMoscowDateParts(date);
+  return `${String(day).padStart(2, "0")}/${String(month).padStart(2, "0")}`;
+}
+
+function getTodaySheetName(date = new Date()) {
+  return getSheetNameForDate(date);
+}
+
+export function getMoscowDayRange(date = new Date()) {
+  const { day, month, year } = getMoscowDateParts(date);
+  const startMs = Date.UTC(year, month - 1, day) - MOSCOW_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+  const endMs = startMs + MS_PER_DAY;
+
+  return {
+    endIso: new Date(endMs).toISOString(),
+    startIso: new Date(startMs).toISOString(),
+  };
+}
+
+export function getEliminationSheetName(sessionStartedAt?: string | null) {
+  return getTodaySheetName(sessionStartedAt ? new Date(sessionStartedAt) : new Date());
+}
+
+function formatMoscowTime(value: string | null) {
+  const date = value ? new Date(value) : new Date();
+  return date.toLocaleTimeString("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: MOSCOW_TIME_ZONE,
+  });
+}
+
+function getKillerNames(killers: unknown) {
+  if (!Array.isArray(killers)) return "—";
+  const names = killers
+    .map((killer) => {
+      if (!killer || typeof killer !== "object") return "";
+      const name = (killer as { name?: unknown }).name;
+      return typeof name === "string" ? name.trim() : "";
+    })
+    .filter(Boolean);
+
+  return names.join(" / ") || "—";
+}
+
+export function buildEliminationSheetRows(logs: BountyLogSheetRow[]) {
+  return logs.map((log) => [
+    log.eliminated_name || "",
+    getKillerNames(log.killers),
+    formatMoscowTime(log.recorded_at),
+    log.uses_reentry ? "Да" : "",
+  ]);
+}
+
+function isTournamentPlayers(value: unknown): value is TournamentPlayer[] {
+  return Array.isArray(value) && value.every((item) => {
+    if (!item || typeof item !== "object") return false;
+    const player = item as Partial<TournamentPlayer>;
+    return typeof player.id === "string" && typeof player.name === "string";
+  });
+}
+
+export function getSheetStandingsPlayers(
+  currentPlayers: TournamentPlayer[],
+  logs: BountyLogSheetRow[],
+) {
+  if (currentPlayers.length > 0) return currentPlayers;
+
+  for (let index = logs.length - 1; index >= 0; index -= 1) {
+    const playersAfter = logs[index]?.players_after;
+    if (isTournamentPlayers(playersAfter)) return playersAfter;
+  }
+
+  return currentPlayers;
+}
+
+function isVipPlayer(player: TournamentPlayer) {
+  if (player.category === "VIP") return true;
+  if (player.category === "Normal") return false;
+  return isVipRegistrationNumber(player.registrationNumber);
+}
+
+// Names of players who registered as VIP (registration number 19-27 / table 3),
+// in registration order, de-duplicated.
+export function getVipPlayersForGame(players: TournamentPlayer[]) {
+  const seen = new Set<string>();
+  const names: string[] = [];
+
+  for (const player of players) {
+    if (!isVipPlayer(player)) continue;
+    const name = player.name?.trim();
+    if (!name || seen.has(name)) continue;
+    seen.add(name);
+    names.push(name);
+  }
+
+  return names;
+}
+
+type VipGameColumn = { date: string; names: string[] };
+
+function parseVipGameColumns(grid: string[][]): VipGameColumn[] {
+  const headerRow = grid[0] ?? [];
+  const columns: VipGameColumn[] = [];
+
+  for (let col = VIP_FIRST_GAME_COLUMN_INDEX; col < headerRow.length; col += 1) {
+    const date = String(headerRow[col] ?? "").trim();
+    if (!date) continue;
+
+    const names: string[] = [];
+    for (let row = 1; row < grid.length; row += 1) {
+      const name = String(grid[row]?.[col] ?? "").trim();
+      if (name) names.push(name);
+    }
+
+    columns.push({ date, names });
+  }
+
+  return columns;
+}
+
+// Rebuild the full VIP grid: an A/B summary (player name + number of games as VIP)
+// anchored at the top-left, a spacer column, then one column per game date. Today's
+// date reuses its existing column when present (idempotent re-sync) and is otherwise
+// appended to the right.
+export function buildVipSheetGrid(
+  existingGrid: string[][],
+  todayDate: string,
+  todayNames: string[],
+): (string | number)[][] {
+  const columns = parseVipGameColumns(existingGrid);
+  const existingIndex = columns.findIndex((column) => column.date === todayDate);
+
+  if (existingIndex >= 0) {
+    columns[existingIndex] = { date: todayDate, names: todayNames };
+  } else if (todayNames.length > 0) {
+    columns.push({ date: todayDate, names: todayNames });
+  }
+
+  const counts = new Map<string, number>();
+  for (const column of columns) {
+    for (const name of column.names) {
+      counts.set(name, (counts.get(name) ?? 0) + 1);
+    }
+  }
+
+  const summary = [...counts.entries()].sort((a, b) => {
+    if (b[1] !== a[1]) return b[1] - a[1];
+    return a[0].localeCompare(b[0], "ru-RU");
+  });
+
+  const bodyRowCount = Math.max(
+    summary.length,
+    ...columns.map((column) => column.names.length),
+    0,
+  );
+
+  const grid: (string | number)[][] = [
+    [
+      VIP_SHEET_HEADERS[0],
+      VIP_SHEET_HEADERS[1],
+      "",
+      ...columns.map((column) => column.date),
+    ],
+  ];
+
+  for (let row = 0; row < bodyRowCount; row += 1) {
+    const summaryEntry = summary[row];
+    const line: (string | number)[] = [
+      summaryEntry ? summaryEntry[0] : "",
+      summaryEntry ? summaryEntry[1] : "",
+      "",
+      ...columns.map((column) => column.names[row] ?? ""),
+    ];
+    grid.push(line);
+  }
+
+  return grid;
+}
+
+export function getCurrentEliminationSheetName() {
+  return getEliminationSheetName();
 }
 
 async function getAuth() {
@@ -65,7 +287,6 @@ async function getOrCreateSheet(
 
       await updateSheetHeaders(sheets, spreadsheetId, sheetName, headers);
     } catch {
-      // Игнорируем ошибку, если лист уже был создан параллельно
       console.log("Sheet creation race condition handled");
     }
   }
@@ -112,7 +333,7 @@ export async function appendEliminationRow(data: {
 }) {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
     console.warn("Google Sheets not configured");
-    return { rowId: 0, sheetName: "" }; // Mock for local
+    return { rowId: 0, sheetName: "" };
   }
 
   const auth = await getAuth();
@@ -123,12 +344,10 @@ export async function appendEliminationRow(data: {
   await getOrCreateSheet(sheets, spreadsheetId, sheetName);
 
   const killerNames = data.killers.map((k) => k.name).join(" / ") || "—";
-  
-  // local time in moscow/etc? we use toLocaleTimeString with ru-RU
   const time = new Date().toLocaleTimeString("ru-RU", {
     hour: "2-digit",
     minute: "2-digit",
-    timeZone: "Europe/Moscow", // Force timezone for consistency if needed, or omit
+    timeZone: "Europe/Moscow",
   });
 
   const res = await sheets.spreadsheets.values.append({
@@ -147,7 +366,6 @@ export async function appendEliminationRow(data: {
     },
   });
 
-  // Example match: "'04/05'!A12:G12"
   const updatedRange = res.data.updates?.updatedRange || "";
   const match = updatedRange.match(/!A(\d+):/);
   const rowId = match ? parseInt(match[1]) : 0;
@@ -227,8 +445,147 @@ async function updatePtsStandingsRows(
   });
 }
 
+async function updateEliminationRows(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetName: string,
+  rows: unknown[][],
+) {
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${sheetName}'!A2:D`,
+  });
+
+  if (rows.length === 0) return;
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${sheetName}'!A2:D${rows.length + 1}`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: {
+      values: rows,
+    },
+  });
+}
+
+export async function syncTournamentToSheets(supabase: SupabaseClient, tournamentId: string) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
+
+  const { data } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournamentId)
+    .maybeSingle();
+  const extras = mergeTournamentExtras(data?.data);
+  const sessionStartedAt = extras.settings.sheetsSessionStartedAt;
+  const fallbackDayRange = getMoscowDayRange();
+  const logStartIso = sessionStartedAt ?? fallbackDayRange.startIso;
+  let logsQuery = supabase
+    .from("bounty_log")
+    .select("eliminated_name, killers, players_after, recorded_at, uses_reentry")
+    .eq("tournament_id", tournamentId)
+    .eq("cancelled", false)
+    .gte("recorded_at", logStartIso);
+
+  if (!sessionStartedAt) {
+    logsQuery = logsQuery.lt("recorded_at", fallbackDayRange.endIso);
+  }
+
+  const { data: logs, error: logsError } = await logsQuery.order("recorded_at", { ascending: true });
+
+  if (logsError) throw logsError;
+  const sheetLogs = (logs ?? []) as BountyLogSheetRow[];
+  const standingsPlayers = getSheetStandingsPlayers(extras.players, sheetLogs);
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const sheetName = getEliminationSheetName(sessionStartedAt);
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+  await getOrCreateSheet(sheets, spreadsheetId, sheetName);
+  await updateEliminationRows(
+    sheets,
+    spreadsheetId,
+    sheetName,
+    buildEliminationSheetRows(sheetLogs),
+  );
+  await updatePtsStandingsRows(
+    sheets,
+    spreadsheetId,
+    sheetName,
+    buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
+  );
+  await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
+}
+
+async function writeVipSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  gameDate: string,
+  players: TournamentPlayer[],
+) {
+  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
+  });
+  const existingGrid = ((existing.data.values ?? []) as unknown[][]).map((row) =>
+    row.map((cell) => String(cell ?? "")),
+  );
+
+  const grid = buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players));
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
+  });
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${VIP_SHEET_NAME}'!A1`,
+    valueInputOption: "USER_ENTERED",
+    requestBody: { values: grid },
+  });
+}
+
+// Refresh the VIP tab (the game-date column + the running summary) for the current
+// game. Keyed by the game date, so it is safe to call on every registration / sync.
+export async function syncVipSheet(supabase: SupabaseClient, tournamentId: string) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
+
+  const { data } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournamentId)
+    .maybeSingle();
+  const extras = mergeTournamentExtras(data?.data);
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const gameDate = getEliminationSheetName(extras.settings.sheetsSessionStartedAt);
+
+  await writeVipSheet(sheets, spreadsheetId, gameDate, extras.players);
+}
+
+export async function clearTournamentSheet(spreadsheetId: string, sheetName: string) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    console.warn("Google Sheets not configured");
+    return;
+  }
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${sheetName}'!A2:J`,
+  });
+}
+
 export async function markRowCancelled(sheetName: string, rowIndex: number) {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
-  
   if (rowIndex <= 0) return;
+
+  void sheetName;
 }

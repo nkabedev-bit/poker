@@ -23,6 +23,8 @@ export type ClientBotProfileAnswers = {
 
 export const CLIENT_BOT_PROFILE_INTRO_TEXT =
   "Привет! Заполни, пожалуйста, анкету и после этого ты сможешь зарегистрироваться на игру!";
+export const CLIENT_BOT_REGISTRATION_FULL_MESSAGE =
+  "Все места заняты, уточните ситуацию у админов";
 
 export const CLIENT_BOT_PROFILE_STEPS: {
   id: ClientBotProfileStepId;
@@ -71,6 +73,20 @@ export const CLIENT_BOT_PROFILE_SHEET_HEADERS = [
   "Пользовательское соглашение",
 ];
 
+export const CLIENT_BOT_MAIN_MENU_CALLBACK = "client_menu:main";
+export const CLIENT_BOT_MENU_REGISTRATION_CALLBACK = "client_menu:registration";
+export const CLIENT_BOT_MENU_RATING_CALLBACK = "client_menu:rating";
+export const CLIENT_BOT_MENU_SCHEDULE_CALLBACK = "client_menu:schedule";
+
+type ClientBotInlineButton = {
+  callback_data: string;
+  text: string;
+};
+
+type ClientBotInlineReplyMarkup = {
+  inline_keyboard: ClientBotInlineButton[][];
+};
+
 const russianMonthNumbers: Record<string, string> = {
   апреля: "04",
   август: "08",
@@ -118,6 +134,17 @@ export function buildProfileNicknameConfirmationText(name: string) {
   return `ваш никнейм ${normalizeClientBotText(name)}, верно?`;
 }
 
+export function buildClientBotRegistrationSuccessText(
+  player: Pick<TournamentPlayer, "name" | "registrationNumber">,
+) {
+  const registrationNumber = Number(player.registrationNumber);
+  if (Number.isInteger(registrationNumber) && registrationNumber > 0) {
+    return `Вы зарегистрированы. Ваш номер - ${registrationNumber}`;
+  }
+
+  return "Вы зарегистрированы.";
+}
+
 export function buildQuestionnaireStepReplyMarkup(stepId: ClientBotProfileStepId) {
   const step = CLIENT_BOT_PROFILE_STEPS.find((item) => item.id === stepId);
   if (!step || step.type === "text") return undefined;
@@ -136,6 +163,50 @@ export function buildQuestionnaireStepReplyMarkup(stepId: ClientBotProfileStepId
         { callback_data: `profile_answer:${stepId}:yes`, text: "Да" },
         { callback_data: `profile_answer:${stepId}:no`, text: "Нет" },
       ],
+    ],
+  };
+}
+
+export function buildClientBotMainMenuReplyMarkup(): ClientBotInlineReplyMarkup {
+  return {
+    inline_keyboard: [
+      [
+        {
+          callback_data: CLIENT_BOT_MENU_REGISTRATION_CALLBACK,
+          text: "Регистрация",
+        },
+      ],
+      [
+        {
+          callback_data: CLIENT_BOT_MENU_RATING_CALLBACK,
+          text: "Рейтинговая таблица",
+        },
+      ],
+      [
+        {
+          callback_data: CLIENT_BOT_MENU_SCHEDULE_CALLBACK,
+          text: "Расписание турниров",
+        },
+      ],
+    ],
+  };
+}
+
+export function buildClientBotMainMenuButtonReplyMarkup(): ClientBotInlineReplyMarkup {
+  return {
+    inline_keyboard: [
+      [{ callback_data: CLIENT_BOT_MAIN_MENU_CALLBACK, text: "Главное меню" }],
+    ],
+  };
+}
+
+export function appendClientBotMainMenuButton(
+  replyMarkup: ClientBotInlineReplyMarkup,
+): ClientBotInlineReplyMarkup {
+  return {
+    inline_keyboard: [
+      ...replyMarkup.inline_keyboard.map((row) => row.map((button) => ({ ...button }))),
+      [{ callback_data: CLIENT_BOT_MAIN_MENU_CALLBACK, text: "Главное меню" }],
     ],
   };
 }

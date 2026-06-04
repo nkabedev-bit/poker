@@ -1,12 +1,21 @@
 import { Bot, webhookCallback, type Context } from "grammy";
 import { createClient } from "@supabase/supabase-js";
 import {
+  appendClientBotMainMenuButton,
+  buildClientBotMainMenuButtonReplyMarkup,
+  buildClientBotMainMenuReplyMarkup,
+  buildClientBotRegistrationSuccessText,
   buildProfileNicknameConfirmationText,
   buildClientBotPlayer,
   buildNicknameConfirmationText,
   buildQuestionnaireStepReplyMarkup,
   CLIENT_BOT_PROFILE_INTRO_TEXT,
+  CLIENT_BOT_REGISTRATION_FULL_MESSAGE,
   buildTableSelectionReplyMarkup,
+  CLIENT_BOT_MAIN_MENU_CALLBACK,
+  CLIENT_BOT_MENU_RATING_CALLBACK,
+  CLIENT_BOT_MENU_REGISTRATION_CALLBACK,
+  CLIENT_BOT_MENU_SCHEDULE_CALLBACK,
   CLIENT_BOT_PROFILE_STEPS,
   type ClientBotProfileAnswers,
   type ClientBotProfileStepId,
@@ -14,11 +23,18 @@ import {
   normalizeClientBotText,
 } from "@/lib/client-bot/registration";
 import {
+  safeAnswerCallbackQuery,
+  safeEditMessageText,
+} from "@/lib/client-bot/callback-query";
+import {
   type CurrentTournamentContext,
   loadCurrentTournamentContext,
-  saveTournamentExtrasFromContext,
 } from "@/lib/client-bot/server";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
+import {
+  appendTournamentPlayerWithRegistrationNumber,
+  isTournamentRegistrationCapacityError,
+} from "@/lib/tournament-player-registration";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -52,22 +68,14 @@ type ClientBotUser = {
   username: string | null;
 };
 
-const menuReplyMarkup = {
-  keyboard: [
-    [{ text: "Регистрация" }],
-    [{ text: "Рейтинговая таблица" }, { text: "Расписание турниров" }],
-  ],
-  resize_keyboard: true,
-};
-
-const nicknameConfirmationReplyMarkup = {
+const nicknameConfirmationReplyMarkup = appendClientBotMainMenuButton({
   inline_keyboard: [
     [
       { callback_data: "nickname_confirm:yes", text: "Да" },
       { callback_data: "nickname_confirm:no", text: "Нет" },
     ],
   ],
-};
+});
 
 const profileNicknameConfirmationReplyMarkup = {
   inline_keyboard: [
@@ -98,6 +106,43 @@ const stateProfileSteps = new Map<ClientBotUser["state"], ClientBotProfileStepId
 
 function getEffectiveTablesCount(context: CurrentTournamentContext) {
   return Math.max(1, Math.floor(context.extras.settings.tablesCount));
+}
+
+type ClientBotPostProfileReplyMarkup = ReturnType<typeof buildClientBotMainMenuReplyMarkup>;
+
+function buildPostProfileTableSelectionReplyMarkup(tablesCount: number) {
+  return appendClientBotMainMenuButton(buildTableSelectionReplyMarkup(tablesCount));
+}
+
+async function replyWithPostProfileMarkup(
+  ctx: Context,
+  text: string,
+  replyMarkup: ClientBotPostProfileReplyMarkup,
+  options: { editCurrentMessage?: boolean } = {},
+) {
+  if (options.editCurrentMessage && ctx.callbackQuery?.message) {
+    const edited = await safeEditMessageText(ctx, text, replyMarkup);
+    if (edited) return;
+  }
+
+  await ctx.reply(text, { reply_markup: replyMarkup });
+}
+
+async function replyWithMainMenuButton(
+  ctx: Context,
+  text: string,
+  options: { editCurrentMessage?: boolean } = {},
+) {
+  await replyWithPostProfileMarkup(ctx, text, buildClientBotMainMenuButtonReplyMarkup(), options);
+}
+
+async function sendMainMenu(ctx: Context, options: { editCurrentMessage?: boolean } = {}) {
+  await replyWithPostProfileMarkup(
+    ctx,
+    "Выберите действие.",
+    buildClientBotMainMenuReplyMarkup(),
+    options,
+  );
 }
 
 function getAdminSupabase() {
@@ -250,12 +295,14 @@ async function promptCurrentProfileQuestion(
 async function registerUserWithName({
   context,
   ctx,
+  editCurrentMessage = false,
   name,
   result,
   tableNumber,
 }: {
   context: CurrentTournamentContext;
   ctx: Context;
+  editCurrentMessage?: boolean;
   name: string;
   result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
   tableNumber: number;
@@ -275,20 +322,45 @@ async function registerUserWithName({
       })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.reply("Вы уже зарегистрированы.", { reply_markup: menuReplyMarkup });
+    await replyWithMainMenuButton(ctx, "Вы уже зарегистрированы.", { editCurrentMessage });
     return;
   }
 
-  const player = buildClientBotPlayer({
+  const playerDraft = buildClientBotPlayer({
     name,
     startingStack: context.tournament.starting_stack,
     tableNumber,
     telegramId: result.user.telegram_id,
   });
 
-  await saveTournamentExtrasFromContext(result.supabase, context, {
-    players: [...context.extras.players, player],
-  });
+  let player;
+  try {
+    player = await appendTournamentPlayerWithRegistrationNumber({
+      extras: context.extras,
+      player: playerDraft,
+      publicToken: context.tournament.public_token,
+      redirectTo: "/tma/players",
+      supabase: result.supabase,
+      tournamentId: context.tournament.id,
+    });
+  } catch (error) {
+    if (isTournamentRegistrationCapacityError(error)) {
+      await result.supabase
+        .from("client_bot_users")
+        .update({
+          pending_display_name: null,
+          state: "idle",
+        })
+        .eq("telegram_id", result.user.telegram_id);
+
+      await replyWithMainMenuButton(ctx, CLIENT_BOT_REGISTRATION_FULL_MESSAGE, {
+        editCurrentMessage,
+      });
+      return;
+    }
+
+    throw error;
+  }
 
   await result.supabase
     .from("client_bot_users")
@@ -301,8 +373,15 @@ async function registerUserWithName({
     })
     .eq("telegram_id", result.user.telegram_id);
 
-  await ctx.reply(`Вы зарегистрированы как ${player.name}.`, {
-    reply_markup: menuReplyMarkup,
+  try {
+    const { syncVipSheet } = await import("@/lib/google-sheets");
+    await syncVipSheet(result.supabase, context.tournament.id);
+  } catch (sheetError) {
+    console.error("Failed to sync VIP sheet", sheetError);
+  }
+
+  await replyWithMainMenuButton(ctx, buildClientBotRegistrationSuccessText(player), {
+    editCurrentMessage,
   });
 }
 
@@ -310,11 +389,13 @@ async function askForTableNumber({
   context,
   ctx,
   displayName,
+  editCurrentMessage = false,
   result,
 }: {
   context: CurrentTournamentContext;
   ctx: Context;
   displayName: string;
+  editCurrentMessage?: boolean;
   result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
 }) {
   const existingPlayer = context.extras.players.find(
@@ -332,7 +413,7 @@ async function askForTableNumber({
       })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.reply("Вы уже зарегистрированы.", { reply_markup: menuReplyMarkup });
+    await replyWithMainMenuButton(ctx, "Вы уже зарегистрированы.", { editCurrentMessage });
     return;
   }
 
@@ -345,12 +426,78 @@ async function askForTableNumber({
     })
     .eq("telegram_id", result.user.telegram_id);
 
-  await ctx.reply("Выберите номер стола.", {
-    reply_markup: buildTableSelectionReplyMarkup(getEffectiveTablesCount(context)),
+  await replyWithPostProfileMarkup(
+    ctx,
+    "Выберите номер стола.",
+    buildPostProfileTableSelectionReplyMarkup(getEffectiveTablesCount(context)),
+    { editCurrentMessage },
+  );
+}
+
+async function handleRegistrationMenuAction({
+  ctx,
+  editCurrentMessage = false,
+  result,
+}: {
+  ctx: Context;
+  editCurrentMessage?: boolean;
+  result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
+}) {
+  await result.supabase
+    .from("client_bot_users")
+    .update({ state: "awaiting_registration_code" })
+    .eq("telegram_id", result.user.telegram_id);
+
+  await replyWithMainMenuButton(ctx, "Введите кодовое слово для регистрации.", {
+    editCurrentMessage,
   });
 }
 
+async function handleRatingMenuAction({
+  ctx,
+  editCurrentMessage = false,
+  result,
+}: {
+  ctx: Context;
+  editCurrentMessage?: boolean;
+  result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
+}) {
+  const context = await loadCurrentTournamentContext(result.supabase);
+  const ratingUrl = context?.extras.clientBot.ratingUrl.trim();
+
+  await replyWithMainMenuButton(
+    ctx,
+    ratingUrl
+      ? `Рейтинговая таблица:\n${ratingUrl}`
+      : "Ссылка на рейтинговую таблицу пока не добавлена.",
+    { editCurrentMessage },
+  );
+}
+
+async function handleScheduleMenuAction({
+  ctx,
+  editCurrentMessage = false,
+  result,
+}: {
+  ctx: Context;
+  editCurrentMessage?: boolean;
+  result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
+}) {
+  const context = await loadCurrentTournamentContext(result.supabase);
+  const scheduleText = context?.extras.clientBot.scheduleText.trim();
+
+  await replyWithMainMenuButton(
+    ctx,
+    scheduleText || "Расписание ближайших турниров пока не добавлено.",
+    { editCurrentMessage },
+  );
+}
+
 const bot = new Bot(getBotToken());
+
+async function acknowledgeMenuCallback(ctx: Context) {
+  await safeAnswerCallbackQuery(ctx);
+}
 
 bot.command("start", async (ctx) => {
   const result = await upsertClientBotUser(ctx);
@@ -358,7 +505,7 @@ bot.command("start", async (ctx) => {
 
   if (!(await promptCurrentProfileQuestion(ctx, result))) return;
 
-  await ctx.reply("Выберите действие.", { reply_markup: menuReplyMarkup });
+  await sendMainMenu(ctx);
 });
 
 bot.hears("Регистрация", async (ctx) => {
@@ -367,14 +514,7 @@ bot.hears("Регистрация", async (ctx) => {
 
   if (!(await promptCurrentProfileQuestion(ctx, result))) return;
 
-  await result.supabase
-    .from("client_bot_users")
-    .update({ state: "awaiting_registration_code" })
-    .eq("telegram_id", result.user.telegram_id);
-
-  await ctx.reply("Введите кодовое слово для регистрации.", {
-    reply_markup: { remove_keyboard: true },
-  });
+  await handleRegistrationMenuAction({ ctx, result });
 });
 
 bot.hears("Рейтинговая таблица", async (ctx) => {
@@ -383,15 +523,7 @@ bot.hears("Рейтинговая таблица", async (ctx) => {
 
   if (!(await promptCurrentProfileQuestion(ctx, result))) return;
 
-  const context = await loadCurrentTournamentContext(result.supabase);
-  const ratingUrl = context?.extras.clientBot.ratingUrl.trim();
-
-  await ctx.reply(
-    ratingUrl
-      ? `Рейтинговая таблица:\n${ratingUrl}`
-      : "Ссылка на рейтинговую таблицу пока не добавлена.",
-    { reply_markup: menuReplyMarkup },
-  );
+  await handleRatingMenuAction({ ctx, result });
 });
 
 bot.hears("Расписание турниров", async (ctx) => {
@@ -400,12 +532,60 @@ bot.hears("Расписание турниров", async (ctx) => {
 
   if (!(await promptCurrentProfileQuestion(ctx, result))) return;
 
-  const context = await loadCurrentTournamentContext(result.supabase);
-  const scheduleText = context?.extras.clientBot.scheduleText.trim();
+  await handleScheduleMenuAction({ ctx, result });
+});
 
-  await ctx.reply(scheduleText || "Расписание ближайших турниров пока не добавлено.", {
-    reply_markup: menuReplyMarkup,
-  });
+bot.hears(/^(?:Главное меню|вернуться в главное меню)$/i, async (ctx) => {
+  const result = await upsertClientBotUser(ctx);
+  if (!result) return;
+
+  if (!(await promptCurrentProfileQuestion(ctx, result))) return;
+
+  await sendMainMenu(ctx);
+});
+
+bot.callbackQuery(CLIENT_BOT_MAIN_MENU_CALLBACK, async (ctx) => {
+  await acknowledgeMenuCallback(ctx);
+
+  const result = await upsertClientBotUser(ctx);
+  if (!result) return;
+
+  if (!(await promptCurrentProfileQuestion(ctx, result))) return;
+
+  await sendMainMenu(ctx, { editCurrentMessage: true });
+});
+
+bot.callbackQuery(CLIENT_BOT_MENU_REGISTRATION_CALLBACK, async (ctx) => {
+  await acknowledgeMenuCallback(ctx);
+
+  const result = await upsertClientBotUser(ctx);
+  if (!result) return;
+
+  if (!(await promptCurrentProfileQuestion(ctx, result))) return;
+
+  await handleRegistrationMenuAction({ ctx, editCurrentMessage: true, result });
+});
+
+bot.callbackQuery(CLIENT_BOT_MENU_RATING_CALLBACK, async (ctx) => {
+  await acknowledgeMenuCallback(ctx);
+
+  const result = await upsertClientBotUser(ctx);
+  if (!result) return;
+
+  if (!(await promptCurrentProfileQuestion(ctx, result))) return;
+
+  await handleRatingMenuAction({ ctx, editCurrentMessage: true, result });
+});
+
+bot.callbackQuery(CLIENT_BOT_MENU_SCHEDULE_CALLBACK, async (ctx) => {
+  await acknowledgeMenuCallback(ctx);
+
+  const result = await upsertClientBotUser(ctx);
+  if (!result) return;
+
+  if (!(await promptCurrentProfileQuestion(ctx, result))) return;
+
+  await handleScheduleMenuAction({ ctx, editCurrentMessage: true, result });
 });
 
 bot.on("message:text", async (ctx) => {
@@ -497,13 +677,16 @@ bot.on("message:text", async (ctx) => {
 
   const context = await loadCurrentTournamentContext(result.supabase);
   if (!context) {
-    await ctx.reply("Турнир пока не настроен.", { reply_markup: menuReplyMarkup });
+    await replyWithMainMenuButton(ctx, "Турнир пока не настроен.");
     return;
   }
 
   if (result.user.state === "awaiting_registration_code") {
     if (!isRegistrationCodeMatch(text, context.extras.clientBot.registrationCode)) {
-      await ctx.reply("Кодовое слово не подошло. Проверьте код и отправьте его еще раз.");
+      await replyWithMainMenuButton(
+        ctx,
+        "Кодовое слово не подошло. Проверьте код и отправьте его еще раз.",
+      );
       return;
     }
 
@@ -522,14 +705,14 @@ bot.on("message:text", async (ctx) => {
       .update({ pending_display_name: null, state: "awaiting_registration_name" })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.reply("Код принят. Введите ваш никнейм для списка участников.");
+    await replyWithMainMenuButton(ctx, "Код принят. Введите ваш никнейм для списка участников.");
     return;
   }
 
   if (result.user.state === "awaiting_registration_name") {
     const name = normalizeClientBotText(text);
     if (!name) {
-      await ctx.reply("Введите никнейм текстом.");
+      await replyWithMainMenuButton(ctx, "Введите никнейм текстом.");
       return;
     }
 
@@ -541,30 +724,34 @@ bot.on("message:text", async (ctx) => {
       })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.reply(buildNicknameConfirmationText(name), {
-      reply_markup: nicknameConfirmationReplyMarkup,
-    });
+    await replyWithPostProfileMarkup(ctx, buildNicknameConfirmationText(name), nicknameConfirmationReplyMarkup);
     return;
   }
 
   if (result.user.state === "awaiting_nickname_confirmation") {
-    await ctx.reply("Подтвердите никнейм кнопками под предыдущим сообщением.", {
-      reply_markup: nicknameConfirmationReplyMarkup,
-    });
+    await replyWithPostProfileMarkup(
+      ctx,
+      "Подтвердите никнейм кнопками под предыдущим сообщением.",
+      nicknameConfirmationReplyMarkup,
+    );
     return;
   }
 
   if (result.user.state === "awaiting_registration_table") {
-    await ctx.reply("Выберите номер стола кнопкой под предыдущим сообщением.", {
-      reply_markup: buildTableSelectionReplyMarkup(getEffectiveTablesCount(context)),
-    });
+    await replyWithPostProfileMarkup(
+      ctx,
+      "Выберите номер стола кнопкой под предыдущим сообщением.",
+      buildPostProfileTableSelectionReplyMarkup(getEffectiveTablesCount(context)),
+    );
     return;
   }
 
-  await ctx.reply("Выберите действие в меню.", { reply_markup: menuReplyMarkup });
+  await sendMainMenu(ctx);
 });
 
 bot.callbackQuery(/^profile_answer:(\w+):(yes|no)$/, async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -573,13 +760,11 @@ bot.callbackQuery(/^profile_answer:(\w+):(yes|no)$/, async (ctx) => {
   const step = getProfileStep(stepId);
 
   if (!step || result.user.state !== profileStepStates[stepId]) {
-    await ctx.answerCallbackQuery();
     await promptCurrentProfileQuestion(ctx, result);
     return;
   }
 
   if (step.type === "text") {
-    await ctx.answerCallbackQuery();
     await ctx.reply("Введите ответ текстом.");
     return;
   }
@@ -587,7 +772,6 @@ bot.callbackQuery(/^profile_answer:(\w+):(yes|no)$/, async (ctx) => {
   const answers = { ...getProfileDraft(result.user), [stepId]: answer };
   const nextStepId = getNextProfileStepId(stepId);
 
-  await ctx.answerCallbackQuery();
   await result.supabase
     .from("client_bot_users")
     .update({ pending_profile_answers: answers })
@@ -609,6 +793,8 @@ bot.callbackQuery(/^profile_answer:(\w+):(yes|no)$/, async (ctx) => {
 });
 
 bot.callbackQuery("profile_nickname_confirm:no", async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -617,13 +803,14 @@ bot.callbackQuery("profile_nickname_confirm:no", async (ctx) => {
     .update({ state: "awaiting_profile_nickname_fix" })
     .eq("telegram_id", result.user.telegram_id);
 
-  await ctx.answerCallbackQuery();
   await ctx.reply("Введите никнейм еще раз.", {
     reply_markup: { remove_keyboard: true },
   });
 });
 
 bot.callbackQuery("profile_nickname_confirm:yes", async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -634,19 +821,22 @@ bot.callbackQuery("profile_nickname_confirm:yes", async (ctx) => {
       .update({ state: profileStepStates.fullName })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.answerCallbackQuery();
     await ctx.reply("Анкета заполнена не полностью. Начнем заново.");
     await startProfileQuestionnaire(ctx, result);
     return;
   }
 
   const submittedAt = new Date();
-  await appendClientBotProfileRow({
-    answers,
-    submittedAt,
-    telegramId: result.user.telegram_id,
-    username: result.user.username,
-  });
+  try {
+    await appendClientBotProfileRow({
+      answers,
+      submittedAt,
+      telegramId: result.user.telegram_id,
+      username: result.user.username,
+    });
+  } catch (sheetError) {
+    console.error("Non-critical client bot profile sheet sync error:", sheetError);
+  }
 
   await result.supabase
     .from("client_bot_users")
@@ -659,11 +849,17 @@ bot.callbackQuery("profile_nickname_confirm:yes", async (ctx) => {
     })
     .eq("telegram_id", result.user.telegram_id);
 
-  await ctx.answerCallbackQuery();
-  await ctx.reply("Анкета сохранена.", { reply_markup: menuReplyMarkup });
+  await replyWithPostProfileMarkup(
+    ctx,
+    "Анкета сохранена.",
+    buildClientBotMainMenuReplyMarkup(),
+    { editCurrentMessage: true },
+  );
 });
 
 bot.callbackQuery("nickname_confirm:no", async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -675,11 +871,12 @@ bot.callbackQuery("nickname_confirm:no", async (ctx) => {
     })
     .eq("telegram_id", result.user.telegram_id);
 
-  await ctx.answerCallbackQuery();
-  await ctx.reply("Введите никнейм еще раз.");
+  await replyWithMainMenuButton(ctx, "Введите никнейм еще раз.", { editCurrentMessage: true });
 });
 
 bot.callbackQuery("nickname_confirm:yes", async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -695,21 +892,22 @@ bot.callbackQuery("nickname_confirm:yes", async (ctx) => {
       })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.answerCallbackQuery();
-    await ctx.reply("Введите никнейм еще раз.");
+    await replyWithMainMenuButton(ctx, "Введите никнейм еще раз.", { editCurrentMessage: true });
     return;
   }
 
-  await ctx.answerCallbackQuery();
   await askForTableNumber({
     context,
     ctx,
     displayName: name,
+    editCurrentMessage: true,
     result,
   });
 });
 
 bot.callbackQuery(/^table_select:(\d+)$/, async (ctx) => {
+  await safeAnswerCallbackQuery(ctx);
+
   const result = await upsertClientBotUser(ctx);
   if (!result) return;
 
@@ -718,16 +916,22 @@ bot.callbackQuery(/^table_select:(\d+)$/, async (ctx) => {
   const tablesCount = context ? getEffectiveTablesCount(context) : 0;
 
   if (!context || result.user.state !== "awaiting_registration_table") {
-    await ctx.answerCallbackQuery();
-    await ctx.reply("Начните регистрацию заново.", { reply_markup: menuReplyMarkup });
+    await replyWithPostProfileMarkup(
+      ctx,
+      "Начните регистрацию заново.",
+      buildClientBotMainMenuReplyMarkup(),
+      { editCurrentMessage: true },
+    );
     return;
   }
 
   if (!Number.isInteger(tableNumber) || tableNumber < 1 || tableNumber > tablesCount) {
-    await ctx.answerCallbackQuery("Неверный номер стола");
-    await ctx.reply("Выберите номер стола из списка.", {
-      reply_markup: buildTableSelectionReplyMarkup(tablesCount),
-    });
+    await replyWithPostProfileMarkup(
+      ctx,
+      "Выберите номер стола из списка.",
+      buildPostProfileTableSelectionReplyMarkup(tablesCount),
+      { editCurrentMessage: true },
+    );
     return;
   }
 
@@ -738,15 +942,14 @@ bot.callbackQuery(/^table_select:(\d+)$/, async (ctx) => {
       .update({ state: "awaiting_registration_name" })
       .eq("telegram_id", result.user.telegram_id);
 
-    await ctx.answerCallbackQuery();
-    await ctx.reply("Введите никнейм еще раз.");
+    await replyWithMainMenuButton(ctx, "Введите никнейм еще раз.", { editCurrentMessage: true });
     return;
   }
 
-  await ctx.answerCallbackQuery();
   await registerUserWithName({
     context,
     ctx,
+    editCurrentMessage: true,
     name,
     result,
     tableNumber,

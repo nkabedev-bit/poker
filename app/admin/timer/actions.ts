@@ -111,6 +111,15 @@ async function updateTimerState(values: Record<string, unknown>) {
   }
 }
 
+async function saveSheetsSessionStart(startedAt: Date) {
+  if (!hasPublicEnv()) return;
+
+  await saveTournamentExtras(
+    { settings: { sheetsSessionStartedAt: startedAt.toISOString() } },
+    "/admin/timer",
+  );
+}
+
 export async function startTimer() {
 
   const context = await loadTimerContext();
@@ -128,6 +137,7 @@ export async function startTimer() {
     registration_closes_at: registrationClosesAt?.toISOString() ?? null,
     finished_at: null,
   });
+  await saveSheetsSessionStart(now);
 }
 
 export async function restartTournament() {
@@ -146,6 +156,7 @@ export async function restartTournament() {
     registration_closes_at: registrationClosesAt?.toISOString() ?? null,
     finished_at: null,
   });
+  await saveSheetsSessionStart(now);
 }
 
 export async function pauseTimer() {

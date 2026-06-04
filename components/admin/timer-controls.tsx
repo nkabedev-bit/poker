@@ -19,6 +19,7 @@ type TimerControlsProps = {
   extras: TournamentExtras;
   timerState: TimerState;
   registrationStatus: "open" | "closed";
+  serverNowIso: string;
 };
 
 function formatBlinds(level: BlindLevel | null) {
@@ -32,8 +33,9 @@ export function TimerControls({
   extras,
   timerState,
   registrationStatus,
+  serverNowIso,
 }: TimerControlsProps) {
-  const { currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, new Date());
+  const { currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, new Date(serverNowIso));
   const current = blindLevels[currentLevelIndex] ?? null;
   const next = blindLevels[currentLevelIndex + 1] ?? null;
   const isRunning = timerState.status === "running" || timerState.status === "break";
@@ -48,7 +50,7 @@ export function TimerControls({
       <section className="poker-panel timer-control-panel">
         <p className="eyebrow">⏱️ Уровень {currentLevelIndex + 1}</p>
         <div className="admin-blinds-current">{formatBlinds(current)}</div>
-        <AdminTimerClock timerState={timerState} blindLevels={blindLevels} />
+        <AdminTimerClock timerState={timerState} blindLevels={blindLevels} serverNowIso={serverNowIso} />
         <div className="button-row centered">
           <form action={previousLevel}>
             <SubmitButton className="ghost-button" pendingText="◀ ...">

@@ -119,10 +119,21 @@ export function SettingsForm({
         </label>
         <label>
           🎯 Баунти
-          <span className="checkbox-field">
-            <input name="isBounty" defaultChecked={settings.isBounty} type="checkbox" />
-            Считать выбитых
-          </span>
+          <select
+            aria-label="Тип баунти"
+            name="bountyMode"
+            defaultValue={
+              settings.isBounty
+                ? settings.bountyType === "mystery"
+                  ? "mystery"
+                  : "standard"
+                : "off"
+            }
+          >
+            <option value="off">Нет</option>
+            <option value="standard">Обычный баунти</option>
+            <option value="mystery">Mystery Bounty</option>
+          </select>
         </label>
         <label>
           Количество столов

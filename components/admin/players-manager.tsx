@@ -27,6 +27,7 @@ function newPlayer(startingStack: number): TournamentPlayer {
 
 export function PlayersManager({ extras, saveAction, startingStack }: PlayersManagerProps) {
   const [players, setPlayers] = useState<TournamentPlayer[]>(extras.players);
+  const isMystery = extras.settings.bountyType === "mystery" && extras.settings.isBounty;
   const activeCount = useMemo(
     () => players.filter((player) => player.status === "active").length,
     [players],
@@ -73,6 +74,7 @@ export function PlayersManager({ extras, saveAction, startingStack }: PlayersMan
         <span>Ребаи</span>
         <span>Аддоны</span>
         <span>Баунти</span>
+        {isMystery ? <span>Mystery PTS</span> : null}
         <span>Статус</span>
         <span />
       </div>
@@ -134,6 +136,16 @@ export function PlayersManager({ extras, saveAction, startingStack }: PlayersMan
               value={player.bountyCount}
               onChange={(event) => updatePlayer(index, { bountyCount: Number(event.target.value) })}
             />
+            {isMystery ? (
+              <input
+                aria-label="Mystery PTS игрока"
+                min={0}
+                step={0.01}
+                type="number"
+                value={player.mysteryBountyPoints ?? 0}
+                onChange={(event) => updatePlayer(index, { mysteryBountyPoints: Number(event.target.value) })}
+              />
+            ) : null}
             <select
               aria-label="Статус игрока"
               value={player.status}

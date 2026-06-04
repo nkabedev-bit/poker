@@ -14,7 +14,9 @@ export type PtsBountyTemplate = {
   name: string;
 };
 
-export type PtsSettings = Pick<TournamentExtras["pts"], "bountyPoints" | "placePoints">;
+export type PtsSettings = Pick<TournamentExtras["pts"], "bountyPoints" | "placePoints"> & {
+  bountyType?: TournamentExtras["settings"]["bountyType"];
+};
 
 export type KillerShare = {
   id: string;
@@ -35,6 +37,21 @@ function roundBountyCount(value: number) {
 
 function roundChipCount(value: number) {
   return Number(value.toFixed(6));
+}
+
+function getNextFinishPlace(players: TournamentPlayer[], activeCount: number) {
+  const maxPlace = Math.max(activeCount, players.length);
+  const occupiedPlaces = new Set(
+    players
+      .map((player) => player.finishPlace)
+      .filter((place): place is number => Number.isInteger(place) && place !== null && place > 1),
+  );
+
+  for (let place = activeCount; place <= maxPlace; place += 1) {
+    if (!occupiedPlaces.has(place)) return place;
+  }
+
+  return activeCount;
 }
 
 export function createDefaultPlacePoints() {
@@ -92,11 +109,12 @@ export function recordPtsElimination(input: {
   eliminatedId: string;
   isBounty: boolean;
   killers: KillerShare[];
+  mysteryPoints?: number;
   players: TournamentPlayer[];
   usesReentry: boolean;
 }) {
   const activePlayers = input.players.filter((player) => player.status === "active");
-  const finishPlace = input.usesReentry ? null : activePlayers.length;
+  const finishPlace = input.usesReentry ? null : getNextFinishPlace(input.players, activePlayers.length);
   const tournamentFinished = !input.usesReentry && activePlayers.length === 2;
   const bountyByPlayerId = new Map<string, number>();
 

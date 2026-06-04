@@ -9,6 +9,8 @@ export type RegistrationStatus = "open" | "closed";
 
 export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off";
 
+export type BountyType = "standard" | "mystery";
+
 export type BlindLevel = {
   id: string;
   levelOrder: number;
@@ -50,8 +52,11 @@ export type TournamentPlayer = {
   addonChipsTotal?: number;
   bountyChipsTotal?: number;
   bountyCount: number;
+  mysteryBountyPoints?: number;
   status: "active" | "eliminated";
   finishPlace: number | null;
+  registrationNumber?: number | null;
+  category?: "VIP" | "Normal";
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
 };
@@ -73,12 +78,14 @@ export type TournamentExtras = {
     blindAlertSeconds: number;
     blindAlertSound: BlindAlertSound;
     buyIn: number;
+    bountyType: BountyType;
     isBounty: boolean;
     maxPlayersPerTable: number;
     maxAddons: number;
     maxReentries: number;
     rebuyPrice: number;
     reentryEnabled: boolean;
+    sheetsSessionStartedAt: string | null;
     tablesCount: number;
   };
   players: TournamentPlayer[];

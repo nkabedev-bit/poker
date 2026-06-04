@@ -1,12 +1,12 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { appendEliminationRow } from "@/lib/google-sheets";
-import { buildPtsStandingsRows, recordPtsElimination } from "@/lib/pts-rating";
+import { syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { getBountyChipAward, getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
-import type { BlindLevel, TimerState } from "@/lib/timer/types";
+import type { BlindLevel, TimerState, TournamentPlayer } from "@/lib/timer/types";
 
 type Killer = {
   id: string;
@@ -20,6 +20,45 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
 }
 
+function isMissingBountyLogSnapshotColumnError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const message = String((error as { message?: unknown }).message ?? "");
+  return message.includes("players_before")
+    || message.includes("players_after")
+    || message.includes("uses_reentry")
+    || message.includes("sheets_row_id")
+    || message.includes("sheets_sheet_name")
+    || message.includes("mystery_bounty_points");
+}
+
+async function insertBountyLogRecord(
+  supabase: SupabaseClient,
+  payload: Record<string, unknown>,
+) {
+  const { data, error } = await supabase.from("bounty_log").insert(payload).select().single();
+  if (!error) return data;
+
+  if (!isMissingBountyLogSnapshotColumnError(error)) throw error;
+
+  const legacyPayload = { ...payload };
+  delete legacyPayload.players_after;
+  delete legacyPayload.players_before;
+  delete legacyPayload.uses_reentry;
+  delete legacyPayload.mystery_bounty_points;
+
+  console.warn("bounty_log snapshot columns are unavailable; retrying legacy insert", error);
+  const { data: legacyData, error: legacyError } = await supabase
+    .from("bounty_log")
+    .insert(legacyPayload)
+    .select()
+    .single();
+
+  if (legacyError) throw legacyError;
+  return legacyData;
+}
+
+
+
 export async function POST(request: Request) {
   const auth = await requireTmaAuth(request);
   if (auth.error) return auth.error;
@@ -29,7 +68,8 @@ export async function POST(request: Request) {
     if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
     const body = await request.json();
-    const { eliminated_id, bounty_split, client_request_id, killers, uses_reentry } = body;
+    const { eliminated_id, bounty_split, client_request_id, killers, mystery_bounty_points, uses_reentry } = body;
+    const mysteryBountyPoints = Number(mystery_bounty_points) || 0;
     const clientRequestId = typeof client_request_id === "string" ? client_request_id.trim() : "";
 
     if (clientRequestId) {
@@ -118,63 +158,63 @@ export async function POST(request: Request) {
       bountyChips: Number((killer.share * bountyChipAward).toFixed(6)),
     }));
 
-    const eliminationResult = recordPtsElimination({
-      bountyChipAward,
-      eliminatedId: eliminated_id,
-      isBounty,
-      killers: sanitizedKillers,
-      players: extras.players,
-      usesReentry,
+    const { data: rpcResult, error: rpcError } = await auth.supabase.rpc("record_player_elimination", {
+      p_tournament_id: t.id,
+      p_eliminated_id: eliminated_id,
+      p_killers: sanitizedKillers,
+      p_bounty_chip_award: bountyChipAward,
+      p_mystery_points: mysteryBountyPoints,
+      p_uses_reentry: usesReentry,
+      p_is_bounty: isBounty,
     });
-    await saveTournamentExtras(
-      eliminationResult.tournamentFinished
-        ? getFinishTournamentExtrasPatch()
-        : { players: eliminationResult.players },
-      "/tma/eliminations",
-      auth.supabase,
-    );
 
-    if (eliminationResult.tournamentFinished) {
+    if (rpcError) throw rpcError;
+
+    const { players: updatedPlayers, finishPlace, tournamentFinished } = rpcResult as {
+      players: TournamentPlayer[];
+      finishPlace: number | null;
+      tournamentFinished: boolean;
+    };
+
+    if (tournamentFinished) {
       await auth.supabase.from("timer_state").update({
         status: "finished",
         current_level_index: 0,
         finished_at: new Date().toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
+      await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
       await broadcastPublicState(t.public_token);
     }
 
     // Insert to bounty_log
-    const { data: bountyRecord, error } = await auth.supabase.from("bounty_log").insert({
+    const bountyRecord = await insertBountyLogRecord(auth.supabase, {
       tournament_id: t.id,
       eliminated_id,
       eliminated_name: eliminatedPlayer.name,
-      finish_place: eliminationResult.finishPlace,
+      finish_place: finishPlace,
       bounty_split: isBounty ? bounty_split || false : false,
       client_request_id: clientRequestId || null,
       killers: killersWithBountyChips,
+      mystery_bounty_points: mysteryBountyPoints,
+      players_after: updatedPlayers,
+      players_before: extras.players,
       recorded_by: auth.userId,
-    }).select().single();
-
-    if (error) throw error;
-
-    let currentRound = 1;
-    if (blindLevels.length > 0) {
-      currentRound = blindLevels[currentTimerState.currentLevelIndex]?.levelOrder || 1;
-    }
-
-    // Append to Sheets
-    const { rowId, sheetName } = await appendEliminationRow({
-      eliminatedName: eliminatedPlayer.name,
-      finishPlace: eliminationResult.finishPlace,
-      killers: sanitizedKillers,
-      currentRound,
-      standingsRows: buildPtsStandingsRows(eliminationResult.players, extras.pts),
-      usesReentry,
+      uses_reentry: usesReentry,
     });
 
-    return NextResponse.json({ elimination: bountyRecord, sheetsRowId: rowId, sheetName });
+    // Sync to Sheets asynchronously in the background
+    after(async () => {
+      try {
+        await syncTournamentToSheets(auth.supabase, t.id);
+      } catch (sheetError) {
+        console.error("Non-critical Google Sheets sync error:", sheetError);
+      }
+    });
+
+    return NextResponse.json({ elimination: bountyRecord });
   } catch (err: unknown) {
+    console.error("Error in POST /api/tma/eliminations:", err);
     return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
   }
 }

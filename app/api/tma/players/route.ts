@@ -1,6 +1,13 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
+import { syncVipSheet } from "@/lib/google-sheets";
+import { loadTournamentExtras } from "@/lib/tournament-extras";
+import {
+  appendTournamentPlayerWithRegistrationNumber,
+  buildAdminRegistrationFullMessage,
+  isTournamentRegistrationCapacityError,
+  TournamentRegistrationCapacityError,
+} from "@/lib/tournament-player-registration";
 import { isReentryAvailable } from "@/lib/timer/calculate";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
@@ -52,6 +59,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     isBounty: extras.settings.isBounty,
+    bountyType: extras.settings.bountyType ?? "standard",
     addonEnabled: extras.settings.addonEnabled,
     maxAddons: extras.settings.maxAddons,
     maxReentries: extras.settings.maxReentries,
@@ -70,7 +78,7 @@ export async function POST(request: Request) {
 
   const { data: t } = await auth.supabase
     .from("tournaments")
-    .select("id, starting_stack")
+    .select("id, public_token, starting_stack")
     .limit(1)
     .single();
 
@@ -97,11 +105,37 @@ export async function POST(request: Request) {
     finishPlace: null,
   };
 
-  await saveTournamentExtras(
-    { players: [...extras.players, newPlayer] },
-    "/tma/players",
-    auth.supabase,
-  );
+  try {
+    const player = await appendTournamentPlayerWithRegistrationNumber({
+      extras,
+      player: newPlayer,
+      publicToken: t.public_token,
+      redirectTo: "/tma/players",
+      supabase: auth.supabase,
+      tournamentId: t.id,
+    });
 
-  return NextResponse.json({ player: newPlayer });
+    try {
+      await syncVipSheet(auth.supabase, t.id);
+    } catch (sheetError) {
+      console.error("Failed to sync VIP sheet", sheetError);
+    }
+
+    return NextResponse.json({ player });
+  } catch (error) {
+    if (isTournamentRegistrationCapacityError(error)) {
+      const registeredPlayersCount = error instanceof TournamentRegistrationCapacityError
+        ? error.registeredPlayersCount
+        : extras.players.length;
+
+      return NextResponse.json(
+        { error: buildAdminRegistrationFullMessage(registeredPlayersCount) },
+        { status: 409 },
+      );
+    }
+
+    const message = error instanceof Error ? error.message : "Unknown error";
+    const status = message.includes("No registration numbers available") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
 }

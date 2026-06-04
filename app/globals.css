@@ -1909,6 +1909,17 @@ p {
   font-size: clamp(24px, 4vw, 48px) !important;
 }
 
+.public-blinds-summary div + div .public-break-title {
+  min-height: 88px;
+  font-size: clamp(22px, 3vw, 40px) !important;
+  line-height: 1;
+}
+
+.public-blinds-summary div + div .public-break-title em {
+  margin-top: 2px;
+  font-size: clamp(14px, 2vh, 24px);
+}
+
 .public-players-panel {
   min-width: 0;
   display: flex;
@@ -2717,6 +2728,15 @@ p {
   .public-break-title {
     min-height: clamp(64px, 15vh, 100px);
     font-size: clamp(20px, 3.4vw, 38px) !important;
+  }
+
+  .public-blinds-summary div + div .public-break-title {
+    min-height: clamp(48px, 10vh, 68px);
+    font-size: clamp(18px, 2.7vw, 30px) !important;
+  }
+
+  .public-blinds-summary div + div .public-break-title em {
+    font-size: clamp(11px, 1.9vw, 18px);
   }
 
   .public-players-panel {

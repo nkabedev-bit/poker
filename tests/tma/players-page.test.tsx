@@ -2,14 +2,43 @@
  * @vitest-environment jsdom
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TMAPlayersPage from "@/app/tma/players/page";
+import type { TelegramWebApp } from "@/app/tma/layout";
+
+function createTelegramWebApp(): TelegramWebApp {
+  return {
+    initData: "mock-init",
+    ready: vi.fn(),
+    expand: vi.fn(),
+    showAlert: vi.fn(),
+    showConfirm: vi.fn(),
+    HapticFeedback: {
+      impactOccurred: vi.fn(),
+      notificationOccurred: vi.fn(),
+    },
+    MainButton: {
+      setText: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
+      onClick: vi.fn(),
+      offClick: vi.fn(),
+      showProgress: vi.fn(),
+      hideProgress: vi.fn(),
+    },
+  };
+}
 
 describe("TMAPlayersPage", () => {
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+  });
+
   afterEach(() => {
     cleanup();
     vi.restoreAllMocks();
     vi.useRealTimers();
+    delete window.Telegram;
   });
 
   it("filters players by selected table", async () => {
@@ -110,5 +139,86 @@ describe("TMAPlayersPage", () => {
 
     expect(screen.queryByText("Deleted Elsewhere")).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("shows the server capacity message when adding a player fails", async () => {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/tma/players" && !init?.method) {
+          return Response.json({ tablesCount: 2, players: [] });
+        }
+
+        if (String(input) === "/api/tma/players" && init?.method === "POST") {
+          return Response.json(
+            { error: "Уже зарегистрировано 4 игроков. Мест больше нет" },
+            { status: 409 },
+          );
+        }
+
+        return Response.json({});
+      }),
+    );
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /добавить игрока/i }));
+    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Late Player" } });
+
+    await waitFor(() => expect(mainButtonClick).toEqual(expect.any(Function)));
+    await act(async () => {
+      await mainButtonClick?.();
+    });
+
+    expect(window.Telegram!.WebApp!.showAlert).toHaveBeenCalledWith(
+      "Уже зарегистрировано 4 игроков. Мест больше нет",
+    );
+  });
+
+  it("restores an eliminated player from the player details card", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    let players = [
+      { id: "player-1", name: "Returned Player", table: 1, seat: 1, stack: 1000, status: "eliminated" },
+    ];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({ tablesCount: 3, players });
+      }
+
+      if (String(input) === "/api/tma/players/player-1" && init?.method === "PATCH") {
+        players = players.map((player) =>
+          player.id === "player-1" ? { ...player, status: "active" } : player,
+        );
+        return Response.json({ player: players[0] });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /returned player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /вернуть в игру/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ action: "restore_player" }),
+        }),
+      );
+    });
+    expect(showConfirm).toHaveBeenCalledWith(
+      "Вернуть игрока Returned Player в игру?",
+      expect.any(Function),
+    );
   });
 });

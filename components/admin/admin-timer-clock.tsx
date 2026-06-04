@@ -1,16 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getEffectiveTimerState, formatClock } from "@/lib/timer/calculate";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 type AdminTimerClockProps = {
   timerState: TimerState;
   blindLevels: BlindLevel[];
+  serverNowIso: string;
 };
 
-export function AdminTimerClock({ timerState, blindLevels }: AdminTimerClockProps) {
-  const [now, setNow] = useState(() => new Date());
+export function AdminTimerClock({ timerState, blindLevels, serverNowIso }: AdminTimerClockProps) {
+  const clockOffsetRef = useRef<number>(0);
+  const isFirstRender = useRef(true);
+
+  if (isFirstRender.current) {
+    const clientNow = Date.now();
+    const serverTime = new Date(serverNowIso).getTime();
+    clockOffsetRef.current = serverTime - clientNow;
+    isFirstRender.current = false;
+  }
+
+  const [now, setNow] = useState(() => new Date(Date.now() + clockOffsetRef.current));
 
   useEffect(() => {
     if (timerState.status !== "running" && timerState.status !== "break") {
@@ -18,7 +29,7 @@ export function AdminTimerClock({ timerState, blindLevels }: AdminTimerClockProp
     }
 
     const interval = window.setInterval(() => {
-      setNow(new Date());
+      setNow(new Date(Date.now() + clockOffsetRef.current));
     }, 1000);
 
     return () => window.clearInterval(interval);

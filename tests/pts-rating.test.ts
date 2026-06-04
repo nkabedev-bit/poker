@@ -108,6 +108,33 @@ describe("PTS rating", () => {
     });
   });
 
+  it("uses the next free finish place when rollback left an occupied active-count place", () => {
+    const result = recordPtsElimination({
+      eliminatedId: "c",
+      isBounty: false,
+      killers: [],
+      players: [
+        player("a", "A", { finishPlace: 10, status: "eliminated" }),
+        player("b", "B", { finishPlace: 8, status: "eliminated" }),
+        player("c", "C"),
+        player("d", "D"),
+        player("e", "E"),
+        player("f", "F"),
+        player("g", "G"),
+        player("h", "H"),
+        player("i", "I"),
+        player("j", "J"),
+      ],
+      usesReentry: false,
+    });
+
+    expect(result.finishPlace).toBe(9);
+    expect(result.players.find((p) => p.id === "c")).toMatchObject({
+      finishPlace: 9,
+      status: "eliminated",
+    });
+  });
+
   it("builds standings rows with place points plus bounty points only for known places", () => {
     const rows = buildPtsStandingsRows(
       [

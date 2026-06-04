@@ -6,7 +6,9 @@ import { useVisiblePolling } from "../use-visible-polling";
 import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
 type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null };
+type BountyType = "standard" | "mystery";
 type PlayersResponse = {
+  bountyType?: BountyType;
   isBounty?: boolean;
   maxReentries?: number;
   players?: Player[];
@@ -23,19 +25,22 @@ export default function TMAEliminationsPage() {
   const { initData } = useTMA();
   const [players, setPlayers] = useState<Player[]>([]);
   const [isBounty, setIsBounty] = useState(false);
+  const [bountyType, setBountyType] = useState<BountyType>("standard");
   const [reentryAvailable, setReentryAvailable] = useState(true);
   const [reentryEnabled, setReentryEnabled] = useState(false);
   const [maxReentries, setMaxReentries] = useState(1);
   const [tablesCount, setTablesCount] = useState(1);
   const [tableFilter, setTableFilter] = useState("");
-  const [step, setStep] = useState<0 | 1 | 2 | 3>(0);
+  const [step, setStep] = useState<0 | 1 | 2 | 3 | 4>(0);
   
   const [eliminatedPlayer, setEliminatedPlayer] = useState<Player | null>(null);
   const [selectedKillers, setSelectedKillers] = useState<Player[]>([]);
   const [search, setSearch] = useState("");
   const [isMulti, setIsMulti] = useState(false);
+  const [mysteryPoints, setMysteryPoints] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastElimId, setLastElimId] = useState<string | null>(null);
+  const [lastElimPlayerName, setLastElimPlayerName] = useState<string | null>(null);
   const [lastSheetInfo, setLastSheetInfo] = useState<{rowId: number, sheetName: string} | null>(null);
   const confirmInFlightRef = useRef(false);
   const submitInFlightRef = useRef(false);
@@ -43,6 +48,7 @@ export default function TMAEliminationsPage() {
 
   const applyPlayersResponse = useCallback((data: PlayersResponse) => {
     setIsBounty(Boolean(data.isBounty));
+    setBountyType((data.bountyType as BountyType) || "standard");
     setMaxReentries(Number(data.maxReentries) || 1);
     setReentryAvailable(data.reentryAvailable !== false);
     setReentryEnabled(Boolean(data.reentryEnabled));
@@ -64,8 +70,10 @@ export default function TMAEliminationsPage() {
     const timeout = window.setTimeout(() => {
       void fetchPlayers();
       const storedId = localStorage.getItem("tma_last_elim");
+      const storedPlayerName = localStorage.getItem("tma_last_elim_player_name");
       const storedSheet = localStorage.getItem("tma_last_elim_sheet");
       if (storedId) setLastElimId(storedId);
+      if (storedPlayerName) setLastElimPlayerName(storedPlayerName);
       if (storedSheet) setLastSheetInfo(JSON.parse(storedSheet));
     }, 0);
     return () => window.clearTimeout(timeout);
@@ -105,6 +113,7 @@ export default function TMAEliminationsPage() {
     setSelectedKillers([]);
     setIsMulti(false);
     setSearch("");
+    setMysteryPoints("");
     clientRequestIdRef.current = null;
     setStep(isBounty ? 1 : 2);
   };
@@ -115,6 +124,7 @@ export default function TMAEliminationsPage() {
     setSelectedKillers([]);
     setIsMulti(false);
     setSearch("");
+    setMysteryPoints("");
     clientRequestIdRef.current = null;
   }, []);
 
@@ -123,7 +133,11 @@ export default function TMAEliminationsPage() {
     tg?.HapticFeedback?.impactOccurred?.("light");
     if (!isMulti) {
       setSelectedKillers([p]);
-      setStep(2); // Go straight to confirm
+      if (isBounty && bountyType === "mystery") {
+        setStep(4); // Go to mystery points input
+      } else {
+        setStep(2); // Go straight to confirm
+      }
     } else {
       if (selectedKillers.find(k => k.id === p.id)) {
         setSelectedKillers(selectedKillers.filter(k => k.id !== p.id));
@@ -145,11 +159,14 @@ export default function TMAEliminationsPage() {
       const share = selectedKillers.length > 0 ? 1 / selectedKillers.length : 0;
       clientRequestIdRef.current ||= createClientRequestId();
       
+      const mysteryPointsValue = bountyType === "mystery" ? Number(mysteryPoints) || 0 : 0;
+      
       const payload = {
         client_request_id: clientRequestIdRef.current,
         eliminated_id: eliminatedPlayer!.id,
         bounty_split: isBounty && selectedKillers.length > 1,
         killers: isBounty ? selectedKillers.map(k => ({ id: k.id, name: k.name, share })) : [],
+        mystery_bounty_points: mysteryPointsValue,
         uses_reentry: usesReentry,
       };
 
@@ -164,6 +181,7 @@ export default function TMAEliminationsPage() {
         tg?.HapticFeedback?.notificationOccurred?.("success");
         
         localStorage.setItem("tma_last_elim", data.elimination.id);
+        localStorage.setItem("tma_last_elim_player_name", data.elimination.eliminated_name || eliminatedPlayer.name);
         if (data.sheetsRowId) {
           const sheetInfo = { rowId: data.sheetsRowId, sheetName: data.sheetName };
           localStorage.setItem("tma_last_elim_sheet", JSON.stringify(sheetInfo));
@@ -171,9 +189,11 @@ export default function TMAEliminationsPage() {
         }
 
         setLastElimId(data.elimination.id);
+        setLastElimPlayerName(data.elimination.eliminated_name || eliminatedPlayer.name);
         setStep(0);
         setEliminatedPlayer(null);
         setSelectedKillers([]);
+        setMysteryPoints("");
         clientRequestIdRef.current = null;
         void fetchPlayers();
       } else {
@@ -185,7 +205,7 @@ export default function TMAEliminationsPage() {
       tg?.MainButton?.hideProgress?.();
       tg?.MainButton?.hide?.();
     }
-  }, [eliminatedPlayer, fetchPlayers, initData, isBounty, selectedKillers]);
+  }, [eliminatedPlayer, fetchPlayers, initData, isBounty, bountyType, mysteryPoints, selectedKillers]);
 
   const confirmElimination = useCallback(async () => {
     if (confirmInFlightRef.current || submitInFlightRef.current) return;
@@ -219,7 +239,9 @@ export default function TMAEliminationsPage() {
 
   const handleUndo = async () => {
     const tg = getTelegramWebApp();
-    tg?.showConfirm("Отменить последнее выбывание?", async (confirmed: boolean) => {
+    const fallbackPlayerName = players.find((player) => player.status === "eliminated")?.name;
+    const playerName = lastElimPlayerName || fallbackPlayerName || "выбранного игрока";
+    tg?.showConfirm(`Вы уверены, что хотите отменить выбивание игрока ${playerName}?`, async (confirmed: boolean) => {
       if (confirmed && lastElimId) {
         await fetch(`/api/tma/eliminations/${lastElimId}/cancel`, {
           method: "POST",
@@ -228,8 +250,10 @@ export default function TMAEliminationsPage() {
         });
         tg.HapticFeedback?.notificationOccurred?.("success");
         localStorage.removeItem("tma_last_elim");
+        localStorage.removeItem("tma_last_elim_player_name");
         localStorage.removeItem("tma_last_elim_sheet");
         setLastElimId(null);
+        setLastElimPlayerName(null);
         setLastSheetInfo(null);
         void fetchPlayers();
       }
@@ -248,7 +272,13 @@ export default function TMAEliminationsPage() {
       mainButton.setText(isSubmitting ? "СОХРАНЯЕМ..." : `ДАЛЕЕ (${selectedKillers.length})`);
       mainButton.show();
       const onClick = () => {
-        if (!isSubmitting) setStep(2);
+        if (!isSubmitting) {
+          if (bountyType === "mystery") {
+            setStep(4); // Go to mystery points input
+          } else {
+            setStep(2);
+          }
+        }
       };
       mainButton.onClick(onClick);
       return () => { mainButton.offClick(onClick); mainButton.hide(); };
@@ -266,7 +296,7 @@ export default function TMAEliminationsPage() {
     }
 
     mainButton.hide();
-  }, [step, isBounty, isMulti, selectedKillers, eliminatedPlayer, confirmElimination, isSubmitting]);
+  }, [step, isBounty, bountyType, isMulti, selectedKillers, eliminatedPlayer, confirmElimination, isSubmitting]);
 
   if (step === 0) {
     return (
@@ -429,6 +459,12 @@ export default function TMAEliminationsPage() {
                   ))}
                 </div>
               )}
+              {bountyType === "mystery" && (
+                <div className="mt-3">
+                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎲 Очки из конверта</div>
+                  <div className="text-xl font-bold text-yellow-400">{Number(mysteryPoints) || 0} PTS</div>
+                </div>
+              )}
             </div>
           ) : null}
         </div>
@@ -492,6 +528,56 @@ export default function TMAEliminationsPage() {
           className={`text-[var(--tg-theme-hint-color)] underline mt-4${disabledClass}`}
         >
           Назад
+        </button>
+      </div>
+    );
+  }
+
+  if (step === 4) {
+    return (
+      <div className="space-y-6 text-center pt-8">
+        <button
+          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${disabledClass}`}
+          disabled={isSubmitting}
+          type="button"
+          onClick={() => {
+            if (!isSubmitting) setStep(1);
+          }}
+        >
+          <ChevronLeft size={18} /> Назад
+        </button>
+
+        <h2 className="text-2xl font-bold">🎲 Mystery Bounty</h2>
+        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-6 rounded-xl space-y-4">
+          <div>
+            <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">Выбывает</div>
+            <div className="text-xl font-bold text-red-400">{eliminatedPlayer?.name}</div>
+          </div>
+          <div className="h-px bg-[var(--tg-theme-hint-color)] opacity-20"></div>
+          <div>
+            <div className="text-[var(--tg-theme-hint-color)] text-sm mb-2">Сколько очков в конверте?</div>
+            <input
+              autoFocus
+              className="w-full bg-[var(--tg-theme-bg-color)] border border-[var(--tg-theme-hint-color)] rounded-lg p-4 text-center text-2xl font-bold outline-none"
+              inputMode="decimal"
+              min={0}
+              placeholder="0"
+              type="number"
+              value={mysteryPoints}
+              onChange={(e) => setMysteryPoints(e.target.value)}
+            />
+            <div className="text-[var(--tg-theme-hint-color)] text-xs mt-2">Введите 0, если очки не выпали</div>
+          </div>
+        </div>
+
+        <button
+          disabled={isSubmitting}
+          onClick={() => {
+            if (!isSubmitting) setStep(2);
+          }}
+          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+        >
+          Далее →
         </button>
       </div>
     );

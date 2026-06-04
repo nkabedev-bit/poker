@@ -1,5 +1,6 @@
 import { Bot, webhookCallback } from "grammy";
 import { createClient } from "@supabase/supabase-js";
+import { revalidatePath } from "next/cache";
 
 function getAdminSupabase() {
   return createClient(
@@ -115,6 +116,114 @@ bot.command("removeadmin", async (ctx) => {
   const supabase = getAdminSupabase();
   await supabase.from("tma_admins").delete().eq("telegram_id", rmId);
   await ctx.reply(`Админ ${rmId} удален.`);
+});
+
+bot.command("clearsheet", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  const { data: admin } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  if (!admin) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    const { data: tournament } = await supabase
+      .from("tournaments")
+      .select("id, public_token")
+      .limit(1)
+      .single();
+
+    if (!tournament) {
+      return ctx.reply("Ошибка: турнир не найден.");
+    }
+
+    const { getEliminationSheetName, getMoscowDayRange, clearTournamentSheet } = await import("@/lib/google-sheets");
+    const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+    const { data: extrasData } = await supabase
+      .from("tournament_extras")
+      .select("data")
+      .eq("tournament_id", tournament.id)
+      .maybeSingle();
+    const extras = extrasData?.data as { players?: unknown; settings?: { sheetsSessionStartedAt?: unknown } } | null | undefined;
+    const sessionStartedAt = typeof extras?.settings?.sheetsSessionStartedAt === "string"
+      ? extras.settings.sheetsSessionStartedAt
+      : null;
+    const { startIso, endIso } = getMoscowDayRange();
+    const sheetName = getEliminationSheetName(sessionStartedAt);
+
+    // 1. Delete bounty logs only for the current tournament sheet window
+    await supabase
+      .from("bounty_log")
+      .delete()
+      .eq("tournament_id", tournament.id)
+      .gte("recorded_at", sessionStartedAt ?? startIso)
+      .lt("recorded_at", sessionStartedAt ? new Date().toISOString() : endIso);
+
+    // 2. Clear players in tournament_extras
+    if (extras) {
+      const currentPlayers = Array.isArray(extras.players)
+        ? extras.players as Record<string, unknown>[]
+        : [];
+      const nextPlayers = currentPlayers.map((player) => ({
+        ...player,
+        status: "active",
+        finishPlace: null,
+        rebuys: 0,
+        addons: 0,
+        bountyCount: 0,
+        mysteryBountyPoints: 0,
+      }));
+      const nextData = {
+        ...extras,
+        settings: extras.settings ?? {},
+        players: nextPlayers,
+      };
+      await supabase
+        .from("tournament_extras")
+        .update({ data: nextData })
+        .eq("tournament_id", tournament.id);
+    }
+
+    // 3. Reset timer state to not_started
+    await supabase
+      .from("timer_state")
+      .update({
+        status: "not_started",
+        current_level_index: 0,
+        level_started_at: null,
+        paused_remaining_seconds: null,
+        registration_closes_at: null,
+        finished_at: null,
+      })
+      .eq("tournament_id", tournament.id);
+
+    // 4. Clear Google Sheet today's sheet
+    if (spreadsheetId) {
+      await clearTournamentSheet(spreadsheetId, sheetName);
+    }
+
+    const { broadcastPublicState } = await import("@/lib/realtime/broadcast");
+    await broadcastPublicState(tournament.public_token);
+
+    revalidatePath("/admin/players");
+    revalidatePath("/admin/timer");
+    revalidatePath("/admin/settings");
+    revalidatePath("/screen/[token]", "page");
+
+    await ctx.reply(`Лист "${sheetName}" в Google Таблице и база данных турнира успешно очищены.`);
+  } catch (err: unknown) {
+    console.error("Error in /clearsheet command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Ошибка при очистке: ${message}`);
+  }
 });
 
 export const POST = webhookCallback(bot, "std/http", { secretToken: process.env.TELEGRAM_WEBHOOK_SECRET });

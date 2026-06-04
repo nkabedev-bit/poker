@@ -338,4 +338,32 @@ describe("TMAEliminationsPage", () => {
     expect(screen.queryByRole("button", { name: /eliminated elsewhere/i })).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it("asks to confirm undo with the eliminated player name", async () => {
+    localStorage.setItem("tma_last_elim", "elim-1");
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        if (String(input) === "/api/tma/players") {
+          return Response.json({
+            players: [
+              { id: "player-1", name: "Ace High", status: "eliminated" },
+            ],
+          });
+        }
+
+        return Response.json({ ok: true });
+      }),
+    );
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /отменить последнее выбывание/i }));
+
+    expect(showConfirm).toHaveBeenCalledWith(
+      "Вы уверены, что хотите отменить выбивание игрока Ace High?",
+      expect.any(Function),
+    );
+  });
 });

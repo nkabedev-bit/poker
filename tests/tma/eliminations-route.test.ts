@@ -3,7 +3,7 @@ import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TimerState, TournamentPlayer } from "@/lib/timer/types";
 
 const mocks = vi.hoisted(() => ({
-  appendEliminationRow: vi.fn(),
+  syncTournamentToSheets: vi.fn(),
   broadcastPublicState: vi.fn(),
   loadTournamentExtras: vi.fn(),
   requireTmaAuth: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock("@/lib/tma/require-auth", () => ({
 }));
 
 vi.mock("@/lib/google-sheets", () => ({
-  appendEliminationRow: mocks.appendEliminationRow,
+  syncTournamentToSheets: mocks.syncTournamentToSheets,
 }));
 
 vi.mock("@/lib/realtime/broadcast", () => ({
@@ -27,6 +27,15 @@ vi.mock("@/lib/tournament-extras", () => ({
   saveTournamentExtras: mocks.saveTournamentExtras,
 }));
 
+vi.mock("next/server", () => ({
+  NextResponse: {
+    json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
+  },
+  after: (fn: () => void) => {
+    fn();
+  },
+}));
+
 const timerStateRow = {
   status: "running",
   current_level_index: 0,
@@ -35,6 +44,15 @@ const timerStateRow = {
   registration_closes_at: null,
   finished_at: null,
 } satisfies Record<string, TimerState[keyof TimerState]>;
+
+type RecordPlayerEliminationArgs = {
+  p_bounty_chip_award: number;
+  p_eliminated_id: string;
+  p_is_bounty: boolean;
+  p_killers: Array<{ id: string; name: string; share: number }>;
+  p_mystery_points: number;
+  p_uses_reentry: boolean;
+};
 
 function player(id: string, name: string): TournamentPlayer {
   return {
@@ -51,10 +69,20 @@ function player(id: string, name: string): TournamentPlayer {
   };
 }
 
-function createSupabaseMock(options: { existingBountyLog?: unknown; recentBountyLog?: unknown } = {}) {
+function createSupabaseMock(options: {
+  existingBountyLog?: unknown;
+  insertErrors?: Array<{ message: string }>;
+  recentBountyLog?: unknown;
+} = {}) {
   const timerUpdate = vi.fn((payload: unknown) => ({
     eq: vi.fn(async () => ({ data: payload, error: null })),
   }));
+  const bountyLogUpdate = vi.fn((payload: unknown) => ({
+    eq: vi.fn(() => ({
+      eq: vi.fn(async () => ({ data: payload, error: null })),
+    })),
+  }));
+  const insertPayloads: unknown[] = [];
   const createBountyLogSelectChain = () => {
     const filters: Array<[string, unknown]> = [];
     const chain = {
@@ -125,24 +153,55 @@ function createSupabaseMock(options: { existingBountyLog?: unknown; recentBounty
       if (table === "bounty_log") {
         return {
           select: vi.fn(createBountyLogSelectChain),
-          insert: vi.fn(() => ({
+          insert: vi.fn((payload: unknown) => ({
             select: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: { id: "bounty-1" }, error: null })),
+              single: vi.fn(async () => {
+                insertPayloads.push(payload);
+                const error = options.insertErrors?.shift() ?? null;
+                return { data: error ? null : { id: "bounty-1" }, error };
+              }),
             })),
           })),
+          update: bountyLogUpdate,
         };
       }
 
       throw new Error(`Unexpected table: ${table}`);
     }),
+    bountyLogUpdate,
+    insertPayloads,
     timerUpdate,
+    rpc: vi.fn(async (fnName: string, args: RecordPlayerEliminationArgs) => {
+      if (fnName === "record_player_elimination") {
+        const { recordPtsElimination } = await import("@/lib/pts-rating");
+        const extras = await mocks.loadTournamentExtras("tournament-1", null);
+        const res = recordPtsElimination({
+          bountyChipAward: args.p_bounty_chip_award,
+          eliminatedId: args.p_eliminated_id,
+          isBounty: args.p_is_bounty,
+          killers: args.p_killers,
+          mysteryPoints: args.p_mystery_points,
+          players: extras.players,
+          usesReentry: args.p_uses_reentry,
+        });
+        return {
+          data: {
+            players: res.players,
+            finishPlace: res.finishPlace,
+            tournamentFinished: res.tournamentFinished,
+          },
+          error: null,
+        };
+      }
+      return { data: null, error: null };
+    }),
   };
 }
 
 describe("TMA eliminations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.appendEliminationRow.mockResolvedValue({ rowId: "row-1", sheetName: "Sheet1" });
+    mocks.syncTournamentToSheets.mockResolvedValue(undefined);
   });
 
   it("clears players when the final elimination finishes the tournament", async () => {
@@ -163,16 +222,22 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
-      { players: [] },
-      "/tma/eliminations",
-      supabase,
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_eliminated_id: "out",
+      }),
     );
     expect(supabase.timerUpdate).toHaveBeenCalledWith(
       expect.objectContaining({
         current_level_index: 0,
         status: "finished",
       }),
+    );
+    expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
+      { players: [] },
+      "/admin/players",
+      supabase,
     );
   });
 
@@ -197,18 +262,14 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
       expect.objectContaining({
-        players: expect.arrayContaining([
-          expect.objectContaining({ id: "out", status: "eliminated" }),
-        ]),
+        p_eliminated_id: "out",
+        p_uses_reentry: false,
       }),
-      "/tma/eliminations",
-      supabase,
     );
-    expect(mocks.appendEliminationRow).toHaveBeenCalledWith(
-      expect.objectContaining({ usesReentry: false }),
-    );
+    expect(mocks.syncTournamentToSheets).toHaveBeenCalled();
   });
 
   it("ignores requested re-entry when the player reached the re-entry limit", async () => {
@@ -237,18 +298,14 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
       expect.objectContaining({
-        players: expect.arrayContaining([
-          expect.objectContaining({ id: "out", status: "eliminated" }),
-        ]),
+        p_eliminated_id: "out",
+        p_uses_reentry: false,
       }),
-      "/tma/eliminations",
-      supabase,
     );
-    expect(mocks.appendEliminationRow).toHaveBeenCalledWith(
-      expect.objectContaining({ usesReentry: false }),
-    );
+    expect(mocks.syncTournamentToSheets).toHaveBeenCalled();
   });
 
   it("rejects duplicate elimination when the player is no longer active", async () => {
@@ -274,7 +331,7 @@ describe("TMA eliminations route", () => {
 
     expect(response.status).toBe(409);
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
-    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
   });
 
   it("returns the existing elimination when the client request id was already recorded", async () => {
@@ -294,7 +351,7 @@ describe("TMA eliminations route", () => {
     expect(body).toEqual({ duplicate: true, elimination: { id: "bounty-existing" } });
     expect(mocks.loadTournamentExtras).not.toHaveBeenCalled();
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
-    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
   });
 
   it("returns the recent elimination when the same player was recorded in the last 30 seconds", async () => {
@@ -314,6 +371,38 @@ describe("TMA eliminations route", () => {
     expect(body).toEqual({ duplicate: true, elimination: { id: "bounty-recent", eliminated_id: "out" } });
     expect(mocks.loadTournamentExtras).not.toHaveBeenCalled();
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
-    expect(mocks.appendEliminationRow).not.toHaveBeenCalled();
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
+  });
+
+  it("retries bounty log insert without snapshot columns when the database migration is not deployed yet", async () => {
+    const supabase = createSupabaseMock({
+      insertErrors: [{ message: "Could not find the 'players_before' column of 'bounty_log'" }],
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("out", "Out")],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out" }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.insertPayloads).toHaveLength(2);
+    expect(supabase.insertPayloads[0]).toMatchObject({
+      players_after: expect.any(Array),
+      players_before: expect.any(Array),
+      uses_reentry: false,
+    });
+    expect(supabase.insertPayloads[1]).not.toHaveProperty("players_after");
+    expect(supabase.insertPayloads[1]).not.toHaveProperty("players_before");
+    expect(supabase.insertPayloads[1]).not.toHaveProperty("uses_reentry");
+    expect(supabase.insertPayloads[1]).not.toHaveProperty("mystery_bounty_points");
   });
 });
