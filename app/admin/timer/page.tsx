@@ -1,10 +1,22 @@
 import { TimerControls } from "@/components/admin/timer-controls";
+import { demoBlindLevels, demoTimerState, demoTournament } from "@/lib/demo-state";
+import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function TimerPage() {
+  if (!hasPublicEnv()) {
+    return (
+      <TimerControls
+        blindLevels={demoBlindLevels}
+        registrationStatus={demoTournament.registrationStatus}
+        timerState={demoTimerState}
+      />
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: tournament } = await supabase
     .from("tournaments")

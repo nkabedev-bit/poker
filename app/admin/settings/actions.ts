@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,10 @@ const settingsSchema = z.object({
 });
 
 export async function updateTournamentSettings(formData: FormData) {
+  if (!hasPublicEnv()) {
+    redirect("/admin/settings?demo=1");
+  }
+
   const parsed = settingsSchema.safeParse({
     name: formData.get("name"),
     startingStack: formData.get("startingStack"),

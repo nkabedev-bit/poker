@@ -24,6 +24,7 @@ async function fetchPublicState(token: string) {
 export function PublicScreen({ initialState, token }: PublicScreenProps) {
   const [state, setState] = useState(initialState);
   const [now, setNow] = useState(() => new Date());
+  const isDemo = token === "demo";
 
   const refresh = useCallback(async () => {
     const nextState = await fetchPublicState(token);
@@ -37,14 +38,18 @@ export function PublicScreen({ initialState, token }: PublicScreenProps) {
   }, []);
 
   useEffect(() => {
+    if (isDemo) return;
+
     const poll = window.setInterval(() => {
       refresh().catch(() => undefined);
     }, 5000);
 
     return () => window.clearInterval(poll);
-  }, [refresh]);
+  }, [isDemo, refresh]);
 
   useEffect(() => {
+    if (isDemo) return;
+
     const supabase = createSupabaseBrowserClient();
     const channel = supabase
       .channel(`screen:${token}`)
@@ -56,7 +61,7 @@ export function PublicScreen({ initialState, token }: PublicScreenProps) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [refresh, token]);
+  }, [isDemo, refresh, token]);
 
   const remainingSeconds = calculateRemainingSeconds(
     state.timerState,

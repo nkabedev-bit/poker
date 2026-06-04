@@ -1,5 +1,7 @@
 import "server-only";
 
+import { demoPublicState } from "@/lib/demo-state";
+import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type {
   BlindLevel,
@@ -77,6 +79,10 @@ function mapBlindLevel(row: PublicStateRpc["blindLevels"][number]): BlindLevel {
 export async function loadPublicState(
   token: string,
 ): Promise<PublicTournamentState | null> {
+  if (!hasPublicEnv()) {
+    return token === "demo" ? demoPublicState : null;
+  }
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase.rpc("get_public_state", { token });
 

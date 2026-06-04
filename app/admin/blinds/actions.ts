@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { blindPresets, type BlindPresetName } from "@/lib/timer/presets";
@@ -18,6 +19,10 @@ const levelSchema = z.object({
 });
 
 export async function applyBlindPreset(formData: FormData) {
+  if (!hasPublicEnv()) {
+    redirect("/admin/blinds?demo=1");
+  }
+
   const preset = String(formData.get("preset")) as BlindPresetName;
   const levels = blindPresets[preset];
 
@@ -52,6 +57,10 @@ export async function applyBlindPreset(formData: FormData) {
 }
 
 export async function saveBlindLevels(formData: FormData) {
+  if (!hasPublicEnv()) {
+    redirect("/admin/blinds?demo=1");
+  }
+
   const raw = String(formData.get("levels") ?? "[]");
   const parsed = z.array(levelSchema).safeParse(JSON.parse(raw));
 

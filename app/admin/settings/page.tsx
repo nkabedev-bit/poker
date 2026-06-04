@@ -1,11 +1,23 @@
 import { updateTournamentSettings } from "@/app/admin/settings/actions";
 import { SettingsForm } from "@/components/admin/settings-form";
+import { demoTournament } from "@/lib/demo-state";
+import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import type { Tournament } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
+  if (!hasPublicEnv()) {
+    return (
+      <SettingsForm
+        action={updateTournamentSettings}
+        publicUrl="/screen/demo"
+        tournament={demoTournament}
+      />
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase
     .from("tournaments")

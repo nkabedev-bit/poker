@@ -1,11 +1,38 @@
 import type { ReactNode } from "react";
 import { Spade } from "lucide-react";
 import { AdminNav } from "@/components/admin/admin-nav";
+import { demoTournament } from "@/lib/demo-state";
+import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
+  if (!hasPublicEnv()) {
+    return (
+      <main className="admin-page">
+        <header className="admin-header">
+          <div className="admin-title-row">
+            <div className="admin-logo">
+              <Spade size={20} />
+            </div>
+            <div>
+              <p className="eyebrow">Демо режим без Supabase</p>
+              <h1>{demoTournament.name}</h1>
+            </div>
+          </div>
+          <div className="admin-actions">
+            <a className="gold-outline-button" href="/screen/demo" target="_blank">
+              Экран для игроков
+            </a>
+          </div>
+        </header>
+        <AdminNav publicToken={demoTournament.publicToken} />
+        <section className="admin-content">{children}</section>
+      </main>
+    );
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: tournament } = await supabase
     .from("tournaments")

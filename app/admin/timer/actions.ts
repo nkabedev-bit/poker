@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { hasPublicEnv } from "@/lib/env";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { calculateRemainingSeconds } from "@/lib/timer/calculate";
@@ -18,6 +19,10 @@ type TimerContext = {
 };
 
 async function loadTimerContext(): Promise<TimerContext> {
+  if (!hasPublicEnv()) {
+    redirect("/admin/timer?demo=1");
+  }
+
   const supabase = await createSupabaseServerClient();
   const { data: tournament } = await supabase
     .from("tournaments")
@@ -76,6 +81,8 @@ async function updateTimerState(values: Record<string, unknown>) {
 }
 
 export async function startTimer() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const now = new Date();
   const registrationClosesAt =
@@ -93,6 +100,8 @@ export async function startTimer() {
 }
 
 export async function pauseTimer() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const remaining = calculateRemainingSeconds(
     context.timerState,
@@ -107,6 +116,8 @@ export async function pauseTimer() {
 }
 
 export async function resumeTimer() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const current = context.blindLevels[context.timerState.currentLevelIndex] ?? null;
   const duration = current?.durationSeconds ?? 0;
@@ -121,6 +132,8 @@ export async function resumeTimer() {
 }
 
 export async function nextLevel() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const nextIndex = Math.min(
     context.timerState.currentLevelIndex + 1,
@@ -136,6 +149,8 @@ export async function nextLevel() {
 }
 
 export async function previousLevel() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const previousIndex = Math.max(0, context.timerState.currentLevelIndex - 1);
 
@@ -148,6 +163,8 @@ export async function previousLevel() {
 }
 
 export async function closeRegistration() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   const context = await loadTimerContext();
   const supabase = await createSupabaseServerClient();
 
@@ -161,6 +178,8 @@ export async function closeRegistration() {
 }
 
 export async function finishTournament() {
+  if (!hasPublicEnv()) redirect("/admin/timer?demo=1");
+
   await updateTimerState({
     status: "finished",
     finished_at: new Date().toISOString(),

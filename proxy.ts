@@ -8,10 +8,7 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!hasPublicEnv()) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("error", "missing_env");
-    return NextResponse.redirect(url);
+    return NextResponse.next({ request });
   }
 
   let response = NextResponse.next({ request });
