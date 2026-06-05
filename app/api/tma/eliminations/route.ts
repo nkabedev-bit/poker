@@ -26,6 +26,7 @@ function isMissingBountyLogSnapshotColumnError(error: unknown) {
   return message.includes("players_before")
     || message.includes("players_after")
     || message.includes("uses_reentry")
+    || message.includes("reentry_double")
     || message.includes("sheets_row_id")
     || message.includes("sheets_sheet_name")
     || message.includes("mystery_bounty_points");
@@ -44,6 +45,7 @@ async function insertBountyLogRecord(
   delete legacyPayload.players_after;
   delete legacyPayload.players_before;
   delete legacyPayload.uses_reentry;
+  delete legacyPayload.reentry_double;
   delete legacyPayload.mystery_bounty_points;
 
   console.warn("bounty_log snapshot columns are unavailable; retrying legacy insert", error);
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
     if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
     const body = await request.json();
-    const { eliminated_id, bounty_split, client_request_id, killers, mystery_bounty_points, uses_reentry } = body;
+    const { eliminated_id, bounty_split, client_request_id, killers, mystery_bounty_points, uses_reentry, reentry_double } = body;
     const mysteryBountyPoints = Number(mystery_bounty_points) || 0;
     const clientRequestId = typeof client_request_id === "string" ? client_request_id.trim() : "";
 
@@ -136,6 +138,7 @@ export async function POST(request: Request) {
       bigBlind: row.big_blind,
       ante: row.ante,
       reentryCloses: Boolean(row.reentry_closes),
+      doubleReentryAvailable: Boolean(row.double_reentry_available),
       durationSeconds: row.duration_seconds,
       isBreak: row.is_break,
       breakDurationSeconds: row.break_duration_seconds,
@@ -149,6 +152,10 @@ export async function POST(request: Request) {
       playerReentries < maxReentries &&
       isReentryAvailable(timerState, blindLevels, now);
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
+    const reentryDouble =
+      usesReentry &&
+      Boolean(reentry_double) &&
+      Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
     const bountyChipAward =
       isBounty && sanitizedKillers.length > 0
         ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
@@ -166,6 +173,7 @@ export async function POST(request: Request) {
       p_mystery_points: mysteryBountyPoints,
       p_uses_reentry: usesReentry,
       p_is_bounty: isBounty,
+      p_reentry_double: reentryDouble,
     });
 
     if (rpcError) throw rpcError;
@@ -207,6 +215,7 @@ export async function POST(request: Request) {
       players_before: extras.players,
       recorded_by: auth.userId,
       uses_reentry: usesReentry,
+      reentry_double: reentryDouble,
     });
 
     // Sync to Sheets asynchronously in the background

@@ -13,6 +13,7 @@ type PlayersResponse = {
   maxReentries?: number;
   players?: Player[];
   reentryAvailable?: boolean;
+  doubleReentryAvailable?: boolean;
   reentryEnabled?: boolean;
   tablesCount?: number;
 };
@@ -27,6 +28,7 @@ export default function TMAEliminationsPage() {
   const [isBounty, setIsBounty] = useState(false);
   const [bountyType, setBountyType] = useState<BountyType>("standard");
   const [reentryAvailable, setReentryAvailable] = useState(true);
+  const [doubleReentryAvailable, setDoubleReentryAvailable] = useState(false);
   const [reentryEnabled, setReentryEnabled] = useState(false);
   const [maxReentries, setMaxReentries] = useState(1);
   const [tablesCount, setTablesCount] = useState(1);
@@ -51,6 +53,7 @@ export default function TMAEliminationsPage() {
     setBountyType((data.bountyType as BountyType) || "standard");
     setMaxReentries(Number(data.maxReentries) || 1);
     setReentryAvailable(data.reentryAvailable !== false);
+    setDoubleReentryAvailable(Boolean(data.doubleReentryAvailable));
     setReentryEnabled(Boolean(data.reentryEnabled));
     setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
     setPlayers(data.players || []);
@@ -147,7 +150,7 @@ export default function TMAEliminationsPage() {
     }
   };
 
-  const submitElimination = useCallback(async (usesReentry: boolean) => {
+  const submitElimination = useCallback(async (usesReentry: boolean, reentryDouble = false) => {
     if (!eliminatedPlayer || submitInFlightRef.current) return;
 
     submitInFlightRef.current = true;
@@ -168,6 +171,7 @@ export default function TMAEliminationsPage() {
         killers: isBounty ? selectedKillers.map(k => ({ id: k.id, name: k.name, share })) : [],
         mystery_bounty_points: mysteryPointsValue,
         uses_reentry: usesReentry,
+        reentry_double: usesReentry && reentryDouble,
       };
 
       const res = await fetch("/api/tma/eliminations", {
@@ -269,10 +273,17 @@ export default function TMAEliminationsPage() {
     if (!mainButton) return;
 
     if (step === 1 && isBounty && isMulti) {
+      const hasKillers = selectedKillers.length > 0;
       mainButton.setText(isSubmitting ? "СОХРАНЯЕМ..." : `ДАЛЕЕ (${selectedKillers.length})`);
-      mainButton.show();
+      if (hasKillers) {
+        mainButton.enable?.();
+        mainButton.show();
+      } else {
+        mainButton.disable?.();
+        mainButton.show();
+      }
       const onClick = () => {
-        if (!isSubmitting) {
+        if (!isSubmitting && selectedKillers.length > 0) {
           if (bountyType === "mystery") {
             setStep(4); // Go to mystery points input
           } else {
@@ -282,7 +293,7 @@ export default function TMAEliminationsPage() {
       };
       mainButton.onClick(onClick);
       return () => { mainButton.offClick(onClick); mainButton.hide(); };
-    } 
+    }
     
     if (step === 2) {
       mainButton.setText(isSubmitting ? "СОХРАНЯЕМ..." : "✅ ПОДТВЕРДИТЬ ВЫБЫВАНИЕ");
@@ -389,25 +400,14 @@ export default function TMAEliminationsPage() {
         </div>
 
         <div className="flex gap-2">
-          <button 
+          <button
             disabled={isSubmitting}
             onClick={() => {
               if (!isSubmitting) setIsMulti(!isMulti);
-            }} 
+            }}
             className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}${disabledClass}`}
           >
             👥 Поделить баунти
-          </button>
-          <button 
-            disabled={isSubmitting}
-            onClick={() => {
-              if (isSubmitting) return;
-              setSelectedKillers([]);
-              setStep(2);
-            }} 
-            className={`flex-1 p-3 bg-red-900/30 text-red-400 rounded-lg text-sm font-medium${disabledClass}`}
-          >
-            🚫 Никто
           </button>
         </div>
 
@@ -500,26 +500,60 @@ export default function TMAEliminationsPage() {
           <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">Игрок</div>
           <div className="text-xl font-bold text-red-400">{eliminatedPlayer?.name}</div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <button
-            disabled={isSubmitting}
-            onClick={() => {
-              if (!isSubmitting) void submitElimination(true);
-            }}
-            className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
-          >
-            {isSubmitting ? "Сохраняем..." : "Да"}
-          </button>
-          <button
-            disabled={isSubmitting}
-            onClick={() => {
-              if (!isSubmitting) void submitElimination(false);
-            }}
-            className={`p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
-          >
-            {isSubmitting ? "Сохраняем..." : "Нет"}
-          </button>
-        </div>
+        {doubleReentryAvailable ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!isSubmitting) void submitElimination(true, false);
+                }}
+                className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+              >
+                {isSubmitting ? "Сохраняем..." : "Одинарный"}
+              </button>
+              <button
+                disabled={isSubmitting}
+                onClick={() => {
+                  if (!isSubmitting) void submitElimination(true, true);
+                }}
+                className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+              >
+                {isSubmitting ? "Сохраняем..." : "Двойной (x2)"}
+              </button>
+            </div>
+            <button
+              disabled={isSubmitting}
+              onClick={() => {
+                if (!isSubmitting) void submitElimination(false);
+              }}
+              className={`w-full p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
+            >
+              {isSubmitting ? "Сохраняем..." : "Нет"}
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              disabled={isSubmitting}
+              onClick={() => {
+                if (!isSubmitting) void submitElimination(true);
+              }}
+              className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+            >
+              {isSubmitting ? "Сохраняем..." : "Да"}
+            </button>
+            <button
+              disabled={isSubmitting}
+              onClick={() => {
+                if (!isSubmitting) void submitElimination(false);
+              }}
+              className={`p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
+            >
+              {isSubmitting ? "Сохраняем..." : "Нет"}
+            </button>
+          </div>
+        )}
         <button
           disabled={isSubmitting}
           onClick={() => {

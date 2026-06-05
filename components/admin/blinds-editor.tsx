@@ -35,6 +35,7 @@ function makeLevelFromTemplate(
     bigBlind: level.bigBlind,
     ante: level.isBreak ? null : 0,
     reentryCloses: level.isBreak ? false : Boolean(level.reentryCloses),
+    doubleReentryAvailable: Boolean(level.doubleReentryAvailable),
     durationSeconds: level.durationSeconds,
     isBreak: level.isBreak,
     breakDurationSeconds: level.breakDurationSeconds,
@@ -55,6 +56,7 @@ function makeBlindLevel(levelOrder: number, prev?: BlindLevel): BlindLevel {
     bigBlind,
     ante: 0,
     reentryCloses: false,
+    doubleReentryAvailable: false,
     durationSeconds: prev?.durationSeconds ?? 1200,
     isBreak: false,
     breakDurationSeconds: null,
@@ -69,6 +71,7 @@ function makeBreakLevel(levelOrder: number): BlindLevel {
     bigBlind: null,
     ante: null,
     reentryCloses: false,
+    doubleReentryAvailable: false,
     durationSeconds: 600,
     isBreak: true,
     breakDurationSeconds: 600,
@@ -100,7 +103,9 @@ export function BlindsEditor({
   const templateNameRef = useRef<HTMLInputElement>(null);
   const serialized = useMemo(
     () => JSON.stringify(
-      reentryEnabled ? rows : rows.map((row) => ({ ...row, reentryCloses: false })),
+      reentryEnabled
+        ? rows
+        : rows.map((row) => ({ ...row, reentryCloses: false, doubleReentryAvailable: false })),
     ),
     [reentryEnabled, rows],
   );
@@ -199,6 +204,10 @@ export function BlindsEditor({
     );
   }
 
+  function toggleDoubleReentry(index: number, checked: boolean) {
+    updateRow(index, { doubleReentryAvailable: checked });
+  }
+
   function applyPreset(preset: BlindPresetName) {
     setRows(blindPresets[preset].map(makeLevelFromTemplate));
   }
@@ -294,6 +303,7 @@ export function BlindsEditor({
           <span>SB</span>
           <span>BB</span>
           {reentryEnabled ? <span>Конец ре-энтри</span> : null}
+          {reentryEnabled ? <span>Двойной ре-энтри</span> : null}
           <span>Время</span>
           <span></span>
         </div>
@@ -302,7 +312,7 @@ export function BlindsEditor({
         <div className="be2-rows">
           {rows.map((row, index) => (
             <div
-              className={`be2-row${row.isBreak ? " be2-row--break" : ""}${!row.isBreak && !reentryEnabled ? " be2-row--no-reentry" : ""}${draggedRowId === row.id ? " be2-row--dragging" : ""}`}
+              className={`be2-row${row.isBreak ? " be2-row--break" : ""}${row.isBreak && reentryEnabled ? " be2-row--break-double" : ""}${!row.isBreak && !reentryEnabled ? " be2-row--no-reentry" : ""}${draggedRowId === row.id ? " be2-row--dragging" : ""}`}
               key={row.id}
               onDragOver={(event) => allowRowDrop(event, index)}
               onDrop={(event) => dropRow(event, index)}
@@ -332,6 +342,19 @@ export function BlindsEditor({
                 /* Break row */
                 <>
                   <div className="be2-break-label">Перерыв</div>
+                  {reentryEnabled ? (
+                    <label className="be2-field be2-field--double">
+                      <span className="be2-mobile-label">Двойной ре-энтри</span>
+                      <input
+                        aria-label="Доступен ли двойной ре-энтри"
+                        checked={Boolean(row.doubleReentryAvailable)}
+                        className="be2-reentry-checkbox"
+                        type="checkbox"
+                        onChange={(e) => toggleDoubleReentry(index, e.target.checked)}
+                      />
+                      <span className="be2-reentry-text">Двойной ре-энтри</span>
+                    </label>
+                  ) : null}
                   <div className="be2-break-duration be2-duration-field">
                     <span className="be2-mobile-label">Минуты</span>
                     <div className="be2-duration-input">
@@ -401,6 +424,19 @@ export function BlindsEditor({
                         onChange={(e) => toggleReentryCutoff(index, e.target.checked)}
                       />
                       <span className="be2-reentry-text">Конец ре-энтри</span>
+                    </label>
+                  ) : null}
+                  {reentryEnabled ? (
+                    <label className="be2-field be2-field--double">
+                      <span className="be2-mobile-label">Двойной ре-энтри</span>
+                      <input
+                        aria-label="Доступен ли двойной ре-энтри"
+                        checked={Boolean(row.doubleReentryAvailable)}
+                        className="be2-reentry-checkbox"
+                        type="checkbox"
+                        onChange={(e) => toggleDoubleReentry(index, e.target.checked)}
+                      />
+                      <span className="be2-reentry-text">Двойной ре-энтри</span>
                     </label>
                   ) : null}
                   <div className="be2-duration-field">

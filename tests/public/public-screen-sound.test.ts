@@ -163,4 +163,38 @@ describe("getPublicChipBankTotal", () => {
 
     expect(getPublicChipBankTotal(state)).toBe(4350);
   });
+
+  it("counts a double re-entry as one extra starting stack on top of the rebuy", () => {
+    const state: PublicTournamentState = {
+      tournament: {
+        id: "tournament-1",
+        logoUrl: null,
+        name: "Poker",
+        publicToken: "token",
+        registrationMinutes: 60,
+        registrationStatus: "open",
+        startingStack: 1000,
+      },
+      timerState: {
+        currentLevelIndex: 0,
+        finishedAt: null,
+        levelStartedAt: null,
+        pausedRemainingSeconds: null,
+        registrationClosesAt: null,
+        status: "not_started",
+      },
+      blindLevels: [],
+      extras: {
+        ...defaultTournamentExtras,
+        players: [
+          player("a", 1),
+          // one re-entry that was "double": rebuys=1 (the event) + doubleRebuys=1 (extra stack)
+          { ...player("b", 1), rebuys: 1, doubleRebuys: 1 },
+        ],
+      },
+    };
+
+    // (2 players + 1 rebuy + 1 double) * 1000 = 4000
+    expect(getPublicChipBankTotal(state)).toBe(4000);
+  });
 });

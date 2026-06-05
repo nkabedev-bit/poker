@@ -186,4 +186,40 @@ describe("getTargetedEliminationRollbackPlayers helper", () => {
     expect(out?.status).toBe("active");
     expect(out?.finishPlace).toBeNull();
   });
+
+  it("decrements doubleRebuys alongside rebuys when undoing a double re-entry", () => {
+    const players = [
+      player("out", { rebuys: 1, doubleRebuys: 1, status: "active" }),
+    ];
+    const log = {
+      eliminated_id: "out",
+      finish_place: null,
+      killers: [],
+      uses_reentry: true,
+      reentry_double: true,
+    };
+    const result = getTargetedEliminationRollbackPlayers(log, players);
+    const out = result.find(p => p.id === "out");
+
+    expect(out?.rebuys).toBe(0);
+    expect(out?.doubleRebuys).toBe(0);
+    expect(out?.status).toBe("active");
+  });
+
+  it("leaves doubleRebuys untouched when undoing a single re-entry", () => {
+    const players = [
+      player("out", { rebuys: 2, doubleRebuys: 1, status: "active" }),
+    ];
+    const log = {
+      eliminated_id: "out",
+      finish_place: null,
+      killers: [],
+      uses_reentry: true,
+    };
+    const result = getTargetedEliminationRollbackPlayers(log, players);
+    const out = result.find(p => p.id === "out");
+
+    expect(out?.rebuys).toBe(1);
+    expect(out?.doubleRebuys).toBe(1);
+  });
 });

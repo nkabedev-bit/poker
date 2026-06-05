@@ -43,6 +43,7 @@ type BountyLogSheetRow = {
   players_after?: unknown;
   recorded_at: string | null;
   uses_reentry: boolean | null;
+  reentry_double?: boolean | null;
 };
 
 function getMoscowDateParts(date = new Date()): MoscowDateParts {
@@ -138,7 +139,7 @@ export function buildEliminationSheetRows(logs: BountyLogSheetRow[]) {
     log.eliminated_name || "",
     getKillerNames(log.killers),
     formatMoscowTime(log.recorded_at),
-    log.uses_reentry ? "Да" : "",
+    log.uses_reentry ? (log.reentry_double ? "Да x2" : "Да") : "",
   ]);
 }
 
@@ -573,7 +574,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
   const logStartIso = sessionStartedAt ?? fallbackDayRange.startIso;
   let logsQuery = supabase
     .from("bounty_log")
-    .select("eliminated_name, killers, players_after, recorded_at, uses_reentry")
+    .select("eliminated_name, killers, players_after, recorded_at, uses_reentry, reentry_double")
     .eq("tournament_id", tournamentId)
     .eq("cancelled", false)
     .gte("recorded_at", logStartIso);

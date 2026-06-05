@@ -18,6 +18,7 @@ export type BlindLevel = {
   bigBlind: number | null;
   ante: number | null;
   reentryCloses: boolean;
+  doubleReentryAvailable?: boolean;
   durationSeconds: number;
   isBreak: boolean;
   breakDurationSeconds: number | null;
@@ -48,6 +49,7 @@ export type TournamentPlayer = {
   table: number | null;
   seat: number | null;
   rebuys: number;
+  doubleRebuys?: number;
   addons: number;
   addonChipsTotal?: number;
   bountyChipsTotal?: number;

@@ -108,6 +108,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       p_mystery_points: typedLog.mystery_bounty_points ?? 0,
       p_uses_reentry: typedLog.uses_reentry ?? false,
       p_players_before: null,
+      p_reentry_double: typedLog.reentry_double ?? false,
     });
 
     if (rpcError) throw rpcError;

@@ -8,7 +8,7 @@ import {
   isTournamentRegistrationCapacityError,
   TournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
-import { isReentryAvailable } from "@/lib/timer/calculate";
+import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
@@ -52,10 +52,20 @@ export async function GET(request: Request) {
     bigBlind: row.big_blind,
     ante: row.ante,
     reentryCloses: Boolean(row.reentry_closes),
+    doubleReentryAvailable: Boolean(row.double_reentry_available),
     durationSeconds: row.duration_seconds,
     isBreak: row.is_break,
     breakDurationSeconds: row.break_duration_seconds,
   }));
+
+  const now = new Date();
+  const reentryAvailable = extras.settings.reentryEnabled
+    ? isReentryAvailable(timerState, blindLevels, now)
+    : false;
+  const currentLevel =
+    blindLevels[getEffectiveTimerState(timerState, blindLevels, now).currentLevelIndex];
+  const doubleReentryAvailable =
+    reentryAvailable && Boolean(currentLevel?.doubleReentryAvailable);
 
   return NextResponse.json({
     isBounty: extras.settings.isBounty,
@@ -65,9 +75,8 @@ export async function GET(request: Request) {
     maxReentries: extras.settings.maxReentries,
     players: extras.players || [],
     tablesCount: extras.settings.tablesCount,
-    reentryAvailable: extras.settings.reentryEnabled
-      ? isReentryAvailable(timerState, blindLevels, new Date())
-      : false,
+    reentryAvailable,
+    doubleReentryAvailable,
     reentryEnabled: extras.settings.reentryEnabled,
   });
 }

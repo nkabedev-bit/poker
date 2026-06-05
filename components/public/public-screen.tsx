@@ -135,6 +135,12 @@ export function getRotatingPublicTableNumbers(
 
 export function getPublicChipBankTotal(state: PublicTournamentState) {
   const totalReentries = state.extras.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
+  // Each "double" re-entry adds one extra starting stack on top of the stack
+  // already counted via rebuys (a double still counts as a single re-entry event).
+  const totalDoubleReentries = state.extras.players.reduce(
+    (sum, player) => sum + (player.doubleRebuys || 0),
+    0,
+  );
   const totalAddonChips = state.extras.players.reduce(
     (sum, player) =>
       sum + (player.addonChipsTotal ?? (player.addons || 0) * state.extras.settings.addonChips),
@@ -146,7 +152,7 @@ export function getPublicChipBankTotal(state: PublicTournamentState) {
   );
 
   return state.extras.players.length > 0
-    ? (state.extras.players.length + totalReentries) * state.tournament.startingStack
+    ? (state.extras.players.length + totalReentries + totalDoubleReentries) * state.tournament.startingStack
       + totalAddonChips
       + totalBountyChips
     : state.tournament.startingStack;

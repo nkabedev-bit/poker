@@ -13,6 +13,7 @@ type BountyLog = {
   players_before?: unknown;
   eliminated_name?: string | null;
   uses_reentry?: boolean | null;
+  reentry_double?: boolean | null;
   mystery_bounty_points?: number | null;
   sheets_row_id?: number | null;
   sheets_sheet_name?: string | null;
@@ -63,6 +64,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       p_mystery_points: typedLog.mystery_bounty_points ?? 0,
       p_uses_reentry: typedLog.uses_reentry ?? false,
       p_players_before: null,
+      p_reentry_double: typedLog.reentry_double ?? false,
     });
 
     if (rpcError) throw rpcError;

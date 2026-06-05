@@ -5,6 +5,7 @@ export type EliminationRollbackLog = {
   finish_place: number | null;
   killers: unknown;
   uses_reentry?: boolean | null;
+  reentry_double?: boolean | null;
   mystery_bounty_points?: number | null;
   players_before?: unknown;
 };
@@ -39,6 +40,7 @@ export function getTargetedEliminationRollbackPlayers(
   const bountyChipsByPlayerId = new Map<string, number>(bountyChipEntries);
   const mysteryPointsByPlayerId = new Map<string, number>(mysteryPointsEntries);
   const usedReentry = Boolean(log.uses_reentry) || log.finish_place === null;
+  const usedDoubleReentry = usedReentry && Boolean(log.reentry_double);
   const restoredFinishPlace = Number(log.finish_place);
 
   return players.map((player) => {
@@ -48,6 +50,9 @@ export function getTargetedEliminationRollbackPlayers(
           ? {
             ...player,
             rebuys: Math.max(0, Number(player.rebuys ?? 0) - 1),
+            doubleRebuys: usedDoubleReentry
+              ? Math.max(0, Number(player.doubleRebuys ?? 0) - 1)
+              : Number(player.doubleRebuys ?? 0),
           }
           : {
             ...player,

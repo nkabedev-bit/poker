@@ -81,6 +81,7 @@ export async function POST(request: Request) {
       big_blind: level.isBreak ? null : level.bigBlind,
       ante: level.isBreak ? null : level.ante,
       reentry_closes: level.isBreak ? false : level.reentryCloses,
+      double_reentry_available: Boolean(level.doubleReentryAvailable),
       duration_seconds: level.durationSeconds,
       is_break: level.isBreak,
       break_duration_seconds: level.isBreak ? level.breakDurationSeconds : null,

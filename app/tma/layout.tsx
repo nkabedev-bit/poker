@@ -24,6 +24,8 @@ export type TelegramWebApp = {
     offClick: (callback: () => void) => void;
     showProgress: () => void;
     hideProgress: () => void;
+    enable?: () => void;
+    disable?: () => void;
   };
 };
 

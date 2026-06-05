@@ -103,10 +103,18 @@ describe("Google Sheets tournament day sync helpers", () => {
           recorded_at: "2026-05-30T10:15:00.000Z",
           uses_reentry: true,
         },
+        {
+          eliminated_name: "Player 3",
+          killers: [],
+          recorded_at: "2026-05-30T10:25:00.000Z",
+          uses_reentry: true,
+          reentry_double: true,
+        },
       ]),
     ).toEqual([
       ["Player 1", "Killer A / Killer B", "12:05", ""],
       ["Player 2", "—", "13:15", "Да"],
+      ["Player 3", "—", "13:25", "Да x2"],
     ]);
   });
 

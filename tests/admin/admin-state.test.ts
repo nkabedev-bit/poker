@@ -29,6 +29,7 @@ describe("mapAdminStateRpc", () => {
           big_blind: 50,
           ante: 0,
           reentry_closes: true,
+          double_reentry_available: true,
           duration_seconds: 900,
           is_break: false,
           break_duration_seconds: null,
@@ -58,6 +59,7 @@ describe("mapAdminStateRpc", () => {
       bigBlind: 50,
       ante: 0,
       reentryCloses: true,
+      doubleReentryAvailable: true,
       durationSeconds: 900,
       isBreak: false,
       breakDurationSeconds: null,
@@ -94,5 +96,6 @@ describe("mapAdminStateRpc", () => {
     });
 
     expect(state.blindLevels[0].reentryCloses).toBe(false);
+    expect(state.blindLevels[0].doubleReentryAvailable).toBe(false);
   });
 });

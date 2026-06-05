@@ -720,7 +720,7 @@ p {
 
 .be2-col-headers {
   display: grid;
-  grid-template-columns: 28px 32px 1fr 1fr 128px 130px 36px;
+  grid-template-columns: 28px 32px 1fr 1fr 128px 120px 130px 36px;
   gap: 6px;
   align-items: center;
   padding: 0 2px;
@@ -738,7 +738,7 @@ p {
 
 .be2-row {
   display: grid;
-  grid-template-columns: 28px 32px 1fr 1fr 128px 130px 36px;
+  grid-template-columns: 28px 32px 1fr 1fr 128px 120px 130px 36px;
   gap: 6px;
   align-items: center;
   border-radius: 7px;
@@ -762,6 +762,10 @@ p {
   grid-template-columns: 28px 32px 1fr 130px 36px;
   background: rgb(30 50 80 / 0.25);
   border-color: rgb(36 112 216 / 0.25);
+}
+
+.be2-row--break-double {
+  grid-template-columns: 28px 32px 1fr 120px 130px 36px;
 }
 
 .be2-row--break:hover {
@@ -888,7 +892,8 @@ p {
   box-shadow: 0 0 0 2px rgb(201 168 76 / 0.08);
 }
 
-.be2-field--reentry {
+.be2-field--reentry,
+.be2-field--double {
   min-height: 34px;
   display: flex;
   align-items: center;
@@ -2235,7 +2240,8 @@ p {
     grid-row: 2;
   }
 
-  .be2-field--reentry {
+  .be2-field--reentry,
+  .be2-field--double {
     justify-content: flex-start;
     min-height: 48px;
   }
@@ -2243,6 +2249,16 @@ p {
   .be2-row:not(.be2-row--break) .be2-duration-field {
     grid-column: 4;
     grid-row: 2;
+  }
+
+  .be2-row:not(.be2-row--break) .be2-field--double {
+    grid-column: 3 / 5;
+    grid-row: 3;
+  }
+
+  .be2-row--break .be2-field--double {
+    grid-column: 3;
+    grid-row: 3;
   }
 
   .be2-delete-btn {

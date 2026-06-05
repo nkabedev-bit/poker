@@ -35,6 +35,7 @@ export type AdminStateRpc = {
     is_break: boolean;
     level_order: number;
     reentry_closes?: boolean | null;
+    double_reentry_available?: boolean | null;
     small_blind: number | null;
   }>;
   extras: unknown;
@@ -73,6 +74,7 @@ function mapBlindLevel(row: AdminStateRpc["blindLevels"][number]): BlindLevel {
     isBreak: row.is_break,
     levelOrder: row.level_order,
     reentryCloses: Boolean(row.reentry_closes),
+    doubleReentryAvailable: Boolean(row.double_reentry_available),
     smallBlind: row.small_blind,
   };
 }
