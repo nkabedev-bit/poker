@@ -1,5 +1,6 @@
 import { after, NextResponse } from "next/server";
-import { syncTournamentToSheets } from "@/lib/google-sheets";
+import { removePlayerFromVipSheet, syncTournamentToSheets } from "@/lib/google-sheets";
+import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { getTargetedEliminationRollbackPlayers, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
@@ -34,12 +35,25 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
   const id = (await params).id;
+
+  // Capture the player before deletion so we can clean up an erroneous VIP entry.
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
+  const deletedPlayer = extras.players.find((player) => player.id === id);
+
   const { error: rpcError } = await auth.supabase.rpc("delete_tournament_player", {
     p_tournament_id: t.id,
     p_player_id: id,
   });
 
   if (rpcError) throw rpcError;
+
+  if (deletedPlayer && isVipRegistrationNumber(deletedPlayer.registrationNumber)) {
+    try {
+      await removePlayerFromVipSheet(auth.supabase, t.id, deletedPlayer.name);
+    } catch (sheetError) {
+      console.error("Failed to remove player from VIP sheet", sheetError);
+    }
+  }
 
   return new NextResponse(null, { status: 204 });
 }

@@ -263,6 +263,13 @@ export function buildVipSheetGrid(
     }
   }
 
+  return serializeVipGrid(summary, columns);
+}
+
+function serializeVipGrid(
+  summary: VipSummaryEntry[],
+  columns: VipGameColumn[],
+): (string | number)[][] {
   const bodyRowCount = Math.max(
     summary.length,
     ...columns.map((column) => column.names.length),
@@ -290,6 +297,41 @@ export function buildVipSheetGrid(
   }
 
   return grid;
+}
+
+// Remove a single player from the given game's VIP column and decrement their "Раз в VIP"
+// counter by 1 (dropping the summary row at 0). Used to correct an erroneous VIP entry when
+// an admin deletes the player. Only touches the named player in the named game's column —
+// other games, other players, and manual edits are left untouched. No-op if the player is
+// not in that column.
+export function removeFromVipSheetGrid(
+  existingGrid: string[][],
+  gameDate: string,
+  playerName: string,
+): (string | number)[][] {
+  const columns = parseVipGameColumns(existingGrid);
+  const summary = parseVipSummary(existingGrid);
+
+  const gameColumn = columns.find((column) => column.date === gameDate);
+  const nameIndex = gameColumn ? gameColumn.names.indexOf(playerName) : -1;
+  if (!gameColumn || nameIndex === -1) {
+    return serializeVipGrid(summary, columns);
+  }
+
+  gameColumn.names.splice(nameIndex, 1);
+  if (gameColumn.names.length === 0) {
+    columns.splice(columns.indexOf(gameColumn), 1);
+  }
+
+  const summaryIndex = summary.findIndex((entry) => entry.name === playerName);
+  if (summaryIndex !== -1) {
+    summary[summaryIndex].count -= 1;
+    if (summary[summaryIndex].count <= 0) {
+      summary.splice(summaryIndex, 1);
+    }
+  }
+
+  return serializeVipGrid(summary, columns);
 }
 
 export function getCurrentEliminationSheetName() {
@@ -567,11 +609,11 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
 
-async function writeVipSheet(
+// Read the VIP grid, apply a pure transform, and write the result back.
+async function mutateVipSheet(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
-  gameDate: string,
-  players: TournamentPlayer[],
+  transform: (existingGrid: string[][]) => (string | number)[][],
 ) {
   await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
 
@@ -583,7 +625,7 @@ async function writeVipSheet(
     row.map((cell) => String(cell ?? "")),
   );
 
-  const grid = buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players));
+  const grid = transform(existingGrid);
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
@@ -595,6 +637,17 @@ async function writeVipSheet(
     valueInputOption: "USER_ENTERED",
     requestBody: { values: grid },
   });
+}
+
+async function writeVipSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  gameDate: string,
+  players: TournamentPlayer[],
+) {
+  await mutateVipSheet(sheets, spreadsheetId, (existingGrid) =>
+    buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players)),
+  );
 }
 
 // Refresh the VIP tab (the game-date column + the running summary) for the current
@@ -617,6 +670,38 @@ export async function syncVipSheet(supabase: SupabaseClient, tournamentId: strin
   );
 
   await writeVipSheet(sheets, spreadsheetId, gameDate, extras.players);
+}
+
+// Correct an erroneous VIP entry: remove the player from the current game's VIP column and
+// decrement their counter. Call when an admin deletes a player who had a VIP registration
+// number. Best-effort and idempotent (no-op if the player isn't in that column).
+export async function removePlayerFromVipSheet(
+  supabase: SupabaseClient,
+  tournamentId: string,
+  playerName: string,
+) {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
+
+  const name = playerName.trim();
+  if (!name) return;
+
+  const { data } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournamentId)
+    .maybeSingle();
+  const extras = mergeTournamentExtras(data?.data);
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const gameDate = getEliminationSheetName(
+    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
+  );
+
+  await mutateVipSheet(sheets, spreadsheetId, (existingGrid) =>
+    removeFromVipSheetGrid(existingGrid, gameDate, name),
+  );
 }
 
 export async function clearTournamentSheet(spreadsheetId: string, sheetName: string) {

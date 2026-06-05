@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildEliminationSheetRows,
   buildVipSheetGrid,
+  removeFromVipSheetGrid,
   getEffectiveSessionStart,
   getEliminationSheetName,
   getMoscowDayRange,
@@ -230,6 +231,66 @@ describe("VIP sheet", () => {
     expect(grid).toEqual([
       ["Игрок", "Раз в VIP", "", "04/06"],
       ["Alice", 2, "", "Alice"],
+    ]);
+  });
+
+  it("removes an erroneous VIP entry from the current game's column and -1 its counter", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", "1", "", "Alice"],
+      ["Carol", "1", "", "Carol"],
+    ];
+
+    const grid = removeFromVipSheetGrid(existing, "04/06", "Carol");
+
+    // Carol's count hit 0 -> summary row dropped; column entry removed.
+    expect(grid).toEqual([
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", 1, "", "Alice"],
+    ]);
+  });
+
+  it("keeps a removed player who was VIP in other games (counter just -1)", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "28/05", "04/06"],
+      ["Alice", "2", "", "Alice", "Alice"],
+    ];
+
+    const grid = removeFromVipSheetGrid(existing, "04/06", "Alice");
+
+    // Alice removed from 04/06 only; still counted for 28/05; the now-empty 04/06 column drops.
+    expect(grid).toEqual([
+      ["Игрок", "Раз в VIP", "", "28/05"],
+      ["Alice", 1, "", "Alice"],
+    ]);
+  });
+
+  it("does not touch manual entries or other players when removing a player", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Javmaz", "1", "", "Carol"], // Javmaz/Anderson are manual summary-only entries
+      ["Anderson", "1", "", "Dave"],
+    ];
+
+    const grid = removeFromVipSheetGrid(existing, "04/06", "Carol");
+
+    // Carol removed from the column; Dave stays; Javmaz/Anderson summary preserved.
+    expect(grid).toEqual([
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Javmaz", 1, "", "Dave"],
+      ["Anderson", 1, "", ""],
+    ]);
+  });
+
+  it("is a no-op when the player is not in the game column", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", "1", "", "Alice"],
+    ];
+
+    expect(removeFromVipSheetGrid(existing, "04/06", "Nobody")).toEqual([
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", 1, "", "Alice"],
     ]);
   });
 });
