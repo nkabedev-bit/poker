@@ -242,6 +242,74 @@ describe("VIP sheet", () => {
     ]);
   });
 
+  it("regression: a second game keeps the first game's column (2026-06-07 incident)", () => {
+    // The 04/06 game recorded 9 VIP players; Саймон is one of them.
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["1$", "1", "", "Seka_Machine"],
+      ["ДЕД", "1", "", "Саймон"],
+      ["Саймон", "1", "", "ДЕД"],
+      ["Izya", "1", "", "Neklid"],
+      ["Kr.ma.vl", "1", "", "Kr.ma.vl"],
+      ["Neklid", "1", "", "1$"],
+      ["Seka_Machine", "1", "", "Izya"],
+      ["Javmaz", "1", "", "Javmaz"],
+      ["Anderson", "1", "", "Anderson"],
+    ];
+
+    // 07/06 game: 6 VIP players, Саймон plays again.
+    const grid = buildVipSheetGrid(existing, "07/06", [
+      "Gal",
+      "Саймон",
+      "ZHAR",
+      "Юран",
+      "inrikki",
+      "Киберпсих",
+    ]);
+
+    // Both game columns survive side by side.
+    expect(grid[0]).toEqual(["Игрок", "Раз в VIP", "", "04/06", "07/06"]);
+    // Саймон appeared in both games -> count 2, not 1.
+    const simon = grid.find((row) => row[0] === "Саймон");
+    expect(simon?.[1]).toBe(2);
+    // The 04/06 column is byte-for-byte preserved.
+    expect(grid.slice(1).map((row) => row[3])).toEqual([
+      "Seka_Machine",
+      "Саймон",
+      "ДЕД",
+      "Neklid",
+      "Kr.ma.vl",
+      "1$",
+      "Izya",
+      "Javmaz",
+      "Anderson",
+      "",
+      "",
+      "",
+      "",
+      "",
+    ]);
+  });
+
+  it("superset invariant: no non-empty cell ever becomes empty after an additive merge", () => {
+    const existing = [
+      ["Игрок", "Раз в VIP", "", "04/06"],
+      ["Alice", "1", "", "Alice"],
+      ["Bob", "1", "", "Bob"],
+    ];
+
+    const grid = buildVipSheetGrid(existing, "11/06", ["Alice", "Carol"]);
+
+    for (let row = 0; row < existing.length; row += 1) {
+      for (let col = 0; col < existing[row].length; col += 1) {
+        const before = existing[row][col];
+        if (before === "") continue;
+        // Counts may grow (string "1" -> number 2); only assert it never blanks.
+        expect(String(grid[row]?.[col] ?? "")).not.toBe("");
+      }
+    }
+  });
+
   it("removes an erroneous VIP entry from the current game's column and -1 its counter", () => {
     const existing = [
       ["Игрок", "Раз в VIP", "", "04/06"],

@@ -610,34 +610,63 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
 
-// Read the VIP grid, apply a pure transform, and write the result back.
-async function mutateVipSheet(
+// Read the VIP grid as a string matrix. Guards against a transient empty read: a populated
+// VIP sheet always has at least one game-date column, so if the first read returns none we
+// re-read once. This means a momentary empty API response can never drive a destructive
+// rewrite that drops the recorded game history (the failure seen on 2026-06-07). On a genuine
+// first VIP game the re-read is harmless — it just confirms the sheet is still empty.
+async function readVipGrid(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
-  transform: (existingGrid: string[][]) => (string | number)[][],
+): Promise<string[][]> {
+  const readOnce = async () => {
+    const existing = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
+    });
+    return ((existing.data.values ?? []) as unknown[][]).map((row) =>
+      row.map((cell) => String(cell ?? "")),
+    );
+  };
+
+  let grid = await readOnce();
+  if (parseVipGameColumns(grid).length === 0) {
+    grid = await readOnce();
+  }
+  return grid;
+}
+
+// Write a VIP grid WITHOUT clearing the sheet first. The additive merge always returns a
+// superset of what we read (existing columns keep their position, rows only grow, a new game
+// adds a column on the right), so an in-place update leaves no stale cells while never
+// blanking the sheet. The header row is written RAW so date labels like "07/06" stay text —
+// USER_ENTERED would coerce them into dates that read back differently and spawn a duplicate
+// column on the next sync. Body rows use USER_ENTERED so the "Раз в VIP" counts stay numeric.
+async function writeVipGridNoClear(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  grid: (string | number)[][],
 ) {
-  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+  if (grid.length === 0) return;
 
-  const existing = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
-  });
-  const existingGrid = ((existing.data.values ?? []) as unknown[][]).map((row) =>
-    row.map((cell) => String(cell ?? "")),
-  );
+  const [header, ...body] = grid;
+  const lastColumn = getSheetColumnName(Math.max(header.length, 1));
 
-  const grid = transform(existingGrid);
-
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
-  });
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${VIP_SHEET_NAME}'!A1`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: { values: grid },
+    range: `'${VIP_SHEET_NAME}'!A1:${lastColumn}1`,
+    valueInputOption: "RAW",
+    requestBody: { values: [header] },
   });
+
+  if (body.length > 0) {
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${VIP_SHEET_NAME}'!A2`,
+      valueInputOption: "USER_ENTERED",
+      requestBody: { values: body },
+    });
+  }
 }
 
 async function writeVipSheet(
@@ -646,9 +675,13 @@ async function writeVipSheet(
   gameDate: string,
   players: TournamentPlayer[],
 ) {
-  await mutateVipSheet(sheets, spreadsheetId, (existingGrid) =>
-    buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players)),
-  );
+  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+
+  const existingGrid = await readVipGrid(sheets, spreadsheetId);
+  const grid = buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players));
+
+  // Additive path: never clear — the new grid is a superset of the existing one.
+  await writeVipGridNoClear(sheets, spreadsheetId, grid);
 }
 
 // Refresh the VIP tab (the game-date column + the running summary) for the current
@@ -700,9 +733,19 @@ export async function removePlayerFromVipSheet(
     getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
   );
 
-  await mutateVipSheet(sheets, spreadsheetId, (existingGrid) =>
-    removeFromVipSheetGrid(existingGrid, gameDate, name),
-  );
+  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+
+  const existingGrid = await readVipGrid(sheets, spreadsheetId);
+  const grid = removeFromVipSheetGrid(existingGrid, gameDate, name);
+
+  // Removal can shrink the grid (a name leaves a column, an emptied column drops), so unlike
+  // the additive path this one clears first to wipe any now-orphaned trailing cells, then
+  // rewrites the smaller grid in place.
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
+  });
+  await writeVipGridNoClear(sheets, spreadsheetId, grid);
 }
 
 export async function clearTournamentSheet(spreadsheetId: string, sheetName: string) {
