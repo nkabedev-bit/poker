@@ -149,9 +149,28 @@ describe("PTS rating", () => {
     );
 
     expect(rows).toEqual([
-      { bountyCount: 1.5, place: 1, playerName: "A", points: 315 },
-      { bountyCount: 0, place: 2, playerName: "B", points: 200 },
-      { bountyCount: 2, place: 3, playerName: "C", points: 120 },
+      { bountyCount: 1.5, mysteryPoints: null, place: 1, playerName: "A", points: 315 },
+      { bountyCount: 0, mysteryPoints: null, place: 2, playerName: "B", points: 200 },
+      { bountyCount: 2, mysteryPoints: null, place: 3, playerName: "C", points: 120 },
+    ]);
+  });
+
+  it("in Mystery mode reports mystery points in their own column and keeps PTS place-only", () => {
+    const rows = buildPtsStandingsRows(
+      [
+        player("a", "A", { bountyCount: 1, finishPlace: 1, mysteryBountyPoints: 150 }),
+        player("b", "B", { finishPlace: 2, status: "eliminated" }),
+      ],
+      {
+        bountyPoints: 10,
+        bountyType: "mystery",
+        placePoints: [300, 200],
+      },
+    );
+
+    expect(rows).toEqual([
+      { bountyCount: 1, mysteryPoints: 150, place: 1, playerName: "A", points: 300 },
+      { bountyCount: 0, mysteryPoints: 0, place: 2, playerName: "B", points: 200 },
     ]);
   });
 
@@ -168,8 +187,8 @@ describe("PTS rating", () => {
     );
 
     expect(rows).toEqual([
-      { bountyCount: 1, place: 1, playerName: "A", points: 130 },
-      { bountyCount: 0.5, place: 2, playerName: "B", points: 65 },
+      { bountyCount: 1, mysteryPoints: null, place: 1, playerName: "A", points: 130 },
+      { bountyCount: 0.5, mysteryPoints: null, place: 2, playerName: "B", points: 65 },
     ]);
   });
 

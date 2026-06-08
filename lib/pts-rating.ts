@@ -26,6 +26,7 @@ export type KillerShare = {
 
 export type PtsStandingRow = {
   bountyCount: number | null;
+  mysteryPoints: number | null;
   place: number;
   playerName: string;
   points: number | null;
@@ -180,6 +181,10 @@ export function buildPtsStandingsRows(
 ): PtsStandingRow[] {
   const placePoints = normalizePlacePoints(pts.placePoints);
   const bountyPoints = Number.isFinite(Number(pts.bountyPoints)) ? Number(pts.bountyPoints) : 0;
+  // In Mystery mode the knockout reward is the manually-entered mystery points, not a fixed
+  // per-knockout bounty. We surface those points in their own column and deliberately keep them
+  // OUT of the PTS total (PTS stays "place points only"), per the tournament rules.
+  const isMystery = pts.bountyType === "mystery";
   const placesCount = Math.min(PTS_PLACE_COUNT, Math.max(players.length, 1));
   const placedPlayers = players
     .filter((player) => player.finishPlace && player.finishPlace > 0 && player.finishPlace <= PTS_PLACE_COUNT)
@@ -189,6 +194,7 @@ export function buildPtsStandingsRows(
   const leadingEmptyCount = Math.min(Math.max(firstPlace - 1, 0), placesCount);
   const leadingEmptyRows = Array.from({ length: leadingEmptyCount }, (_, index) => ({
     bountyCount: null,
+    mysteryPoints: null,
     place: index + 1,
     playerName: "",
     points: null,
@@ -199,11 +205,13 @@ export function buildPtsStandingsRows(
 
     const placePts = placePoints[place - 1] ?? 0;
     const bountyPts = Number(((player.bountyCount || 0) * bountyPoints).toFixed(2));
+    const mysteryPts = Number((player.mysteryBountyPoints || 0).toFixed(2));
     return {
       bountyCount: Number((player.bountyCount || 0).toFixed(2)),
+      mysteryPoints: isMystery ? mysteryPts : null,
       place,
       playerName: player.name || "Без имени",
-      points: Number((placePts + bountyPts).toFixed(2)),
+      points: isMystery ? Number(placePts.toFixed(2)) : Number((placePts + bountyPts).toFixed(2)),
     };
   });
 

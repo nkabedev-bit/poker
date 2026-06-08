@@ -421,6 +421,7 @@ export async function appendEliminationRow(data: {
   killers: { name: string; share: number }[];
   currentRound: number;
   standingsRows: PtsStandingRow[];
+  isMystery?: boolean;
   usesReentry: boolean;
 }) {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
@@ -462,7 +463,7 @@ export async function appendEliminationRow(data: {
   const match = updatedRange.match(/!A(\d+):/);
   const rowId = match ? parseInt(match[1]) : 0;
 
-  await updatePtsStandingsRows(sheets, spreadsheetId, sheetName, data.standingsRows);
+  await updatePtsStandingsRows(sheets, spreadsheetId, sheetName, data.standingsRows, data.isMystery ?? false);
 
   return { rowId, sheetName };
 }
@@ -514,10 +515,17 @@ async function updatePtsStandingsRows(
   spreadsheetId: string,
   sheetName: string,
   rows: PtsStandingRow[],
+  isMystery: boolean,
 ) {
   const paddedRows = Array.from({ length: 28 }, (_, index) => {
-    return rows[index] ?? { bountyCount: null, place: index + 1, playerName: "", points: null };
+    return (
+      rows[index] ?? { bountyCount: null, mysteryPoints: null, place: index + 1, playerName: "", points: null }
+    );
   });
+
+  // In Mystery mode the fourth column reports each player's mystery points instead of the
+  // knockout count, and PTS (column H) stays place-points-only — the two are never summed.
+  const lastHeader = isMystery ? "Mystery-Points" : "Кол-во баунти";
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
@@ -525,12 +533,12 @@ async function updatePtsStandingsRows(
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["Место", "Игрок", "PTS", "Кол-во баунти"],
+        ["Место", "Игрок", "PTS", lastHeader],
         ...paddedRows.map((row) => [
           row.place,
           row.playerName || "",
           row.points ?? "",
-          row.bountyCount ?? "",
+          (isMystery ? row.mysteryPoints : row.bountyCount) ?? "",
         ]),
       ],
     },
@@ -606,6 +614,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     spreadsheetId,
     sheetName,
     buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
+    extras.settings.bountyType === "mystery",
   );
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
