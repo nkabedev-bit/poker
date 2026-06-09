@@ -93,6 +93,9 @@ export type TournamentExtras = {
     tablesCount: number;
   };
   players: TournamentPlayer[];
+  // Persistent per-guest display labels keyed by normalized nickname (e.g. "дилер").
+  // Survives the roster wipe on tournament finish so regular guests keep their marker.
+  playerLabels: Record<string, string>;
   prizes: Array<{
     bonuses: string[];
     place: number;

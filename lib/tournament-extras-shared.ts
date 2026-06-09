@@ -44,6 +44,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     tablesCount: 3,
   },
   players: [],
+  playerLabels: {},
   prizes: [
     { place: 1, bonuses: [] },
     { place: 2, bonuses: [] },
@@ -81,6 +82,10 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),
     },
     players: Array.isArray(input.players) ? input.players : [],
+    playerLabels:
+      typeof input.playerLabels === "object" && input.playerLabels && !Array.isArray(input.playerLabels)
+        ? (input.playerLabels as Record<string, string>)
+        : {},
     prizes:
       Array.isArray(input.prizes) && input.prizes.length > 0
         ? input.prizes

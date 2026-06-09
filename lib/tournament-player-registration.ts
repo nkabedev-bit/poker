@@ -5,6 +5,7 @@ import {
   VIP_REGISTRATION_NUMBER_MAX,
   VIP_REGISTRATION_NUMBER_MIN,
 } from "@/lib/player-registration-number";
+import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 export class TournamentRegistrationCapacityError extends Error {
@@ -110,6 +111,13 @@ export async function appendTournamentPlayerWithRegistrationNumber({
 
   if (extras.players.length >= maxNumber) {
     throw new TournamentRegistrationCapacityError(extras.players.length);
+  }
+
+  // Re-apply a persistent per-guest display label (matched by nickname) so regular
+  // guests (e.g. dealers) keep their marker across games without re-issuing /givecolor.
+  const persistedLabel = getPersistedPlayerLabel(extras.playerLabels, player.name);
+  if (persistedLabel) {
+    player = { ...player, label: persistedLabel };
   }
 
   try {

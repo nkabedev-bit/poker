@@ -1,6 +1,7 @@
 import { Bot, webhookCallback } from "grammy";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
 
 function getAdminSupabase() {
   return createClient(
@@ -306,9 +307,15 @@ bot.command("givecolor", async (ctx) => {
     }
 
     matches[0].label = label;
+    // Persist the label by nickname so it auto-applies on future registrations.
+    context.extras.playerLabels = setPersistedPlayerLabel(
+      context.extras.playerLabels as Record<string, string> | undefined,
+      nickname,
+      label,
+    );
     await persistPlayers(supabase, context.tournament, context.extras, context.players);
 
-    await ctx.reply(`Метка "${label}" назначена игроку ${nickname}.`);
+    await ctx.reply(`Метка "${label}" назначена игроку ${nickname} (сохранится и на будущие игры).`);
   } catch (err: unknown) {
     console.error("Error in /givecolor command:", err);
     const message = err instanceof Error ? err.message : String(err);
@@ -352,9 +359,13 @@ bot.command("removecolor", async (ctx) => {
     }
 
     matches[0].label = null;
+    context.extras.playerLabels = removePersistedPlayerLabel(
+      context.extras.playerLabels as Record<string, string> | undefined,
+      nickname,
+    );
     await persistPlayers(supabase, context.tournament, context.extras, context.players);
 
-    await ctx.reply(`Метка снята с игрока ${nickname}.`);
+    await ctx.reply(`Метка снята с игрока ${nickname} (и на будущих играх тоже).`);
   } catch (err: unknown) {
     console.error("Error in /removecolor command:", err);
     const message = err instanceof Error ? err.message : String(err);
