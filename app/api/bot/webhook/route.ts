@@ -298,24 +298,23 @@ bot.command("givecolor", async (ctx) => {
     const context = await loadTournamentAndPlayers(supabase);
     if (!context) return ctx.reply("Ошибка: турнир не найден.");
 
-    const matches = findPlayersByName(context.players, nickname);
-    if (matches.length === 0) {
-      return ctx.reply(`Игрок "${nickname}" не найден.`);
-    }
-    if (matches.length > 1) {
-      return ctx.reply(`Найдено несколько игроков с ником "${nickname}". Уточните, имена должны быть уникальны.`);
-    }
-
-    matches[0].label = label;
-    // Persist the label by nickname so it auto-applies on future registrations.
+    // Always store the label by nickname (works even when no game is running);
+    // also apply it to any matching player(s) currently in the roster.
     context.extras.playerLabels = setPersistedPlayerLabel(
       context.extras.playerLabels as Record<string, string> | undefined,
       nickname,
       label,
     );
+    const matches = findPlayersByName(context.players, nickname);
+    for (const player of matches) player.label = label;
+
     await persistPlayers(supabase, context.tournament, context.extras, context.players);
 
-    await ctx.reply(`Метка "${label}" назначена игроку ${nickname} (сохранится и на будущие игры).`);
+    const liveNote =
+      matches.length > 0
+        ? `Применено в текущей игре (${matches.length}).`
+        : "Сейчас игрок не в игре — метка применится при регистрации.";
+    await ctx.reply(`Метка "${label}" сохранена для "${nickname}". ${liveNote}`);
   } catch (err: unknown) {
     console.error("Error in /givecolor command:", err);
     const message = err instanceof Error ? err.message : String(err);
@@ -350,22 +349,18 @@ bot.command("removecolor", async (ctx) => {
     const context = await loadTournamentAndPlayers(supabase);
     if (!context) return ctx.reply("Ошибка: турнир не найден.");
 
-    const matches = findPlayersByName(context.players, nickname);
-    if (matches.length === 0) {
-      return ctx.reply(`Игрок "${nickname}" не найден.`);
-    }
-    if (matches.length > 1) {
-      return ctx.reply(`Найдено несколько игроков с ником "${nickname}". Уточните, имена должны быть уникальны.`);
-    }
-
-    matches[0].label = null;
+    // Always clear the stored label (works even when no game is running);
+    // also clear it from any matching player(s) currently in the roster.
     context.extras.playerLabels = removePersistedPlayerLabel(
       context.extras.playerLabels as Record<string, string> | undefined,
       nickname,
     );
+    const matches = findPlayersByName(context.players, nickname);
+    for (const player of matches) player.label = null;
+
     await persistPlayers(supabase, context.tournament, context.extras, context.players);
 
-    await ctx.reply(`Метка снята с игрока ${nickname} (и на будущих играх тоже).`);
+    await ctx.reply(`Метка снята с "${nickname}" — и в текущей игре, и на будущих.`);
   } catch (err: unknown) {
     console.error("Error in /removecolor command:", err);
     const message = err instanceof Error ? err.message : String(err);
