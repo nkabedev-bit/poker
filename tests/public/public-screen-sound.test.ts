@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPublicChipBankTotal,
   getPublicPlayerBadges,
+  getPublicPlayerLabelKind,
   getRotatingPublicTableNumbers,
   getGeneratedBlindAlertAudioUrl,
   getPublicSoundIcon,
@@ -196,5 +197,25 @@ describe("getPublicChipBankTotal", () => {
 
     // (2 players + 1 rebuy + 1 double) * 1000 = 4000
     expect(getPublicChipBankTotal(state)).toBe(4000);
+  });
+});
+
+describe("getPublicPlayerLabelKind", () => {
+  it("treats дилер / dealer / d (any case) as the dealer button", () => {
+    expect(getPublicPlayerLabelKind("дилер")).toBe("dealer");
+    expect(getPublicPlayerLabelKind("Дилер")).toBe("dealer");
+    expect(getPublicPlayerLabelKind(" DEALER ")).toBe("dealer");
+    expect(getPublicPlayerLabelKind("D")).toBe("dealer");
+  });
+
+  it("treats any other non-empty label as a text badge", () => {
+    expect(getPublicPlayerLabelKind("vip")).toBe("text");
+    expect(getPublicPlayerLabelKind("новичок")).toBe("text");
+  });
+
+  it("returns null for empty/missing labels", () => {
+    expect(getPublicPlayerLabelKind(null)).toBeNull();
+    expect(getPublicPlayerLabelKind(undefined)).toBeNull();
+    expect(getPublicPlayerLabelKind("   ")).toBeNull();
   });
 });

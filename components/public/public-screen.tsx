@@ -91,6 +91,24 @@ export function getPublicPlayerBadges(
   return badges;
 }
 
+const DEALER_LABELS = new Set(["дилер", "dealer", "d"]);
+
+export function getPublicPlayerLabelKind(label?: string | null): "dealer" | "text" | null {
+  const normalized = (label ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (DEALER_LABELS.has(normalized)) return "dealer";
+  return "text";
+}
+
+function getPublicPlayerLabelColor(label: string) {
+  let hash = 0;
+  for (let index = 0; index < label.length; index += 1) {
+    hash = (hash * 31 + label.charCodeAt(index)) >>> 0;
+  }
+  const hue = hash % 360;
+  return `hsl(${hue} 65% 45%)`;
+}
+
 function getPublicPlayersDensity(count: number) {
   if (count <= 6) return "hero";
   if (count <= 13) return "roomy";
@@ -829,17 +847,33 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
             {visiblePublicPlayers.map((player) => {
               const badges = getPublicPlayerBadges(player, isBounty, bountyType);
+              const labelKind = getPublicPlayerLabelKind(player.label);
+              const labelText = (player.label ?? "").trim();
+              const hasLeading = labelKind !== null || badges.length > 0;
 
               return (
                 <div
                   className={getPublicPlayerItemClassName({
-                    hasBadges: badges.length > 0,
+                    hasBadges: hasLeading,
                     isEliminated: player.status === "eliminated",
                   })}
                   key={player.id}
                 >
-                  {badges.length > 0 ? (
-                    <span className="public-player-badges">{badges.join(" | ")} |</span>
+                  {hasLeading ? (
+                    <span className="public-player-badges">
+                      {labelKind === "dealer" ? (
+                        <span className="public-player-dealer-button">D</span>
+                      ) : null}
+                      {labelKind === "text" ? (
+                        <span
+                          className="public-player-label"
+                          style={{ background: getPublicPlayerLabelColor(labelText) }}
+                        >
+                          {labelText}
+                        </span>
+                      ) : null}
+                      {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
+                    </span>
                   ) : null}
                   <PublicPlayerName name={player.name} />
                 </div>

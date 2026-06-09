@@ -510,6 +510,40 @@ export async function appendClientBotProfileRow(data: {
   return { sheetName };
 }
 
+export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {
+  return players
+    .filter((player) => {
+      const value = Number(player.registrationNumber);
+      return Number.isInteger(value) && value > 0;
+    })
+    .sort((a, b) => Number(a.registrationNumber) - Number(b.registrationNumber))
+    .map((player) => [Number(player.registrationNumber), player.name || ""]);
+}
+
+async function updatePlayerOrderRows(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetName: string,
+  players: TournamentPlayer[],
+) {
+  // Clear the previous block first so shrinking the roster never leaves a stale tail.
+  await sheets.spreadsheets.values.clear({
+    spreadsheetId,
+    range: `'${sheetName}'!K2:L`,
+  });
+
+  const orderRows = buildPlayerOrderRows(players);
+
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `'${sheetName}'!K1:L${orderRows.length + 1}`,
+    valueInputOption: "RAW",
+    requestBody: {
+      values: [["№", "Игрок"], ...orderRows],
+    },
+  });
+}
+
 async function updatePtsStandingsRows(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
@@ -616,6 +650,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
     extras.settings.bountyType === "mystery",
   );
+  await updatePlayerOrderRows(sheets, spreadsheetId, sheetName, extras.players);
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
 
@@ -768,7 +803,7 @@ export async function clearTournamentSheet(spreadsheetId: string, sheetName: str
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetName}'!A2:J`,
+    range: `'${sheetName}'!A2:L`,
   });
 }
 

@@ -61,6 +61,7 @@ export type TournamentPlayer = {
   category?: "VIP" | "Normal";
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
+  label?: string | null; // custom display marker for the public screen (e.g. "дилер")
 };
 
 export type TournamentExtras = {

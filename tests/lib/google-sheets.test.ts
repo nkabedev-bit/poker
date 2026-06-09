@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildEliminationSheetRows,
+  buildPlayerOrderRows,
   buildVipSheetGrid,
   removeFromVipSheetGrid,
   getEffectiveSessionStart,
@@ -143,6 +144,20 @@ describe("Google Sheets tournament day sync helpers", () => {
         },
       ]),
     ).toBe(finalPlayers);
+  });
+  it("builds the player order block sorted by registration number without gaps", () => {
+    const players = [
+      vipPlayer("c", "Carol", { registrationNumber: 22 }),
+      vipPlayer("a", "Alice", { registrationNumber: 1 }),
+      vipPlayer("nonum", "Nobody"), // no registration number -> excluded
+      vipPlayer("b", "Bob", { registrationNumber: 19, status: "eliminated" }),
+    ];
+
+    expect(buildPlayerOrderRows(players)).toEqual([
+      [1, "Alice"],
+      [19, "Bob"],
+      [22, "Carol"],
+    ]);
   });
 });
 

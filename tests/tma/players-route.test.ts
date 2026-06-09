@@ -469,6 +469,7 @@ describe("TMA players route", () => {
         p_mystery_points: 0,
         p_uses_reentry: false,
         p_players_before: null,
+        p_reentry_double: false,
       },
     );
     expect(supabase.bountyLogDelete).toHaveBeenCalled();

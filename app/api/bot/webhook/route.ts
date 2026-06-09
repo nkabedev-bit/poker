@@ -226,4 +226,140 @@ bot.command("clearsheet", async (ctx) => {
   }
 });
 
+type ExtrasPlayer = Record<string, unknown> & { name?: unknown; label?: unknown };
+
+async function loadTournamentAndPlayers(supabase: ReturnType<typeof getAdminSupabase>) {
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("id, public_token")
+    .limit(1)
+    .single();
+
+  if (!tournament) return null;
+
+  const { data: extrasData } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournament.id)
+    .maybeSingle();
+
+  const extras = (extrasData?.data ?? {}) as Record<string, unknown> & { players?: unknown };
+  const players = Array.isArray(extras.players) ? (extras.players as ExtrasPlayer[]) : [];
+
+  return { tournament, extras, players };
+}
+
+function findPlayersByName(players: ExtrasPlayer[], nickname: string) {
+  const target = nickname.trim().toLowerCase();
+  return players.filter(
+    (player) => typeof player.name === "string" && player.name.trim().toLowerCase() === target,
+  );
+}
+
+async function persistPlayers(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  tournament: { id: string; public_token: string },
+  extras: Record<string, unknown>,
+  players: ExtrasPlayer[],
+) {
+  const nextData = { ...extras, players };
+  await supabase.from("tournament_extras").update({ data: nextData }).eq("tournament_id", tournament.id);
+
+  const { broadcastPublicState } = await import("@/lib/realtime/broadcast");
+  await broadcastPublicState(tournament.public_token);
+}
+
+bot.command("givecolor", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  const { data: admin } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  if (!admin) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  const text = ctx.message?.text || "";
+  const match = text.match(/^\/givecolor(?:@\S+)?\s+(.+?)\s+to\s+(.+)$/i);
+  if (!match) {
+    return ctx.reply("Использование: /givecolor <метка> to <ник>");
+  }
+
+  const label = match[1].trim();
+  const nickname = match[2].trim();
+
+  try {
+    const context = await loadTournamentAndPlayers(supabase);
+    if (!context) return ctx.reply("Ошибка: турнир не найден.");
+
+    const matches = findPlayersByName(context.players, nickname);
+    if (matches.length === 0) {
+      return ctx.reply(`Игрок "${nickname}" не найден.`);
+    }
+    if (matches.length > 1) {
+      return ctx.reply(`Найдено несколько игроков с ником "${nickname}". Уточните, имена должны быть уникальны.`);
+    }
+
+    matches[0].label = label;
+    await persistPlayers(supabase, context.tournament, context.extras, context.players);
+
+    await ctx.reply(`Метка "${label}" назначена игроку ${nickname}.`);
+  } catch (err: unknown) {
+    console.error("Error in /givecolor command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Ошибка: ${message}`);
+  }
+});
+
+bot.command("removecolor", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  const { data: admin } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  if (!admin) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  const text = ctx.message?.text || "";
+  const match = text.match(/^\/removecolor(?:@\S+)?\s+(.+)$/i);
+  if (!match) {
+    return ctx.reply("Использование: /removecolor <ник>");
+  }
+
+  const nickname = match[1].trim();
+
+  try {
+    const context = await loadTournamentAndPlayers(supabase);
+    if (!context) return ctx.reply("Ошибка: турнир не найден.");
+
+    const matches = findPlayersByName(context.players, nickname);
+    if (matches.length === 0) {
+      return ctx.reply(`Игрок "${nickname}" не найден.`);
+    }
+    if (matches.length > 1) {
+      return ctx.reply(`Найдено несколько игроков с ником "${nickname}". Уточните, имена должны быть уникальны.`);
+    }
+
+    matches[0].label = null;
+    await persistPlayers(supabase, context.tournament, context.extras, context.players);
+
+    await ctx.reply(`Метка снята с игрока ${nickname}.`);
+  } catch (err: unknown) {
+    console.error("Error in /removecolor command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Ошибка: ${message}`);
+  }
+});
+
 export const POST = webhookCallback(bot, "std/http", { secretToken: process.env.TELEGRAM_WEBHOOK_SECRET });

@@ -1971,7 +1971,9 @@ p {
 
 .public-player-mini-list div {
   display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
+  /* Markers/badges take what they need but yield so the name keeps a floor and
+     shrinks (via the name auto-fit) instead of overlapping on narrow panels. */
+  grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
   gap: 3px;
   align-items: center;
   border: 1px solid rgb(255 255 255 / 0.08);
@@ -2000,6 +2002,40 @@ p {
 .public-player-badges {
   justify-self: start;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.public-player-dealer-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5em;
+  height: 1.5em;
+  border-radius: 50%;
+  background: #fff;
+  color: #111 !important;
+  font-weight: 900;
+  font-size: clamp(8px, 1vh, 10px);
+  line-height: 1;
+  box-shadow: 0 0 2px rgb(0 0 0 / 0.6);
+  flex: 0 0 auto;
+}
+
+.public-player-label {
+  display: inline-flex;
+  align-items: center;
+  color: #fff !important;
+  font-size: clamp(7px, 0.9vh, 9px);
+  font-weight: 800;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 999px;
+  text-transform: uppercase;
+  flex: 0 0 auto;
 }
 
 .public-player-mini-list div.public-player-mini-list-item--eliminated span,
@@ -2535,7 +2571,7 @@ p {
   }
 
   .public-player-mini-list--cozy div {
-    grid-template-columns: 36px minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(18px, 3.2vh, 28px);
     padding: 0 5px;
   }
@@ -2549,7 +2585,7 @@ p {
   }
 
   .public-player-mini-list--roomy div {
-    grid-template-columns: 44px minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(28px, 5vh, 42px);
     padding: 0 7px;
   }
@@ -2563,7 +2599,7 @@ p {
   }
 
   .public-player-mini-list--hero div {
-    grid-template-columns: 52px minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(56px, 1fr);
     height: clamp(38px, 7vh, 58px);
     padding: 0 8px;
   }
@@ -2783,17 +2819,17 @@ p {
   }
 
   .public-player-mini-list--cozy div {
-    grid-template-columns: clamp(24px, 3.3vw, 32px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(17px, 3.2vh, 24px);
   }
 
   .public-player-mini-list--roomy div {
-    grid-template-columns: clamp(28px, 3.9vw, 38px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(24px, 4.7vh, 34px);
   }
 
   .public-player-mini-list--hero div {
-    grid-template-columns: clamp(34px, 4.6vw, 44px) minmax(0, 1fr);
+    grid-template-columns: minmax(0, auto) minmax(56px, 1fr);
     height: clamp(32px, 6.2vh, 48px);
   }
 }

@@ -129,7 +129,13 @@ describe("admin tournament import/export payload", () => {
     expect(parsed.success).toBe(true);
     if (!parsed.success) return;
 
-    expect(parsed.data.extrasPatch.settings).toEqual(baseState.extras.settings);
+    // Session-tracking fields are runtime state, not config, so they are
+    // intentionally not round-tripped through import (absent from settingsSchema).
+    const { sheetsSessionStartedAt, statsCountedAt, ...importableSettings } =
+      baseState.extras.settings;
+    void sheetsSessionStartedAt;
+    void statsCountedAt;
+    expect(parsed.data.extrasPatch.settings).toEqual(importableSettings);
     expect(parsed.data.extrasPatch.players).toBeUndefined();
     expect(parsed.data.blindLevels[0].ante).toBe(0);
   });
