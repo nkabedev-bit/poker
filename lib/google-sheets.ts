@@ -650,7 +650,10 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
     extras.settings.bountyType === "mystery",
   );
-  await updatePlayerOrderRows(sheets, spreadsheetId, sheetName, extras.players);
+  // Use the same finished-game fallback as the standings: when the tournament ends the
+  // roster in extras is wiped, but the final sync must not blank the K/L player-order list —
+  // the last log's players_after still holds the full roster with registration numbers.
+  await updatePlayerOrderRows(sheets, spreadsheetId, sheetName, standingsPlayers);
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
 

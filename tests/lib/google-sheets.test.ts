@@ -159,6 +159,31 @@ describe("Google Sheets tournament day sync helpers", () => {
       [22, "Carol"],
     ]);
   });
+
+  it("regression: keeps the player order block after the game finishes and players are cleared", () => {
+    // When the tournament ends, extras.players is wiped before the final sheets sync.
+    // The order block must fall back to the last log snapshot, same as the standings,
+    // instead of clearing K/L (the 2026-06-09 incident).
+    const finalRoster = [
+      vipPlayer("b", "Bob", { registrationNumber: 2, status: "eliminated", finishPlace: 2 }),
+      vipPlayer("a", "Alice", { registrationNumber: 1, finishPlace: 1 }),
+    ];
+
+    const standingsPlayers = getSheetStandingsPlayers([], [
+      {
+        eliminated_name: "Bob",
+        killers: [],
+        players_after: finalRoster,
+        recorded_at: "2026-06-09T21:30:00.000Z",
+        uses_reentry: false,
+      },
+    ]);
+
+    expect(buildPlayerOrderRows(standingsPlayers)).toEqual([
+      [1, "Alice"],
+      [2, "Bob"],
+    ]);
+  });
 });
 
 describe("VIP sheet", () => {
