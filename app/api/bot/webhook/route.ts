@@ -257,17 +257,76 @@ function findPlayersByName(players: ExtrasPlayer[], nickname: string) {
   );
 }
 
-async function persistPlayers(
+function isMissingSetPlayerLabelRpcError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const code = String((error as { code?: unknown }).code ?? "");
+  const message = String((error as { message?: unknown }).message ?? "");
+  return code === "PGRST202" || message.includes("set_player_label");
+}
+
+// Set (label is a string) or remove (label is null) a player's display label.
+// Goes through the set_player_label RPC, which locks the tournament_extras row and
+// patches ONLY the label data — so a registration/elimination/add-on committing at the
+// same moment can never be clobbered. If the migration is not deployed yet, falls back
+// to the legacy whole-extras rewrite (which carries the old lost-update risk) so the
+// commands keep working regardless of deploy order.
+// Returns the number of live roster players the label was applied to, or null when
+// there is no tournament.
+async function applyPlayerLabelChange(
   supabase: ReturnType<typeof getAdminSupabase>,
-  tournament: { id: string; public_token: string },
-  extras: Record<string, unknown>,
-  players: ExtrasPlayer[],
-) {
-  const nextData = { ...extras, players };
-  await supabase.from("tournament_extras").update({ data: nextData }).eq("tournament_id", tournament.id);
+  nickname: string,
+  label: string | null,
+): Promise<number | null> {
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("id, public_token")
+    .limit(1)
+    .single();
+
+  if (!tournament) return null;
+
+  let matched: number;
+  const { data, error } = await supabase.rpc("set_player_label", {
+    p_tournament_id: tournament.id,
+    p_nickname: nickname,
+    p_label: label,
+  });
+
+  if (!error) {
+    matched = Number((data as { matched?: unknown } | null)?.matched ?? 0);
+  } else if (isMissingSetPlayerLabelRpcError(error)) {
+    console.warn("set_player_label RPC is unavailable; falling back to legacy label write", error);
+    const context = await loadTournamentAndPlayers(supabase);
+    if (!context) return null;
+
+    context.extras.playerLabels =
+      label === null
+        ? removePersistedPlayerLabel(
+          context.extras.playerLabels as Record<string, string> | undefined,
+          nickname,
+        )
+        : setPersistedPlayerLabel(
+          context.extras.playerLabels as Record<string, string> | undefined,
+          nickname,
+          label,
+        );
+    const matches = findPlayersByName(context.players, nickname);
+    for (const player of matches) player.label = label;
+
+    const nextData = { ...context.extras, players: context.players };
+    await supabase
+      .from("tournament_extras")
+      .update({ data: nextData })
+      .eq("tournament_id", tournament.id);
+    matched = matches.length;
+  } else {
+    throw error;
+  }
 
   const { broadcastPublicState } = await import("@/lib/realtime/broadcast");
   await broadcastPublicState(tournament.public_token);
+
+  return matched;
 }
 
 bot.command("givecolor", async (ctx) => {
@@ -295,24 +354,14 @@ bot.command("givecolor", async (ctx) => {
   const nickname = match[2].trim();
 
   try {
-    const context = await loadTournamentAndPlayers(supabase);
-    if (!context) return ctx.reply("Ошибка: турнир не найден.");
-
-    // Always store the label by nickname (works even when no game is running);
-    // also apply it to any matching player(s) currently in the roster.
-    context.extras.playerLabels = setPersistedPlayerLabel(
-      context.extras.playerLabels as Record<string, string> | undefined,
-      nickname,
-      label,
-    );
-    const matches = findPlayersByName(context.players, nickname);
-    for (const player of matches) player.label = label;
-
-    await persistPlayers(supabase, context.tournament, context.extras, context.players);
+    // Always stores the label by nickname (works even when no game is running) and
+    // applies it to any matching player(s) currently in the roster.
+    const matched = await applyPlayerLabelChange(supabase, nickname, label);
+    if (matched === null) return ctx.reply("Ошибка: турнир не найден.");
 
     const liveNote =
-      matches.length > 0
-        ? `Применено в текущей игре (${matches.length}).`
+      matched > 0
+        ? `Применено в текущей игре (${matched}).`
         : "Сейчас игрок не в игре — метка применится при регистрации.";
     await ctx.reply(`Метка "${label}" сохранена для "${nickname}". ${liveNote}`);
   } catch (err: unknown) {
@@ -346,19 +395,10 @@ bot.command("removecolor", async (ctx) => {
   const nickname = match[1].trim();
 
   try {
-    const context = await loadTournamentAndPlayers(supabase);
-    if (!context) return ctx.reply("Ошибка: турнир не найден.");
-
-    // Always clear the stored label (works even when no game is running);
-    // also clear it from any matching player(s) currently in the roster.
-    context.extras.playerLabels = removePersistedPlayerLabel(
-      context.extras.playerLabels as Record<string, string> | undefined,
-      nickname,
-    );
-    const matches = findPlayersByName(context.players, nickname);
-    for (const player of matches) player.label = null;
-
-    await persistPlayers(supabase, context.tournament, context.extras, context.players);
+    // Always clears the stored label (works even when no game is running) and clears
+    // it from any matching player(s) currently in the roster.
+    const matched = await applyPlayerLabelChange(supabase, nickname, null);
+    if (matched === null) return ctx.reply("Ошибка: турнир не найден.");
 
     await ctx.reply(`Метка снята с "${nickname}" — и в текущей игре, и на будущих.`);
   } catch (err: unknown) {
