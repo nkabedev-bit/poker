@@ -543,18 +543,24 @@ async function updatePlayerOrderRows(
   spreadsheetId: string,
   sheetName: string,
   players: TournamentPlayer[],
+  isMystery: boolean,
 ) {
+  // In mystery mode the standings block is one column wider (F:J), so the order block
+  // shifts right to L:P to keep an empty spacer column between the two. Standard mode
+  // keeps K:O (standings end at I, J is the spacer).
+  const [firstColumn, lastColumn] = isMystery ? ["L", "P"] : ["K", "O"];
+
   // Clear the previous block first so shrinking the roster never leaves a stale tail.
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetName}'!K2:O`,
+    range: `'${sheetName}'!${firstColumn}2:${lastColumn}`,
   });
 
   const orderRows = buildPlayerOrderRows(players);
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!K1:O${orderRows.length + 1}`,
+    range: `'${sheetName}'!${firstColumn}1:${lastColumn}${orderRows.length + 1}`,
     valueInputOption: "RAW",
     requestBody: {
       values: [["№", "Игрок", "Аддоны", "Ребаи", "Двойной ребай"], ...orderRows],
@@ -678,7 +684,13 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
   // Use the same finished-game fallback as the standings: when the tournament ends the
   // roster in extras is wiped, but the final sync must not blank the K/L player-order list —
   // the last log's players_after still holds the full roster with registration numbers.
-  await updatePlayerOrderRows(sheets, spreadsheetId, sheetName, standingsPlayers);
+  await updatePlayerOrderRows(
+    sheets,
+    spreadsheetId,
+    sheetName,
+    standingsPlayers,
+    extras.settings.bountyType === "mystery",
+  );
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }
 
@@ -831,7 +843,7 @@ export async function clearTournamentSheet(spreadsheetId: string, sheetName: str
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetName}'!A2:O`,
+    range: `'${sheetName}'!A2:P`,
   });
 }
 
