@@ -122,17 +122,12 @@ export function SettingsForm({
           <select
             aria-label="Тип баунти"
             name="bountyMode"
-            defaultValue={
-              settings.isBounty
-                ? settings.bountyType === "mystery"
-                  ? "mystery"
-                  : "standard"
-                : "off"
-            }
+            defaultValue={settings.isBounty ? settings.bountyType : "off"}
           >
             <option value="off">Нет</option>
             <option value="standard">Обычный баунти</option>
             <option value="mystery">Mystery Bounty</option>
+            <option value="dealer">Dealer Revenge</option>
           </select>
         </label>
         <label>

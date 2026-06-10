@@ -174,6 +174,26 @@ describe("PTS rating", () => {
     ]);
   });
 
+  it("in Dealer Revenge mode reports dealer points in their own column and keeps PTS place-only", () => {
+    const rows = buildPtsStandingsRows(
+      [
+        // Dealer-knockout points live in the shared mysteryBountyPoints field.
+        player("a", "A", { bountyCount: 1, finishPlace: 1, mysteryBountyPoints: 60 }),
+        player("b", "B", { finishPlace: 2, status: "eliminated" }),
+      ],
+      {
+        bountyPoints: 10,
+        bountyType: "dealer",
+        placePoints: [300, 200],
+      },
+    );
+
+    expect(rows).toEqual([
+      { bountyCount: 1, mysteryPoints: 60, place: 1, playerName: "A", points: 300 },
+      { bountyCount: 0, mysteryPoints: 0, place: 2, playerName: "B", points: 200 },
+    ]);
+  });
+
   it("compacts internal place gaps and keeps bounty count separate from bounty points", () => {
     const rows = buildPtsStandingsRows(
       [

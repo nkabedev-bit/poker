@@ -405,4 +405,128 @@ describe("TMA eliminations route", () => {
     expect(supabase.insertPayloads[1]).not.toHaveProperty("uses_reentry");
     expect(supabase.insertPayloads[1]).not.toHaveProperty("mystery_bounty_points");
   });
+
+  it("dealer revenge: auto-awards dealer knockout points when the eliminated player carries the dealer label", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer"),
+          player("other", "Other"),
+          { ...player("dealer", "Дилер Вася"), label: "дилер" },
+        ],
+        settings: { isBounty: true, bountyType: "dealer" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "dealer",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          // The client never decides dealer points — a stale/garbage value must be ignored.
+          mystery_bounty_points: 999,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_eliminated_id: "dealer",
+        p_mystery_points: 60,
+      }),
+    );
+  });
+
+  it("dealer revenge: detects the dealer via the persistent per-nickname label store", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("dealer", "Дилер Вася")],
+        playerLabels: { "дилер вася": "дилер" },
+        settings: { isBounty: true, bountyType: "dealer" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "dealer",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 60 }),
+    );
+  });
+
+  it("dealer revenge: a regular knockout awards no points even if the client sends some", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "dealer" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_bounty_points: 999,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 0 }),
+    );
+  });
+
+  it("mystery mode still passes the admin-entered mystery points through", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_bounty_points: 120,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 120 }),
+    );
+  });
 });

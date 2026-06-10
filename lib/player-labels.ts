@@ -6,6 +6,14 @@ export function normalizePlayerLabelKey(name: string | null | undefined): string
   return String(name ?? "").trim().toLowerCase();
 }
 
+// Labels that mark a player as the dealer: rendered as the "D" button on the public
+// screen and award knockout points in Dealer Revenge mode.
+const DEALER_LABELS = new Set(["дилер", "dealer", "d"]);
+
+export function isDealerLabel(label: string | null | undefined): boolean {
+  return DEALER_LABELS.has(String(label ?? "").trim().toLowerCase());
+}
+
 export function getPersistedPlayerLabel(
   playerLabels: Record<string, string> | undefined | null,
   name: string | null | undefined,

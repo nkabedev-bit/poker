@@ -5,6 +5,8 @@ import { syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { getBountyChipAward, getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
+import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
+import { DEALER_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import type { BlindLevel, TimerState, TournamentPlayer } from "@/lib/timer/types";
 
@@ -71,7 +73,7 @@ export async function POST(request: Request) {
 
     const body = await request.json();
     const { eliminated_id, bounty_split, client_request_id, killers, mystery_bounty_points, uses_reentry, reentry_double } = body;
-    const mysteryBountyPoints = Number(mystery_bounty_points) || 0;
+    const clientMysteryPoints = Number(mystery_bounty_points) || 0;
     const clientRequestId = typeof client_request_id === "string" ? client_request_id.trim() : "";
 
     if (clientRequestId) {
@@ -111,6 +113,20 @@ export async function POST(request: Request) {
     }
 
     const isBounty = extras.settings.isBounty;
+    // Dealer Revenge: knockout points are computed server-side — a fixed award for
+    // knocking out a player carrying the dealer label, nothing for anyone else. The
+    // client-entered value is only trusted in Mystery mode, where the admin types in
+    // the drawn mystery prize. Both the live label and the persistent per-nickname
+    // store are checked so a label given mid-game by the bot command still counts.
+    const isDealerRevenge = extras.settings.bountyType === "dealer";
+    const eliminatedIsDealer =
+      isDealerLabel(eliminatedPlayer.label) ||
+      isDealerLabel(getPersistedPlayerLabel(extras.playerLabels, eliminatedPlayer.name));
+    const mysteryBountyPoints = isDealerRevenge
+      ? (eliminatedIsDealer ? DEALER_KNOCKOUT_POINTS : 0)
+      : extras.settings.bountyType === "mystery"
+        ? clientMysteryPoints
+        : 0;
     const sanitizedKillers: Killer[] = isBounty && Array.isArray(killers)
       ? killers
         .map((killer: Partial<Killer>) => ({

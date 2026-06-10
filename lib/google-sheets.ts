@@ -5,7 +5,7 @@ import {
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
-import { buildPtsStandingsRows, type PtsStandingRow } from "@/lib/pts-rating";
+import { buildPtsStandingsRows, isSideBountyPoints, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -463,7 +463,7 @@ export async function appendEliminationRow(data: {
   const match = updatedRange.match(/!A(\d+):/);
   const rowId = match ? parseInt(match[1]) : 0;
 
-  await updatePtsStandingsRows(sheets, spreadsheetId, sheetName, data.standingsRows, data.isMystery ?? false);
+  await updatePtsStandingsRows(sheets, spreadsheetId, sheetName, data.standingsRows, data.isMystery ? "mystery" : "standard");
 
   return { rowId, sheetName };
 }
@@ -543,12 +543,12 @@ async function updatePlayerOrderRows(
   spreadsheetId: string,
   sheetName: string,
   players: TournamentPlayer[],
-  isMystery: boolean,
+  bountyType: string,
 ) {
-  // In mystery mode the standings block is one column wider (F:J), so the order block
-  // shifts right to L:P to keep an empty spacer column between the two. Standard mode
+  // In mystery / dealer modes the standings block is one column wider (F:J), so the order
+  // block shifts right to L:P to keep an empty spacer column between the two. Standard mode
   // keeps K:O (standings end at I, J is the spacer).
-  const [firstColumn, lastColumn] = isMystery ? ["L", "P"] : ["K", "O"];
+  const [firstColumn, lastColumn] = isSideBountyPoints(bountyType) ? ["L", "P"] : ["K", "O"];
 
   // Clear the previous block first so shrinking the roster never leaves a stale tail.
   await sheets.spreadsheets.values.clear({
@@ -573,7 +573,7 @@ async function updatePtsStandingsRows(
   spreadsheetId: string,
   sheetName: string,
   rows: PtsStandingRow[],
-  isMystery: boolean,
+  bountyType: string,
 ) {
   const paddedRows = Array.from({ length: 28 }, (_, index) => {
     return (
@@ -581,19 +581,21 @@ async function updatePtsStandingsRows(
     );
   });
 
-  // In Mystery mode the fourth column reports each player's mystery points instead of the
-  // knockout count, and PTS (column H) stays place-points-only — the two are never summed.
-  // A fifth column (J) then reports the knockout count itself (in bounty shares: a split
-  // knockout is 0.5 per killer; knockouts into a re-entry count too), because a real
-  // knockout can be worth 0 mystery points and would otherwise be invisible. Standard
-  // bounty mode stays exactly as before: four columns, column J untouched.
-  const headers = isMystery
-    ? ["Место", "Игрок", "PTS", "Mystery-Points", "Кол-во выбиваний"]
+  // In Mystery / Dealer Revenge modes the fourth column reports each player's side points
+  // (mystery prizes / dealer-knockout points — both live in the mysteryPoints field) instead
+  // of the knockout count, and PTS (column H) stays place-points-only — the two are never
+  // summed. A fifth column (J) then reports the knockout count itself (in bounty shares: a
+  // split knockout is 0.5 per killer; knockouts into a re-entry count too), because a real
+  // knockout can be worth 0 side points and would otherwise be invisible. Standard bounty
+  // mode stays exactly as before: four columns, column J untouched.
+  const isWide = isSideBountyPoints(bountyType);
+  const headers = isWide
+    ? ["Место", "Игрок", "PTS", bountyType === "dealer" ? "Очки за дилера" : "Mystery-Points", "Кол-во выбиваний"]
     : ["Место", "Игрок", "PTS", "Кол-во баунти"];
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!F1:${isMystery ? "J" : "I"}29`,
+    range: `'${sheetName}'!F1:${isWide ? "J" : "I"}29`,
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -602,8 +604,8 @@ async function updatePtsStandingsRows(
           row.place,
           row.playerName || "",
           row.points ?? "",
-          (isMystery ? row.mysteryPoints : row.bountyCount) ?? "",
-          ...(isMystery ? [row.bountyCount ?? ""] : []),
+          (isWide ? row.mysteryPoints : row.bountyCount) ?? "",
+          ...(isWide ? [row.bountyCount ?? ""] : []),
         ]),
       ],
     },
@@ -679,7 +681,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     spreadsheetId,
     sheetName,
     buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
-    extras.settings.bountyType === "mystery",
+    extras.settings.bountyType,
   );
   // Use the same finished-game fallback as the standings: when the tournament ends the
   // roster in extras is wiped, but the final sync must not blank the K/L player-order list —
@@ -689,7 +691,7 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     spreadsheetId,
     sheetName,
     standingsPlayers,
-    extras.settings.bountyType === "mystery",
+    extras.settings.bountyType,
   );
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
 }

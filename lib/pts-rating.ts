@@ -2,6 +2,17 @@ import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 export const PTS_PLACE_COUNT = 28;
 
+// Dealer Revenge: knocking out a player marked with the dealer label awards this many
+// points (split by killer shares, so a 50/50 knockout gives 30 each). Regular knockouts
+// award nothing.
+export const DEALER_KNOCKOUT_POINTS = 60;
+
+// Mystery Bounty and Dealer Revenge share the same mechanics: knockout points live in
+// their own column (TournamentPlayer.mysteryBountyPoints) and are never summed into PTS.
+export function isSideBountyPoints(bountyType: string | null | undefined): boolean {
+  return bountyType === "mystery" || bountyType === "dealer";
+}
+
 export type PtsPlaceTemplate = {
   id: string;
   name: string;
@@ -181,10 +192,11 @@ export function buildPtsStandingsRows(
 ): PtsStandingRow[] {
   const placePoints = normalizePlacePoints(pts.placePoints);
   const bountyPoints = Number.isFinite(Number(pts.bountyPoints)) ? Number(pts.bountyPoints) : 0;
-  // In Mystery mode the knockout reward is the manually-entered mystery points, not a fixed
-  // per-knockout bounty. We surface those points in their own column and deliberately keep them
-  // OUT of the PTS total (PTS stays "place points only"), per the tournament rules.
-  const isMystery = pts.bountyType === "mystery";
+  // In Mystery / Dealer Revenge modes the knockout reward is the mystery points (manually
+  // entered) or the dealer-knockout points (auto-awarded). We surface those points in their
+  // own column and deliberately keep them OUT of the PTS total (PTS stays "place points
+  // only"), per the tournament rules.
+  const isMystery = isSideBountyPoints(pts.bountyType);
   const placesCount = Math.min(PTS_PLACE_COUNT, Math.max(players.length, 1));
   const placedPlayers = players
     .filter((player) => player.finishPlace && player.finishPlace > 0 && player.finishPlace <= PTS_PLACE_COUNT)

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 type PlayersManagerProps = {
@@ -27,7 +28,10 @@ function newPlayer(startingStack: number): TournamentPlayer {
 
 export function PlayersManager({ extras, saveAction, startingStack }: PlayersManagerProps) {
   const [players, setPlayers] = useState<TournamentPlayer[]>(extras.players);
-  const isMystery = extras.settings.bountyType === "mystery" && extras.settings.isBounty;
+  // Mystery prizes and Dealer Revenge knockout points share the mysteryBountyPoints field,
+  // so both modes get the extra points column.
+  const isMystery = isSideBountyPoints(extras.settings.bountyType) && extras.settings.isBounty;
+  const sidePointsLabel = extras.settings.bountyType === "dealer" ? "Очки за дилера" : "Mystery PTS";
   const activeCount = useMemo(
     () => players.filter((player) => player.status === "active").length,
     [players],
@@ -74,7 +78,7 @@ export function PlayersManager({ extras, saveAction, startingStack }: PlayersMan
         <span>Ребаи</span>
         <span>Аддоны</span>
         <span>Баунти</span>
-        {isMystery ? <span>Mystery PTS</span> : null}
+        {isMystery ? <span>{sidePointsLabel}</span> : null}
         <span>Статус</span>
         <span />
       </div>
@@ -138,7 +142,7 @@ export function PlayersManager({ extras, saveAction, startingStack }: PlayersMan
             />
             {isMystery ? (
               <input
-                aria-label="Mystery PTS игрока"
+                aria-label={`${sidePointsLabel} игрока`}
                 min={0}
                 step={0.01}
                 type="number"

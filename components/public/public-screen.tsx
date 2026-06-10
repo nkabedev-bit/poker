@@ -12,6 +12,7 @@ import {
   getBlindAlertPlayback,
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
+import { isDealerLabel } from "@/lib/player-labels";
 import type { BlindAlertSound, PublicTournamentState, TournamentPlayer } from "@/lib/timer/types";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { TimerDisplay } from "@/components/public/timer-display";
@@ -80,9 +81,12 @@ export function getPublicPlayerBadges(
   const reentryCount = Math.max(0, Math.trunc(player.rebuys || 0));
   const mysteryPts = Math.max(0, player.mysteryBountyPoints || 0);
 
-  if (isBounty && bountyType === "mystery") {
+  if (isBounty && (bountyType === "mystery" || bountyType === "dealer")) {
+    // Mystery prizes and dealer-knockout points share the mysteryBountyPoints field.
     if (bountyCount > 0) badges.push(`💰 ${formatBountyCount(bountyCount)}`);
-    if (mysteryPts > 0) badges.push(`🎲 ${formatBountyCount(mysteryPts)} PTS`);
+    if (mysteryPts > 0) {
+      badges.push(`${bountyType === "dealer" ? "🎯" : "🎲"} ${formatBountyCount(mysteryPts)} PTS`);
+    }
   } else if (isBounty && bountyCount > 0) {
     badges.push(`💰 ${formatBountyCount(bountyCount)}`);
   }
@@ -91,12 +95,10 @@ export function getPublicPlayerBadges(
   return badges;
 }
 
-const DEALER_LABELS = new Set(["дилер", "dealer", "d"]);
-
 export function getPublicPlayerLabelKind(label?: string | null): "dealer" | "text" | null {
   const normalized = (label ?? "").trim().toLowerCase();
   if (!normalized) return null;
-  if (DEALER_LABELS.has(normalized)) return "dealer";
+  if (isDealerLabel(normalized)) return "dealer";
   return "text";
 }
 

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getPersistedPlayerLabel,
+  isDealerLabel,
   normalizePlayerLabelKey,
   removePersistedPlayerLabel,
   setPersistedPlayerLabel,
@@ -29,6 +30,15 @@ describe("persistent player labels (by nickname)", () => {
   it("treats empty/missing stored values as no label", () => {
     expect(getPersistedPlayerLabel(undefined, "x")).toBeNull();
     expect(getPersistedPlayerLabel({ x: "  " }, "x")).toBeNull();
+  });
+
+  it("recognizes dealer labels case-insensitively and rejects everything else", () => {
+    expect(isDealerLabel("дилер")).toBe(true);
+    expect(isDealerLabel(" Dealer ")).toBe(true);
+    expect(isDealerLabel("D")).toBe(true);
+    expect(isDealerLabel("vip")).toBe(false);
+    expect(isDealerLabel("")).toBe(false);
+    expect(isDealerLabel(null)).toBe(false);
   });
 
   it("keeps playerLabels through merge and survives the roster-wipe finish patch", () => {

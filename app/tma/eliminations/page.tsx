@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { isDealerLabel } from "@/lib/player-labels";
+import { DEALER_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { useVisiblePolling } from "../use-visible-polling";
 import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
-type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null };
-type BountyType = "standard" | "mystery";
+type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null; label?: string | null };
+type BountyType = "standard" | "mystery" | "dealer";
 type PlayersResponse = {
   bountyType?: BountyType;
   isBounty?: boolean;
@@ -463,6 +465,16 @@ export default function TMAEliminationsPage() {
                 <div className="mt-3">
                   <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎲 Очки из конверта</div>
                   <div className="text-xl font-bold text-yellow-400">{Number(mysteryPoints) || 0} PTS</div>
+                </div>
+              )}
+              {bountyType === "dealer" && isDealerLabel(eliminatedPlayer?.label) && selectedKillers.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎯 Выбит дилер</div>
+                  <div className="text-xl font-bold text-yellow-400">
+                    {selectedKillers.length > 1
+                      ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS каждому`
+                      : `+${DEALER_KNOCKOUT_POINTS} PTS`}
+                  </div>
                 </div>
               )}
             </div>
