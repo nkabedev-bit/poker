@@ -579,15 +579,15 @@ async function updatePtsStandingsRows(
   // knockout count, and PTS (column H) stays place-points-only — the two are never summed.
   // A fifth column (J) then reports the knockout count itself (in bounty shares: a split
   // knockout is 0.5 per killer; knockouts into a re-entry count too), because a real
-  // knockout can be worth 0 mystery points and would otherwise be invisible. In standard
-  // mode column J is written blank so a previous mystery game's values never linger.
+  // knockout can be worth 0 mystery points and would otherwise be invisible. Standard
+  // bounty mode stays exactly as before: four columns, column J untouched.
   const headers = isMystery
     ? ["Место", "Игрок", "PTS", "Mystery-Points", "Кол-во выбиваний"]
-    : ["Место", "Игрок", "PTS", "Кол-во баунти", ""];
+    : ["Место", "Игрок", "PTS", "Кол-во баунти"];
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!F1:J29`,
+    range: `'${sheetName}'!F1:${isMystery ? "J" : "I"}29`,
     valueInputOption: "RAW",
     requestBody: {
       values: [
@@ -597,7 +597,7 @@ async function updatePtsStandingsRows(
           row.playerName || "",
           row.points ?? "",
           (isMystery ? row.mysteryPoints : row.bountyCount) ?? "",
-          isMystery ? row.bountyCount ?? "" : "",
+          ...(isMystery ? [row.bountyCount ?? ""] : []),
         ]),
       ],
     },
