@@ -510,6 +510,11 @@ export async function appendClientBotProfileRow(data: {
   return { sheetName };
 }
 
+// Counters render as a blank cell (not 0) when the player never did the action.
+function blankIfZero(value: number): string | number {
+  return Number.isFinite(value) && value > 0 ? value : "";
+}
+
 export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {
   return players
     .filter((player) => {
@@ -517,7 +522,20 @@ export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | num
       return Number.isInteger(value) && value > 0;
     })
     .sort((a, b) => Number(a.registrationNumber) - Number(b.registrationNumber))
-    .map((player) => [Number(player.registrationNumber), player.name || ""]);
+    .map((player) => {
+      const doubleRebuys = Math.max(0, Number(player.doubleRebuys) || 0);
+      // `rebuys` counts every re-entry including double ones; the sheet reports them
+      // separately, so the "Ребаи" column is single re-entries only.
+      const singleRebuys = Math.max(0, (Number(player.rebuys) || 0) - doubleRebuys);
+
+      return [
+        Number(player.registrationNumber),
+        player.name || "",
+        blankIfZero(Number(player.addons) || 0),
+        blankIfZero(singleRebuys),
+        blankIfZero(doubleRebuys),
+      ];
+    });
 }
 
 async function updatePlayerOrderRows(
@@ -529,17 +547,17 @@ async function updatePlayerOrderRows(
   // Clear the previous block first so shrinking the roster never leaves a stale tail.
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetName}'!K2:L`,
+    range: `'${sheetName}'!K2:O`,
   });
 
   const orderRows = buildPlayerOrderRows(players);
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!K1:L${orderRows.length + 1}`,
+    range: `'${sheetName}'!K1:O${orderRows.length + 1}`,
     valueInputOption: "RAW",
     requestBody: {
-      values: [["№", "Игрок"], ...orderRows],
+      values: [["№", "Игрок", "Аддоны", "Ребаи", "Двойной ребай"], ...orderRows],
     },
   });
 }
@@ -559,20 +577,27 @@ async function updatePtsStandingsRows(
 
   // In Mystery mode the fourth column reports each player's mystery points instead of the
   // knockout count, and PTS (column H) stays place-points-only — the two are never summed.
-  const lastHeader = isMystery ? "Mystery-Points" : "Кол-во баунти";
+  // A fifth column (J) then reports the knockout count itself (in bounty shares: a split
+  // knockout is 0.5 per killer; knockouts into a re-entry count too), because a real
+  // knockout can be worth 0 mystery points and would otherwise be invisible. In standard
+  // mode column J is written blank so a previous mystery game's values never linger.
+  const headers = isMystery
+    ? ["Место", "Игрок", "PTS", "Mystery-Points", "Кол-во выбиваний"]
+    : ["Место", "Игрок", "PTS", "Кол-во баунти", ""];
 
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `'${sheetName}'!F1:I29`,
+    range: `'${sheetName}'!F1:J29`,
     valueInputOption: "RAW",
     requestBody: {
       values: [
-        ["Место", "Игрок", "PTS", lastHeader],
+        headers,
         ...paddedRows.map((row) => [
           row.place,
           row.playerName || "",
           row.points ?? "",
           (isMystery ? row.mysteryPoints : row.bountyCount) ?? "",
+          isMystery ? row.bountyCount ?? "" : "",
         ]),
       ],
     },
@@ -806,7 +831,7 @@ export async function clearTournamentSheet(spreadsheetId: string, sheetName: str
 
   await sheets.spreadsheets.values.clear({
     spreadsheetId,
-    range: `'${sheetName}'!A2:L`,
+    range: `'${sheetName}'!A2:O`,
   });
 }
 

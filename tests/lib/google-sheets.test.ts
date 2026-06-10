@@ -154,9 +154,25 @@ describe("Google Sheets tournament day sync helpers", () => {
     ];
 
     expect(buildPlayerOrderRows(players)).toEqual([
-      [1, "Alice"],
-      [19, "Bob"],
-      [22, "Carol"],
+      [1, "Alice", "", "", ""],
+      [19, "Bob", "", "", ""],
+      [22, "Carol", "", "", ""],
+    ]);
+  });
+
+  it("reports addons / single rebuys / double rebuys as counters, blank when zero", () => {
+    const players = [
+      // rebuys counts every re-entry including doubles, so 3 rebuys with 1 double = 2 singles
+      vipPlayer("a", "Alice", { registrationNumber: 1, addons: 2, rebuys: 3, doubleRebuys: 1 }),
+      // a double-only re-entry: singles column stays blank
+      vipPlayer("b", "Bob", { registrationNumber: 2, rebuys: 1, doubleRebuys: 1 }),
+      vipPlayer("c", "Carol", { registrationNumber: 3 }),
+    ];
+
+    expect(buildPlayerOrderRows(players)).toEqual([
+      [1, "Alice", 2, 2, 1],
+      [2, "Bob", "", "", 1],
+      [3, "Carol", "", "", ""],
     ]);
   });
 
@@ -180,8 +196,8 @@ describe("Google Sheets tournament day sync helpers", () => {
     ]);
 
     expect(buildPlayerOrderRows(standingsPlayers)).toEqual([
-      [1, "Alice"],
-      [2, "Bob"],
+      [1, "Alice", "", "", ""],
+      [2, "Bob", "", "", ""],
     ]);
   });
 });
