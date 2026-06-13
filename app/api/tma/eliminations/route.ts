@@ -172,8 +172,11 @@ export async function POST(request: Request) {
       usesReentry &&
       Boolean(reentry_double) &&
       Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
+    // The 2-big-blind stack reward for a knockout is a STANDARD-bounty-only mechanic.
+    // In Mystery / Dealer Revenge the knockout reward is the side points instead, so the
+    // killer's stack is left untouched there.
     const bountyChipAward =
-      isBounty && sanitizedKillers.length > 0
+      isBounty && extras.settings.bountyType === "standard" && sanitizedKillers.length > 0
         ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
         : 0;
     const killersWithBountyChips = sanitizedKillers.map((killer) => ({
