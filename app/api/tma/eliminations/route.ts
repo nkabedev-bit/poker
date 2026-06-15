@@ -210,13 +210,16 @@ export async function POST(request: Request) {
         finished_at: new Date().toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
-      await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
+      // Count per-player achievement stats BEFORE clearing the roster: the finish
+      // patch resets players to [], and accumulate_client_bot_stats reads the final
+      // standings that record_player_elimination just persisted.
       const { error: statsError } = await auth.supabase.rpc("accumulate_client_bot_stats", {
         p_tournament_id: t.id,
       });
       if (statsError) {
         console.error("Failed to accumulate client bot stats", statsError);
       }
+      await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
       await broadcastPublicState(t.public_token);
     }
 

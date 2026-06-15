@@ -61,7 +61,7 @@ export default function ClientAchievementsPage() {
         icon={<Medal size={26} />}
         accent="from-amber-300/25 to-amber-500/5 text-amber-300"
         value={top7}
-        label="Попаданий в топ-7"
+        label="Попаданий в топ-9"
       />
     </div>
   );

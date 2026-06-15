@@ -131,6 +131,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
 
+      // Count achievement stats from the final standings BEFORE the finish patch
+      // wipes the roster (getFinishTournamentExtrasPatch resets players to []).
+      const { error: statsError } = await auth.supabase.rpc("accumulate_client_bot_stats", {
+        p_tournament_id: t.id,
+      });
+      if (statsError) {
+        console.error("Failed to accumulate client bot stats", statsError);
+      }
+
       const context = await loadCurrentTournamentContext(auth.supabase);
       if (context) {
         await saveTournamentExtrasFromContext(
@@ -138,13 +147,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           context,
           getFinishTournamentExtrasPatch(),
         );
-      }
-
-      const { error: statsError } = await auth.supabase.rpc("accumulate_client_bot_stats", {
-        p_tournament_id: t.id,
-      });
-      if (statsError) {
-        console.error("Failed to accumulate client bot stats", statsError);
       }
     } else {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });

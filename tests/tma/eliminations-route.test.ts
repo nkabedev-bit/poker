@@ -240,6 +240,16 @@ describe("TMA eliminations route", () => {
       "/admin/players",
       supabase,
     );
+
+    // Achievement stats must be counted from the final standings BEFORE the
+    // roster is wiped, otherwise accumulate_client_bot_stats reads an empty list.
+    const accumulateRpcIndex = supabase.rpc.mock.calls.findIndex(
+      ([fnName]) => fnName === "accumulate_client_bot_stats",
+    );
+    expect(accumulateRpcIndex).toBeGreaterThanOrEqual(0);
+    const accumulateOrder = supabase.rpc.mock.invocationCallOrder[accumulateRpcIndex];
+    const clearPlayersOrder = mocks.saveTournamentExtras.mock.invocationCallOrder[0];
+    expect(accumulateOrder).toBeLessThan(clearPlayersOrder);
   });
 
   it("ignores requested re-entry when re-entry is disabled", async () => {
