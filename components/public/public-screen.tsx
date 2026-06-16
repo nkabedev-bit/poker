@@ -6,6 +6,7 @@ import {
   getCurrentAndNextLevel,
   getEffectiveTimerState,
   getLevelDuration,
+  isReentryAvailable,
 } from "@/lib/timer/calculate";
 import {
   getBlindAlertCue,
@@ -44,6 +45,15 @@ const CURSOR_IDLE_HIDE_MS = 2500;
 const PUBLIC_PLAYERS_LIMIT = 28;
 const PUBLIC_TABLE_ROTATION_MS = 20_000;
 const FINAL_TABLE_ACTIVE_PLAYERS = 9;
+// Re-entry info disappears once re-entry closes, and never shows past this
+// playing level (breaks excluded) as a safety net if no cutoff is configured.
+const REENTRY_INFO_MAX_ROUND = 10;
+const REENTRY_INFO_QR_SRC = "/reentry-qr.png";
+const REENTRY_INFO_ROWS = [
+  { label: "Повторный вход", note: "до 10 ур.", price: "1 250 ₽" },
+  { label: "Вход ×2 стек", note: "6–10 ур.", price: "2 000 ₽" },
+  { label: "Аддон 15BB", note: "пауза 9–10 ур.", price: "1 250 ₽" },
+];
 const MIN_PUBLIC_PLAYER_NAME_FONT_SIZE = 7;
 const MIN_PUBLIC_PLAYER_NAME_SCALE = 0.48;
 const PUBLIC_PLAYER_NAME_FIT_SAFETY = 0.985;
@@ -560,6 +570,12 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       .slice(0, currentLevelIndex + 1)
       .filter((level) => !level.isBreak).length;
   }, [state.blindLevels, currentLevelIndex]);
+  const showReentryInfo = useMemo(
+    () =>
+      isReentryAvailable(state.timerState, state.blindLevels, now) &&
+      roundNumber <= REENTRY_INFO_MAX_ROUND,
+    [state.timerState, state.blindLevels, now, roundNumber],
+  );
   const secondsToBreak = useMemo(() => {
     if (!current || current.isBreak) return null;
 
@@ -882,6 +898,35 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
               );
             })}
           </div>
+          {showReentryInfo ? (
+            <div className="public-reentry-info">
+              <div className="public-reentry-info__title">Повторное участие</div>
+              <div className="public-reentry-info__rows">
+                {REENTRY_INFO_ROWS.map((row) => (
+                  <div className="public-reentry-info__row" key={row.label}>
+                    <span className="public-reentry-info__label">
+                      {row.label}{" "}
+                      <span className="public-reentry-info__note">({row.note})</span>
+                    </span>
+                    <strong className="public-reentry-info__price">{row.price}</strong>
+                  </div>
+                ))}
+              </div>
+              <div className="public-reentry-info__pay">
+                <div className="public-reentry-info__requisites">
+                  <span className="public-reentry-info__requisites-title">Реквизиты</span>
+                  <span className="public-reentry-info__phone">+7 911 665-17-48</span>
+                  <span className="public-reentry-info__bank">Сбер · Марк Вячеславович В.</span>
+                </div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt="QR-код для оплаты"
+                  className="public-reentry-info__qr"
+                  src={REENTRY_INFO_QR_SRC}
+                />
+              </div>
+            </div>
+          ) : null}
         </aside>
       </div>
     </main>
