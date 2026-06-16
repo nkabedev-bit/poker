@@ -1576,7 +1576,7 @@ p {
   flex: 1 1 0;
   min-height: 0;
   display: grid;
-  grid-template-columns: clamp(160px, 15vw, 240px) minmax(0, 1fr) clamp(170px, 16vw, 300px);
+  grid-template-columns: clamp(160px, 15vw, 240px) minmax(0, 1fr) clamp(200px, 22vw, 460px);
   overflow: hidden;
 }
 
@@ -1933,6 +1933,9 @@ p {
   border-left: 1px solid rgba(100 100 120 / 0.4);
   background: #070000;
   padding: 6px 4px;
+  /* Lets the re-entry block size itself off the panel width (cqw units),
+     so it scales up proportionally on big TVs and stays readable on laptops. */
+  container-type: inline-size;
 }
 
 .public-players-counts {
@@ -2121,21 +2124,22 @@ p {
 
 .public-reentry-info {
   flex: 0 0 auto;
-  margin-top: 6px;
-  border: 1px solid rgb(201 168 76 / 0.55);
-  border-radius: 6px;
+  margin-top: clamp(6px, 2cqw, 14px);
+  border: max(1px, 0.4cqw) solid rgb(201 168 76 / 0.6);
+  border-radius: clamp(6px, 2.4cqw, 14px);
   background: #0c0a05;
   overflow: hidden;
 }
 
 .public-reentry-info__title {
   background: rgb(201 168 76 / 0.16);
-  border-bottom: 1px solid rgb(201 168 76 / 0.3);
-  padding: 3px 7px;
+  border-bottom: max(1px, 0.3cqw) solid rgb(201 168 76 / 0.3);
+  padding: clamp(3px, 1.8cqw, 11px) clamp(7px, 2.6cqw, 16px);
   color: var(--poker-gold-soft);
-  font-size: clamp(10px, 1.4vh, 14px);
+  font-size: clamp(13px, 9cqw, 42px);
   font-weight: 900;
   letter-spacing: 0.04em;
+  line-height: 1.1;
   text-align: center;
   text-transform: uppercase;
 }
@@ -2143,31 +2147,33 @@ p {
 .public-reentry-info__rows {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px 7px;
+  gap: clamp(3px, 1.6cqw, 10px);
+  padding: clamp(5px, 2.4cqw, 14px) clamp(7px, 2.8cqw, 16px);
 }
 
 .public-reentry-info__row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: 6px;
+  gap: clamp(6px, 2cqw, 14px);
 }
 
 .public-reentry-info__label {
-  color: #d4d8e8;
-  font-size: clamp(8px, 1.05vh, 11px);
+  color: #e8eaf2;
+  font-size: clamp(11px, 4.9cqw, 23px);
   line-height: 1.2;
 }
 
 .public-reentry-info__note {
-  color: #8b8f9e;
+  color: #9ca3af;
+  font-size: 0.8em;
+  white-space: nowrap;
 }
 
 .public-reentry-info__price {
   flex: 0 0 auto;
   color: var(--poker-gold-soft);
-  font-size: clamp(9px, 1.25vh, 13px);
+  font-size: clamp(12px, 5.7cqw, 27px);
   font-weight: 900;
   white-space: nowrap;
 }
@@ -2175,22 +2181,22 @@ p {
 .public-reentry-info__pay {
   display: flex;
   align-items: center;
-  gap: 8px;
-  border-top: 1px solid rgb(201 168 76 / 0.25);
-  padding: 5px 7px;
+  gap: clamp(8px, 3cqw, 18px);
+  border-top: max(1px, 0.3cqw) solid rgb(201 168 76 / 0.25);
+  padding: clamp(5px, 2.4cqw, 14px) clamp(7px, 2.8cqw, 16px);
 }
 
 .public-reentry-info__requisites {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: clamp(1px, 0.8cqw, 5px);
   min-width: 0;
   flex: 1 1 auto;
 }
 
 .public-reentry-info__requisites-title {
   color: var(--poker-gold);
-  font-size: clamp(7px, 0.95vh, 9px);
+  font-size: clamp(9px, 4.6cqw, 21px);
   font-weight: 900;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2198,24 +2204,24 @@ p {
 
 .public-reentry-info__phone {
   color: #fff;
-  font-size: clamp(9px, 1.2vh, 12px);
+  font-size: clamp(12px, 6.2cqw, 29px);
   font-weight: 800;
   white-space: nowrap;
 }
 
 .public-reentry-info__bank {
-  color: #9ca3af;
-  font-size: clamp(7px, 0.95vh, 10px);
+  color: #b6bccb;
+  font-size: clamp(9px, 4.4cqw, 19px);
 }
 
 .public-reentry-info__qr {
   flex: 0 0 auto;
-  width: clamp(56px, 7vh, 84px);
-  height: clamp(56px, 7vh, 84px);
-  border: 2px solid #2f9e44;
-  border-radius: 8px;
+  width: clamp(72px, 38cqw, 210px);
+  height: clamp(72px, 38cqw, 210px);
+  border: max(2px, 0.8cqw) solid #2f9e44;
+  border-radius: clamp(8px, 2.6cqw, 16px);
   background: #fff;
-  padding: 4px;
+  padding: clamp(4px, 1.4cqw, 9px);
   object-fit: contain;
 }
 
@@ -2770,7 +2776,7 @@ p {
     grid-template-columns:
       clamp(130px, 15vw, 200px)
       minmax(0, 1fr)
-      clamp(145px, 17vw, 230px);
+      clamp(190px, 23vw, 360px);
   }
 
   .public-blinds-panel h2 {

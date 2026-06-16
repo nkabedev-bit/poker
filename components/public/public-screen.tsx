@@ -532,8 +532,8 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
   useEffect(() => {
     // In demo mode, we poll frequently since there's no websocket.
-    // In production, we poll every 30 seconds as a fallback.
-    const pollInterval = isDemo ? 5000 : 30000;
+    // In production, we poll every 45 seconds as a fallback (Realtime pushes instant updates).
+    const pollInterval = isDemo ? 5000 : 45000;
     const poll = window.setInterval(() => {
       refresh().catch(() => undefined);
     }, pollInterval);
