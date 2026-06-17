@@ -51,7 +51,7 @@ const STATUS_LABELS: Record<ScheduledBroadcast["status"], string> = {
 };
 
 const textFieldClass =
-  "w-full rounded-lg border-none bg-white p-3 text-black placeholder:text-neutral-500 outline-none";
+  "w-full rounded-lg border border-neutral-300 bg-white p-3 text-black placeholder:text-neutral-500 outline-none";
 
 function formatMoscow(iso: string): string {
   // utcISOToMoscowLocal -> "2026-06-19T14:00" -> "19.06.2026 14:00"
@@ -229,7 +229,7 @@ export default function TMABotPage() {
 
   return (
     <div className="space-y-5">
-      <section className="bg-[var(--tg-theme-secondary-bg-color)] rounded-xl p-4 space-y-3">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 text-black">
         <div className="flex items-center gap-2 text-black">
           <MessageSquare size={18} />
           <h1 className="text-lg font-bold">Рассылка</h1>
@@ -242,7 +242,7 @@ export default function TMABotPage() {
         />
 
         {!scheduleEnabled ? (
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)] border-opacity-30 p-3 text-sm text-[var(--tg-theme-button-color)]">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-neutral-300 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]">
             <Paperclip size={16} />
             <span>{files?.length ? `Вложений: ${files.length}` : "Добавить вложения"}</span>
             <input
@@ -277,7 +277,7 @@ export default function TMABotPage() {
         ) : null}
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color,#2563eb)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
           disabled={sending}
           onClick={sendBroadcast}
         >
@@ -287,19 +287,17 @@ export default function TMABotPage() {
       </section>
 
       {scheduled.length > 0 ? (
-        <section className="bg-[var(--tg-theme-secondary-bg-color)] rounded-xl p-4 space-y-3">
+        <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 text-black">
           <div className="flex items-center gap-2 text-black">
             <Clock size={18} />
             <h2 className="text-base font-bold">Запланированные рассылки</h2>
           </div>
           {scheduled.map((item) => (
-            <div key={item.id} className="rounded-lg bg-white p-3 text-sm text-black">
+            <div key={item.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-black">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{formatMoscow(item.send_at)}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-[var(--tg-theme-hint-color)]">
-                    {STATUS_LABELS[item.status]}
-                  </span>
+                  <span className="text-neutral-600">{STATUS_LABELS[item.status]}</span>
                   {item.status === "pending" ? (
                     <button
                       aria-label="Отменить"
@@ -317,7 +315,7 @@ export default function TMABotPage() {
         </section>
       ) : null}
 
-      <section className="bg-[var(--tg-theme-secondary-bg-color)] rounded-xl p-4 space-y-4">
+      <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-4 text-black">
         <SettingLabel icon={<CalendarDays size={18} />} title="Расписание следующих турниров" />
         <textarea
           className={`min-h-32 ${textFieldClass}`}
@@ -327,11 +325,11 @@ export default function TMABotPage() {
         />
 
         <div className="space-y-3">
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
+          <p className="text-xs text-neutral-600">
             Запланированные версии: каждая показывается с указанной даты, заменяя предыдущую.
           </p>
           {settings.scheduleVersions.map((version, index) => (
-            <div key={index} className="rounded-lg bg-white/60 p-3 space-y-2">
+            <div key={index} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   className={textFieldClass}
@@ -362,7 +360,7 @@ export default function TMABotPage() {
             </div>
           ))}
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)] border-opacity-30 p-3 text-sm text-[var(--tg-theme-button-color)]"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]"
             onClick={addVersion}
           >
             <CalendarPlus size={16} />
@@ -388,7 +386,7 @@ export default function TMABotPage() {
         />
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color,#2563eb)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
           disabled={saving}
           onClick={saveSettings}
         >
@@ -397,7 +395,7 @@ export default function TMABotPage() {
         </button>
       </section>
 
-      {status ? <p className="text-center text-sm text-[var(--tg-theme-hint-color)]">{status}</p> : null}
+      {status ? <p className="text-center text-sm text-neutral-600">{status}</p> : null}
     </div>
   );
 }
