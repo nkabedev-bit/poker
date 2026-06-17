@@ -61,6 +61,7 @@ const baseState: PublicTournamentState = {
       ratingUrl: "https://example.com/rating",
       registrationCode: "FRIDAY",
       scheduleText: "Every Friday",
+      scheduleVersions: [],
     },
     players: [
       {

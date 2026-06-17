@@ -9,6 +9,7 @@ describe("client bot settings", () => {
       ratingUrl: "",
       registrationCode: "",
       scheduleText: "",
+      scheduleVersions: [],
     });
   });
 
@@ -25,6 +26,7 @@ describe("client bot settings", () => {
       ratingUrl: "https://docs.google.com/spreadsheets/d/example",
       registrationCode: "river",
       scheduleText: "Friday 20:00",
+      scheduleVersions: [],
     });
   });
 });

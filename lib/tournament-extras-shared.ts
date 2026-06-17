@@ -5,7 +5,33 @@ import {
   normalizePtsBountyTemplates,
   normalizePtsPlaceTemplates,
 } from "@/lib/pts-rating";
-import type { TournamentExtras } from "@/lib/timer/types";
+import type { ScheduleVersion, TournamentExtras } from "@/lib/timer/types";
+
+export function normalizeScheduleVersions(value: unknown): ScheduleVersion[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(
+      (v): v is ScheduleVersion =>
+        typeof v === "object" &&
+        v !== null &&
+        typeof (v as ScheduleVersion).effectiveFrom === "string" &&
+        typeof (v as ScheduleVersion).text === "string" &&
+        (v as ScheduleVersion).text.trim().length > 0 &&
+        !Number.isNaN(new Date((v as ScheduleVersion).effectiveFrom).getTime()),
+    )
+    .map((v) => ({ effectiveFrom: v.effectiveFrom, text: v.text }))
+    .sort((a, b) => new Date(a.effectiveFrom).getTime() - new Date(b.effectiveFrom).getTime());
+}
+
+export function pickActiveScheduleText(
+  clientBot: { scheduleText: string; scheduleVersions: ScheduleVersion[] },
+  now: Date = new Date(),
+): string {
+  const active = clientBot.scheduleVersions
+    .filter((v) => new Date(v.effectiveFrom).getTime() <= now.getTime())
+    .at(-1); // scheduleVersions нормализован по возрастанию даты
+  return active ? active.text : clientBot.scheduleText;
+}
 
 export type TournamentExtrasPatch = Partial<
   Omit<TournamentExtras, "clientBot" | "pts" | "settings">
@@ -21,6 +47,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     ratingUrl: "",
     registrationCode: "",
     scheduleText: "",
+    scheduleVersions: [],
   },
   settings: {
     addonChips: 15000,
@@ -80,6 +107,9 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
     clientBot: {
       ...defaultTournamentExtras.clientBot,
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),
+      scheduleVersions: normalizeScheduleVersions(
+        (input.clientBot as { scheduleVersions?: unknown } | undefined)?.scheduleVersions,
+      ),
     },
     players: Array.isArray(input.players) ? input.players : [],
     playerLabels:

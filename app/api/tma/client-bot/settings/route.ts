@@ -4,6 +4,7 @@ import {
   loadCurrentTournamentContext,
   saveTournamentExtrasFromContext,
 } from "@/lib/client-bot/server";
+import { normalizeScheduleVersions } from "@/lib/tournament-extras-shared";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
       ratingUrl: trimField(body.ratingUrl),
       registrationCode: trimField(body.registrationCode),
       scheduleText: trimField(body.scheduleText),
+      scheduleVersions: normalizeScheduleVersions(body.scheduleVersions),
     },
   });
 

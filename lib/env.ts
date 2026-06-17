@@ -8,6 +8,9 @@ const publicEnvSchema = z.object({
 const serverEnvSchema = publicEnvSchema.extend({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   ADMIN_EMAIL: z.string().email(),
+  // Опционально: обязателен только для /api/cron/* (роут сам проверяет наличие),
+  // чтобы не ломать остальные серверные роуты, пока переменная не выставлена.
+  CRON_SECRET: z.string().min(1).optional(),
 });
 
 export function getPublicEnv() {
@@ -30,5 +33,6 @@ export function getServerEnv() {
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
+    CRON_SECRET: process.env.CRON_SECRET,
   });
 }

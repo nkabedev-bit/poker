@@ -31,6 +31,7 @@ import {
   loadCurrentTournamentContext,
 } from "@/lib/client-bot/server";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
+import { pickActiveScheduleText } from "@/lib/tournament-extras-shared";
 import {
   appendTournamentPlayerWithRegistrationNumber,
   isTournamentRegistrationCapacityError,
@@ -484,7 +485,9 @@ async function handleScheduleMenuAction({
   result: NonNullable<Awaited<ReturnType<typeof upsertClientBotUser>>>;
 }) {
   const context = await loadCurrentTournamentContext(result.supabase);
-  const scheduleText = context?.extras.clientBot.scheduleText.trim();
+  const scheduleText = context
+    ? pickActiveScheduleText(context.extras.clientBot).trim()
+    : "";
 
   await replyWithMainMenuButton(
     ctx,

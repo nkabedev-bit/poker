@@ -64,12 +64,15 @@ export type TournamentPlayer = {
   label?: string | null; // custom display marker for the public screen (e.g. "дилер")
 };
 
+export type ScheduleVersion = { effectiveFrom: string; text: string };
+
 export type TournamentExtras = {
   blindTemplates: BlindTemplate[];
   clientBot: {
     ratingUrl: string;
     registrationCode: string;
     scheduleText: string;
+    scheduleVersions: ScheduleVersion[];
   };
   settings: {
     addonChips: number;
