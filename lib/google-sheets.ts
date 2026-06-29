@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildClientBotProfileSheetRow,
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
+  formatClientBotBirthDateForSheet,
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
 import { buildPtsStandingsRows, isSideBountyPoints, type PtsStandingRow } from "@/lib/pts-rating";
@@ -508,6 +509,64 @@ export async function appendClientBotProfileRow(data: {
   });
 
   return { sheetName };
+}
+
+const PROFILE_SHEET_NAME = "анкеты";
+// 0-based column indexes into the "анкеты" sheet (CLIENT_BOT_PROFILE_SHEET_HEADERS):
+// E — Игровой никнейм, G — Дата рождения.
+const PROFILE_NICKNAME_COLUMN_INDEX = 4;
+const PROFILE_BIRTH_DATE_COLUMN_INDEX = 6;
+
+// Game nicknames of players whose birthday is today (Moscow). Matches day+month only — the
+// year is ignored. The stored date is re-normalized to ДД.ММ so a legacy/manual value
+// («5.7», «5 июля») still matches. Duplicate questionnaires collapse by nickname (case-
+// insensitive). Row 0 is the header and is skipped. Pure: no I/O, so it is unit-testable.
+export function pickTodayBirthdayNicknames(grid: string[][], date = new Date()): string[] {
+  const { day, month } = getMoscowDateParts(date);
+  const today = `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}`;
+
+  const seen = new Set<string>();
+  const nicknames: string[] = [];
+
+  for (let row = 1; row < grid.length; row += 1) {
+    const birthDate = String(grid[row]?.[PROFILE_BIRTH_DATE_COLUMN_INDEX] ?? "").trim();
+    if (!birthDate) continue;
+    if (formatClientBotBirthDateForSheet(birthDate) !== today) continue;
+
+    const nickname = String(grid[row]?.[PROFILE_NICKNAME_COLUMN_INDEX] ?? "").trim();
+    if (!nickname) continue;
+
+    const key = nickname.toLocaleLowerCase("ru-RU");
+    if (seen.has(key)) continue;
+    seen.add(key);
+    nicknames.push(nickname);
+  }
+
+  return nicknames;
+}
+
+// Read the "анкеты" sheet and return today's birthday nicknames (Moscow). Returns [] when
+// Sheets is not configured, matching the rest of this module's best-effort behavior.
+export async function getTodayBirthdayNicknames(date = new Date()): Promise<string[]> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    console.warn("Google Sheets not configured");
+    return [];
+  }
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${PROFILE_SHEET_NAME}'!A1:K`,
+  });
+
+  const grid = ((res.data.values ?? []) as unknown[][]).map((row) =>
+    row.map((cell) => String(cell ?? "")),
+  );
+
+  return pickTodayBirthdayNicknames(grid, date);
 }
 
 // Counters render as a blank cell (not 0) when the player never did the action.

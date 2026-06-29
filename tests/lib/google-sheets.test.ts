@@ -9,6 +9,7 @@ import {
   getMoscowDayRange,
   getSheetStandingsPlayers,
   getVipPlayersForGame,
+  pickTodayBirthdayNicknames,
 } from "@/lib/google-sheets";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -424,5 +425,59 @@ describe("VIP sheet", () => {
       ["Игрок", "Раз в VIP", "", "04/06"],
       ["Alice", 1, "", "Alice"],
     ]);
+  });
+});
+
+describe("birthday notifications (анкеты sheet)", () => {
+  // Moscow 2026-07-05 12:00 -> today is "05.07".
+  const july5 = new Date("2026-07-05T09:00:00.000Z");
+
+  // A questionnaire row: E (index 4) is the game nickname, G (index 6) the birth date.
+  function anketaRow(nickname: string, birthDate: string): string[] {
+    const row = Array<string>(11).fill("");
+    row[4] = nickname;
+    row[6] = birthDate;
+    return row;
+  }
+
+  it("returns the game nickname of a player whose birthday is today", () => {
+    const grid = [["header"], anketaRow("Хайроллер", "05.07")];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual(["Хайроллер"]);
+  });
+
+  it("matches day+month regardless of the stored date format", () => {
+    const grid = [
+      ["header"],
+      anketaRow("Numeric", "5.7"),
+      anketaRow("WithYear", "05.07.1990"),
+      anketaRow("Russian", "5 июля"),
+    ];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual(["Numeric", "WithYear", "Russian"]);
+  });
+
+  it("ignores players whose birthday is not today", () => {
+    const grid = [["header"], anketaRow("Tomorrow", "06.07"), anketaRow("Today", "05.07")];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual(["Today"]);
+  });
+
+  it("collapses duplicate questionnaires by nickname, case-insensitive", () => {
+    const grid = [["header"], anketaRow("Саймон", "05.07"), anketaRow("саймон", "05.07")];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual(["Саймон"]);
+  });
+
+  it("skips a matching row whose nickname is empty", () => {
+    const grid = [["header"], anketaRow("", "05.07")];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual([]);
+  });
+
+  it("skips the header row and rows without a birth date", () => {
+    const grid = [["header"], anketaRow("NoDate", "")];
+
+    expect(pickTodayBirthdayNicknames(grid, july5)).toEqual([]);
   });
 });
