@@ -710,6 +710,71 @@ describe("TMA eliminations route", () => {
     );
   });
 
+  const doubleReentryLevelRows = [
+    {
+      id: "level-1",
+      level_order: 1,
+      small_blind: 50,
+      big_blind: 100,
+      ante: 0,
+      reentry_closes: false,
+      double_reentry_available: true,
+      duration_seconds: 1200,
+      is_break: false,
+      break_duration_seconds: 0,
+    },
+  ];
+
+  it("regular format: accepts a double re-entry when the level allows it", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("out", "Out")],
+        settings: { reentryEnabled: true, maxReentries: 2 },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out", uses_reentry: true, reentry_double: true }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_uses_reentry: true, p_reentry_double: true }),
+    );
+  });
+
+  it("phoenix format: refuses a double re-entry even when the level allows it", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("out", "Out")],
+        settings: { reentryEnabled: true, maxReentries: 2, tournamentFormat: "phoenix" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out", uses_reentry: true, reentry_double: true }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_uses_reentry: true, p_reentry_double: false }),
+    );
+  });
+
   it("wanted bounty: allows re-entry beyond the configured limit while the window is open", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });

@@ -177,9 +177,12 @@ export async function POST(request: Request) {
       (isWantedBounty || playerReentries < maxReentries) &&
       isReentryAvailable(timerState, blindLevels, now);
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
+    // PHOENIX / DEEP STACK formats allow regular re-entries only — the double (x2)
+    // option is refused even when the blind level carries the x2 flag.
     const reentryDouble =
       usesReentry &&
       Boolean(reentry_double) &&
+      (extras.settings.tournamentFormat ?? "regular") === "regular" &&
       Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
     // The 2-big-blind stack reward for a knockout applies in STANDARD bounty (with the
     // usual 2x-before-break / 1x-after formula) and in Wanted Bounty for wanted knockouts

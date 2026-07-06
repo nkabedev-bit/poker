@@ -64,8 +64,12 @@ export async function GET(request: Request) {
     : false;
   const currentLevel =
     blindLevels[getEffectiveTimerState(timerState, blindLevels, now).currentLevelIndex];
+  // PHOENIX / DEEP STACK formats allow regular re-entries only — the double (x2)
+  // option is suppressed even when the blind level carries the x2 flag.
   const doubleReentryAvailable =
-    reentryAvailable && Boolean(currentLevel?.doubleReentryAvailable);
+    reentryAvailable &&
+    (extras.settings.tournamentFormat ?? "regular") === "regular" &&
+    Boolean(currentLevel?.doubleReentryAvailable);
 
   return NextResponse.json({
     isBounty: extras.settings.isBounty,

@@ -38,7 +38,7 @@ vi.mock("next/server", () => ({
   },
 }));
 
-function createSupabaseMock() {
+function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unknown>> } = {}) {
   const bountyLogDelete = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(async () => ({ data: null, error: null })),
@@ -83,7 +83,7 @@ function createSupabaseMock() {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              order: vi.fn(async () => ({ data: [], error: null })),
+              order: vi.fn(async () => ({ data: options.blindLevelRows ?? [], error: null })),
             })),
           })),
         };
@@ -214,6 +214,55 @@ describe("TMA players route", () => {
     expect(response.status).toBe(200);
     expect(data.tablesCount).toBe(4);
     expect(mocks.loadTournamentExtras).toHaveBeenCalledWith("tournament-1", supabase);
+  });
+
+  const doubleReentryLevelRows = [
+    {
+      id: "level-1",
+      level_order: 1,
+      small_blind: 50,
+      big_blind: 100,
+      ante: 0,
+      reentry_closes: false,
+      double_reentry_available: true,
+      duration_seconds: 1200,
+      is_break: false,
+      break_duration_seconds: 0,
+    },
+  ];
+
+  it("offers the double re-entry in the regular format when the level allows it", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        settings: { reentryEnabled: true },
+      }),
+    );
+
+    const { GET } = await import("@/app/api/tma/players/route");
+    const response = await GET(new Request("http://localhost/api/tma/players"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.doubleReentryAvailable).toBe(true);
+  });
+
+  it("hides the double re-entry in the PHOENIX format even when the level allows it", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        settings: { reentryEnabled: true, tournamentFormat: "phoenix" },
+      }),
+    );
+
+    const { GET } = await import("@/app/api/tma/players/route");
+    const response = await GET(new Request("http://localhost/api/tma/players"));
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.doubleReentryAvailable).toBe(false);
   });
 
   it("moves a player to another table", async () => {

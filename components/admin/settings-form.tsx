@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
-import type { BlindAlertSound, Tournament, TournamentExtras } from "@/lib/timer/types";
+import type { BlindAlertSound, Tournament, TournamentExtras, TournamentFormat } from "@/lib/timer/types";
 
 const blindAlertSoundLabels: Record<BlindAlertSound, string> = {
   standard: "Стандартный сигнал",
@@ -22,6 +22,13 @@ type SettingsFormProps = {
 
 const maxLogoSize = 4 * 1024 * 1024;
 const maxSoundSize = 1024 * 1024;
+
+// Format presets: picking a format autofills the addon/re-entry fields below; the admin
+// can still adjust them manually afterwards.
+const formatPresets: Record<Exclude<TournamentFormat, "regular">, { maxReentries: number }> = {
+  phoenix: { maxReentries: 1 },
+  deepstack: { maxReentries: 2 },
+};
 
 type LogoUpload = {
   dataUrl: string;
@@ -45,6 +52,19 @@ export function SettingsForm({
   const [soundError, setSoundError] = useState<string | null>(null);
   const [reentryEnabled, setReentryEnabled] = useState(settings.reentryEnabled);
   const [addonEnabled, setAddonEnabled] = useState(settings.addonEnabled);
+  const [maxReentries, setMaxReentries] = useState(settings.maxReentries);
+  const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>(
+    settings.tournamentFormat ?? "regular",
+  );
+
+  function applyTournamentFormat(format: TournamentFormat) {
+    setTournamentFormat(format);
+    if (format === "regular") return;
+
+    setAddonEnabled(false);
+    setReentryEnabled(true);
+    setMaxReentries(formatPresets[format].maxReentries);
+  }
 
   function updateLogoUpload(file: File | undefined) {
     setLogoUpload(null);
@@ -118,6 +138,19 @@ export function SettingsForm({
           />
         </label>
         <label>
+          🏆 Формат турнира
+          <select
+            aria-label="Формат турнира"
+            name="tournamentFormat"
+            value={tournamentFormat}
+            onChange={(event) => applyTournamentFormat(event.target.value as TournamentFormat)}
+          >
+            <option value="regular">Обычный</option>
+            <option value="phoenix">PHOENIX</option>
+            <option value="deepstack">DEEP STACK</option>
+          </select>
+        </label>
+        <label>
           🎯 Баунти
           <select
             aria-label="Тип баунти"
@@ -166,7 +199,8 @@ export function SettingsForm({
               name="maxReentries"
               pattern="[0-9]*"
               type="number"
-              defaultValue={settings.maxReentries}
+              value={maxReentries}
+              onChange={(event) => setMaxReentries(Number(event.target.value) || 1)}
             />
           </label>
         ) : null}

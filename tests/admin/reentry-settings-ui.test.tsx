@@ -55,6 +55,64 @@ describe("re-entry settings UI", () => {
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("1");
   });
 
+  it("autofills the preset when the PHOENIX format is picked", () => {
+    render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={defaultTournamentExtras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+      target: { value: "phoenix" },
+    });
+
+    expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
+    expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
+    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("1");
+  });
+
+  it("autofills the preset when the DEEP STACK format is picked", () => {
+    render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={defaultTournamentExtras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+      target: { value: "deepstack" },
+    });
+
+    expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
+    expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
+    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("2");
+  });
+
+  it("keeps manual edits after a format preset was applied", () => {
+    render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={defaultTournamentExtras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+      target: { value: "deepstack" },
+    });
+    fireEvent.change(screen.getByLabelText(/кол-во ре-энтри/i), {
+      target: { value: "3" },
+    });
+
+    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("3");
+  });
+
   it("allows logo files up to 4 MB", async () => {
     const { container } = render(
       <SettingsForm

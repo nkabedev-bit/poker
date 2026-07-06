@@ -69,6 +69,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     sheetsSessionStartedAt: null,
     statsCountedAt: null,
     tablesCount: 3,
+    tournamentFormat: "regular",
   },
   players: [],
   playerLabels: {},

@@ -45,6 +45,7 @@ const settingsSchema = z.object({
   reentryEnabled: z.enum(["yes", "no"]).default("no"),
   startingStack: z.coerce.number().int().positive(),
   tablesCount: z.coerce.number().int().positive(),
+  tournamentFormat: z.enum(["regular", "phoenix", "deepstack"]).default("regular"),
   registrationMinutes: z.coerce.number().int().min(0).max(1440),
   blindAlertSeconds: z.coerce.number().int().min(1).max(300).default(10),
   blindAlertSound: z.enum(blindAlertSounds).default("standard"),
@@ -129,6 +130,7 @@ export async function updateTournamentSettings(formData: FormData) {
     reentryEnabled: formData.get("reentryEnabled") === "yes" ? "yes" : "no",
     startingStack: formData.get("startingStack"),
     tablesCount: formData.get("tablesCount"),
+    tournamentFormat: formData.get("tournamentFormat") ?? "regular",
     registrationMinutes: formData.get("registrationMinutes"),
     blindAlertSeconds: formData.get("blindAlertSeconds"),
     blindAlertSound: formData.get("blindAlertSound"),
@@ -192,6 +194,7 @@ export async function updateTournamentSettings(formData: FormData) {
         rebuyPrice: parsed.data.rebuyPrice,
         reentryEnabled: parsed.data.reentryEnabled === "yes",
         tablesCount: parsed.data.tablesCount,
+        tournamentFormat: parsed.data.tournamentFormat,
         blindAlertSeconds: parsed.data.blindAlertSeconds,
         blindAlertSound: sound ? "custom" : parsed.data.blindAlertSound,
         ...(sound || existingExtras.settings.blindAlertCustomSoundUrl ? {
@@ -290,6 +293,7 @@ export async function updateTournamentSettings(formData: FormData) {
         rebuyPrice: parsed.data.rebuyPrice,
         reentryEnabled: parsed.data.reentryEnabled === "yes",
         tablesCount: parsed.data.tablesCount,
+        tournamentFormat: parsed.data.tournamentFormat,
         blindAlertSeconds: parsed.data.blindAlertSeconds,
         blindAlertSound: sound ? "custom" : parsed.data.blindAlertSound,
         ...(sound || existingExtras.settings.blindAlertCustomSoundUrl ? {

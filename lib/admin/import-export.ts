@@ -84,6 +84,7 @@ const settingsSchema = z.object({
   rebuyPrice: z.number().int().min(0).optional(),
   reentryEnabled: z.boolean().optional(),
   tablesCount: z.number().int().positive().optional(),
+  tournamentFormat: z.enum(["regular", "phoenix", "deepstack"]).optional(),
 });
 
 const prizeSchema = z.object({

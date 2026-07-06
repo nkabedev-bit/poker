@@ -11,6 +11,10 @@ export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off"
 
 export type BountyType = "standard" | "mystery" | "dealer" | "wanted";
 
+// Tournament format presets: PHOENIX — no addons, 1 regular re-entry; DEEP STACK — no
+// addons, 2 regular re-entries. Both disable the double (x2) re-entry option.
+export type TournamentFormat = "regular" | "phoenix" | "deepstack";
+
 export type BlindLevel = {
   id: string;
   levelOrder: number;
@@ -94,6 +98,7 @@ export type TournamentExtras = {
     sheetsSessionStartedAt: string | null;
     statsCountedAt: string | null;
     tablesCount: number;
+    tournamentFormat: TournamentFormat;
   };
   players: TournamentPlayer[];
   // Persistent per-guest display labels keyed by normalized nickname (e.g. "дилер").
