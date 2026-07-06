@@ -180,6 +180,81 @@ describe("TMAPlayersPage", () => {
     );
   });
 
+  it("adds the fixed 6000-chip addon after a single confirmation without asking for the amount", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          addonEnabled: true,
+          maxAddons: 1,
+          tablesCount: 3,
+          players: [
+            { id: "player-1", name: "Addon Player", table: 1, seat: 1, stack: 1000, status: "active", addons: 0 },
+          ],
+        });
+      }
+
+      if (String(input) === "/api/tma/players/player-1" && init?.method === "PATCH") {
+        return Response.json({ player: { id: "player-1" } });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /добавить аддон/i }));
+
+    expect(screen.queryByLabelText(/кол-во фишек/i)).toBeNull();
+    expect(showConfirm).toHaveBeenCalledWith(
+      "Добавить игроку «Addon Player» 6 000 фишек?",
+      expect.any(Function),
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ action: "add_addon", chips: 6000 }),
+        }),
+      );
+    });
+  });
+
+  it("does not send the addon when the confirmation is declined", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(false));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          addonEnabled: true,
+          maxAddons: 1,
+          tablesCount: 3,
+          players: [
+            { id: "player-1", name: "Addon Player", table: 1, seat: 1, stack: 1000, status: "active", addons: 0 },
+          ],
+        });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /добавить аддон/i }));
+
+    expect(showConfirm).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/tma/players/player-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+
   it("restores an eliminated player from the player details card", async () => {
     const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
     showConfirm.mockImplementation((_message, callback) => callback(true));

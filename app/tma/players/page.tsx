@@ -6,6 +6,10 @@ import { useVisiblePolling } from "../use-visible-polling";
 import { ArrowRightLeft, BadgePlus, ChevronLeft, RotateCcw, Plus, Trash2, Users } from "lucide-react";
 import { formatPlayerNameWithRegistrationNumber } from "@/lib/player-registration-number";
 
+// Addon chip amount credited by the TMA admin app: fixed, no manual input — the
+// admin only confirms the "add N chips to player X?" dialog.
+const ADDON_CHIPS = 6000;
+
 type Player = {
   addons?: number;
   addonChipsTotal?: number;
@@ -24,8 +28,6 @@ export default function TMAPlayersPage() {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
-  const [showAddonForm, setShowAddonForm] = useState(false);
-  const [addonChips, setAddonChips] = useState("");
   const [addonEnabled, setAddonEnabled] = useState(false);
   const [maxAddons, setMaxAddons] = useState(1);
   const [tablesCount, setTablesCount] = useState(1);
@@ -118,8 +120,6 @@ export default function TMAPlayersPage() {
 
   const closePlayerDetails = () => {
     setSelectedPlayerId(null);
-    setShowAddonForm(false);
-    setAddonChips("");
   };
 
   const handleDelete = async (id: string) => {
@@ -140,13 +140,8 @@ export default function TMAPlayersPage() {
     const tg = getTelegramWebApp();
     if (!selectedPlayer) return;
 
-    const chips = Number(addonChips);
-    if (!Number.isInteger(chips) || chips <= 0) {
-      tg?.showAlert("Введите кол-во фишек");
-      return;
-    }
-
-    tg?.showConfirm("Вы уверены?", async (confirmed: boolean) => {
+    const confirmText = `Добавить игроку «${selectedPlayer.name}» ${ADDON_CHIPS.toLocaleString("ru-RU")} фишек?`;
+    tg?.showConfirm(confirmText, async (confirmed: boolean) => {
       if (!confirmed) return;
 
       const res = await fetch(`/api/tma/players/${selectedPlayer.id}`, {
@@ -155,13 +150,11 @@ export default function TMAPlayersPage() {
           "Content-Type": "application/json",
           "X-Telegram-Init-Data": initData,
         },
-        body: JSON.stringify({ action: "add_addon", chips }),
+        body: JSON.stringify({ action: "add_addon", chips: ADDON_CHIPS }),
       });
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
-        setShowAddonForm(false);
-        setAddonChips("");
         await fetchPlayers();
         return;
       }
@@ -352,46 +345,12 @@ export default function TMAPlayersPage() {
           </button>
         )}
 
-        {selectedPlayer.status === "active" && showAddonForm ? (
-          <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
-            <label className="block text-xs text-[var(--tg-theme-hint-color)]">
-              Кол-во фишек
-              <input
-                className="mt-1 w-full bg-[var(--tg-theme-bg-color)] text-black font-semibold border-none rounded p-3 outline-none"
-                inputMode="numeric"
-                min={1}
-                pattern="[0-9]*"
-                type="number"
-                value={addonChips}
-                onChange={(event) => setAddonChips(event.target.value)}
-              />
-            </label>
-            <div className="flex gap-2">
-              <button
-                className="flex-1 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-3 rounded"
-                type="button"
-                onClick={() => void submitAddon()}
-              >
-                Добавить
-              </button>
-              <button
-                className="flex-1 p-3 text-[var(--tg-theme-button-color)]"
-                type="button"
-                onClick={() => {
-                  setShowAddonForm(false);
-                  setAddonChips("");
-                }}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-        ) : selectedPlayer.status === "active" ? (
+        {selectedPlayer.status === "active" ? (
           <button
             className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
             disabled={!selectedPlayerCanAddon}
             type="button"
-            onClick={() => setShowAddonForm(true)}
+            onClick={() => void submitAddon()}
           >
             <BadgePlus size={18} /> Добавить аддон
           </button>
