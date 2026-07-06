@@ -1,5 +1,7 @@
 -- Отложенные рассылки клиентского бота.
 -- Применять вручную в Supabase SQL editor. Заполнить <APP_URL> и <CRON_SECRET> перед запуском.
+-- <APP_URL> — только домен (https://poker-two-liart.vercel.app), БЕЗ пути страницы:
+-- лишний путь (например /login) даёт 404, и рассылка молча висит в pending.
 
 create table if not exists public.scheduled_broadcasts (
   id uuid primary key default gen_random_uuid(),
