@@ -15,7 +15,7 @@ import {
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
 import { isSideBountyPoints } from "@/lib/pts-rating";
-import type { BlindAlertSound, PublicTournamentState, TournamentPlayer } from "@/lib/timer/types";
+import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { TimerDisplay } from "@/components/public/timer-display";
 
@@ -50,11 +50,32 @@ const FINAL_TABLE_ACTIVE_PLAYERS = 9;
 // playing level (breaks excluded) as a safety net if no cutoff is configured.
 const REENTRY_INFO_MAX_ROUND = 10;
 const REENTRY_INFO_QR_SRC = "/reentry-qr.png";
-const REENTRY_INFO_ROWS = [
-  { label: "Повторный вход", note: "до 10 ур.", price: "1 250 ₽" },
-  { label: "Вход ×2 стек", note: "6–10 ур.", price: "2 000 ₽" },
-  { label: "Аддон 15BB", note: "пауза 9–10 ур.", price: "1 250 ₽" },
-];
+const REENTRY_INFO_SINGLE_ROW = { label: "Повторный вход", note: "до 10 ур.", price: "1 250 ₽" };
+const REENTRY_INFO_DOUBLE_ROW = { label: "Вход ×2 стек", note: "6–10 ур.", price: "2 000 ₽" };
+const REENTRY_INFO_ADDON_ROW = { label: "Аддон 15BB", note: "пауза 9–10 ур.", price: "1 250 ₽" };
+// In bounty games (standard / mystery / dealer / wanted) the addon is triple the
+// starting stack instead of 15BB; the purchase window stays the 9–10 level pause.
+const REENTRY_INFO_BOUNTY_ADDON_ROW = {
+  label: "Аддон ×3 стартового стека",
+  note: "пауза 9–10 ур.",
+  price: "1 250 ₽",
+};
+
+export function getReentryInfoRows(
+  tournamentFormat: TournamentFormat | undefined,
+  isBounty: boolean,
+): Array<{ label: string; note: string; price: string }> {
+  // PHOENIX / DEEP STACK: regular single re-entries only — no addon, no x2 entry.
+  if (tournamentFormat === "phoenix" || tournamentFormat === "deepstack") {
+    return [REENTRY_INFO_SINGLE_ROW];
+  }
+
+  return [
+    REENTRY_INFO_SINGLE_ROW,
+    REENTRY_INFO_DOUBLE_ROW,
+    isBounty ? REENTRY_INFO_BOUNTY_ADDON_ROW : REENTRY_INFO_ADDON_ROW,
+  ];
+}
 const MIN_PUBLIC_PLAYER_NAME_FONT_SIZE = 7;
 const MIN_PUBLIC_PLAYER_NAME_SCALE = 0.48;
 const PUBLIC_PLAYER_NAME_FIT_SAFETY = 0.985;
@@ -905,7 +926,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
             <div className="public-reentry-info">
               <div className="public-reentry-info__title">Повторное участие</div>
               <div className="public-reentry-info__rows">
-                {REENTRY_INFO_ROWS.map((row) => (
+                {getReentryInfoRows(
+                  state.extras.settings.tournamentFormat,
+                  state.extras.settings.isBounty,
+                ).map((row) => (
                   <div className="public-reentry-info__row" key={row.label}>
                     <span className="public-reentry-info__label">
                       {row.label}{" "}
