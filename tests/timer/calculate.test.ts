@@ -3,6 +3,7 @@ import {
   calculateRemainingSeconds,
   getBountyChipAward,
   getCurrentAndNextLevel,
+  getWantedBountyChipAward,
   isReentryAvailable,
 } from "@/lib/timer/calculate";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
@@ -206,5 +207,10 @@ describe("getBountyChipAward", () => {
 
   it("awards one current big blind after the last break", () => {
     expect(getBountyChipAward(bountyLevels, 4)).toBe(500);
+  });
+
+  it("wanted award stays two current big blinds even after the last break", () => {
+    expect(getWantedBountyChipAward(bountyLevels, 2)).toBe(400);
+    expect(getWantedBountyChipAward(bountyLevels, 4)).toBe(1000);
   });
 });

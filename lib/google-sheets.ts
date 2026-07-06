@@ -649,7 +649,13 @@ async function updatePtsStandingsRows(
   // mode stays exactly as before: four columns, column J untouched.
   const isWide = isSideBountyPoints(bountyType);
   const headers = isWide
-    ? ["Место", "Игрок", "PTS", bountyType === "dealer" ? "Очки за дилера" : "Mystery-Points", "Кол-во выбиваний"]
+    ? [
+      "Место",
+      "Игрок",
+      "PTS",
+      bountyType === "dealer" ? "Очки за дилера" : bountyType === "wanted" ? "Wanted PTS" : "Mystery-Points",
+      "Кол-во выбиваний",
+    ]
     : ["Место", "Игрок", "PTS", "Кол-во баунти"];
 
   await sheets.spreadsheets.values.update({

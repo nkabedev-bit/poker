@@ -7,10 +7,16 @@ export const PTS_PLACE_COUNT = 28;
 // award nothing.
 export const DEALER_KNOCKOUT_POINTS = 60;
 
-// Mystery Bounty and Dealer Revenge share the same mechanics: knockout points live in
-// their own column (TournamentPlayer.mysteryBountyPoints) and are never summed into PTS.
+// Wanted Bounty: knocking out a player who already used at least one re-entry awards
+// this many points (split by killer shares) plus a 2-big-blind stack reward. Knocking
+// out a player on their first bullet awards nothing.
+export const WANTED_KNOCKOUT_POINTS = 60;
+
+// Mystery Bounty, Dealer Revenge and Wanted Bounty share the same mechanics: knockout
+// points live in their own column (TournamentPlayer.mysteryBountyPoints) and are never
+// summed into PTS.
 export function isSideBountyPoints(bountyType: string | null | undefined): boolean {
-  return bountyType === "mystery" || bountyType === "dealer";
+  return bountyType === "mystery" || bountyType === "dealer" || bountyType === "wanted";
 }
 
 export type PtsPlaceTemplate = {

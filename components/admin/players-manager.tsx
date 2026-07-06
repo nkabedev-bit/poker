@@ -28,10 +28,15 @@ function newPlayer(startingStack: number): TournamentPlayer {
 
 export function PlayersManager({ extras, saveAction, startingStack }: PlayersManagerProps) {
   const [players, setPlayers] = useState<TournamentPlayer[]>(extras.players);
-  // Mystery prizes and Dealer Revenge knockout points share the mysteryBountyPoints field,
-  // so both modes get the extra points column.
+  // Mystery prizes, Dealer Revenge and Wanted Bounty knockout points share the
+  // mysteryBountyPoints field, so these modes get the extra points column.
   const isMystery = isSideBountyPoints(extras.settings.bountyType) && extras.settings.isBounty;
-  const sidePointsLabel = extras.settings.bountyType === "dealer" ? "Очки за дилера" : "Mystery PTS";
+  const sidePointsLabel =
+    extras.settings.bountyType === "dealer"
+      ? "Очки за дилера"
+      : extras.settings.bountyType === "wanted"
+        ? "Wanted PTS"
+        : "Mystery PTS";
   const activeCount = useMemo(
     () => players.filter((player) => player.status === "active").length,
     [players],

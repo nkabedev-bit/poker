@@ -9,7 +9,7 @@ export type RegistrationStatus = "open" | "closed";
 
 export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off";
 
-export type BountyType = "standard" | "mystery" | "dealer";
+export type BountyType = "standard" | "mystery" | "dealer" | "wanted";
 
 export type BlindLevel = {
   id: string;

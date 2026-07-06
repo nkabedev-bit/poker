@@ -35,7 +35,7 @@ const settingsSchema = z.object({
   addonMinutes: z.coerce.number().int().min(0),
   addonPrice: z.coerce.number().int().min(0),
   buyIn: z.coerce.number().int().min(0),
-  bountyMode: z.enum(["off", "standard", "mystery", "dealer"]).default("off"),
+  bountyMode: z.enum(["off", "standard", "mystery", "dealer", "wanted"]).default("off"),
   logoUrl: z.string().trim().url().or(z.literal("")).optional(),
   maxAddons: z.coerce.number().int().min(1).default(1),
   maxPlayersPerTable: z.coerce.number().int().positive(),

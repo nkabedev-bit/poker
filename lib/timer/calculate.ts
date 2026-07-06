@@ -88,6 +88,33 @@ export function getCurrentAndNextLevel(
   };
 }
 
+// The current level's big blind, falling back to the nearest non-break level when the
+// timer sits on a break (or on a level without blinds configured).
+function resolveEffectiveBigBlind(levels: BlindLevel[], currentIndex: number): number {
+  const currentLevel = levels[currentIndex];
+  const currentBigBlind = currentLevel && !currentLevel.isBreak ? currentLevel.bigBlind : null;
+
+  if (currentBigBlind && currentBigBlind > 0) {
+    return currentBigBlind;
+  }
+
+  for (let index = currentIndex - 1; index >= 0; index--) {
+    const level = levels[index];
+    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
+      return level.bigBlind;
+    }
+  }
+
+  for (let index = currentIndex + 1; index < levels.length; index++) {
+    const level = levels[index];
+    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
+      return level.bigBlind;
+    }
+  }
+
+  return 0;
+}
+
 export function getBountyChipAward(
   levels: BlindLevel[],
   currentLevelIndex: number,
@@ -95,28 +122,15 @@ export function getBountyChipAward(
   const currentIndex = Math.max(0, Math.trunc(currentLevelIndex));
   const lastBreakIndex = levels.findLastIndex((level) => level.isBreak);
   const multiplier = lastBreakIndex !== -1 && currentIndex > lastBreakIndex ? 1 : 2;
-  const currentLevel = levels[currentIndex];
-  const currentBigBlind = currentLevel && !currentLevel.isBreak ? currentLevel.bigBlind : null;
+  return resolveEffectiveBigBlind(levels, currentIndex) * multiplier;
+}
 
-  if (currentBigBlind && currentBigBlind > 0) {
-    return currentBigBlind * multiplier;
-  }
-
-  for (let index = currentIndex - 1; index >= 0; index--) {
-    const level = levels[index];
-    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
-      return level.bigBlind * multiplier;
-    }
-  }
-
-  for (let index = currentIndex + 1; index < levels.length; index++) {
-    const level = levels[index];
-    if (!level?.isBreak && level?.bigBlind && level.bigBlind > 0) {
-      return level.bigBlind * multiplier;
-    }
-  }
-
-  return 0;
+// Wanted Bounty stack reward: always two current big blinds, regardless of breaks.
+export function getWantedBountyChipAward(
+  levels: BlindLevel[],
+  currentLevelIndex: number,
+): number {
+  return resolveEffectiveBigBlind(levels, Math.max(0, Math.trunc(currentLevelIndex))) * 2;
 }
 
 export function formatClock(totalSeconds: number): string {

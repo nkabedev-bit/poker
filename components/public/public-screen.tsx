@@ -14,6 +14,7 @@ import {
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
+import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentPlayer } from "@/lib/timer/types";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { TimerDisplay } from "@/components/public/timer-display";
@@ -91,11 +92,13 @@ export function getPublicPlayerBadges(
   const reentryCount = Math.max(0, Math.trunc(player.rebuys || 0));
   const mysteryPts = Math.max(0, player.mysteryBountyPoints || 0);
 
-  if (isBounty && (bountyType === "mystery" || bountyType === "dealer")) {
-    // Mystery prizes and dealer-knockout points share the mysteryBountyPoints field.
+  if (isBounty && isSideBountyPoints(bountyType)) {
+    // Mystery prizes, dealer-knockout and wanted-knockout points share the
+    // mysteryBountyPoints field.
     if (bountyCount > 0) badges.push(`💰 ${formatBountyCount(bountyCount)}`);
     if (mysteryPts > 0) {
-      badges.push(`${bountyType === "dealer" ? "🎯" : "🎲"} ${formatBountyCount(mysteryPts)} PTS`);
+      const icon = bountyType === "dealer" ? "🎯" : bountyType === "wanted" ? "🤠" : "🎲";
+      badges.push(`${icon} ${formatBountyCount(mysteryPts)} PTS`);
     }
   } else if (isBounty && bountyCount > 0) {
     badges.push(`💰 ${formatBountyCount(bountyCount)}`);

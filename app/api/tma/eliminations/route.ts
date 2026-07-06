@@ -4,9 +4,9 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
-import { getBountyChipAward, getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
+import { getBountyChipAward, getEffectiveTimerState, getWantedBountyChipAward, isReentryAvailable } from "@/lib/timer/calculate";
 import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
-import { DEALER_KNOCKOUT_POINTS } from "@/lib/pts-rating";
+import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import type { BlindLevel, TimerState, TournamentPlayer } from "@/lib/timer/types";
 
@@ -122,11 +122,18 @@ export async function POST(request: Request) {
     const eliminatedIsDealer =
       isDealerLabel(eliminatedPlayer.label) ||
       isDealerLabel(getPersistedPlayerLabel(extras.playerLabels, eliminatedPlayer.name));
+    // Wanted Bounty: a player who already used at least one re-entry carries a bounty on
+    // their head for the rest of the tournament; knocking them out pays side points plus
+    // a 2-big-blind stack reward. A first-bullet knockout pays nothing.
+    const isWantedBounty = extras.settings.bountyType === "wanted";
+    const eliminatedIsWanted = Math.max(0, Number(eliminatedPlayer.rebuys ?? 0)) > 0;
     const mysteryBountyPoints = isDealerRevenge
       ? (eliminatedIsDealer ? DEALER_KNOCKOUT_POINTS : 0)
-      : extras.settings.bountyType === "mystery"
-        ? clientMysteryPoints
-        : 0;
+      : isWantedBounty
+        ? (eliminatedIsWanted ? WANTED_KNOCKOUT_POINTS : 0)
+        : extras.settings.bountyType === "mystery"
+          ? clientMysteryPoints
+          : 0;
     const sanitizedKillers: Killer[] = isBounty && Array.isArray(killers)
       ? killers
         .map((killer: Partial<Killer>) => ({
@@ -162,22 +169,29 @@ export async function POST(request: Request) {
     const now = new Date();
     const playerReentries = Math.max(0, Number(eliminatedPlayer.rebuys ?? 0));
     const maxReentries = Math.max(1, Number(extras.settings.maxReentries ?? 1));
+    // Wanted Bounty: re-entries are unlimited while the re-entry window is open (the
+    // reentryCloses level flag still ends the window as usual).
     const usesReentry =
       Boolean(uses_reentry) &&
       extras.settings.reentryEnabled &&
-      playerReentries < maxReentries &&
+      (isWantedBounty || playerReentries < maxReentries) &&
       isReentryAvailable(timerState, blindLevels, now);
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
     const reentryDouble =
       usesReentry &&
       Boolean(reentry_double) &&
       Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
-    // The 2-big-blind stack reward for a knockout is a STANDARD-bounty-only mechanic.
-    // In Mystery / Dealer Revenge the knockout reward is the side points instead, so the
-    // killer's stack is left untouched there.
+    // The 2-big-blind stack reward for a knockout applies in STANDARD bounty (with the
+    // usual 2x-before-break / 1x-after formula) and in Wanted Bounty for wanted knockouts
+    // (always 2 big blinds, on top of the side points). In Mystery / Dealer Revenge the
+    // knockout reward is the side points only, so the killer's stack is left untouched.
     const bountyChipAward =
-      isBounty && extras.settings.bountyType === "standard" && sanitizedKillers.length > 0
-        ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
+      isBounty && sanitizedKillers.length > 0
+        ? extras.settings.bountyType === "standard"
+          ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
+          : isWantedBounty && eliminatedIsWanted
+            ? getWantedBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
+            : 0
         : 0;
     const killersWithBountyChips = sanitizedKillers.map((killer) => ({
       ...killer,

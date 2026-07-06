@@ -128,6 +128,7 @@ export function SettingsForm({
             <option value="standard">Обычный баунти</option>
             <option value="mystery">Mystery Bounty</option>
             <option value="dealer">Dealer Revenge</option>
+            <option value="wanted">Wanted Bounty</option>
           </select>
         </label>
         <label>

@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { isDealerLabel } from "@/lib/player-labels";
-import { DEALER_KNOCKOUT_POINTS } from "@/lib/pts-rating";
+import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { useVisiblePolling } from "../use-visible-polling";
 import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
 type Player = { id: string; name: string; rebuys?: number; status: "active" | "eliminated"; table?: number | null; label?: string | null };
-type BountyType = "standard" | "mystery" | "dealer";
+type BountyType = "standard" | "mystery" | "dealer" | "wanted";
 type PlayersResponse = {
   bountyType?: BountyType;
   isBounty?: boolean;
@@ -101,14 +101,16 @@ export default function TMAEliminationsPage() {
       const latestMaxReentries = Number(data?.maxReentries ?? maxReentries) || 1;
       const latestReentryEnabled = data ? Boolean(data.reentryEnabled) : reentryEnabled;
       const latestReentryAvailable = data ? data.reentryAvailable !== false : reentryAvailable;
+      const latestBountyType = data ? ((data.bountyType as BountyType) || "standard") : bountyType;
 
+      // Wanted Bounty: re-entries are unlimited while the re-entry window is open.
       return (
         latestReentryEnabled &&
         latestReentryAvailable &&
-        (player.rebuys ?? 0) < latestMaxReentries
+        (latestBountyType === "wanted" || (player.rebuys ?? 0) < latestMaxReentries)
       );
     },
-    [maxReentries, reentryAvailable, reentryEnabled],
+    [bountyType, maxReentries, reentryAvailable, reentryEnabled],
   );
 
   const startElimination = (p: Player) => {
@@ -120,7 +122,17 @@ export default function TMAEliminationsPage() {
     setSearch("");
     setMysteryPoints("");
     clientRequestIdRef.current = null;
-    setStep(isBounty ? 1 : 2);
+    // The "who knocked them out" step is only shown when the knockout can actually pay:
+    // Dealer Revenge — only when the eliminated player carries the dealer label;
+    // Wanted Bounty — only when the eliminated player already used a re-entry.
+    const needsKillerStep =
+      isBounty &&
+      (bountyType === "dealer"
+        ? isDealerLabel(p.label)
+        : bountyType === "wanted"
+          ? (p.rebuys ?? 0) > 0
+          : true);
+    setStep(needsKillerStep ? 1 : 2);
   };
 
   const returnToEliminationsList = useCallback(() => {
@@ -474,6 +486,16 @@ export default function TMAEliminationsPage() {
                     {selectedKillers.length > 1
                       ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS каждому`
                       : `+${DEALER_KNOCKOUT_POINTS} PTS`}
+                  </div>
+                </div>
+              )}
+              {bountyType === "wanted" && (eliminatedPlayer?.rebuys ?? 0) > 0 && selectedKillers.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🤠 Выбит wanted-игрок</div>
+                  <div className="text-xl font-bold text-yellow-400">
+                    {selectedKillers.length > 1
+                      ? `по ${Number((WANTED_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
+                      : `+${WANTED_KNOCKOUT_POINTS} PTS + 2ББ в стек`}
                   </div>
                 </div>
               )}
