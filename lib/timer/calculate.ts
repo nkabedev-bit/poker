@@ -125,12 +125,15 @@ export function getBountyChipAward(
   return resolveEffectiveBigBlind(levels, currentIndex) * multiplier;
 }
 
-// Wanted Bounty stack reward: always two current big blinds, regardless of breaks.
+// Wanted Bounty stack reward, regardless of breaks: three current big blinds for
+// knocking out a wanted player (someone who already re-entered), two for a regular one.
 export function getWantedBountyChipAward(
   levels: BlindLevel[],
   currentLevelIndex: number,
+  isWantedVictim: boolean,
 ): number {
-  return resolveEffectiveBigBlind(levels, Math.max(0, Math.trunc(currentLevelIndex))) * 2;
+  const bigBlind = resolveEffectiveBigBlind(levels, Math.max(0, Math.trunc(currentLevelIndex)));
+  return bigBlind * (isWantedVictim ? 3 : 2);
 }
 
 export function formatClock(totalSeconds: number): string {

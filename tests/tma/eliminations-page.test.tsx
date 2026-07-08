@@ -335,7 +335,7 @@ describe("TMAEliminationsPage", () => {
     await screen.findByText(/кто выбил/i);
   });
 
-  it("wanted bounty: skips the killer step for a first-bullet knockout", async () => {
+  it("wanted bounty: asks for the killer on a first-bullet knockout and shows the configured points", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
@@ -343,6 +343,7 @@ describe("TMAEliminationsPage", () => {
           return Response.json({
             isBounty: true,
             bountyType: "wanted",
+            ptsBountyPoints: 30,
             players: [
               { id: "player-1", name: "First Bullet", rebuys: 0, status: "active" },
               { id: "player-2", name: "Wanted Guy", rebuys: 2, status: "active" },
@@ -358,8 +359,11 @@ describe("TMAEliminationsPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /first bullet/i }));
 
+    await screen.findByText(/кто выбил/i);
+    fireEvent.click(screen.getByRole("button", { name: /wanted guy/i }));
+
     await screen.findByText(/всё верно/i);
-    expect(screen.queryByText(/кто выбил/i)).toBeNull();
+    await screen.findByText(/\+30 PTS \+ 2ББ в стек/i);
   });
 
   it("wanted bounty: asks for the killer when the eliminated player has re-entered", async () => {
@@ -430,6 +434,88 @@ describe("TMAEliminationsPage", () => {
     });
 
     await screen.findByText(/использует ли игрок ре-энтри/i);
+  });
+
+  it("wanted bounty: offers the double re-entry to a player who has not used one yet", async () => {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/tma/players") {
+        return Response.json({
+          isBounty: true,
+          bountyType: "wanted",
+          reentryAvailable: true,
+          reentryEnabled: true,
+          doubleReentryAvailable: true,
+          players: [
+            { id: "player-1", name: "Wanted Out", rebuys: 1, doubleRebuys: 0, status: "active" },
+            { id: "player-2", name: "Killer Guy", rebuys: 0, status: "active" },
+          ],
+        });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /wanted out/i }));
+    await screen.findByText(/кто выбил/i);
+    fireEvent.click(screen.getByRole("button", { name: /killer guy/i }));
+    await screen.findByText(/всё верно/i);
+
+    await waitFor(() => expect(mainButtonClick).toBeTypeOf("function"));
+    await act(async () => {
+      mainButtonClick?.();
+    });
+
+    await screen.findByText(/использует ли игрок ре-энтри/i);
+    expect(screen.getByRole("button", { name: /двойной/i })).toBeTruthy();
+  });
+
+  it("wanted bounty: hides the double re-entry after the player already used one", async () => {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input) === "/api/tma/players") {
+        return Response.json({
+          isBounty: true,
+          bountyType: "wanted",
+          reentryAvailable: true,
+          reentryEnabled: true,
+          doubleReentryAvailable: true,
+          players: [
+            { id: "player-1", name: "Wanted Out", rebuys: 2, doubleRebuys: 1, status: "active" },
+            { id: "player-2", name: "Killer Guy", rebuys: 0, status: "active" },
+          ],
+        });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /wanted out/i }));
+    await screen.findByText(/кто выбил/i);
+    fireEvent.click(screen.getByRole("button", { name: /killer guy/i }));
+    await screen.findByText(/всё верно/i);
+
+    await waitFor(() => expect(mainButtonClick).toBeTypeOf("function"));
+    await act(async () => {
+      mainButtonClick?.();
+    });
+
+    await screen.findByText(/использует ли игрок ре-энтри/i);
+    expect(screen.queryByRole("button", { name: /двойной/i })).toBeNull();
   });
 
   it("returns to the eliminations list when the wrong player was selected", async () => {

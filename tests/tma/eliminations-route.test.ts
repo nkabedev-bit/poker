@@ -646,7 +646,7 @@ describe("TMA eliminations route", () => {
     );
   });
 
-  it("wanted bounty: awards side points and the 2-big-blind stack reward for a re-entered player", async () => {
+  it("wanted bounty: awards side points and the 3-big-blind stack reward for a re-entered player", async () => {
     const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
@@ -674,19 +674,20 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    // 100 BB × 2 = 200 chips, plus the fixed 60 side points.
+    // 100 BB × 3 = 300 chips, plus the fixed 60 side points.
     expect(supabase.rpc).toHaveBeenCalledWith(
       "record_player_elimination",
-      expect.objectContaining({ p_bounty_chip_award: 200, p_mystery_points: 60 }),
+      expect.objectContaining({ p_bounty_chip_award: 300, p_mystery_points: 60 }),
     );
   });
 
-  it("wanted bounty: a first-bullet knockout awards nothing", async () => {
+  it("wanted bounty: a first-bullet knockout pays the configured bounty points and 2 big blinds", async () => {
     const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
       mergeTournamentExtras({
         players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        pts: { bountyPoints: 30 },
         settings: { isBounty: true, bountyType: "wanted" },
       }),
     );
@@ -698,15 +699,17 @@ describe("TMA eliminations route", () => {
         body: JSON.stringify({
           eliminated_id: "out",
           killers: [{ id: "killer", name: "Killer", share: 1 }],
+          // The client never decides the points — a stale/garbage value must be ignored.
           mystery_bounty_points: 999,
         }),
       }),
     );
 
     expect(response.status).toBe(200);
+    // 100 BB × 2 = 200 chips, plus the admin-configured 30 bounty points.
     expect(supabase.rpc).toHaveBeenCalledWith(
       "record_player_elimination",
-      expect.objectContaining({ p_bounty_chip_award: 0, p_mystery_points: 0 }),
+      expect.objectContaining({ p_bounty_chip_award: 200, p_mystery_points: 30 }),
     );
   });
 
@@ -809,6 +812,61 @@ describe("TMA eliminations route", () => {
         p_eliminated_id: "out",
         p_uses_reentry: true,
       }),
+    );
+  });
+
+  it("wanted bounty: accepts the first double re-entry when the level allows it", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "wanted", reentryEnabled: true },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out", uses_reentry: true, reentry_double: true }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_uses_reentry: true, p_reentry_double: true }),
+    );
+  });
+
+  it("wanted bounty: refuses a second double re-entry for the same player", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("a", "A"),
+          player("b", "B"),
+          { ...player("out", "Out"), rebuys: 1, doubleRebuys: 1 },
+        ],
+        settings: { isBounty: true, bountyType: "wanted", reentryEnabled: true },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out", uses_reentry: true, reentry_double: true }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // The re-entry itself still goes through — only the x2 option is downgraded.
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_uses_reentry: true, p_reentry_double: false }),
     );
   });
 });

@@ -209,8 +209,13 @@ describe("getBountyChipAward", () => {
     expect(getBountyChipAward(bountyLevels, 4)).toBe(500);
   });
 
-  it("wanted award stays two current big blinds even after the last break", () => {
-    expect(getWantedBountyChipAward(bountyLevels, 2)).toBe(400);
-    expect(getWantedBountyChipAward(bountyLevels, 4)).toBe(1000);
+  it("wanted award pays two big blinds for a regular victim even after the last break", () => {
+    expect(getWantedBountyChipAward(bountyLevels, 2, false)).toBe(400);
+    expect(getWantedBountyChipAward(bountyLevels, 4, false)).toBe(1000);
+  });
+
+  it("wanted award pays three big blinds for a wanted victim even after the last break", () => {
+    expect(getWantedBountyChipAward(bountyLevels, 2, true)).toBe(600);
+    expect(getWantedBountyChipAward(bountyLevels, 4, true)).toBe(1500);
   });
 });

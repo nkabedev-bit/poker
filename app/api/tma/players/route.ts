@@ -78,6 +78,9 @@ export async function GET(request: Request) {
     maxAddons: extras.settings.maxAddons,
     maxReentries: extras.settings.maxReentries,
     players: extras.players || [],
+    // Wanted Bounty: the admin-configured knockout points for a regular (non-wanted)
+    // victim, surfaced so the confirm screen can show the exact award.
+    ptsBountyPoints: Math.max(0, Number(extras.pts.bountyPoints) || 0),
     tablesCount: extras.settings.tablesCount,
     reentryAvailable,
     doubleReentryAvailable,

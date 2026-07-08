@@ -123,14 +123,16 @@ export async function POST(request: Request) {
       isDealerLabel(eliminatedPlayer.label) ||
       isDealerLabel(getPersistedPlayerLabel(extras.playerLabels, eliminatedPlayer.name));
     // Wanted Bounty: a player who already used at least one re-entry carries a bounty on
-    // their head for the rest of the tournament; knocking them out pays side points plus
-    // a 2-big-blind stack reward. A first-bullet knockout pays nothing.
+    // their head for the rest of the tournament; knocking them out pays fixed side points
+    // plus a 3-big-blind stack reward. A regular (first-bullet) knockout pays the admin-
+    // configured "bounty points" plus a 2-big-blind stack reward.
     const isWantedBounty = extras.settings.bountyType === "wanted";
     const eliminatedIsWanted = Math.max(0, Number(eliminatedPlayer.rebuys ?? 0)) > 0;
+    const regularKnockoutPoints = Math.max(0, Number(extras.pts.bountyPoints) || 0);
     const mysteryBountyPoints = isDealerRevenge
       ? (eliminatedIsDealer ? DEALER_KNOCKOUT_POINTS : 0)
       : isWantedBounty
-        ? (eliminatedIsWanted ? WANTED_KNOCKOUT_POINTS : 0)
+        ? (eliminatedIsWanted ? WANTED_KNOCKOUT_POINTS : regularKnockoutPoints)
         : extras.settings.bountyType === "mystery"
           ? clientMysteryPoints
           : 0;
@@ -178,22 +180,25 @@ export async function POST(request: Request) {
       isReentryAvailable(timerState, blindLevels, now);
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
     // PHOENIX / DEEP STACK formats allow regular re-entries only — the double (x2)
-    // option is refused even when the blind level carries the x2 flag.
+    // option is refused even when the blind level carries the x2 flag. In Wanted Bounty
+    // the double re-entry is a once-per-player option on top of that.
     const reentryDouble =
       usesReentry &&
       Boolean(reentry_double) &&
       (extras.settings.tournamentFormat ?? "regular") === "regular" &&
+      (!isWantedBounty || Math.max(0, Number(eliminatedPlayer.doubleRebuys ?? 0)) === 0) &&
       Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
-    // The 2-big-blind stack reward for a knockout applies in STANDARD bounty (with the
-    // usual 2x-before-break / 1x-after formula) and in Wanted Bounty for wanted knockouts
-    // (always 2 big blinds, on top of the side points). In Mystery / Dealer Revenge the
-    // knockout reward is the side points only, so the killer's stack is left untouched.
+    // The big-blind stack reward for a knockout applies in STANDARD bounty (with the
+    // usual 2x-before-break / 1x-after formula) and in Wanted Bounty for every knockout
+    // (3 big blinds for a wanted victim, 2 for a regular one, on top of the side points).
+    // In Mystery / Dealer Revenge the knockout reward is the side points only, so the
+    // killer's stack is left untouched.
     const bountyChipAward =
       isBounty && sanitizedKillers.length > 0
         ? extras.settings.bountyType === "standard"
           ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
-          : isWantedBounty && eliminatedIsWanted
-            ? getWantedBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
+          : isWantedBounty
+            ? getWantedBountyChipAward(blindLevels, currentTimerState.currentLevelIndex, eliminatedIsWanted)
             : 0
         : 0;
     const killersWithBountyChips = sanitizedKillers.map((killer) => ({
