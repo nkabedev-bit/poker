@@ -4,7 +4,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
-import { getBountyChipAward, getEffectiveTimerState, getWantedBountyChipAward, isReentryAvailable } from "@/lib/timer/calculate";
+import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward, isReentryAvailable } from "@/lib/timer/calculate";
 import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
 import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
@@ -189,17 +189,20 @@ export async function POST(request: Request) {
       (!isWantedBounty || Math.max(0, Number(eliminatedPlayer.doubleRebuys ?? 0)) === 0) &&
       Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
     // The big-blind stack reward for a knockout applies in STANDARD bounty (with the
-    // usual 2x-before-break / 1x-after formula) and in Wanted Bounty for every knockout
-    // (3 big blinds for a wanted victim, 2 for a regular one, on top of the side points).
-    // In Mystery / Dealer Revenge the knockout reward is the side points only, so the
-    // killer's stack is left untouched.
+    // usual 2x-before-break / 1x-after formula), in Wanted Bounty for every knockout
+    // (3 big blinds for a wanted victim, 2 for a regular one, on top of the side points)
+    // and in Dealer Revenge for knocking out the dealer (3 big blinds on top of the side
+    // points). In Mystery — and for non-dealer victims in Dealer Revenge — the knockout
+    // reward is the side points only, so the killer's stack is left untouched.
     const bountyChipAward =
       isBounty && sanitizedKillers.length > 0
         ? extras.settings.bountyType === "standard"
           ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
           : isWantedBounty
             ? getWantedBountyChipAward(blindLevels, currentTimerState.currentLevelIndex, eliminatedIsWanted)
-            : 0
+            : isDealerRevenge && eliminatedIsDealer
+              ? getDealerKnockoutChipAward(blindLevels, currentTimerState.currentLevelIndex)
+              : 0
         : 0;
     const killersWithBountyChips = sanitizedKillers.map((killer) => ({
       ...killer,

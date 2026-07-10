@@ -490,8 +490,8 @@ export default function TMAEliminationsPage() {
                   <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎯 Выбит дилер</div>
                   <div className="text-xl font-bold text-yellow-400">
                     {selectedKillers.length > 1
-                      ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS каждому`
-                      : `+${DEALER_KNOCKOUT_POINTS} PTS`}
+                      ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
+                      : `+${DEALER_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
                   </div>
                 </div>
               )}

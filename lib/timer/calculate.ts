@@ -136,6 +136,15 @@ export function getWantedBountyChipAward(
   return bigBlind * (isWantedVictim ? 3 : 2);
 }
 
+// Dealer Revenge stack reward, regardless of breaks: three current big blinds for
+// knocking out the dealer. Regular knockouts leave the killer's stack untouched.
+export function getDealerKnockoutChipAward(
+  levels: BlindLevel[],
+  currentLevelIndex: number,
+): number {
+  return resolveEffectiveBigBlind(levels, Math.max(0, Math.trunc(currentLevelIndex))) * 3;
+}
+
 export function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60).toString().padStart(2, "0");
   const seconds = Math.floor(totalSeconds % 60).toString().padStart(2, "0");

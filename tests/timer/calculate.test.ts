@@ -3,6 +3,7 @@ import {
   calculateRemainingSeconds,
   getBountyChipAward,
   getCurrentAndNextLevel,
+  getDealerKnockoutChipAward,
   getWantedBountyChipAward,
   isReentryAvailable,
 } from "@/lib/timer/calculate";
@@ -217,5 +218,10 @@ describe("getBountyChipAward", () => {
   it("wanted award pays three big blinds for a wanted victim even after the last break", () => {
     expect(getWantedBountyChipAward(bountyLevels, 2, true)).toBe(600);
     expect(getWantedBountyChipAward(bountyLevels, 4, true)).toBe(1500);
+  });
+
+  it("dealer knockout award pays three big blinds even after the last break", () => {
+    expect(getDealerKnockoutChipAward(bountyLevels, 2)).toBe(600);
+    expect(getDealerKnockoutChipAward(bountyLevels, 4)).toBe(1500);
   });
 });
