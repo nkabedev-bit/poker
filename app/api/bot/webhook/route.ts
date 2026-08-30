@@ -227,6 +227,75 @@ bot.command("clearsheet", async (ctx) => {
   }
 });
 
+// Rebuild the current game's sheet from bounty_log. The per-elimination sync runs in the
+// background and its failures are swallowed, so a Google Sheets outage (a write-quota burst
+// during rapid knockouts, most of all) silently leaves the sheet behind the database. The
+// sync is a full rewrite, so a single successful run restores the sheet — this command is
+// that run, on demand. Unlike /clearsheet it only READS the database; nothing is deleted.
+bot.command("resync", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  const { data: admin } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  if (!admin) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    const { data: tournament } = await supabase
+      .from("tournaments")
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (!tournament) {
+      return ctx.reply("Ошибка: турнир не найден.");
+    }
+
+    const { getEffectiveSessionStart, syncTournamentToSheets } = await import("@/lib/google-sheets");
+
+    const { data: extrasData } = await supabase
+      .from("tournament_extras")
+      .select("data")
+      .eq("tournament_id", tournament.id)
+      .maybeSingle();
+    const extras = extrasData?.data as { settings?: { sheetsSessionStartedAt?: unknown } } | null | undefined;
+    const rawSessionStart = typeof extras?.settings?.sheetsSessionStartedAt === "string"
+      ? extras.settings.sheetsSessionStartedAt
+      : null;
+    // A stale session start makes the sync fall back to the current Moscow day, which after
+    // midnight targets a different sheet than the game being restored. Say so explicitly:
+    // the admin can still read the reported sheet name and see it is the wrong one.
+    const sessionExpired = Boolean(rawSessionStart) && getEffectiveSessionStart(rawSessionStart) === null;
+
+    const result = await syncTournamentToSheets(supabase, tournament.id);
+
+    if (!result) {
+      return ctx.reply("Google Sheets не настроен: нет GOOGLE_SHEET_ID или GOOGLE_SERVICE_ACCOUNT_KEY.");
+    }
+
+    const warning = sessionExpired
+      ? "\n\nВнимание: сессия игры устарела (>12 часов), лист выбран по текущей дате."
+      : "";
+
+    await ctx.reply(
+      `Лист "${result.sheetName}" пересобран из базы.\n`
+      + `Вылетов: ${result.eliminationCount}\n`
+      + `Игроков в зачёте: ${result.standingsCount}${warning}`,
+    );
+  } catch (err: unknown) {
+    console.error("Error in /resync command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Ошибка при пересинхронизации: ${message}`);
+  }
+});
+
 type ExtrasPlayer = Record<string, unknown> & { name?: unknown; label?: unknown };
 
 async function loadTournamentAndPlayers(supabase: ReturnType<typeof getAdminSupabase>) {

@@ -700,8 +700,17 @@ async function updateEliminationRows(
   });
 }
 
-export async function syncTournamentToSheets(supabase: SupabaseClient, tournamentId: string) {
-  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
+export type TournamentSheetSyncResult = {
+  eliminationCount: number;
+  sheetName: string;
+  standingsCount: number;
+};
+
+export async function syncTournamentToSheets(
+  supabase: SupabaseClient,
+  tournamentId: string,
+): Promise<TournamentSheetSyncResult | null> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
 
   const { data } = await supabase
     .from("tournament_extras")
@@ -759,6 +768,12 @@ export async function syncTournamentToSheets(supabase: SupabaseClient, tournamen
     extras.settings.bountyType,
   );
   await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
+
+  return {
+    eliminationCount: sheetLogs.length,
+    sheetName,
+    standingsCount: standingsPlayers.length,
+  };
 }
 
 // Read the VIP grid as a string matrix. Guards against a transient empty read: a populated
