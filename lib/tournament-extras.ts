@@ -72,5 +72,7 @@ export async function saveTournamentExtras(
 
   await broadcastPublicState(tournament.public_token as string);
   revalidatePath(redirectTo);
-  revalidatePath("/screen/[token]");
+  // A dynamic route needs the "page" type; without it Next logs a warning and revalidates
+  // nothing, so the public screen kept serving a stale cache.
+  revalidatePath("/screen/[token]", "page");
 }
