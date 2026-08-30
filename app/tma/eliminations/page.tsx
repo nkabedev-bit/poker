@@ -25,6 +25,23 @@ function createClientRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
 }
 
+// A failed elimination must be impossible to miss: the admin has to know to repeat it.
+// showAlert is missing outside Telegram (and on old clients), so fall back to the browser
+// dialog rather than letting the failure pass unseen.
+function notifyEliminationFailed(
+  tg: ReturnType<typeof getTelegramWebApp>,
+  message: string,
+) {
+  tg?.HapticFeedback?.notificationOccurred?.("error");
+
+  if (tg?.showAlert) {
+    tg.showAlert(message);
+    return;
+  }
+
+  globalThis.alert?.(message);
+}
+
 export default function TMAEliminationsPage() {
   const { initData } = useTMA();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -214,8 +231,14 @@ export default function TMAEliminationsPage() {
         clientRequestIdRef.current = null;
         void fetchPlayers();
       } else {
-        tg?.showAlert("Ошибка сохранения");
+        notifyEliminationFailed(tg, `Ошибка сохранения (код ${res.status}). Вылет НЕ записан, повтори.`);
       }
+    } catch {
+      // A rejected fetch (lost connection, request killed when the WebView is backgrounded)
+      // used to escape through the `finally` unhandled: the spinner stopped, no alert was
+      // shown, and the elimination was silently lost. The retry stays safe because
+      // clientRequestIdRef is kept — the server deduplicates by it.
+      notifyEliminationFailed(tg, "Нет связи с сервером. Вылет НЕ записан, повтори.");
     } finally {
       submitInFlightRef.current = false;
       setIsSubmitting(false);
