@@ -258,7 +258,7 @@ bot.command("resync", async (ctx) => {
       return ctx.reply("Ошибка: турнир не найден.");
     }
 
-    const { getEffectiveSessionStart, syncTournamentToSheets } = await import("@/lib/google-sheets");
+    const { getEffectiveSessionStart, syncTournamentToSheets, syncVipSheet } = await import("@/lib/google-sheets");
 
     const { data: extrasData } = await supabase
       .from("tournament_extras")
@@ -279,6 +279,11 @@ bot.command("resync", async (ctx) => {
     if (!result) {
       return ctx.reply("Google Sheets не настроен: нет GOOGLE_SHEET_ID или GOOGLE_SERVICE_ACCOUNT_KEY.");
     }
+
+    // The per-elimination sync no longer touches the VIP tab (a knockout cannot change who
+    // is VIP — that is fixed by registration number), so this manual rebuild is the place
+    // that repairs a VIP write lost during registration.
+    await syncVipSheet(supabase, tournament.id);
 
     const warning = sessionExpired
       ? "\n\nВнимание: сессия игры устарела (>12 часов), лист выбран по текущей дате."

@@ -354,20 +354,23 @@ async function getAuth() {
   }
 }
 
-async function getOrCreateSheet(
+// Create the tab if it is missing. Costs no write request when the tab already exists, which
+// is every sync after the first one of a game.
+async function ensureSheetExists(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   sheetName: string,
-  headers = ELIMINATION_SHEET_HEADERS,
 ) {
   const meta = await sheets.spreadsheets.get({ spreadsheetId });
   const exists = meta.data.sheets?.some(
     (s: sheets_v4.Schema$Sheet) => s.properties?.title === sheetName
   );
 
-  if (!exists) {
-    try {
-      await sheets.spreadsheets.batchUpdate({
+  if (exists) return;
+
+  try {
+    await withRateLimitRetry(() =>
+      sheets.spreadsheets.batchUpdate({
         spreadsheetId,
         requestBody: {
           requests: [
@@ -376,14 +379,20 @@ async function getOrCreateSheet(
             },
           ],
         },
-      });
-
-      await updateSheetHeaders(sheets, spreadsheetId, sheetName, headers);
-    } catch {
-      console.log("Sheet creation race condition handled");
-    }
+      }),
+    );
+  } catch {
+    console.log("Sheet creation race condition handled");
   }
+}
 
+async function getOrCreateSheet(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  sheetName: string,
+  headers = ELIMINATION_SHEET_HEADERS,
+) {
+  await ensureSheetExists(sheets, spreadsheetId, sheetName);
   await updateSheetHeaders(sheets, spreadsheetId, sheetName, headers);
 }
 
@@ -415,6 +424,83 @@ function getSheetColumnName(columnNumber: number) {
 
   return name;
 }
+
+type SheetValueRange = {
+  range: string;
+  values: (string | number)[][];
+};
+
+// Google Sheets allows 60 write requests per minute per user (the service account is one
+// user). A full tournament sync used to cost 9 writes, so eight knockouts inside a minute
+// blew the quota and the sync died mid-way — see the 2026-08-30 incident, where a burst of
+// rapid eliminations left the sheet behind the database. Batching every block of a sheet
+// into one values.batchUpdate per valueInputOption brings a sync down to 2 writes, and the
+// blocks land atomically: no clear-then-fail window that can blank a populated sheet.
+async function batchUpdateValues(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+  valueInputOption: "RAW" | "USER_ENTERED",
+  data: SheetValueRange[],
+) {
+  if (data.length === 0) return;
+
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.batchUpdate({
+      spreadsheetId,
+      requestBody: { data, valueInputOption },
+    }),
+  );
+}
+
+function isRateLimitError(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+  const status = (error as { code?: unknown; status?: unknown }).code
+    ?? (error as { status?: unknown }).status;
+  if (Number(status) === 429) return true;
+  return String((error as { message?: unknown }).message ?? "").includes("Quota exceeded");
+}
+
+const RATE_LIMIT_RETRY_DELAYS_MS = [1500, 4000];
+
+// The per-minute quota is a sliding window, so a burst that trips it clears within seconds.
+// One or two spaced retries turn a transient 429 into a completed write instead of a sync
+// that dies and silently leaves the sheet stale.
+async function withRateLimitRetry<T>(operation: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length || !isRateLimitError(error)) throw error;
+      console.warn(
+        `Google Sheets rate-limited; retrying in ${RATE_LIMIT_RETRY_DELAYS_MS[attempt]}ms`,
+      );
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_RETRY_DELAYS_MS[attempt]));
+    }
+  }
+}
+
+// Blank rows appended past the real data so a shrinking block (a cancelled elimination, a
+// removed player) overwrites its own stale tail. This replaces the values.clear that used to
+// precede every block write: the clear cost a request of its own and, worse, left the sheet
+// wiped whenever the write that should have followed it failed.
+function padRowsToClearTail(
+  rows: (string | number)[][],
+  columnCount: number,
+  minimumRows: number,
+) {
+  const targetLength = Math.max(rows.length + TAIL_PADDING_ROWS, minimumRows);
+  const blankRow = Array.from({ length: columnCount }, () => "");
+
+  return [
+    ...rows,
+    ...Array.from({ length: Math.max(0, targetLength - rows.length) }, () => [...blankRow]),
+  ];
+}
+
+// A block never shrinks by more than a handful of rows in one sync — an elimination is
+// cancelled one at a time, a player is deleted one at a time. A whole-sheet reset goes
+// through /clearsheet, which clears A2:P itself.
+const TAIL_PADDING_ROWS = 50;
 
 export async function appendEliminationRow(data: {
   eliminatedName: string;
@@ -597,43 +683,28 @@ export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | num
     });
 }
 
-async function updatePlayerOrderRows(
-  sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
+function buildPlayerOrderBlock(
   sheetName: string,
   players: TournamentPlayer[],
   bountyType: string,
-) {
+): SheetValueRange {
   // In mystery / dealer modes the standings block is one column wider (F:J), so the order
   // block shifts right to L:P to keep an empty spacer column between the two. Standard mode
   // keeps K:O (standings end at I, J is the spacer).
   const [firstColumn, lastColumn] = isSideBountyPoints(bountyType) ? ["L", "P"] : ["K", "O"];
+  const orderRows = padRowsToClearTail(buildPlayerOrderRows(players), 5, 0);
 
-  // Clear the previous block first so shrinking the roster never leaves a stale tail.
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `'${sheetName}'!${firstColumn}2:${lastColumn}`,
-  });
-
-  const orderRows = buildPlayerOrderRows(players);
-
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
+  return {
     range: `'${sheetName}'!${firstColumn}1:${lastColumn}${orderRows.length + 1}`,
-    valueInputOption: "RAW",
-    requestBody: {
-      values: [["№", "Игрок", "Аддоны", "Ребаи", "Двойной ребай"], ...orderRows],
-    },
-  });
+    values: [["№", "Игрок", "Аддоны", "Ребаи", "Двойной ребай"], ...orderRows],
+  };
 }
 
-async function updatePtsStandingsRows(
-  sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
+function buildPtsStandingsBlock(
   sheetName: string,
   rows: PtsStandingRow[],
   bountyType: string,
-) {
+): SheetValueRange {
   const paddedRows = Array.from({ length: 28 }, (_, index) => {
     return (
       rows[index] ?? { bountyCount: null, mysteryPoints: null, place: index + 1, playerName: "", points: null }
@@ -658,46 +729,54 @@ async function updatePtsStandingsRows(
     ]
     : ["Место", "Игрок", "PTS", "Кол-во баунти"];
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
+  return {
     range: `'${sheetName}'!F1:${isWide ? "J" : "I"}29`,
-    valueInputOption: "RAW",
-    requestBody: {
-      values: [
-        headers,
-        ...paddedRows.map((row) => [
-          row.place,
-          row.playerName || "",
-          row.points ?? "",
-          (isWide ? row.mysteryPoints : row.bountyCount) ?? "",
-          ...(isWide ? [row.bountyCount ?? ""] : []),
-        ]),
-      ],
-    },
-  });
+    values: [
+      headers,
+      ...paddedRows.map((row) => [
+        row.place,
+        row.playerName || "",
+        row.points ?? "",
+        (isWide ? row.mysteryPoints : row.bountyCount) ?? "",
+        ...(isWide ? [row.bountyCount ?? ""] : []),
+      ]),
+    ],
+  };
 }
 
-async function updateEliminationRows(
+// Kept for appendEliminationRow, the legacy single-row path that writes this block on its
+// own rather than as part of a batched full sync.
+async function updatePtsStandingsRows(
   sheets: sheets_v4.Sheets,
   spreadsheetId: string,
   sheetName: string,
-  rows: unknown[][],
+  rows: PtsStandingRow[],
+  bountyType: string,
 ) {
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `'${sheetName}'!A2:D`,
-  });
+  const block = buildPtsStandingsBlock(sheetName, rows, bountyType);
 
-  if (rows.length === 0) return;
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: block.range,
+      valueInputOption: "RAW",
+      requestBody: { values: block.values },
+    }),
+  );
+}
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `'${sheetName}'!A2:D${rows.length + 1}`,
-    valueInputOption: "USER_ENTERED",
-    requestBody: {
-      values: rows,
-    },
-  });
+// The elimination list (A:D). USER_ENTERED so the "Время вылета" column stays a real time
+// value rather than text, which is why this block is batched separately from the RAW ones.
+function buildEliminationBlock(
+  sheetName: string,
+  rows: (string | number)[][],
+): SheetValueRange {
+  const padded = padRowsToClearTail(rows, 4, 0);
+
+  return {
+    range: `'${sheetName}'!A2:D${padded.length + 1}`,
+    values: padded,
+  };
 }
 
 export type TournamentSheetSyncResult = {
@@ -743,31 +822,37 @@ export async function syncTournamentToSheets(
   const sheetName = getEliminationSheetName(sessionStartedAt);
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
-  await getOrCreateSheet(sheets, spreadsheetId, sheetName);
-  await updateEliminationRows(
-    sheets,
-    spreadsheetId,
-    sheetName,
-    buildEliminationSheetRows(sheetLogs),
-  );
-  await updatePtsStandingsRows(
-    sheets,
-    spreadsheetId,
-    sheetName,
-    buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType: extras.settings.bountyType }),
-    extras.settings.bountyType,
-  );
-  // Use the same finished-game fallback as the standings: when the tournament ends the
-  // roster in extras is wiped, but the final sync must not blank the K/L player-order list —
-  // the last log's players_after still holds the full roster with registration numbers.
-  await updatePlayerOrderRows(
-    sheets,
-    spreadsheetId,
-    sheetName,
-    standingsPlayers,
-    extras.settings.bountyType,
-  );
-  await writeVipSheet(sheets, spreadsheetId, sheetName, extras.players);
+  await ensureSheetExists(sheets, spreadsheetId, sheetName);
+
+  const bountyType = extras.settings.bountyType;
+
+  // Two writes for the whole sheet, split only by valueInputOption: the headers, the PTS
+  // standings and the player order are literal values (RAW), while the elimination rows go
+  // through USER_ENTERED so their time column is stored as a time. Everything inside one
+  // batch lands or fails together.
+  await batchUpdateValues(sheets, spreadsheetId, "RAW", [
+    {
+      // A:D are the elimination list headers and E is the spacer column, blanked here just
+      // as the old full-width header write did. F onwards belongs to the standings block,
+      // which writes its own mode-dependent headers below.
+      range: `'${sheetName}'!A1:E1`,
+      values: [ELIMINATION_SHEET_HEADERS.slice(0, 5)],
+    },
+    buildPtsStandingsBlock(
+      sheetName,
+      buildPtsStandingsRows(standingsPlayers, { ...extras.pts, bountyType }),
+      bountyType,
+    ),
+    // Use the same finished-game fallback as the standings: when the tournament ends the
+    // roster in extras is wiped, but the final sync must not blank the K/L player-order
+    // list — the last log's players_after still holds the full roster with registration
+    // numbers.
+    buildPlayerOrderBlock(sheetName, standingsPlayers, bountyType),
+  ]);
+
+  await batchUpdateValues(sheets, spreadsheetId, "USER_ENTERED", [
+    buildEliminationBlock(sheetName, buildEliminationSheetRows(sheetLogs)),
+  ]);
 
   return {
     eliminationCount: sheetLogs.length,
@@ -818,20 +903,14 @@ async function writeVipGridNoClear(
   const [header, ...body] = grid;
   const lastColumn = getSheetColumnName(Math.max(header.length, 1));
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `'${VIP_SHEET_NAME}'!A1:${lastColumn}1`,
-    valueInputOption: "RAW",
-    requestBody: { values: [header] },
-  });
+  await batchUpdateValues(sheets, spreadsheetId, "RAW", [
+    { range: `'${VIP_SHEET_NAME}'!A1:${lastColumn}1`, values: [header] },
+  ]);
 
   if (body.length > 0) {
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `'${VIP_SHEET_NAME}'!A2`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: body },
-    });
+    await batchUpdateValues(sheets, spreadsheetId, "USER_ENTERED", [
+      { range: `'${VIP_SHEET_NAME}'!A2`, values: body },
+    ]);
   }
 }
 
@@ -841,7 +920,9 @@ async function writeVipSheet(
   gameDate: string,
   players: TournamentPlayer[],
 ) {
-  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+  // No header write of its own: serializeVipGrid already puts VIP_SHEET_HEADERS in row 0 of
+  // the grid written below, so a separate one would just spend a request on the same values.
+  await ensureSheetExists(sheets, spreadsheetId, VIP_SHEET_NAME);
 
   const existingGrid = await readVipGrid(sheets, spreadsheetId);
   const grid = buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players));
@@ -899,7 +980,9 @@ export async function removePlayerFromVipSheet(
     getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
   );
 
-  await getOrCreateSheet(sheets, spreadsheetId, VIP_SHEET_NAME, VIP_SHEET_HEADERS);
+  // No header write of its own: serializeVipGrid already puts VIP_SHEET_HEADERS in row 0 of
+  // the grid written below, so a separate one would just spend a request on the same values.
+  await ensureSheetExists(sheets, spreadsheetId, VIP_SHEET_NAME);
 
   const existingGrid = await readVipGrid(sheets, spreadsheetId);
   const grid = removeFromVipSheetGrid(existingGrid, gameDate, name);
