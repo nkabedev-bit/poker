@@ -19,15 +19,15 @@ describe("player registration number formatting", () => {
 });
 
 describe("VIP player category", () => {
-  it("marks registration numbers 19-27 (table 3) as VIP", () => {
-    expect(getPlayerCategory(19)).toBe("VIP");
-    expect(getPlayerCategory(23)).toBe("VIP");
-    expect(getPlayerCategory(27)).toBe("VIP");
+  it("marks registration numbers 21-30 (table 3) as VIP", () => {
+    expect(getPlayerCategory(21)).toBe("VIP");
+    expect(getPlayerCategory(25)).toBe("VIP");
+    expect(getPlayerCategory(30)).toBe("VIP");
   });
 
-  it("marks numbers outside 19-27 as Normal", () => {
-    expect(getPlayerCategory(18)).toBe("Normal");
-    expect(getPlayerCategory(28)).toBe("Normal");
+  it("marks numbers outside 21-30 as Normal", () => {
+    expect(getPlayerCategory(20)).toBe("Normal");
+    expect(getPlayerCategory(31)).toBe("Normal");
     expect(getPlayerCategory(1)).toBe("Normal");
     expect(getPlayerCategory(null)).toBe("Normal");
   });

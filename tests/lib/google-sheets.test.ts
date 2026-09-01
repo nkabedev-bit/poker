@@ -204,11 +204,11 @@ describe("Google Sheets tournament day sync helpers", () => {
 });
 
 describe("VIP sheet", () => {
-  it("selects VIP players solely by registration number 19-27 (category is ignored)", () => {
+  it("selects VIP players solely by registration number 21-30 (category is ignored)", () => {
     const players = [
-      vipPlayer("a", "Alice", { registrationNumber: 19 }),
+      vipPlayer("a", "Alice", { registrationNumber: 21 }),
       vipPlayer("b", "Bob", { registrationNumber: 5, category: "VIP" }),
-      vipPlayer("c", "Carol", { registrationNumber: 27 }),
+      vipPlayer("c", "Carol", { registrationNumber: 30 }),
       vipPlayer("d", "Dave", { category: "VIP" }), // no number -> not VIP
     ];
 

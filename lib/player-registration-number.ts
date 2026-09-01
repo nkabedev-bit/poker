@@ -1,5 +1,5 @@
-export const VIP_REGISTRATION_NUMBER_MIN = 19;
-export const VIP_REGISTRATION_NUMBER_MAX = 27;
+export const VIP_REGISTRATION_NUMBER_MIN = 21;
+export const VIP_REGISTRATION_NUMBER_MAX = 30;
 
 export type PlayerCategory = "VIP" | "Normal";
 

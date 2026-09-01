@@ -384,7 +384,7 @@ describe("TMA players route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.player.registrationNumber).toBe(19);
+    expect(data.player.registrationNumber).toBe(21);
     expect(data.player.category).toBe("VIP");
     expect(supabase.rpc).toHaveBeenCalledWith(
       "append_tournament_player",
@@ -395,7 +395,7 @@ describe("TMA players route", () => {
         players: [
           expect.objectContaining({
             name: "Fallback Player",
-            registrationNumber: 19,
+            registrationNumber: 21,
             category: "VIP",
           }),
         ],
