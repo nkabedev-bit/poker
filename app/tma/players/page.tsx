@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { ArrowRightLeft, BadgePlus, ChevronLeft, RotateCcw, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, BadgePlus, ChevronLeft, ClipboardList, RotateCcw, Plus, Trash2, Users } from "lucide-react";
 import { formatPlayerNameWithRegistrationNumber } from "@/lib/player-registration-number";
 
 // Addon chip amount credited by the TMA admin app: fixed, no manual input — the
@@ -443,6 +444,13 @@ export default function TMAPlayersPage() {
           <Plus size={20} />
         </button>
       </div>
+
+      <Link
+        className="mb-4 flex items-center justify-center gap-2 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg text-sm font-medium"
+        href="/tma/signups"
+      >
+        <ClipboardList size={16} /> Заявки на турнир
+      </Link>
 
       <div className="flex justify-between text-sm text-[var(--tg-theme-hint-color)] mb-4 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg">
         <span>Активных: <strong className="text-white">{activeCount}</strong></span>

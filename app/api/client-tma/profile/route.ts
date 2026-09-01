@@ -1,0 +1,92 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
+import { appendClientBotProfileRow } from "@/lib/google-sheets";
+import { normalizeClientBotText } from "@/lib/client-bot/registration";
+
+export const dynamic = "force-dynamic";
+
+const profileSchema = z.object({
+  agreementAccepted: z.literal(true, {
+    message: "Без принятия пользовательского соглашения записаться нельзя",
+  }),
+  birthDate: z.string().trim().min(1, "Укажите дату рождения"),
+  discoverySource: z.string().trim().min(1, "Расскажите, как вы о нас узнали").max(200),
+  fullName: z.string().trim().min(2, "Укажите имя и фамилию").max(100),
+  nickname: z.string().trim().min(2, "Укажите игровой никнейм").max(40),
+  notificationsConsent: z.boolean(),
+  phone: z.string().trim().min(5, "Укажите номер телефона").max(30),
+  ratingConsent: z.boolean(),
+});
+
+// The birthday cron reads the "анкеты" sheet expecting a DD.MM date, so an ISO value
+// coming from <input type="date"> is converted before it ever reaches the sheet.
+function formatBirthDate(value: string) {
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return isoMatch ? `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}` : value;
+}
+
+export async function POST(request: Request) {
+  const auth = await requireClientTmaAuth(request);
+  if (auth.error) return auth.error;
+
+  // The nickname is locked to the player once submitted, so a filled-in profile is
+  // never silently overwritten by a second submit.
+  if (auth.user.profile_submitted_at) {
+    return NextResponse.json(
+      { error: "already_submitted", message: "Анкета уже заполнена." },
+      { status: 409 },
+    );
+  }
+
+  const body = await request.json().catch(() => ({}));
+  const parsed = profileSchema.safeParse(body);
+
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "invalid", message: parsed.error.issues[0]?.message ?? "Проверьте поля анкеты." },
+      { status: 400 },
+    );
+  }
+
+  const answers = {
+    agreementAccepted: true,
+    birthDate: formatBirthDate(parsed.data.birthDate),
+    discoverySource: normalizeClientBotText(parsed.data.discoverySource),
+    fullName: normalizeClientBotText(parsed.data.fullName),
+    nickname: normalizeClientBotText(parsed.data.nickname),
+    notificationsConsent: parsed.data.notificationsConsent,
+    phone: normalizeClientBotText(parsed.data.phone),
+    ratingConsent: parsed.data.ratingConsent,
+  };
+
+  const submittedAt = new Date();
+
+  const { error } = await auth.supabase
+    .from("client_bot_users")
+    .update({
+      display_name: answers.nickname,
+      pending_display_name: null,
+      pending_profile_answers: answers,
+      profile_submitted_at: submittedAt.toISOString(),
+      state: "idle",
+    })
+    .eq("telegram_id", auth.user.telegram_id);
+
+  if (error) throw error;
+
+  // The sheet is the club's own copy of the questionnaire; losing it must not fail a
+  // registration that is already stored in the database.
+  try {
+    await appendClientBotProfileRow({
+      answers,
+      submittedAt,
+      telegramId: auth.user.telegram_id,
+      username: auth.user.username,
+    });
+  } catch (sheetError) {
+    console.error("Non-critical client profile sheet sync error:", sheetError);
+  }
+
+  return NextResponse.json({ nickname: answers.nickname, profileSubmitted: true });
+}

@@ -1,203 +1,186 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, ClipboardList, KeyRound, PartyPopper } from "lucide-react";
-import { getClientTelegramWebApp, useClientTMA } from "./layout";
-import { GlassCard, LoadingScreen, PrimaryButton, ScreenMessage } from "./_components/ui";
+import Link from "next/link";
+import { CalendarDays, ClipboardList, Clock, LifeBuoy, MapPin, Spade, Users } from "lucide-react";
+import { useClientTMA } from "./layout";
+import { Badge, Chip, GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_components/ui";
+import {
+  formatEventDayLabel,
+  formatEventTimeLabel,
+  type TournamentEvent,
+} from "@/lib/events/types";
 
-type Registered = {
-  registrationNumber: number | null;
-  table: number | null;
-  name: string;
+type EventCard = TournamentEvent & { signedUp: boolean; signupsCount: number };
+
+type EventsResponse = {
+  events: EventCard[];
+  player: { displayName: string | null; profileSubmitted: boolean; username: string | null };
 };
 
-type Me = {
-  profileSubmitted: boolean;
-  tablesCount: number;
-  registered: Registered | null;
-};
-
-export default function ClientRegisterPage() {
+export default function ClientHomePage() {
   const { initData } = useClientTMA();
-  const [me, setMe] = useState<Me | null>(null);
+  const [data, setData] = useState<EventsResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [step, setStep] = useState<"code" | "table">("code");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [checkingCode, setCheckingCode] = useState(false);
 
-  const loadMe = useCallback(async () => {
+  const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/client-tma/me", {
+      const res = await fetch("/api/client-tma/events", {
         headers: { "X-Telegram-Init-Data": initData },
       });
-      if (res.ok) setMe(await res.json());
+      if (res.ok) setData(await res.json());
     } finally {
       setLoading(false);
     }
   }, [initData]);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => void loadMe(), 0);
+    const timeout = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timeout);
-  }, [loadMe]);
-
-  const checkCode = async () => {
-    setCheckingCode(true);
-    setError("");
-    try {
-      const res = await fetch("/api/client-tma/validate-code", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? "Не удалось проверить код.");
-        return;
-      }
-      if (!data.valid) {
-        setError("Ошибка. Код неверный.");
-        getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("error");
-        return;
-      }
-      setStep("table");
-    } catch {
-      setError("Что-то пошло не так. Попробуйте ещё раз.");
-    } finally {
-      setCheckingCode(false);
-    }
-  };
-
-  const register = async (table: number) => {
-    setSubmitting(true);
-    setError("");
-    try {
-      const res = await fetch("/api/client-tma/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ code, table }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.message ?? "Не удалось зарегистрироваться.");
-        if (data.error === "invalid_code") setStep("code");
-        getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("error");
-        return;
-      }
-      getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
-      setMe((current) =>
-        current ? { ...current, registered: { registrationNumber: data.registrationNumber, table: data.table, name: data.name } } : current,
-      );
-    } catch {
-      setError("Что-то пошло не так. Попробуйте ещё раз.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  }, [load]);
 
   if (loading) return <LoadingScreen />;
 
-  if (!me?.profileSubmitted) {
-    return (
-      <ScreenMessage
-        icon={<ClipboardList size={34} />}
-        title="Сначала заполните анкету"
-        subtitle="Вернитесь в бот и заполните анкету — после этого здесь откроется регистрация на игру."
-      />
-    );
-  }
-
-  if (me.registered) {
-    return (
-      <div className="space-y-5 pt-4">
-        <GlassCard className="overflow-hidden text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-400/15 text-emerald-300">
-            <PartyPopper size={30} />
-          </div>
-          <h1 className="text-2xl font-bold">Вы в игре!</h1>
-          <p className="mt-1 text-sm text-white/55">{me.registered.name}</p>
-
-          <div className="mt-6 grid grid-cols-2 gap-3">
-            <Stat label="Номер участника" value={me.registered.registrationNumber ?? "—"} />
-            <Stat label="Стол" value={me.registered.table ?? "—"} />
-          </div>
-        </GlassCard>
-        <p className="px-2 text-center text-xs text-white/40">
-          Удачи за столом! Достижения обновятся после завершения игры.
-        </p>
-      </div>
-    );
-  }
+  const events = data?.events ?? [];
+  const [nextEvent, ...laterEvents] = events;
+  const playerName = data?.player.displayName?.trim() || "Гость";
+  const address = events.find((event) => event.venueAddress)?.venueAddress ?? "";
 
   return (
-    <div className="space-y-5 pt-4">
-      <div className="px-1">
-        <h1 className="text-2xl font-bold">Регистрация на игру</h1>
-        <p className="mt-1 text-sm text-white/55">
-          {step === "code" ? "Введите кодовое слово от организатора." : "Выберите свой стол."}
-        </p>
-      </div>
+    <div className="space-y-6 pt-2">
+      <GlassCard className="flex items-center gap-3 !p-4">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-b from-[#b8163c] to-[#7d0d26] text-lg font-bold">
+          {playerName.slice(0, 1).toUpperCase()}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-semibold">{playerName}</p>
+          <p className="text-xs text-white/45">
+            {data?.player.username ? `@${data.player.username}` : "Игрок клуба"}
+          </p>
+        </div>
+      </GlassCard>
 
-      {step === "code" ? (
-        <GlassCard className="space-y-4">
-          <label className="flex items-center gap-2 text-sm font-medium text-amber-200/80">
-            <KeyRound size={16} /> Кодовое слово
-          </label>
-          <input
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            placeholder="Введите код"
-            autoFocus
-            className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-base text-white placeholder:text-white/30 outline-none focus:border-amber-300/50"
-          />
-          <PrimaryButton
-            disabled={!code.trim()}
-            loading={checkingCode}
-            onClick={() => void checkCode()}
-          >
-            Продолжить
-          </PrimaryButton>
-        </GlassCard>
-      ) : (
-        <GlassCard className="space-y-4">
-          <p className="text-sm font-medium text-amber-200/80">Номер стола</p>
-          <div className="grid grid-cols-3 gap-3">
-            {Array.from({ length: me.tablesCount }, (_, index) => index + 1).map((table) => (
-              <button
-                key={table}
-                disabled={submitting}
-                onClick={() => void register(table)}
-                className="flex aspect-square items-center justify-center rounded-2xl border border-white/10 bg-black/30 text-2xl font-bold text-white transition active:scale-95 disabled:opacity-50 hover:border-amber-300/50"
-              >
-                {table}
-              </button>
-            ))}
+      {data && !data.player.profileSubmitted ? (
+        <GlassCard className="space-y-3 border-[#b8163c]/40 bg-[#b8163c]/10">
+          <div className="flex items-start gap-3">
+            <ClipboardList className="mt-0.5 shrink-0 text-[#f05a7e]" size={20} />
+            <div>
+              <p className="text-base font-semibold">Заполните анкету</p>
+              <p className="mt-1 text-sm text-white/60">
+                Пара минут — и откроется запись на турниры.
+              </p>
+            </div>
           </div>
+          <Link href="/client/onboarding">
+            <PrimaryButton>Заполнить анкету</PrimaryButton>
+          </Link>
+        </GlassCard>
+      ) : null}
+
+      {nextEvent ? (
+        <EventPoster event={nextEvent} featured />
+      ) : (
+        <GlassCard className="text-center">
+          <CalendarDays className="mx-auto mb-3 text-white/35" size={28} />
+          <p className="text-base font-semibold">Ближайших турниров пока нет</p>
+          <p className="mt-1 text-sm text-white/50">
+            Как только появится новая игра, она возникнет здесь.
+          </p>
         </GlassCard>
       )}
 
-      {error ? (
-        <p className="flex items-center justify-center gap-2 text-center text-sm text-rose-300">
-          {error}
-        </p>
+      {laterEvents.length > 0 ? (
+        <section className="space-y-3">
+          <SectionHeader title="Дальше в календаре" />
+          {laterEvents.map((event) => (
+            <EventPoster key={event.id} event={event} />
+          ))}
+        </section>
       ) : null}
 
-      {submitting ? (
-        <p className="flex items-center justify-center gap-2 text-center text-sm text-amber-200/70">
-          <CheckCircle2 size={16} /> Регистрируем…
-        </p>
+      <section className="space-y-3">
+        <SectionHeader href="/client/rating" title="Рейтинг" />
+        <GlassCard className="text-center">
+          <p className="text-sm text-white/55">
+            Таблица рейтинга скоро появится здесь.
+          </p>
+        </GlassCard>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3">
+        <GlassCard className="!p-4">
+          <LifeBuoy className="mb-2 text-white/45" size={20} />
+          <p className="text-sm font-semibold">Поддержка</p>
+          <p className="mt-1 text-xs text-white/45">Напишите админам в боте</p>
+        </GlassCard>
+        <GlassCard className="!p-4">
+          <Spade className="mb-2 text-white/45" size={20} />
+          <p className="text-sm font-semibold">О клубе</p>
+          <p className="mt-1 text-xs text-white/45">Majestic Poker</p>
+        </GlassCard>
+      </div>
+
+      {address ? (
+        <GlassCard className="!p-4">
+          <div className="flex items-start gap-3">
+            <MapPin className="mt-0.5 shrink-0 text-white/45" size={18} />
+            <div>
+              <p className="text-sm font-semibold">Адрес</p>
+              <p className="mt-1 text-sm text-white/55">{address}</p>
+            </div>
+          </div>
+        </GlassCard>
       ) : null}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function EventPoster({ event, featured = false }: { event: EventCard; featured?: boolean }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-      <p className="text-3xl font-bold text-amber-300">{value}</p>
-      <p className="mt-1 text-[11px] uppercase tracking-wide text-white/45">{label}</p>
-    </div>
+    <Link className="block" href={`/client/events/${event.id}`}>
+      <div
+        className={`relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-[#3a0a17] via-[#1a0509] to-[#0b0708] ${
+          featured ? "p-5" : "p-4"
+        }`}
+      >
+        {event.posterUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-35"
+            src={event.posterUrl}
+          />
+        ) : null}
+
+        <div className="relative space-y-3">
+          <h3 className={`font-bold uppercase leading-tight ${featured ? "text-2xl" : "text-lg"}`}>
+            {event.title}
+          </h3>
+
+          <div className="flex flex-wrap gap-2">
+            <Chip>
+              <CalendarDays size={13} /> {formatEventDayLabel(event.startsAt)}
+            </Chip>
+            <Chip>
+              <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
+            </Chip>
+            {event.maxPlayers ? (
+              <Chip>
+                <Users size={13} /> {event.signupsCount} / {event.maxPlayers}
+              </Chip>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-2">
+            {event.badge ? <Badge>{event.badge}</Badge> : null}
+            {event.signedUp ? (
+              <span className="rounded-full border border-emerald-400/40 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                Вы записаны
+              </span>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </Link>
   );
 }
