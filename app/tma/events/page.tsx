@@ -204,7 +204,6 @@ export default function TMAEventsPage() {
         <input
           className={textFieldClass}
           maxLength={80}
-          placeholder="ONE SHOT KNOCKOUT"
           value={draft.title}
           onChange={(event) => update({ title: event.target.value })}
         />
@@ -213,7 +212,6 @@ export default function TMAEventsPage() {
         <input
           className={textFieldClass}
           maxLength={40}
-          placeholder="Новый формат!"
           value={draft.badge}
           onChange={(event) => update({ badge: event.target.value })}
         />
@@ -240,7 +238,6 @@ export default function TMAEventsPage() {
             <input
               className={textFieldClass}
               inputMode="numeric"
-              placeholder="90"
               value={draft.maxPlayers}
               onChange={(event) => update({ maxPlayers: event.target.value })}
             />
@@ -250,7 +247,6 @@ export default function TMAEventsPage() {
             <input
               className={textFieldClass}
               inputMode="numeric"
-              placeholder="1500"
               value={draft.buyIn}
               onChange={(event) => update({ buyIn: event.target.value })}
             />
@@ -260,7 +256,6 @@ export default function TMAEventsPage() {
             <input
               className={textFieldClass}
               inputMode="numeric"
-              placeholder="120000"
               value={draft.startingStack}
               onChange={(event) => update({ startingStack: event.target.value })}
             />
@@ -271,7 +266,6 @@ export default function TMAEventsPage() {
         <input
           className={textFieldClass}
           maxLength={200}
-          placeholder="Москва, Большая Новодмитровская улица, 36с13"
           value={draft.venueAddress}
           onChange={(event) => update({ venueAddress: event.target.value })}
         />
@@ -280,7 +274,6 @@ export default function TMAEventsPage() {
         <textarea
           className={`min-h-24 ${textFieldClass}`}
           maxLength={2000}
-          placeholder="Один шанс доказать своё превосходство!"
           value={draft.rulesText}
           onChange={(event) => update({ rulesText: event.target.value })}
         />
@@ -289,7 +282,6 @@ export default function TMAEventsPage() {
         <textarea
           className={`min-h-32 ${textFieldClass}`}
           maxLength={4000}
-          placeholder={"Без re-entry, без аддонов\nФишка за выбивание +50 очков"}
           value={draft.featuresText}
           onChange={(event) => update({ featuresText: event.target.value })}
         />
