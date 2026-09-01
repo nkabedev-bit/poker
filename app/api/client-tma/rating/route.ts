@@ -18,20 +18,11 @@ function listRecentMonths(now: Date) {
   });
 }
 
-function normalizeNickname(value: string | null | undefined) {
-  return (value ?? "").trim().toLocaleLowerCase("ru-RU");
-}
-
 /**
- * The club standings for one month.
+ * The club standings for one month, counting each player's best games.
  *
- * An imported month wins over anything computed here: those totals are what the club
- * announced to its players, and they cannot be reproduced from the game sheets — the
- * PTS column deliberately leaves knockout points out in the side-points modes, so a
- * recount would quietly disagree with the published table.
- *
- * Months played since the app started keeping results are computed from them, counting
- * each player's best games.
+ * Everything is read from the results the app stores when a tournament finishes, so a
+ * new month needs no setup: the rows carry their own date and the month is a filter.
  */
 export async function GET(request: Request) {
   const auth = await requireClientTmaAuth(request);
@@ -42,70 +33,6 @@ export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("month");
   const month = requested && months.includes(requested) ? requested : months[0];
   const { from, to } = getMonthRange(month);
-
-  const myNickname = normalizeNickname(auth.user.display_name);
-  const emptyMe = {
-    avatarUrl: auth.user.avatar_url ?? null,
-    eliminations: 0,
-    games: 0,
-    isMe: true,
-    name: auth.user.display_name ?? "",
-    place: null as number | null,
-    points: null as number | null,
-    top9: 0,
-  };
-
-  const { data: archived } = await auth.supabase
-    .from("monthly_rating_archive")
-    .select("player_name, points, knockouts")
-    .eq("month", month)
-    .order("points", { ascending: false });
-
-  if (archived && archived.length > 0) {
-    // Faces come from the accounts, matched on the nickname the club wrote in the sheet.
-    const { data: users } = await auth.supabase
-      .from("client_bot_users")
-      .select("display_name, avatar_url")
-      .not("display_name", "is", null);
-
-    const avatarByNickname = new Map<string, string | null>();
-    for (const user of users ?? []) {
-      const record = user as { avatar_url: string | null; display_name: string | null };
-      const nickname = normalizeNickname(record.display_name);
-      if (nickname) avatarByNickname.set(nickname, record.avatar_url);
-    }
-
-    const players = archived.map((row, index) => {
-      const record = row as {
-        knockouts: number | string | null;
-        player_name: string;
-        points: number | string | null;
-      };
-      const nickname = normalizeNickname(record.player_name);
-      const isMe = Boolean(myNickname) && nickname === myNickname;
-
-      return {
-        avatarUrl: isMe ? (auth.user.avatar_url ?? null) : (avatarByNickname.get(nickname) ?? null),
-        eliminations: Math.round(Number(record.knockouts ?? 0)),
-        games: 0,
-        isMe,
-        name: record.player_name,
-        place: index + 1,
-        points: Number(record.points ?? 0),
-        top9: 0,
-      };
-    });
-
-    return NextResponse.json({
-      archived: true,
-      countedGames: MONTHLY_COUNTED_GAMES,
-      me: players.find((player) => player.isMe) ?? emptyMe,
-      month,
-      months,
-      players,
-      pointsAvailable: true,
-    });
-  }
 
   const { data, error } = await auth.supabase
     .from("tournament_results")
@@ -134,6 +61,7 @@ export async function GET(request: Request) {
     };
   });
 
+  // Avatars come from the bot's stored copies, joined in by account.
   const telegramIds = [...new Set(rows.map((row) => row.telegramId).filter(Boolean))];
   const avatars = new Map<number, string | null>();
 
@@ -146,6 +74,59 @@ export async function GET(request: Request) {
     for (const user of users ?? []) {
       const record = user as { avatar_url: string | null; telegram_id: number };
       avatars.set(record.telegram_id, record.avatar_url);
+    }
+  }
+
+  // Months the club played before the app kept its own results exist only as the hand-made
+  // totals we imported; they are served as they are when there are no games to compute.
+  if (rows.length === 0) {
+    const { data: archived } = await auth.supabase
+      .from("monthly_rating_archive")
+      .select("player_name, points, knockouts")
+      .eq("month", month)
+      .order("points", { ascending: false });
+
+    if (archived && archived.length > 0) {
+      const players = archived.map((row, index) => {
+        const record = row as {
+          knockouts: number | string | null;
+          player_name: string;
+          points: number | string | null;
+        };
+        const isMe =
+          record.player_name.trim().toLocaleLowerCase("ru-RU") ===
+          (auth.user.display_name ?? "").trim().toLocaleLowerCase("ru-RU");
+
+        return {
+          avatarUrl: isMe ? (auth.user.avatar_url ?? null) : null,
+          eliminations: Math.round(Number(record.knockouts ?? 0)),
+          games: 0,
+          isMe,
+          name: record.player_name,
+          place: index + 1,
+          points: Number(record.points ?? 0),
+          top9: 0,
+        };
+      });
+
+      return NextResponse.json({
+        archived: true,
+        countedGames: MONTHLY_COUNTED_GAMES,
+        me: players.find((player) => player.isMe) ?? {
+          avatarUrl: auth.user.avatar_url ?? null,
+          eliminations: 0,
+          games: 0,
+          isMe: true,
+          name: auth.user.display_name ?? "",
+          place: null,
+          points: null,
+          top9: 0,
+        },
+        month,
+        months,
+        players,
+        pointsAvailable: true,
+      });
     }
   }
 
@@ -167,10 +148,21 @@ export async function GET(request: Request) {
     top9: 0,
   }));
 
+  const me = players.find((player) => player.isMe) ?? {
+    avatarUrl: auth.user.avatar_url ?? null,
+    eliminations: 0,
+    games: 0,
+    isMe: true,
+    name: auth.user.display_name ?? "",
+    place: null,
+    points: null,
+    top9: 0,
+  };
+
   return NextResponse.json({
     archived: false,
     countedGames: MONTHLY_COUNTED_GAMES,
-    me: players.find((player) => player.isMe) ?? emptyMe,
+    me,
     month,
     months,
     players,
