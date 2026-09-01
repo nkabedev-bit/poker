@@ -55,7 +55,7 @@ describe("re-entry settings UI", () => {
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("1");
   });
 
-  it("autofills the preset when the PHOENIX format is picked", () => {
+  it("autofills every field when the PHOENIX preset is picked", () => {
     render(
       <SettingsForm
         action={vi.fn()}
@@ -65,16 +65,20 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
       target: { value: "phoenix" },
     });
 
+    expect(screen.getByLabelText<HTMLSelectElement>(/формат турнира/i).value).toBe("phoenix");
+    expect(screen.getByLabelText<HTMLSelectElement>(/тип баунти/i).value).toBe("off");
     expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
     expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("1");
+    // The preset control itself goes back to the placeholder: it prefills, it is not state.
+    expect(screen.getByLabelText<HTMLSelectElement>(/пресет турнира/i).value).toBe("");
   });
 
-  it("autofills the preset when the DEEP STACK format is picked", () => {
+  it("autofills every field when the DEEP STACK preset is picked", () => {
     render(
       <SettingsForm
         action={vi.fn()}
@@ -84,16 +88,17 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
       target: { value: "deepstack" },
     });
 
+    expect(screen.getByLabelText<HTMLSelectElement>(/формат турнира/i).value).toBe("deepstack");
     expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
     expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("2");
   });
 
-  it("keeps manual edits after a format preset was applied", () => {
+  it("keeps manual edits after a preset was applied", () => {
     render(
       <SettingsForm
         action={vi.fn()}
@@ -103,7 +108,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/формат турнира/i), {
+    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
       target: { value: "deepstack" },
     });
     fireEvent.change(screen.getByLabelText(/кол-во ре-энтри/i), {
@@ -111,6 +116,44 @@ describe("re-entry settings UI", () => {
     });
 
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("3");
+  });
+
+  it("puts the bounty type and the starting stack of the picked preset into the form", () => {
+    const { container } = render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={defaultTournamentExtras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+      target: { value: "progressive" },
+    });
+
+    expect(screen.getByLabelText<HTMLSelectElement>(/тип баунти/i).value).toBe("progressive");
+    expect(screen.getByLabelText<HTMLSelectElement>(/формат турнира/i).value).toBe("regular");
+    expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("yes");
+    expect(container.querySelector<HTMLInputElement>('input[name="startingStack"]')?.value).toBe("2000");
+  });
+
+  it("switches the format to FREEROLL when the freeroll preset is picked", () => {
+    render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={defaultTournamentExtras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+      target: { value: "freeroll" },
+    });
+
+    expect(screen.getByLabelText<HTMLSelectElement>(/формат турнира/i).value).toBe("freeroll");
+    expect(screen.getByLabelText<HTMLSelectElement>(/тип баунти/i).value).toBe("off");
   });
 
   it("allows logo files up to 4 MB", async () => {

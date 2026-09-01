@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
-import type { BlindAlertSound, Tournament, TournamentExtras, TournamentFormat } from "@/lib/timer/types";
+import type { BlindAlertSound, BountyType, Tournament, TournamentExtras, TournamentFormat } from "@/lib/timer/types";
 
 const blindAlertSoundLabels: Record<BlindAlertSound, string> = {
   standard: "Стандартный сигнал",
@@ -23,11 +23,84 @@ type SettingsFormProps = {
 const maxLogoSize = 4 * 1024 * 1024;
 const maxSoundSize = 1024 * 1024;
 
-// Format presets: picking a format autofills the addon/re-entry fields below; the admin
-// can still adjust them manually afterwards.
-const formatPresets: Record<Exclude<TournamentFormat, "regular">, { maxReentries: number }> = {
-  phoenix: { maxReentries: 1 },
-  deepstack: { maxReentries: 2 },
+type BountyMode = "off" | BountyType;
+
+type TournamentPreset = {
+  addonEnabled: boolean;
+  bountyMode: BountyMode;
+  label: string;
+  maxAddons: number;
+  maxReentries: number;
+  startingStack: number;
+  tournamentFormat: TournamentFormat;
+};
+
+// Presets for the tournaments the club actually runs. Picking one only PREFILLS the
+// fields below — whatever the admin saves last wins, so every value stays editable.
+const tournamentPresets: Record<string, TournamentPreset> = {
+  phoenix: {
+    addonEnabled: false,
+    bountyMode: "off",
+    label: "Феникс",
+    maxAddons: 1,
+    maxReentries: 1,
+    startingStack: 2000,
+    tournamentFormat: "phoenix",
+  },
+  deepstack: {
+    addonEnabled: false,
+    bountyMode: "off",
+    label: "Дип стек",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 4000,
+    tournamentFormat: "deepstack",
+  },
+  bounty: {
+    addonEnabled: true,
+    bountyMode: "standard",
+    label: "Обычный баунти",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 2000,
+    tournamentFormat: "regular",
+  },
+  progressive: {
+    addonEnabled: true,
+    bountyMode: "progressive",
+    label: "Прогрессив",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 2000,
+    tournamentFormat: "regular",
+  },
+  mystery: {
+    addonEnabled: true,
+    bountyMode: "mystery",
+    label: "Мистери",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 2000,
+    tournamentFormat: "regular",
+  },
+  freeroll: {
+    addonEnabled: true,
+    bountyMode: "off",
+    label: "Фриролл",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 2000,
+    tournamentFormat: "freeroll",
+  },
+  lastchance: {
+    addonEnabled: true,
+    bountyMode: "off",
+    label: "Ласт ченс",
+    maxAddons: 1,
+    maxReentries: 2,
+    startingStack: 2000,
+    tournamentFormat: "regular",
+  },
 };
 
 type LogoUpload = {
@@ -56,14 +129,25 @@ export function SettingsForm({
   const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>(
     settings.tournamentFormat ?? "regular",
   );
+  const [maxAddons, setMaxAddons] = useState(settings.maxAddons);
+  const [bountyMode, setBountyMode] = useState<BountyMode>(
+    settings.isBounty ? settings.bountyType : "off",
+  );
+  const [startingStack, setStartingStack] = useState(tournament.startingStack);
+  const [presetName, setPresetName] = useState("");
 
-  function applyTournamentFormat(format: TournamentFormat) {
-    setTournamentFormat(format);
-    if (format === "regular") return;
+  function applyPreset(name: string) {
+    setPresetName("");
+    const preset = tournamentPresets[name];
+    if (!preset) return;
 
-    setAddonEnabled(false);
+    setAddonEnabled(preset.addonEnabled);
+    setBountyMode(preset.bountyMode);
+    setMaxAddons(preset.maxAddons);
+    setMaxReentries(preset.maxReentries);
     setReentryEnabled(true);
-    setMaxReentries(formatPresets[format].maxReentries);
+    setStartingStack(preset.startingStack);
+    setTournamentFormat(preset.tournamentFormat);
   }
 
   function updateLogoUpload(file: File | undefined) {
@@ -133,9 +217,25 @@ export function SettingsForm({
             name="startingStack"
             type="number"
             min={1}
-            defaultValue={tournament.startingStack}
+            value={startingStack}
+            onChange={(event) => setStartingStack(Number(event.target.value) || 0)}
             required
           />
+        </label>
+        <label>
+          ⚡ Пресет турнира
+          <select
+            aria-label="Пресет турнира"
+            value={presetName}
+            onChange={(event) => applyPreset(event.target.value)}
+          >
+            <option value="">Выбрать пресет…</option>
+            {Object.entries(tournamentPresets).map(([name, preset]) => (
+              <option key={name} value={name}>
+                {preset.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           🏆 Формат турнира
@@ -143,11 +243,12 @@ export function SettingsForm({
             aria-label="Формат турнира"
             name="tournamentFormat"
             value={tournamentFormat}
-            onChange={(event) => applyTournamentFormat(event.target.value as TournamentFormat)}
+            onChange={(event) => setTournamentFormat(event.target.value as TournamentFormat)}
           >
             <option value="regular">Обычный</option>
             <option value="phoenix">PHOENIX</option>
             <option value="deepstack">DEEP STACK</option>
+            <option value="freeroll">FREEROLL</option>
           </select>
         </label>
         <label>
@@ -155,10 +256,12 @@ export function SettingsForm({
           <select
             aria-label="Тип баунти"
             name="bountyMode"
-            defaultValue={settings.isBounty ? settings.bountyType : "off"}
+            value={bountyMode}
+            onChange={(event) => setBountyMode(event.target.value as BountyMode)}
           >
             <option value="off">Нет</option>
             <option value="standard">Обычный баунти</option>
+            <option value="progressive">Progressive Bounty</option>
             <option value="mystery">Mystery Bounty</option>
             <option value="dealer">Dealer Revenge</option>
             <option value="wanted">Wanted Bounty</option>
@@ -202,6 +305,11 @@ export function SettingsForm({
               value={maxReentries}
               onChange={(event) => setMaxReentries(Number(event.target.value) || 1)}
             />
+            {bountyMode === "progressive" || bountyMode === "wanted" ? (
+              <span className="field-help">
+                В этом режиме ре-энтри безлимитные, пока открыто окно — лимит не действует
+              </span>
+            ) : null}
           </label>
         ) : null}
         <label>
@@ -226,7 +334,8 @@ export function SettingsForm({
               name="maxAddons"
               pattern="[0-9]*"
               type="number"
-              defaultValue={settings.maxAddons}
+              value={maxAddons}
+              onChange={(event) => setMaxAddons(Number(event.target.value) || 1)}
             />
           </label>
         ) : null}
