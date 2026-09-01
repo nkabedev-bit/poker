@@ -24,6 +24,8 @@ export type ImportedMonth = {
   sheetName: string;
 };
 
+export type SkippedSheet = { reason: string; sheetName: string };
+
 async function getSheetsClient() {
   const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_KEY || "{}");
   const auth = new google.auth.GoogleAuth({
@@ -74,19 +76,51 @@ export async function readGames(year: number): Promise<ImportedGame[]> {
 }
 
 /** The month sheets of the club's rating spreadsheet, skipping the reference tabs. */
-export async function readMonths(fallbackYear: number): Promise<ImportedMonth[]> {
+export async function readMonths(
+  fallbackYear: number,
+): Promise<{ months: ImportedMonth[]; skipped: SkippedSheet[] }> {
   const names = await listSheetNames(RATING_SPREADSHEET_ID);
-  const months = names
-    .filter((sheetName) => isMonthSheetName(sheetName))
-    .map((sheetName) => ({ month: parseMonthSheetKey(sheetName, fallbackYear), sheetName }))
-    .filter((month): month is { month: string; sheetName: string } => month.month !== null);
+  const skipped: SkippedSheet[] = [];
+  const candidates: Array<{ month: string; sheetName: string }> = [];
+
+  for (const sheetName of names) {
+    if (!isMonthSheetName(sheetName)) {
+      skipped.push({ reason: "не похоже на месяц", sheetName });
+      continue;
+    }
+
+    const month = parseMonthSheetKey(sheetName, fallbackYear);
+    if (!month) {
+      skipped.push({ reason: "не удалось определить месяц", sheetName });
+      continue;
+    }
+
+    candidates.push({ month, sheetName });
+  }
 
   const values = await batchGet(
     RATING_SPREADSHEET_ID,
-    months.map((month) => `'${month.sheetName}'!A1:Z200`),
+    candidates.map((month) => `'${month.sheetName}'!A1:Z200`),
   );
 
-  return months
-    .map((month, index) => ({ ...month, rows: parseMonthStandings(values[index] ?? []) }))
-    .filter((month) => month.rows.length > 0);
+  const months: ImportedMonth[] = [];
+  candidates.forEach((candidate, index) => {
+    const sheetValues = values[index] ?? [];
+    const rows = parseMonthStandings(sheetValues);
+
+    if (rows.length === 0) {
+      const header = (sheetValues[0] ?? []).map((cell) => String(cell ?? "")).filter(Boolean);
+      skipped.push({
+        reason: header.length > 0
+          ? `не нашли колонки: ${header.slice(0, 6).join(" | ")}`
+          : "лист пустой",
+        sheetName: candidate.sheetName,
+      });
+      return;
+    }
+
+    months.push({ ...candidate, rows });
+  });
+
+  return { months, skipped };
 }

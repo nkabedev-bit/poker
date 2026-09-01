@@ -17,7 +17,14 @@ type MonthPreview = {
   sheetName: string;
 };
 
-type Preview = { games: GamePreview[]; months: MonthPreview[]; year: number };
+type SkippedSheet = { reason: string; sheetName: string };
+
+type Preview = {
+  games: GamePreview[];
+  months: MonthPreview[];
+  skippedMonths?: SkippedSheet[];
+  year: number;
+};
 
 function toggle(list: string[], value: string) {
   return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
@@ -182,7 +189,9 @@ export function ImportManager() {
           <div className="panel-heading">
             <div>
               <h2>Месяцы рейтинга ({preview.months.length})</h2>
-              <p className="muted">Листы «система рейтинга» и «VIP LEAGUE» пропускаются.</p>
+              <p className="muted">
+                Листы, из которых не удалось прочитать таблицу, перечислены ниже с причиной.
+              </p>
             </div>
           </div>
 
@@ -220,6 +229,28 @@ export function ImportManager() {
               </tbody>
             </table>
           </div>
+
+          {preview.skippedMonths && preview.skippedMonths.length > 0 ? (
+            <div className="admin-table-wrap">
+              <p className="field-help">Пропущенные листы рейтинговой таблицы:</p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Лист</th>
+                    <th>Почему пропущен</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.skippedMonths.map((sheet) => (
+                    <tr key={sheet.sheetName}>
+                      <td>{sheet.sheetName}</td>
+                      <td className="muted">{sheet.reason}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </div>

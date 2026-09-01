@@ -24,7 +24,8 @@ export async function GET(request: Request) {
   const year = Number(new URL(request.url).searchParams.get("year")) || new Date().getFullYear();
 
   try {
-    const [games, months] = await Promise.all([readGames(year), readMonths(year)]);
+    const [games, monthsResult] = await Promise.all([readGames(year), readMonths(year)]);
+    const months = monthsResult.months;
 
     return NextResponse.json({
       games: games.map((game) => ({
@@ -39,6 +40,9 @@ export async function GET(request: Request) {
         sample: month.rows.slice(0, 3),
         sheetName: month.sheetName,
       })),
+      // Sheets that were read but produced nothing, with the reason — otherwise a
+      // spreadsheet that fails to parse just looks empty.
+      skippedMonths: monthsResult.skipped,
       year,
     });
   } catch (error) {
@@ -63,7 +67,8 @@ export async function POST(request: Request) {
   const funGames = new Set<string>(Array.isArray(body.fun) ? body.fun.map(String) : []);
 
   try {
-    const [games, months] = await Promise.all([readGames(year), readMonths(year)]);
+    const [games, monthsResult] = await Promise.all([readGames(year), readMonths(year)]);
+    const months = monthsResult.months;
 
     // Imported games carry midday as their start time: the sheets keep the date only,
     // and a fixed hour keeps two imports from producing two copies of one evening.

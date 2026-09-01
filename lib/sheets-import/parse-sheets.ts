@@ -75,22 +75,22 @@ export function isMonthSheetName(sheetName: string) {
   if (!name) return false;
 
   return (
-    MONTH_NAMES.some((month) => name.startsWith(month)) ||
-    /^\d{1,2}[./-]\d{4}$/.test(name) ||
-    /^\d{4}[./-]\d{1,2}$/.test(name)
+    MONTH_NAMES.some((month) => name.includes(month)) ||
+    /\b\d{1,2}[./-]\d{4}\b/.test(name) ||
+    /\b\d{4}[./-]\d{1,2}\b/.test(name)
   );
 }
 
 export function parseMonthSheetKey(sheetName: string, fallbackYear: number) {
   const name = sheetName.trim().toLocaleLowerCase("ru-RU");
 
-  const numeric = name.match(/^(\d{1,2})[./-](\d{4})$/) ?? null;
+  const numeric = name.match(/(\d{1,2})[./-](\d{4})/) ?? null;
   if (numeric) return `${numeric[2]}-${String(Number(numeric[1])).padStart(2, "0")}`;
 
-  const reversed = name.match(/^(\d{4})[./-](\d{1,2})$/) ?? null;
+  const reversed = name.match(/(\d{4})[./-](\d{1,2})/) ?? null;
   if (reversed) return `${reversed[1]}-${String(Number(reversed[2])).padStart(2, "0")}`;
 
-  const index = MONTH_NAMES.findIndex((month) => name.startsWith(month));
+  const index = MONTH_NAMES.findIndex((month) => name.includes(month));
   if (index === -1) return null;
 
   // "мая" is the same month as "май" and shares its slot in the calendar.
