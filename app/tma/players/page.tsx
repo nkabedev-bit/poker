@@ -33,6 +33,10 @@ export default function TMAPlayersPage() {
   const [tablesCount, setTablesCount] = useState(1);
   const [tableFilter, setTableFilter] = useState("");
   const [moveTable, setMoveTable] = useState("1");
+  const [reentryAvailable, setReentryAvailable] = useState(false);
+  const [doubleReentryAvailable, setDoubleReentryAvailable] = useState(false);
+  const [restoreChoiceOpen, setRestoreChoiceOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   
   // Form State
   const [name, setName] = useState("");
@@ -50,6 +54,8 @@ export default function TMAPlayersPage() {
         setAddonEnabled(Boolean(data.addonEnabled));
         setMaxAddons(Math.max(1, Number(data.maxAddons ?? 1)));
         setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
+        setReentryAvailable(Boolean(data.reentryEnabled) && data.reentryAvailable !== false);
+        setDoubleReentryAvailable(Boolean(data.doubleReentryAvailable));
       }
     } finally {
       setLoading(false);
@@ -120,6 +126,7 @@ export default function TMAPlayersPage() {
 
   const closePlayerDetails = () => {
     setSelectedPlayerId(null);
+    setRestoreChoiceOpen(false);
   };
 
   const handleDelete = async (id: string) => {
@@ -194,24 +201,27 @@ export default function TMAPlayersPage() {
     tg?.showAlert("Ошибка пересадки");
   };
 
-  const submitRestorePlayer = async () => {
+  // Returning a player has to say WHY: an erroneous knockout is erased, while a re-entry
+  // keeps the knockout on record and credits the player with a rebuy — otherwise a player
+  // who waits for the x2 window comes back unmarked in the bot and in the sheet.
+  const submitRestorePlayer = async (reentry: "none" | "single" | "double") => {
     const tg = getTelegramWebApp();
-    if (!selectedPlayer) return;
+    if (!selectedPlayer || isRestoring) return;
 
-    tg?.showConfirm(`Вернуть игрока ${selectedPlayer.name} в игру?`, async (confirmed: boolean) => {
-      if (!confirmed) return;
-
+    setIsRestoring(true);
+    try {
       const res = await fetch(`/api/tma/players/${selectedPlayer.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           "X-Telegram-Init-Data": initData,
         },
-        body: JSON.stringify({ action: "restore_player" }),
+        body: JSON.stringify({ action: "restore_player", reentry }),
       });
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
+        setRestoreChoiceOpen(false);
         await fetchPlayers();
         return;
       }
@@ -219,7 +229,9 @@ export default function TMAPlayersPage() {
       const data = await res.json().catch(() => null);
       tg?.HapticFeedback.notificationOccurred("error");
       tg?.showAlert(data?.error ?? "Ошибка возврата игрока");
-    });
+    } finally {
+      setIsRestoring(false);
+    }
   };
 
   const tableOptions = useMemo(
@@ -265,6 +277,61 @@ export default function TMAPlayersPage() {
           className="mt-4 w-full p-3 text-[var(--tg-theme-button-color)]"
         >
           Отмена
+        </button>
+      </div>
+    );
+  }
+
+  if (selectedPlayer && restoreChoiceOpen) {
+    const restoreDisabledClass = isRestoring ? " opacity-60 cursor-not-allowed" : "";
+
+    return (
+      <div className="space-y-4">
+        <button
+          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${restoreDisabledClass}`}
+          disabled={isRestoring}
+          type="button"
+          onClick={() => setRestoreChoiceOpen(false)}
+        >
+          <ChevronLeft size={18} /> Назад
+        </button>
+
+        <h2 className="text-lg font-bold">
+          Почему возвращается <span className="text-red-400">{selectedPlayer.name}</span>?
+        </h2>
+
+        <button
+          className={`w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] p-4 rounded-lg text-left${restoreDisabledClass}`}
+          disabled={isRestoring}
+          type="button"
+          onClick={() => void submitRestorePlayer("none")}
+        >
+          <div className="font-semibold">Вылет по ошибке</div>
+          <div className="text-xs text-[var(--tg-theme-hint-color)]">Выбывание стирается, ре-энтри не засчитывается</div>
+        </button>
+
+        <button
+          className={`w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-4 rounded-lg text-left disabled:bg-[var(--tg-theme-secondary-bg-color)] disabled:text-[var(--tg-theme-hint-color)]${restoreDisabledClass}`}
+          disabled={isRestoring || !reentryAvailable}
+          type="button"
+          onClick={() => void submitRestorePlayer("single")}
+        >
+          <div className="font-semibold">Ребай</div>
+          <div className="text-xs opacity-80">
+            {reentryAvailable ? "Выбивание остаётся, игроку засчитывается ре-энтри" : "Ре-энтри сейчас недоступен"}
+          </div>
+        </button>
+
+        <button
+          className={`w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-4 rounded-lg text-left disabled:bg-[var(--tg-theme-secondary-bg-color)] disabled:text-[var(--tg-theme-hint-color)]${restoreDisabledClass}`}
+          disabled={isRestoring || !doubleReentryAvailable}
+          type="button"
+          onClick={() => void submitRestorePlayer("double")}
+        >
+          <div className="font-semibold">Двойной ребай (x2)</div>
+          <div className="text-xs opacity-80">
+            {doubleReentryAvailable ? "Ре-энтри + отметка x2" : "x2 недоступен на текущем уровне"}
+          </div>
         </button>
       </div>
     );
@@ -339,7 +406,7 @@ export default function TMAPlayersPage() {
           <button
             className="w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-3 rounded flex items-center justify-center gap-2"
             type="button"
-            onClick={() => void submitRestorePlayer()}
+            onClick={() => setRestoreChoiceOpen(true)}
           >
             <RotateCcw size={18} /> Вернуть в игру
           </button>

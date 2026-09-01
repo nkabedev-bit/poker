@@ -255,9 +255,7 @@ describe("TMAPlayersPage", () => {
     );
   });
 
-  it("restores an eliminated player from the player details card", async () => {
-    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
-    showConfirm.mockImplementation((_message, callback) => callback(true));
+  it("restores an eliminated player as a mistaken knockout", async () => {
     let players = [
       { id: "player-1", name: "Returned Player", table: 1, seat: 1, stack: 1000, status: "eliminated" },
     ];
@@ -281,19 +279,91 @@ describe("TMAPlayersPage", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: /returned player/i }));
     fireEvent.click(await screen.findByRole("button", { name: /вернуть в игру/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /вылет по ошибке/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tma/players/player-1",
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ action: "restore_player" }),
+          body: JSON.stringify({ action: "restore_player", reentry: "none" }),
         }),
       );
     });
-    expect(showConfirm).toHaveBeenCalledWith(
-      "Вернуть игрока Returned Player в игру?",
-      expect.any(Function),
-    );
+  });
+
+  // A player who busts before the first break and waits for the x2 window must come
+  // back marked as a re-entry — otherwise the bot and the sheet never show the rebuy.
+  it("restores an eliminated player as a double re-entry when x2 is open", async () => {
+    const players = [
+      { id: "player-1", name: "Returned Player", table: 1, seat: 1, stack: 1000, status: "eliminated" },
+    ];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          tablesCount: 3,
+          players,
+          reentryEnabled: true,
+          reentryAvailable: true,
+          doubleReentryAvailable: true,
+        });
+      }
+
+      if (String(input) === "/api/tma/players/player-1" && init?.method === "PATCH") {
+        return Response.json({ player: { ...players[0], status: "active", rebuys: 1, doubleRebuys: 1 } });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /returned player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /вернуть в игру/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /двойной ребай/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ action: "restore_player", reentry: "double" }),
+        }),
+      );
+    });
+  });
+
+  it("disables the re-entry options when the re-entry window is closed", async () => {
+    const players = [
+      { id: "player-1", name: "Returned Player", table: 1, seat: 1, stack: 1000, status: "eliminated" },
+    ];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          tablesCount: 3,
+          players,
+          reentryEnabled: true,
+          reentryAvailable: false,
+          doubleReentryAvailable: false,
+        });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /returned player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /вернуть в игру/i }));
+
+    const rebuyButton = (await screen.findByRole("button", { name: /^ребай/i })) as HTMLButtonElement;
+    const doubleRebuyButton = screen.getByRole("button", { name: /двойной ребай/i }) as HTMLButtonElement;
+    const mistakeButton = screen.getByRole("button", { name: /вылет по ошибке/i }) as HTMLButtonElement;
+
+    expect(rebuyButton.disabled).toBe(true);
+    expect(doubleRebuyButton.disabled).toBe(true);
+    expect(mistakeButton.disabled).toBe(false);
   });
 });

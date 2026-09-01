@@ -1,16 +1,46 @@
 import { after, NextResponse } from "next/server";
 import { removePlayerFromVipSheet, syncTournamentToSheets } from "@/lib/google-sheets";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
-import { getTargetedEliminationRollbackPlayers, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
+import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
+import type { EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
+import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
+import { loadTimerContext } from "@/lib/tma/timer-context";
+import { loadTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 type BountyLog = EliminationRollbackLog & {
+  bounty_split?: boolean | null;
+  eliminated_name?: string | null;
   id: string;
   sheets_row_id?: number | null;
   sheets_sheet_name?: string | null;
 };
+
+// How the admin explains an eliminated player coming back: a mistaken knockout is
+// erased outright, while a re-entry keeps the knockout on record (bounty stays paid)
+// and credits the player with a re-entry — that is what the bot and the sheet read.
+const RESTORE_REENTRY_MODES = ["none", "single", "double"] as const;
+type RestoreReentryMode = (typeof RESTORE_REENTRY_MODES)[number];
+
+function getRestoreReentryMode(value: unknown): RestoreReentryMode | null {
+  if (value === undefined || value === null) return "none";
+  return RESTORE_REENTRY_MODES.includes(value as RestoreReentryMode)
+    ? (value as RestoreReentryMode)
+    : null;
+}
+
+// The killers keep the bounty chips they were paid for this knockout, so re-recording
+// it as a re-entry must hand out exactly the same award: shares sum to 1, which makes
+// the total award the sum of the per-killer chips already stored in the log.
+function getLoggedBountyChipAward(killers: unknown) {
+  if (!Array.isArray(killers)) return 0;
+
+  return killers.reduce((total: number, killer) => {
+    const chips = Number((killer as { bountyChips?: unknown })?.bountyChips ?? 0);
+    return Number.isFinite(chips) && chips > 0 ? total + chips : total;
+  }, 0);
+}
 
 function getAddonChips(value: unknown) {
   const chips = Number(value);
@@ -85,6 +115,52 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: "Player is not eliminated" }, { status: 409 });
     }
 
+    const reentryMode = getRestoreReentryMode(body.reentry);
+    if (!reentryMode) {
+      return NextResponse.json({ error: "Unknown reentry mode" }, { status: 400 });
+    }
+
+    // Refuse an impossible re-entry before anything is rolled back, so a rejected
+    // request leaves the player eliminated instead of half-restored.
+    let reentryDouble = false;
+    if (reentryMode !== "none") {
+      const { blindLevels, timerState } = await loadTimerContext(auth.supabase, t.id);
+      const eligibility = resolveReentryEligibility({
+        blindLevels,
+        now: new Date(),
+        player,
+        requestedDouble: reentryMode === "double",
+        requestedReentry: true,
+        settings: extras.settings,
+        timerState,
+      });
+
+      if (!eligibility.usesReentry) {
+        const reentryLimitReached =
+          extras.settings.bountyType !== "wanted" &&
+          Math.max(0, Number(player.rebuys ?? 0)) >= Math.max(1, Number(extras.settings.maxReentries ?? 1));
+
+        return NextResponse.json(
+          {
+            error: !extras.settings.reentryEnabled
+              ? "Ре-энтри отключён в настройках турнира"
+              : reentryLimitReached
+                ? "Игрок уже использовал все ре-энтри"
+                : "Окно ре-энтри уже закрыто",
+          },
+          { status: 409 },
+        );
+      }
+      if (reentryMode === "double" && !eligibility.reentryDouble) {
+        return NextResponse.json(
+          { error: "Двойной ре-энтри недоступен на текущем уровне" },
+          { status: 409 },
+        );
+      }
+
+      reentryDouble = eligibility.reentryDouble;
+    }
+
     const { data: log, error: logError } = await auth.supabase
       .from("bounty_log")
       .select("*")
@@ -114,7 +190,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (rpcError) throw rpcError;
 
     const playersList = updatedPlayers as TournamentPlayer[];
-    const updatedPlayer = playersList.find((item) => item.id === id) ?? null;
+    let updatedPlayer = playersList.find((item) => item.id === id) ?? null;
 
     const { error: deleteError } = await auth.supabase
       .from("bounty_log")
@@ -123,6 +199,60 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .eq("tournament_id", t.id);
 
     if (deleteError) throw deleteError;
+
+    if (reentryMode !== "none") {
+      // The knockout itself stands — it is re-recorded as a re-entry, keeping the
+      // killers' bounty and mystery points untouched while the player comes back with
+      // rebuys (and doubleRebuys for an x2) incremented.
+      try {
+        const bountyChipAward = getLoggedBountyChipAward(typedLog.killers);
+        const mysteryPoints = Number(typedLog.mystery_bounty_points ?? 0) || 0;
+
+        const { data: rpcResult, error: recordError } = await auth.supabase.rpc(
+          "record_player_elimination",
+          {
+            p_tournament_id: t.id,
+            p_eliminated_id: id,
+            p_killers: typedLog.killers ?? [],
+            p_bounty_chip_award: bountyChipAward,
+            p_mystery_points: mysteryPoints,
+            p_uses_reentry: true,
+            p_is_bounty: extras.settings.isBounty,
+            p_reentry_double: reentryDouble,
+          },
+        );
+
+        if (recordError) throw recordError;
+
+        const { players: playersAfterReentry } = rpcResult as { players: TournamentPlayer[] };
+        updatedPlayer = playersAfterReentry.find((item) => item.id === id) ?? updatedPlayer;
+
+        await insertBountyLogRecord(auth.supabase, {
+          tournament_id: t.id,
+          eliminated_id: id,
+          eliminated_name: typedLog.eliminated_name ?? player.name,
+          finish_place: null,
+          bounty_split: Boolean(typedLog.bounty_split),
+          client_request_id: null,
+          killers: typedLog.killers ?? [],
+          mystery_bounty_points: mysteryPoints,
+          players_after: playersAfterReentry,
+          players_before: playersList,
+          recorded_by: auth.userId,
+          uses_reentry: true,
+          reentry_double: reentryDouble,
+        });
+      } catch (reentryError) {
+        console.error("Failed to record re-entry on player restore:", reentryError);
+        return NextResponse.json(
+          {
+            error: "Игрок возвращён в игру, но ре-энтри НЕ записан. Отметьте его вручную.",
+            player: updatedPlayer,
+          },
+          { status: 500 },
+        );
+      }
+    }
 
     after(async () => {
       try {

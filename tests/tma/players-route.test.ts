@@ -50,9 +50,15 @@ function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unk
     })),
   }));
   const bountyLogRows: unknown[] = [];
+  const bountyLogInsert = vi.fn((payload: unknown) => ({
+    select: vi.fn(() => ({
+      single: vi.fn(async () => ({ data: payload, error: null })),
+    })),
+  }));
 
   return {
     bountyLogDelete,
+    bountyLogInsert,
     bountyLogRows,
     bountyLogUpdate,
     from: vi.fn((table: string) => {
@@ -92,6 +98,7 @@ function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unk
       if (table === "bounty_log") {
         return {
           delete: bountyLogDelete,
+          insert: bountyLogInsert,
           select: vi.fn(() => {
             const chain = {
               eq: vi.fn(() => chain),
@@ -153,6 +160,29 @@ function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unk
             { id: "player-out", finishPlace: null, status: "active", name: "Player Out", rebuys: 0, seat: 2, stack: 1000 },
             { id: "later-out", finishPlace: 4, status: "eliminated", name: "Later Out", rebuys: 0, seat: 3, stack: 1000 },
           ],
+          error: null,
+        };
+      }
+      if (fnName === "record_player_elimination") {
+        return {
+          data: {
+            players: [
+              {
+                id: "player-out",
+                name: "Player Out",
+                status: "active",
+                finishPlace: null,
+                rebuys: 1,
+                doubleRebuys: args.p_reentry_double ? 1 : 0,
+                seat: 2,
+                stack: 1000,
+                addons: 0,
+                bountyCount: 0,
+              },
+            ],
+            finishPlace: null,
+            tournamentFinished: false,
+          },
           error: null,
         };
       }
@@ -523,5 +553,165 @@ describe("TMA players route", () => {
     );
     expect(supabase.bountyLogDelete).toHaveBeenCalled();
     expect(mocks.syncTournamentToSheets).toHaveBeenCalled();
+  });
+
+  function eliminatedRosterExtras() {
+    return mergeTournamentExtras({
+      settings: { reentryEnabled: true },
+      players: [
+        {
+          id: "killer",
+          addons: 0,
+          bountyChipsTotal: 100,
+          bountyCount: 1,
+          finishPlace: null,
+          name: "Killer",
+          rebuys: 0,
+          seat: 1,
+          stack: 1100,
+          status: "active",
+          table: 1,
+        },
+        {
+          id: "player-out",
+          addons: 0,
+          bountyCount: 0,
+          finishPlace: 4,
+          name: "Player Out",
+          rebuys: 0,
+          seat: 2,
+          stack: 1000,
+          status: "eliminated",
+          table: 1,
+        },
+      ],
+    });
+  }
+
+  // A player who busted before the x2 window opened comes back as a re-entry: the
+  // knockout stays paid out, and the rebuy is what the bot and the sheet report.
+  it("restores an eliminated player as a double re-entry, keeping the killer's bounty", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    supabase.bountyLogRows.push({
+      eliminated_id: "player-out",
+      eliminated_name: "Player Out",
+      finish_place: 4,
+      id: "elim-out",
+      killers: [{ bountyChips: 100, id: "killer", share: 1 }],
+      mystery_bounty_points: 0,
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(eliminatedRosterExtras());
+
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/tma/players/player-out", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "restore_player", reentry: "double" }),
+      }),
+      { params: Promise.resolve({ id: "player-out" }) },
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.player).toMatchObject({ doubleRebuys: 1, id: "player-out", rebuys: 1, status: "active" });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_bounty_chip_award: 100,
+        p_eliminated_id: "player-out",
+        p_killers: [{ bountyChips: 100, id: "killer", share: 1 }],
+        p_reentry_double: true,
+        p_uses_reentry: true,
+      }),
+    );
+    expect(supabase.bountyLogInsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eliminated_id: "player-out",
+        finish_place: null,
+        reentry_double: true,
+        uses_reentry: true,
+      }),
+    );
+  });
+
+  it("refuses a double re-entry restore when the level does not allow x2", async () => {
+    const supabase = createSupabaseMock();
+    supabase.bountyLogRows.push({
+      eliminated_id: "player-out",
+      finish_place: 4,
+      id: "elim-out",
+      killers: [],
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(eliminatedRosterExtras());
+
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/tma/players/player-out", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "restore_player", reentry: "double" }),
+      }),
+      { params: Promise.resolve({ id: "player-out" }) },
+    );
+
+    expect(response.status).toBe(409);
+    // The rollback must not have run: a refused restore leaves the player eliminated.
+    expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_player_elimination", expect.anything());
+    expect(supabase.bountyLogDelete).not.toHaveBeenCalled();
+  });
+
+  it("refuses a re-entry restore when re-entries are disabled", async () => {
+    const supabase = createSupabaseMock();
+    supabase.bountyLogRows.push({
+      eliminated_id: "player-out",
+      finish_place: 4,
+      id: "elim-out",
+      killers: [],
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        settings: { reentryEnabled: false },
+        players: eliminatedRosterExtras().players,
+      }),
+    );
+
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/tma/players/player-out", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "restore_player", reentry: "single" }),
+      }),
+      { params: Promise.resolve({ id: "player-out" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_player_elimination", expect.anything());
+  });
+
+  it("keeps the mistaken-knockout restore free of any re-entry record", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: doubleReentryLevelRows });
+    supabase.bountyLogRows.push({
+      eliminated_id: "player-out",
+      finish_place: 4,
+      id: "elim-out",
+      killers: [],
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(eliminatedRosterExtras());
+
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/tma/players/player-out", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "restore_player", reentry: "none" }),
+      }),
+      { params: Promise.resolve({ id: "player-out" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("record_player_elimination", expect.anything());
+    expect(supabase.bountyLogInsert).not.toHaveBeenCalled();
   });
 });

@@ -1,14 +1,16 @@
 import { after, NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
+import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
 import { syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
-import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward, isReentryAvailable } from "@/lib/timer/calculate";
+import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward } from "@/lib/timer/calculate";
 import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
 import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
+import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
+import { loadTimerContext } from "@/lib/tma/timer-context";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
-import type { BlindLevel, TimerState, TournamentPlayer } from "@/lib/timer/types";
+import type { TournamentPlayer } from "@/lib/timer/types";
 
 type Killer = {
   id: string;
@@ -21,47 +23,6 @@ const SAME_PLAYER_DUPLICATE_WINDOW_SECONDS = 30;
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
 }
-
-function isMissingBountyLogSnapshotColumnError(error: unknown) {
-  if (!error || typeof error !== "object") return false;
-  const message = String((error as { message?: unknown }).message ?? "");
-  return message.includes("players_before")
-    || message.includes("players_after")
-    || message.includes("uses_reentry")
-    || message.includes("reentry_double")
-    || message.includes("sheets_row_id")
-    || message.includes("sheets_sheet_name")
-    || message.includes("mystery_bounty_points");
-}
-
-async function insertBountyLogRecord(
-  supabase: SupabaseClient,
-  payload: Record<string, unknown>,
-) {
-  const { data, error } = await supabase.from("bounty_log").insert(payload).select().single();
-  if (!error) return data;
-
-  if (!isMissingBountyLogSnapshotColumnError(error)) throw error;
-
-  const legacyPayload = { ...payload };
-  delete legacyPayload.players_after;
-  delete legacyPayload.players_before;
-  delete legacyPayload.uses_reentry;
-  delete legacyPayload.reentry_double;
-  delete legacyPayload.mystery_bounty_points;
-
-  console.warn("bounty_log snapshot columns are unavailable; retrying legacy insert", error);
-  const { data: legacyData, error: legacyError } = await supabase
-    .from("bounty_log")
-    .insert(legacyPayload)
-    .select()
-    .single();
-
-  if (legacyError) throw legacyError;
-  return legacyData;
-}
-
-
 
 export async function POST(request: Request) {
   const auth = await requireTmaAuth(request);
@@ -145,49 +106,18 @@ export async function POST(request: Request) {
         }))
         .filter((killer) => killer.id && killer.share > 0)
       : [];
-    const { data: stateData } = await auth.supabase.from("timer_state").select("*").eq("tournament_id", t.id).single();
-    const { data: levelsData } = await auth.supabase.from("blind_levels").select("*").eq("tournament_id", t.id).order("level_order");
-
-    const timerState: TimerState = {
-      status: stateData?.status ?? "not_started",
-      currentLevelIndex: stateData?.current_level_index ?? 0,
-      levelStartedAt: stateData?.level_started_at ?? null,
-      pausedRemainingSeconds: stateData?.paused_remaining_seconds ?? null,
-      registrationClosesAt: stateData?.registration_closes_at ?? null,
-      finishedAt: stateData?.finished_at ?? null,
-    };
-    const blindLevels: BlindLevel[] = (levelsData ?? []).map(row => ({
-      id: row.id,
-      levelOrder: row.level_order,
-      smallBlind: row.small_blind,
-      bigBlind: row.big_blind,
-      ante: row.ante,
-      reentryCloses: Boolean(row.reentry_closes),
-      doubleReentryAvailable: Boolean(row.double_reentry_available),
-      durationSeconds: row.duration_seconds,
-      isBreak: row.is_break,
-      breakDurationSeconds: row.break_duration_seconds,
-    }));
+    const { blindLevels, timerState } = await loadTimerContext(auth.supabase, t.id);
     const now = new Date();
-    const playerReentries = Math.max(0, Number(eliminatedPlayer.rebuys ?? 0));
-    const maxReentries = Math.max(1, Number(extras.settings.maxReentries ?? 1));
-    // Wanted Bounty: re-entries are unlimited while the re-entry window is open (the
-    // reentryCloses level flag still ends the window as usual).
-    const usesReentry =
-      Boolean(uses_reentry) &&
-      extras.settings.reentryEnabled &&
-      (isWantedBounty || playerReentries < maxReentries) &&
-      isReentryAvailable(timerState, blindLevels, now);
+    const { reentryDouble, usesReentry } = resolveReentryEligibility({
+      blindLevels,
+      now,
+      player: eliminatedPlayer,
+      requestedDouble: Boolean(reentry_double),
+      requestedReentry: Boolean(uses_reentry),
+      settings: extras.settings,
+      timerState,
+    });
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
-    // PHOENIX / DEEP STACK formats allow regular re-entries only — the double (x2)
-    // option is refused even when the blind level carries the x2 flag. In Wanted Bounty
-    // the double re-entry is a once-per-player option on top of that.
-    const reentryDouble =
-      usesReentry &&
-      Boolean(reentry_double) &&
-      (extras.settings.tournamentFormat ?? "regular") === "regular" &&
-      (!isWantedBounty || Math.max(0, Number(eliminatedPlayer.doubleRebuys ?? 0)) === 0) &&
-      Boolean(blindLevels[currentTimerState.currentLevelIndex]?.doubleReentryAvailable);
     // The big-blind stack reward for a knockout applies in STANDARD bounty (with the
     // usual 2x-before-break / 1x-after formula), in Wanted Bounty for every knockout
     // (3 big blinds for a wanted victim, 2 for a regular one, on top of the side points)
