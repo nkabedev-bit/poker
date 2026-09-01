@@ -150,11 +150,13 @@ export default function ClientHomePage() {
             <p className="mt-1 text-[12px] text-white/40">Написать администратору</p>
           </GlassCard>
         </button>
-        <GlassCard className="!p-[18px]">
-          <Spade className="mb-3 text-[#e9c07a]" size={22} />
-          <p className="text-[15px] font-bold">О клубе</p>
-          <p className="mt-1 text-[12px] text-white/40">Majestic Poker</p>
-        </GlassCard>
+        <Link className="active:scale-[0.98] transition-transform" href="/client/about">
+          <GlassCard className="h-full !p-[18px]">
+            <Spade className="mb-3 text-[#e9c07a]" size={22} />
+            <p className="text-[15px] font-bold">О клубе</p>
+            <p className="mt-1 text-[12px] text-white/40">Majestic Poker</p>
+          </GlassCard>
+        </Link>
       </div>
 
       {address ? (
