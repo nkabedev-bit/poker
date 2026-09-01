@@ -2971,3 +2971,81 @@ p {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.04);
 }
+
+.qr-form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+.qr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.qr-sheet {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.qr-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.qr-card-image {
+  display: block;
+  width: 100%;
+}
+
+.qr-card-image svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.qr-card-code {
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #111;
+}
+
+/* Printing the page gives the same sheet the download does. */
+@media print {
+  .admin-header,
+  .admin-tabs,
+  .qr-actions,
+  .qr-form-row,
+  .panel-heading {
+    display: none !important;
+  }
+
+  .admin-page,
+  .admin-content,
+  .qr-sheet-panel {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    border: 0 !important;
+  }
+
+  .qr-sheet {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .qr-card {
+    border: 0.3mm dashed #bbb;
+    break-inside: avoid;
+  }
+}
