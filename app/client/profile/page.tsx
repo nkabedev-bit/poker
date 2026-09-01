@@ -8,11 +8,7 @@ import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { RatingRow, type RatingPlayer } from "../_components/rating-row";
-import {
-  countEarnedAchievements,
-  getAchievements,
-  getPlayerLevel,
-} from "@/lib/client/achievements";
+import { countEarnedAchievements, getAchievements } from "@/lib/client/achievements";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -64,7 +60,6 @@ export default function ClientProfilePage() {
     [me],
   );
   const achievements = useMemo(() => getAchievements(stats), [stats]);
-  const level = useMemo(() => getPlayerLevel(stats.games), [stats.games]);
 
   if (loading) return <LoadingScreen />;
 
@@ -86,27 +81,6 @@ export default function ClientProfilePage() {
           <p className="text-sm text-white/45">
             {me?.username ? `@${me.username}` : "Игрок клуба"}
           </p>
-        </div>
-      </GlassCard>
-
-      <GlassCard className="space-y-3">
-        <div className="flex items-center justify-between">
-          <span className="rounded-full bg-[#e8b465]/15 px-3 py-1 text-sm font-bold tracking-wide text-[#e8b465]">
-            {level.title}
-          </span>
-          {level.next ? (
-            <span className="text-xs text-white/45">
-              до {level.next.title}: {Math.max(0, level.next.games - stats.games)} игр
-            </span>
-          ) : (
-            <span className="text-xs text-white/45">максимальный уровень</span>
-          )}
-        </div>
-        <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-[#b8163c] to-[#e8b465]"
-            style={{ width: `${Math.round(level.progress * 100)}%` }}
-          />
         </div>
       </GlassCard>
 

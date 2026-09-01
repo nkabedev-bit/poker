@@ -4,12 +4,6 @@ export type PlayerStats = {
   top9: number;
 };
 
-export type PlayerLevel = {
-  next: { games: number; title: string } | null;
-  progress: number;
-  title: string;
-};
-
 export type Achievement = {
   description: string;
   earned: boolean;
@@ -19,37 +13,6 @@ export type Achievement = {
   title: string;
   value: number;
 };
-
-// Club levels are earned by turning up: the ladder is deliberately readable at a
-// glance rather than a formula nobody can reproduce at the table.
-const LEVELS: { games: number; title: string }[] = [
-  { games: 0, title: "FISH" },
-  { games: 5, title: "SEMI-REG" },
-  { games: 20, title: "REG" },
-  { games: 50, title: "SHARK" },
-  { games: 100, title: "LEGEND" },
-];
-
-export function getPlayerLevel(games: number): PlayerLevel {
-  const played = Math.max(0, Math.floor(games));
-  const currentIndex = LEVELS.reduce(
-    (found, level, index) => (played >= level.games ? index : found),
-    0,
-  );
-  const current = LEVELS[currentIndex];
-  const next = LEVELS[currentIndex + 1] ?? null;
-
-  if (!next) return { next: null, progress: 1, title: current.title };
-
-  const span = next.games - current.games;
-  const done = played - current.games;
-
-  return {
-    next: { games: next.games, title: next.title },
-    progress: Math.min(1, Math.max(0, done / span)),
-    title: current.title,
-  };
-}
 
 const ACHIEVEMENTS: {
   description: string;
