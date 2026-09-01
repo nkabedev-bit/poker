@@ -3,12 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { isDealerLabel } from "@/lib/player-labels";
-import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
+import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { useVisiblePolling } from "../use-visible-polling";
 import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
 
-type Player = { id: string; name: string; rebuys?: number; doubleRebuys?: number; status: "active" | "eliminated"; table?: number | null; label?: string | null };
-type BountyType = "standard" | "mystery" | "dealer" | "wanted";
+type Player = { id: string; name: string; progressiveKnockouts?: number; rebuys?: number; doubleRebuys?: number; status: "active" | "eliminated"; table?: number | null; label?: string | null };
+type BountyType = "standard" | "mystery" | "dealer" | "wanted" | "progressive";
 type PlayersResponse = {
   bountyType?: BountyType;
   isBounty?: boolean;
@@ -515,6 +515,16 @@ export default function TMAEliminationsPage() {
                     {selectedKillers.length > 1
                       ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
                       : `+${DEALER_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
+                  </div>
+                </div>
+              )}
+              {bountyType === "progressive" && selectedKillers.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🔥 Голова игрока</div>
+                  <div className="text-xl font-bold text-yellow-400">
+                    {selectedKillers.length > 1
+                      ? `по ${Number((getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts) / selectedKillers.length).toFixed(2))} PTS каждому`
+                      : `+${getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts)} PTS`}
                   </div>
                 </div>
               )}

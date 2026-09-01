@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { isDoubleReentryBannedByFormat } from "@/lib/tma/reentry-eligibility";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
@@ -69,7 +70,7 @@ export async function GET(request: Request) {
   // option is suppressed even when the blind level carries the x2 flag.
   const doubleReentryAvailable =
     reentryAvailable &&
-    (extras.settings.tournamentFormat ?? "regular") === "regular" &&
+    !isDoubleReentryBannedByFormat(extras.settings.tournamentFormat) &&
     Boolean(currentLevel?.doubleReentryAvailable);
 
   return NextResponse.json({

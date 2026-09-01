@@ -10,6 +10,19 @@ export type EliminationRollbackLog = {
   players_before?: unknown;
 };
 
+// Progressive Bounty: recording the knockout as a re-entry zeroed the victim's head
+// cycle, and the reset cannot be derived backwards — so undoing it reads the counter
+// from the players_before snapshot the log stored.
+export function getProgressiveKnockoutsBefore(log: EliminationRollbackLog): number {
+  const playersBefore = Array.isArray(log.players_before) ? log.players_before : [];
+  const victim = playersBefore.find(
+    (item) => (item as { id?: unknown } | null)?.id === log.eliminated_id,
+  ) as { progressiveKnockouts?: unknown } | undefined;
+  const knockouts = Number(victim?.progressiveKnockouts ?? 0);
+
+  return Number.isFinite(knockouts) && knockouts > 0 ? knockouts : 0;
+}
+
 export function getTargetedEliminationRollbackPlayers(
   log: EliminationRollbackLog,
   players: TournamentPlayer[],

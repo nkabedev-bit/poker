@@ -75,7 +75,7 @@ const settingsSchema = z.object({
   blindAlertCustomSoundUrl: nullableStoredUrlSchema.optional(),
   blindAlertSeconds: z.number().int().min(1).max(300).optional(),
   blindAlertSound: blindAlertSoundSchema.optional(),
-  bountyType: z.enum(["standard", "mystery", "dealer", "wanted"]).optional(),
+  bountyType: z.enum(["standard", "mystery", "dealer", "wanted", "progressive"]).optional(),
   buyIn: z.number().int().min(0).optional(),
   isBounty: z.boolean().optional(),
   maxPlayersPerTable: z.number().int().positive().optional(),
@@ -84,7 +84,7 @@ const settingsSchema = z.object({
   rebuyPrice: z.number().int().min(0).optional(),
   reentryEnabled: z.boolean().optional(),
   tablesCount: z.number().int().positive().optional(),
-  tournamentFormat: z.enum(["regular", "phoenix", "deepstack"]).optional(),
+  tournamentFormat: z.enum(["regular", "phoenix", "deepstack", "freeroll"]).optional(),
 });
 
 const prizeSchema = z.object({

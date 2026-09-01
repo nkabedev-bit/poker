@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import { removePlayerFromVipSheet, syncTournamentToSheets } from "@/lib/google-sheets";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
-import type { EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
+import { getProgressiveKnockoutsBefore, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTimerContext } from "@/lib/tma/timer-context";
@@ -138,6 +138,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!eligibility.usesReentry) {
         const reentryLimitReached =
           extras.settings.bountyType !== "wanted" &&
+          extras.settings.bountyType !== "progressive" &&
           Math.max(0, Number(player.rebuys ?? 0)) >= Math.max(1, Number(extras.settings.maxReentries ?? 1));
 
         return NextResponse.json(
@@ -176,6 +177,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const typedLog = log as BountyLog;
+    const isProgressiveBounty = extras.settings.bountyType === "progressive";
     const { data: updatedPlayers, error: rpcError } = await auth.supabase.rpc("cancel_player_elimination", {
       p_tournament_id: t.id,
       p_eliminated_id: id,
@@ -185,6 +187,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       p_uses_reentry: typedLog.uses_reentry ?? false,
       p_players_before: null,
       p_reentry_double: typedLog.reentry_double ?? false,
+      p_progressive: isProgressiveBounty,
+      p_victim_progressive: getProgressiveKnockoutsBefore(typedLog),
     });
 
     if (rpcError) throw rpcError;
@@ -219,6 +223,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             p_uses_reentry: true,
             p_is_bounty: extras.settings.isBounty,
             p_reentry_double: reentryDouble,
+            p_progressive: isProgressiveBounty,
           },
         );
 

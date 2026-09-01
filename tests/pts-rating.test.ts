@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildPtsStandingsRows,
+  getProgressiveHeadPoints,
+  isSideBountyPoints,
   recordPtsElimination,
 } from "@/lib/pts-rating";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
@@ -234,5 +236,85 @@ describe("PTS rating", () => {
     );
 
     expect(rows[0]).toMatchObject({ bountyCount: 0.33, playerName: "A", points: 10 });
+  });
+});
+
+describe("Progressive Bounty", () => {
+  it("prices a head at the base plus a step per knockout on the current bullet", () => {
+    expect(getProgressiveHeadPoints(0)).toBe(30);
+    expect(getProgressiveHeadPoints(1)).toBe(50);
+    expect(getProgressiveHeadPoints(3)).toBe(90);
+    expect(getProgressiveHeadPoints(undefined)).toBe(30);
+  });
+
+  it("prices half a knockout (a split) at half a step", () => {
+    expect(getProgressiveHeadPoints(0.5)).toBe(40);
+    expect(getProgressiveHeadPoints(1.5)).toBe(60);
+  });
+
+  it("keeps its points out of the PTS total, like the other side-bounty modes", () => {
+    expect(isSideBountyPoints("progressive")).toBe(true);
+  });
+
+  it("raises the killer's head by one step and keeps the total knockout count", () => {
+    const result = recordPtsElimination({
+      eliminatedId: "b",
+      isBounty: true,
+      killers: [{ id: "a", name: "A", share: 1 }],
+      players: [
+        player("a", "A", { bountyCount: 2, progressiveKnockouts: 2 }),
+        player("b", "B"),
+        player("c", "C"),
+      ],
+      progressive: true,
+      usesReentry: false,
+    });
+
+    expect(result.players.find((p) => p.id === "a")).toMatchObject({
+      bountyCount: 3,
+      progressiveKnockouts: 3,
+    });
+    expect(getProgressiveHeadPoints(3)).toBe(90);
+  });
+
+  it("raises each head by half a step on a split knockout", () => {
+    const result = recordPtsElimination({
+      eliminatedId: "b",
+      isBounty: true,
+      killers: [
+        { id: "a", name: "A", share: 0.5 },
+        { id: "c", name: "C", share: 0.5 },
+      ],
+      players: [player("a", "A"), player("b", "B"), player("c", "C")],
+      progressive: true,
+      usesReentry: false,
+    });
+
+    expect(result.players.find((p) => p.id === "a")?.progressiveKnockouts).toBe(0.5);
+    expect(result.players.find((p) => p.id === "c")?.progressiveKnockouts).toBe(0.5);
+    // Half a knockout each is worth half a step on the head price.
+    expect(getProgressiveHeadPoints(0.5)).toBe(40);
+  });
+
+  it("resets the cycle on a re-entry while the total knockout count stands", () => {
+    const result = recordPtsElimination({
+      eliminatedId: "hunter",
+      isBounty: true,
+      killers: [{ id: "a", name: "A", share: 1 }],
+      players: [
+        player("a", "A"),
+        player("hunter", "Hunter", { bountyCount: 3, progressiveKnockouts: 3 }),
+        player("c", "C"),
+      ],
+      progressive: true,
+      usesReentry: true,
+    });
+
+    expect(result.players.find((p) => p.id === "hunter")).toMatchObject({
+      bountyCount: 3,
+      progressiveKnockouts: 0,
+      rebuys: 1,
+      status: "active",
+    });
   });
 });

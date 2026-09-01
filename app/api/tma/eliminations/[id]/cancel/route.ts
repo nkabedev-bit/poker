@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncTournamentToSheets } from "@/lib/google-sheets";
-import { getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
+import { getProgressiveKnockoutsBefore, getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -55,6 +55,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (error) throw error;
 
     const typedLog = log as BountyLog;
+    const extras = await loadTournamentExtras(t.id, auth.supabase);
+    const isProgressiveBounty = extras.settings.bountyType === "progressive";
 
     const { data: updatedPlayersResult, error: rpcError } = await auth.supabase.rpc("cancel_player_elimination", {
       p_tournament_id: t.id,
@@ -65,6 +67,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       p_uses_reentry: typedLog.uses_reentry ?? false,
       p_players_before: null,
       p_reentry_double: typedLog.reentry_double ?? false,
+      p_progressive: isProgressiveBounty,
+      p_victim_progressive: getProgressiveKnockoutsBefore(typedLog),
     });
 
     if (rpcError) throw rpcError;

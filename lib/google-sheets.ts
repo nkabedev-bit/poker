@@ -724,7 +724,13 @@ function buildPtsStandingsBlock(
       "Место",
       "Игрок",
       "PTS",
-      bountyType === "dealer" ? "Очки за дилера" : bountyType === "wanted" ? "Wanted PTS" : "Mystery-Points",
+      bountyType === "dealer"
+        ? "Очки за дилера"
+        : bountyType === "wanted"
+          ? "Wanted PTS"
+          : bountyType === "progressive"
+            ? "Очки за баунти"
+            : "Mystery-Points",
       "Кол-во выбиваний",
     ]
     : ["Место", "Игрок", "PTS", "Кол-во баунти"];

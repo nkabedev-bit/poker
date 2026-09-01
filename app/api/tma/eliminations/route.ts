@@ -6,7 +6,7 @@ import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward } from "@/lib/timer/calculate";
 import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
-import { DEALER_KNOCKOUT_POINTS, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
+import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { loadTimerContext } from "@/lib/tma/timer-context";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
@@ -90,13 +90,19 @@ export async function POST(request: Request) {
     const isWantedBounty = extras.settings.bountyType === "wanted";
     const eliminatedIsWanted = Math.max(0, Number(eliminatedPlayer.rebuys ?? 0)) > 0;
     const regularKnockoutPoints = Math.max(0, Number(extras.pts.bountyPoints) || 0);
+    // Progressive Bounty: the victim's head is worth the base price plus a step for
+    // every knockout they scored on this bullet — computed server-side from the stored
+    // cycle counter, never from the client.
+    const isProgressiveBounty = extras.settings.bountyType === "progressive";
     const mysteryBountyPoints = isDealerRevenge
       ? (eliminatedIsDealer ? DEALER_KNOCKOUT_POINTS : 0)
       : isWantedBounty
         ? (eliminatedIsWanted ? WANTED_KNOCKOUT_POINTS : regularKnockoutPoints)
-        : extras.settings.bountyType === "mystery"
-          ? clientMysteryPoints
-          : 0;
+        : isProgressiveBounty
+          ? getProgressiveHeadPoints(eliminatedPlayer.progressiveKnockouts)
+          : extras.settings.bountyType === "mystery"
+            ? clientMysteryPoints
+            : 0;
     const sanitizedKillers: Killer[] = isBounty && Array.isArray(killers)
       ? killers
         .map((killer: Partial<Killer>) => ({
@@ -148,6 +154,7 @@ export async function POST(request: Request) {
       p_uses_reentry: usesReentry,
       p_is_bounty: isBounty,
       p_reentry_double: reentryDouble,
+      p_progressive: isProgressiveBounty,
     });
 
     if (rpcError) throw rpcError;

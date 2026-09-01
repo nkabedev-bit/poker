@@ -207,6 +207,14 @@ describe("syncTournamentToSheets block layout", () => {
     expect(raw?.ranges?.[2]).toStrictEqual(expect.stringContaining(`'${SHEET}'!L1:P`));
   });
 
+  it("uses the wide standings layout in Progressive Bounty too", async () => {
+    await syncTournamentToSheets(fakeSupabase(extrasWith(roster, "progressive"), []), "t1");
+
+    const raw = calls.find((call) => call.method === "values.batchUpdate:RAW");
+    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:J31`);
+    expect(raw?.ranges?.[2]).toStrictEqual(expect.stringContaining(`'${SHEET}'!L1:P`));
+  });
+
   it("writes eliminations in their own USER_ENTERED batch so times stay times", async () => {
     await syncTournamentToSheets(fakeSupabase(extrasWith(roster), []), "t1");
 

@@ -109,6 +109,25 @@ describe("resolveReentryEligibility", () => {
     ).toEqual({ reentryDouble: false, usesReentry: true });
   });
 
+  it("keeps Progressive Bounty re-entries unlimited and its double unrestricted", () => {
+    const settings = settingsWith({ bountyType: "progressive", maxReentries: 2 });
+
+    expect(resolve({ player: { rebuys: 5 }, requestedDouble: true, settings })).toEqual({
+      reentryDouble: true,
+      usesReentry: true,
+    });
+    // Unlike Wanted Bounty, a second x2 is allowed in Progressive.
+    expect(
+      resolve({ player: { doubleRebuys: 1, rebuys: 5 }, requestedDouble: true, settings }),
+    ).toEqual({ reentryDouble: true, usesReentry: true });
+  });
+
+  it("keeps the double available in the FREEROLL format", () => {
+    expect(
+      resolve({ requestedDouble: true, settings: settingsWith({ tournamentFormat: "freeroll" }) }),
+    ).toEqual({ reentryDouble: true, usesReentry: true });
+  });
+
   it("returns nothing when no re-entry was requested", () => {
     expect(resolve({ requestedDouble: true, requestedReentry: false })).toEqual({
       reentryDouble: false,

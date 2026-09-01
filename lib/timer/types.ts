@@ -9,11 +9,13 @@ export type RegistrationStatus = "open" | "closed";
 
 export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off";
 
-export type BountyType = "standard" | "mystery" | "dealer" | "wanted";
+export type BountyType = "standard" | "mystery" | "dealer" | "wanted" | "progressive";
 
 // Tournament format presets: PHOENIX — no addons, 1 regular re-entry; DEEP STACK — no
-// addons, 2 regular re-entries. Both disable the double (x2) re-entry option.
-export type TournamentFormat = "regular" | "phoenix" | "deepstack";
+// addons, 2 regular re-entries. Both disable the double (x2) re-entry option. FREEROLL
+// plays like a regular tournament and only differs in money: the entry ticket is free,
+// so nothing is charged for it in the finance sheet.
+export type TournamentFormat = "regular" | "phoenix" | "deepstack" | "freeroll";
 
 export type BlindLevel = {
   id: string;
@@ -59,6 +61,9 @@ export type TournamentPlayer = {
   bountyChipsTotal?: number;
   bountyCount: number;
   mysteryBountyPoints?: number;
+  // Progressive Bounty: knockouts scored on the CURRENT bullet, which set the price of
+  // this player's own head. Reset to 0 on a re-entry; `bountyCount` keeps the total.
+  progressiveKnockouts?: number;
   status: "active" | "eliminated";
   finishPlace: number | null;
   registrationNumber?: number | null;

@@ -742,6 +742,140 @@ describe("TMA eliminations route", () => {
     );
   });
 
+  it("progressive bounty: pays the base head price for a player who scored nothing yet", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "progressive" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          // The client never decides progressive points — a stale value must be ignored.
+          mystery_bounty_points: 999,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // Base head price, and no big-blind stack reward in this mode.
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_bounty_chip_award: 0, p_mystery_points: 30, p_progressive: true }),
+    );
+  });
+
+  it("progressive bounty: a head grown by three knockouts pays 30 + 3 × 20", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer"),
+          player("other", "Other"),
+          { ...player("hunter", "Hunter"), bountyCount: 3, progressiveKnockouts: 3 },
+        ],
+        settings: { isBounty: true, bountyType: "progressive" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "hunter",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 90, p_progressive: true }),
+    );
+  });
+
+  it("progressive bounty: a re-entered player is back to the base head price", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer"),
+          player("other", "Other"),
+          // Three knockouts in total, but the cycle was reset by the re-entry.
+          { ...player("hunter", "Hunter"), bountyCount: 3, progressiveKnockouts: 0, rebuys: 1 },
+        ],
+        settings: { isBounty: true, bountyType: "progressive" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "hunter",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 30 }),
+    );
+  });
+
+  it("progressive bounty: allows a re-entry beyond the configured limit while the window is open", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer"),
+          player("other", "Other"),
+          { ...player("out", "Out"), rebuys: 5 },
+        ],
+        settings: {
+          isBounty: true,
+          bountyType: "progressive",
+          maxReentries: 2,
+          reentryEnabled: true,
+        },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          uses_reentry: true,
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_uses_reentry: true }),
+    );
+  });
+
   const doubleReentryLevelRows = [
     {
       id: "level-1",

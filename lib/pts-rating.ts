@@ -12,11 +12,29 @@ export const DEALER_KNOCKOUT_POINTS = 100;
 // out a player on their first bullet awards nothing.
 export const WANTED_KNOCKOUT_POINTS = 60;
 
+// Progressive Bounty: a head starts at the base price and grows by the step for every
+// knockout its owner scores on the current bullet. Busting out and re-entering starts a
+// fresh cycle at the base price, while the total knockout count keeps running.
+export const PROGRESSIVE_BASE_POINTS = 30;
+export const PROGRESSIVE_STEP_POINTS = 20;
+
+// The price of one player's head right now. Split knockouts count as shares (0.5 per
+// killer), so half a knockout raises a head by half a step.
+export function getProgressiveHeadPoints(progressiveKnockouts: number | null | undefined) {
+  const cycleKnockouts = Math.max(0, Number(progressiveKnockouts) || 0);
+  return Number((PROGRESSIVE_BASE_POINTS + PROGRESSIVE_STEP_POINTS * cycleKnockouts).toFixed(2));
+}
+
 // Mystery Bounty, Dealer Revenge and Wanted Bounty share the same mechanics: knockout
 // points live in their own column (TournamentPlayer.mysteryBountyPoints) and are never
 // summed into PTS.
 export function isSideBountyPoints(bountyType: string | null | undefined): boolean {
-  return bountyType === "mystery" || bountyType === "dealer" || bountyType === "wanted";
+  return (
+    bountyType === "mystery" ||
+    bountyType === "dealer" ||
+    bountyType === "wanted" ||
+    bountyType === "progressive"
+  );
 }
 
 export type PtsPlaceTemplate = {
@@ -122,6 +140,8 @@ export function normalizePtsBountyTemplates(value: unknown): PtsBountyTemplate[]
     .filter((template): template is PtsBountyTemplate => Boolean(template));
 }
 
+// Mirrors the record_player_elimination RPC (the live path is the database function;
+// this keeps the same rules readable and testable in one place).
 export function recordPtsElimination(input: {
   bountyChipAward?: number;
   eliminatedId: string;
@@ -129,6 +149,7 @@ export function recordPtsElimination(input: {
   killers: KillerShare[];
   mysteryPoints?: number;
   players: TournamentPlayer[];
+  progressive?: boolean;
   usesReentry: boolean;
 }) {
   const activePlayers = input.players.filter((player) => player.status === "active");
@@ -156,6 +177,9 @@ export function recordPtsElimination(input: {
         ? {
           ...next,
           rebuys: (next.rebuys || 0) + 1,
+          // Progressive Bounty: a new bullet is a new cycle, so the head goes back to
+          // its base price while bountyCount keeps the running total.
+          ...(input.progressive ? { progressiveKnockouts: 0 } : {}),
         }
         : {
           ...next,
@@ -179,6 +203,11 @@ export function recordPtsElimination(input: {
         bountyChipsTotal: roundChipCount((next.bountyChipsTotal || 0) + bountyChips),
         bountyCount: roundBountyCount((next.bountyCount || 0) + bountyShare),
         stack: roundChipCount((next.stack || 0) + bountyChips),
+        // Progressive Bounty: every knockout raises the killer's own head by one step,
+        // counted in shares so a split knockout raises each head by half a step.
+        ...(input.progressive
+          ? { progressiveKnockouts: roundBountyCount((next.progressiveKnockouts || 0) + bountyShare) }
+          : {}),
       };
     }
 
