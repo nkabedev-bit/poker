@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
+import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
@@ -27,6 +28,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const id = (await params).id;
   const body = await request.json().catch(() => ({}));
   const tableNumber = Number(body.table);
+  // Seating and handing over a card are one movement at the door, so the card travels
+  // with this request instead of costing a second round trip.
+  const cardCode = normalizeCardCode(body.cardCode);
+  const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
 
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
@@ -96,6 +101,33 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error;
   }
 
+  let session = null;
+  if (cardCode) {
+    const { data: carded, error: cardError } = await auth.supabase.rpc("assign_player_card", {
+      p_tournament_id: t.id,
+      p_player_id: seatedPlayer.id,
+      p_card_code: cardCode,
+      p_ticket_type: ticketType,
+    });
+
+    // The player is seated by now, and a clashing card must not undo that: the seat
+    // stands, the admin is told, and they scan a different card.
+    if (cardError) {
+      const message = String(cardError.message ?? "");
+      if (!message.includes("Card already issued")) throw cardError;
+
+      session = null;
+      await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
+
+      return NextResponse.json({
+        cardError: "Эта карта уже выдана другому игроку",
+        player: seatedPlayer,
+      });
+    }
+
+    session = buildCardSession(carded, cardCode);
+  }
+
   await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
   await auth.supabase
     .from("client_bot_users")
@@ -108,5 +140,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.error("Failed to sync VIP sheet", sheetError);
   }
 
-  return NextResponse.json({ player: seatedPlayer });
+  return NextResponse.json({ player: seatedPlayer, session });
 }
