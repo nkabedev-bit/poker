@@ -4,45 +4,30 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { prepareLogoImage } from "@/lib/admin/logo-upload";
-import { moscowLocalToUtcISO } from "@/lib/client-bot/schedule-time";
+import { eventInputSchema, toEventDraft } from "@/lib/events/input";
+import { MAX_POSTER_BYTES, PosterUploadError } from "@/lib/events/poster-upload";
 import { deleteEvent, saveEvent } from "@/lib/events/store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const POSTER_BUCKET = "tournament-logos";
-const MAX_POSTER_FILE_SIZE = 5 * 1024 * 1024;
 
-const eventSchema = z.object({
-  badge: z.string().trim().max(40).optional().default(""),
-  buyIn: z.coerce.number().int().min(0).default(0),
-  featuresText: z.string().trim().max(4000).optional().default(""),
-  id: z.string().uuid().optional(),
-  isPublished: z.enum(["yes", "no"]).default("no"),
-  lateEntryUntil: z.string().trim().optional().default(""),
-  maxPlayers: z.string().trim().optional().default(""),
-  posterUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
-  rulesText: z.string().trim().max(2000).optional().default(""),
-  startingStack: z.string().trim().optional().default(""),
-  startsAt: z.string().trim().min(1, "Укажите дату и время"),
-  title: z.string().trim().min(1, "Укажите название").max(80),
-  venueAddress: z.string().trim().max(200).optional().default(""),
-});
-
-function parseOptionalPositiveInt(value: string) {
-  if (!value) return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+function optionalNumber(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+  return text ? text : null;
 }
 
-async function uploadPoster(formData: FormData) {
+// The web form posts the file itself; the mini-app sends a data URL instead
+// (lib/events/poster-upload).
+async function uploadPosterFile(supabase: SupabaseClient, formData: FormData) {
   const file = formData.get("poster");
   if (!(file instanceof File) || file.size === 0) return null;
 
-  if (file.size > MAX_POSTER_FILE_SIZE) {
-    throw new Error("Афиша больше 5 МБ — уменьшите файл");
+  if (file.size > MAX_POSTER_BYTES) {
+    throw new PosterUploadError("Афиша больше 5 МБ — уменьшите файл");
   }
 
-  const supabase = await createSupabaseServerClient();
   const bytes = await prepareLogoImage(Buffer.from(await file.arrayBuffer()));
   const path = `events/${randomUUID()}.png`;
 
@@ -56,48 +41,28 @@ async function uploadPoster(formData: FormData) {
 }
 
 export async function saveTournamentEvent(formData: FormData) {
-  const parsed = eventSchema.parse({
+  const id = String(formData.get("id") ?? "").trim();
+  const parsed = eventInputSchema.parse({
     badge: formData.get("badge"),
-    buyIn: formData.get("buyIn"),
+    buyIn: formData.get("buyIn") || 0,
     featuresText: formData.get("featuresText"),
-    id: formData.get("id") || undefined,
-    isPublished: formData.get("isPublished") === "yes" ? "yes" : "no",
+    isPublished: formData.get("isPublished") === "yes",
     lateEntryUntil: formData.get("lateEntryUntil"),
-    maxPlayers: formData.get("maxPlayers"),
+    maxPlayers: optionalNumber(formData.get("maxPlayers")),
     posterUrl: formData.get("posterUrl"),
     rulesText: formData.get("rulesText"),
-    startingStack: formData.get("startingStack"),
+    startingStack: optionalNumber(formData.get("startingStack")),
     startsAt: formData.get("startsAt"),
     title: formData.get("title"),
     venueAddress: formData.get("venueAddress"),
   });
 
-  const startsAt = moscowLocalToUtcISO(parsed.startsAt);
-  const lateEntryUntil = parsed.lateEntryUntil
-    ? moscowLocalToUtcISO(parsed.lateEntryUntil)
-    : null;
-
-  if (lateEntryUntil && new Date(lateEntryUntil) < new Date(startsAt)) {
-    throw new Error("Поздняя регистрация не может закрываться раньше начала турнира");
-  }
-
-  const uploadedPosterUrl = await uploadPoster(formData);
   const supabase = await createSupabaseServerClient();
+  const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.posterUrl;
 
   await saveEvent(supabase, {
-    badge: parsed.badge || null,
-    buyIn: parsed.buyIn,
-    featuresText: parsed.featuresText,
-    id: parsed.id,
-    isPublished: parsed.isPublished === "yes",
-    lateEntryUntil,
-    maxPlayers: parseOptionalPositiveInt(parsed.maxPlayers),
-    posterUrl: uploadedPosterUrl ?? (parsed.posterUrl || null),
-    rulesText: parsed.rulesText,
-    startingStack: parseOptionalPositiveInt(parsed.startingStack),
-    startsAt,
-    title: parsed.title,
-    venueAddress: parsed.venueAddress,
+    ...toEventDraft({ ...parsed, posterUrl }),
+    ...(id ? { id } : {}),
   });
 
   revalidatePath("/admin/events");

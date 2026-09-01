@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, Users, Clock, Skull } from "lucide-react";
+import { Bot, CalendarPlus, Users, Clock, Skull } from "lucide-react";
 
 export type TelegramWebApp = {
   initData?: string;
@@ -82,6 +82,7 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
               <NavItem href="/tma/players" icon={<Users />} label="Игроки" active={pathname.includes("/players")} />
               <NavItem href="/tma/control" icon={<Clock />} label="Управление" active={pathname.includes("/control")} />
               <NavItem href="/tma/eliminations" icon={<Skull />} label="Выбывания" active={pathname.includes("/eliminations")} />
+              <NavItem href="/tma/events" icon={<CalendarPlus />} label="Афиши" active={pathname.includes("/events")} />
               <NavItem href="/tma/bot" icon={<Bot />} label="Тг бот" active={pathname.includes("/bot")} />
             </nav>
           </div>
