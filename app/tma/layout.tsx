@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, CalendarPlus, Users, Clock, Skull } from "lucide-react";
+import { Bot, CalendarPlus, CreditCard, Users, Clock, Skull } from "lucide-react";
 
 export type TelegramWebApp = {
   initData?: string;
@@ -12,6 +12,13 @@ export type TelegramWebApp = {
   expand: () => void;
   showAlert: (message: string) => void;
   showConfirm: (message: string, callback: (confirmed: boolean) => void) => void;
+  // Telegram's own QR reader: the only camera a mini-app can open, and the reason the
+  // venue cards carry a QR code rather than an NFC chip.
+  showScanQrPopup?: (
+    params: { text?: string },
+    callback: (text: string) => boolean | void,
+  ) => void;
+  closeScanQrPopup?: () => void;
   HapticFeedback: {
     impactOccurred: (style: string) => void;
     notificationOccurred: (type: string) => void;
@@ -82,6 +89,7 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
               <NavItem href="/tma/players" icon={<Users />} label="Игроки" active={pathname.includes("/players")} />
               <NavItem href="/tma/control" icon={<Clock />} label="Управление" active={pathname.includes("/control")} />
               <NavItem href="/tma/eliminations" icon={<Skull />} label="Выбывания" active={pathname.includes("/eliminations")} />
+              <NavItem href="/tma/cards" icon={<CreditCard />} label="Карты" active={pathname.includes("/cards")} />
               <NavItem href="/tma/events" icon={<CalendarPlus />} label="Афиши" active={pathname.includes("/events")} />
               <NavItem href="/tma/bot" icon={<Bot />} label="Тг бот" active={pathname.includes("/bot")} />
             </nav>

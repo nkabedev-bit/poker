@@ -66,6 +66,10 @@ export type TournamentPlayer = {
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
   label?: string | null; // custom display marker for the public screen (e.g. "дилер")
+  // Venue card handed out at the door for the evening; the code is printed on the card
+  // and the card is reused by whoever comes next.
+  cardCode?: string | null;
+  ticketType?: "regular" | "vip";
 };
 
 export type ScheduleVersion = { effectiveFrom: string; text: string };
