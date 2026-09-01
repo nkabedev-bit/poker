@@ -3,6 +3,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { getEffectiveTimerState } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import { saveTournamentResults } from "@/lib/results/store";
 import {
   loadCurrentTournamentContext,
   saveTournamentExtrasFromContext,
@@ -142,6 +143,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
 
       const context = await loadCurrentTournamentContext(auth.supabase);
       if (context) {
+        try {
+          await saveTournamentResults({
+            extras: context.extras,
+            players: context.extras.players,
+            supabase: auth.supabase,
+            tournamentId: t.id,
+          });
+        } catch (resultsError) {
+          console.error("Failed to store tournament results", resultsError);
+        }
+
         await saveTournamentExtrasFromContext(
           auth.supabase,
           context,

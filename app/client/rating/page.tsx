@@ -6,9 +6,13 @@ import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
 import { BackLink } from "../_components/back-link";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
+import { formatMonthLabel } from "@/lib/results/tournament-results";
 
 type RatingResponse = {
+  countedGames: number;
   me: RatingPlayer;
+  month: string;
+  months: string[];
   players: RatingPlayer[];
   pointsAvailable: boolean;
 };
@@ -20,18 +24,20 @@ export default function ClientRatingPage() {
   const [data, setData] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
+  const [month, setMonth] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("eliminations");
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/client-tma/rating", {
+      const query = month ? `?month=${encodeURIComponent(month)}` : "";
+      const res = await fetch(`/api/client-tma/rating${query}`, {
         headers: { "X-Telegram-Init-Data": initData },
       });
       if (res.ok) setData(await res.json());
     } finally {
       setLoading(false);
     }
-  }, [initData]);
+  }, [initData, month]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0);
@@ -64,6 +70,27 @@ export default function ClientRatingPage() {
     <div className="space-y-4 pt-1">
       <BackLink />
       <PageTitle>Рейтинг</PageTitle>
+
+      {data && (data.months?.length ?? 0) > 0 ? (
+        <div className="-mx-5 overflow-x-auto px-5">
+          <div className="flex w-max gap-2">
+            {(data.months ?? []).map((item) => (
+              <button
+                key={item}
+                className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold capitalize transition ${
+                  item === data.month
+                    ? "bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] text-white"
+                    : "border border-white/[0.07] bg-white/[0.04] text-white/55"
+                }`}
+                type="button"
+                onClick={() => setMonth(item)}
+              >
+                {formatMonthLabel(item)}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="relative">
         <Search className="absolute left-4 top-4 text-white/30" size={17} />
@@ -116,10 +143,9 @@ export default function ClientRatingPage() {
         </div>
       )}
 
-      {data && !data.pointsAvailable ? (
+      {data ? (
         <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-white/30">
-          Очки рейтинга подключим из клубной таблицы — пока в колонке прочерк, нокауты
-          настоящие.
+          В зачёт идут {data.countedGames ?? 5} лучших игр месяца.
         </p>
       ) : null}
     </div>

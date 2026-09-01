@@ -1,0 +1,94 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { buildTournamentResultRows } from "@/lib/results/tournament-results";
+import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
+
+/**
+ * Resolves what the game was called. A published poster for the same day gives the
+ * name players saw when they signed up ("ONE SHOT KNOCKOUT"); without one the
+ * tournament's own name has to do.
+ */
+async function resolveGameTitle(
+  supabase: SupabaseClient,
+  startedAt: Date,
+  fallbackTitle: string,
+) {
+  const dayStart = new Date(startedAt);
+  dayStart.setUTCHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+
+  const { data } = await supabase
+    .from("tournament_events")
+    .select("id, title")
+    .eq("is_published", true)
+    .gte("starts_at", dayStart.toISOString())
+    .lt("starts_at", dayEnd.toISOString())
+    .order("starts_at")
+    .limit(1)
+    .maybeSingle();
+
+  const event = data as { id: string; title: string } | null;
+
+  return { eventId: event?.id ?? null, title: event?.title || fallbackTitle };
+}
+
+/**
+ * Stores the finishing table of a tournament. Called at the moment the game ends and
+ * before the roster is wiped, so the evening survives as history.
+ *
+ * Writing the same game twice is harmless: the rows are keyed by start time and player.
+ */
+export async function saveTournamentResults({
+  extras,
+  players,
+  supabase,
+  tournamentId,
+}: {
+  extras: TournamentExtras;
+  players: TournamentPlayer[];
+  supabase: SupabaseClient;
+  tournamentId: string;
+}) {
+  const rows = buildTournamentResultRows(players, {
+    bountyPoints: extras.pts.bountyPoints,
+    bountyType: extras.settings.bountyType,
+    placePoints: extras.pts.placePoints,
+  });
+
+  if (rows.length === 0) return { saved: 0 };
+
+  // The session start is what tells two games on the same date apart.
+  const startedAt = new Date(extras.settings.sheetsSessionStartedAt ?? Date.now());
+  const { data: tournament } = await supabase
+    .from("tournaments")
+    .select("name")
+    .eq("id", tournamentId)
+    .maybeSingle();
+
+  const { eventId, title } = await resolveGameTitle(
+    supabase,
+    startedAt,
+    (tournament as { name?: string } | null)?.name || "Турнир",
+  );
+
+  const { error } = await supabase.from("tournament_results").upsert(
+    rows.map((row) => ({
+      event_id: eventId,
+      knockouts: row.knockouts,
+      place: row.place,
+      played_on: startedAt.toISOString().slice(0, 10),
+      player_name: row.playerName,
+      points: row.points,
+      source: "app",
+      started_at: startedAt.toISOString(),
+      telegram_id: row.telegramId,
+      title,
+      tournament_id: tournamentId,
+    })),
+    { onConflict: "started_at,player_name" },
+  );
+
+  if (error) throw error;
+
+  return { saved: rows.length };
+}

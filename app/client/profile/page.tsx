@@ -36,22 +36,37 @@ type Me = {
 
 type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
 
+type PlayedGame = {
+  knockouts: number;
+  place: number | null;
+  playedOn: string;
+  points: number;
+  startedAt: string;
+  title: string;
+};
+
 export default function ClientProfilePage() {
   const { initData, telegramUser } = useClientTMA();
   const [me, setMe] = useState<Me | null>(null);
   const [rating, setRating] = useState<RatingResponse | null>(null);
+  const [played, setPlayed] = useState<PlayedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyTab, setHistoryTab] = useState<"active" | "past">("active");
 
   const load = useCallback(async () => {
     try {
-      const [meRes, ratingRes] = await Promise.all([
+      const [meRes, ratingRes, gamesRes] = await Promise.all([
         fetch("/api/client-tma/me", { headers: { "X-Telegram-Init-Data": initData } }),
         fetch("/api/client-tma/rating", { headers: { "X-Telegram-Init-Data": initData } }),
+        fetch("/api/client-tma/games", { headers: { "X-Telegram-Init-Data": initData } }),
       ]);
 
       if (meRes.ok) setMe(await meRes.json());
       if (ratingRes.ok) setRating(await ratingRes.json());
+      if (gamesRes.ok) {
+        const data = await gamesRes.json();
+        setPlayed(data.games ?? []);
+      }
     } finally {
       setLoading(false);
     }
@@ -80,7 +95,7 @@ export default function ClientProfilePage() {
   const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], ownPhoto);
   const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
-  const history = historyTab === "active" ? me?.history.active : me?.history.past;
+  const upcoming = me?.history.active ?? [];
 
   return (
     <div className="space-y-6 pt-1">
@@ -210,31 +225,59 @@ export default function ClientProfilePage() {
           </TabButton>
         </div>
 
-        {history && history.length > 0 ? (
+        {historyTab === "active" ? (
+          upcoming.length > 0 ? (
+            <div className="space-y-2">
+              {upcoming.map((item) => (
+                <Link
+                  key={item.event.id}
+                  className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
+                  href={`/client/events/${item.event.id}`}
+                >
+                  <p className="font-semibold">{item.event.title}</p>
+                  <p className="mt-1 text-xs text-white/45">
+                    {formatEventDayLabel(item.event.startsAt)},{" "}
+                    {formatEventTimeLabel(item.event.startsAt)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <GlassCard className="py-8 text-center">
+              <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
+              <p className="text-sm text-white/45">Вы пока никуда не записаны.</p>
+            </GlassCard>
+          )
+        ) : played.length > 0 ? (
           <div className="space-y-2">
-            {history.map((item) => (
+            {played.map((game) => (
               <Link
-                key={item.event.id}
-                className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
-                href={`/client/events/${item.event.id}`}
+                key={game.startedAt}
+                className="flex items-center gap-3 rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
+                href={`/client/games/${encodeURIComponent(game.startedAt)}`}
               >
-                <p className="font-semibold">{item.event.title}</p>
-                <p className="mt-1 text-xs text-white/45">
-                  {formatEventDayLabel(item.event.startsAt)},{" "}
-                  {formatEventTimeLabel(item.event.startsAt)}
-                  {item.status === "seated" ? " · вы играли" : ""}
-                </p>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-semibold">{game.title}</span>
+                  <span className="mt-1 block text-xs text-white/45">
+                    {formatEventDayLabel(game.playedOn)}
+                    {game.points > 0 ? ` · ${game.points.toLocaleString("ru-RU")} очков` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-[20px] font-extrabold leading-none text-[#e9c07a]">
+                    {game.place ?? "—"}
+                  </span>
+                  <span className="mt-1 block text-[10px] uppercase tracking-wider text-white/35">
+                    место
+                  </span>
+                </span>
               </Link>
             ))}
           </div>
         ) : (
           <GlassCard className="py-8 text-center">
             <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
-            <p className="text-sm text-white/45">
-              {historyTab === "active"
-                ? "Вы пока никуда не записаны."
-                : "Сыгранных турниров пока нет."}
-            </p>
+            <p className="text-sm text-white/45">Сыгранных турниров пока нет.</p>
           </GlassCard>
         )}
       </section>

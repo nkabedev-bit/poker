@@ -10,6 +10,7 @@ import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINT
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { loadTimerContext } from "@/lib/tma/timer-context";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 type Killer = {
@@ -181,6 +182,20 @@ export async function POST(request: Request) {
       if (statsError) {
         console.error("Failed to accumulate client bot stats", statsError);
       }
+
+      // Same reason as the stats above: the finishing table has to be stored before the
+      // roster is wiped, otherwise the evening leaves no history behind.
+      try {
+        await saveTournamentResults({
+          extras,
+          players: updatedPlayers,
+          supabase: auth.supabase,
+          tournamentId: t.id,
+        });
+      } catch (resultsError) {
+        console.error("Failed to store tournament results", resultsError);
+      }
+
       await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
       await broadcastPublicState(t.public_token);
     }
