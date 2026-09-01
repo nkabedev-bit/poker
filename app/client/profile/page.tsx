@@ -22,6 +22,7 @@ import {
 type HistoryItem = { event: TournamentEvent; status: string };
 
 type Me = {
+  avatarUrl: string | null;
   displayName: string | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
   profileSubmitted: boolean;
@@ -79,7 +80,7 @@ export default function ClientProfilePage() {
       <h1 className="px-1 text-2xl font-bold">Профиль</h1>
 
       <GlassCard className="flex items-center gap-4">
-        <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url} size={64} />
+        <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={64} />
         <div className="min-w-0">
           <p className="truncate text-xl font-bold">{name}</p>
           <p className="text-sm text-white/45">

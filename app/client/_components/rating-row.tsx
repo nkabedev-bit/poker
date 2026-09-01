@@ -2,6 +2,7 @@ import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
 
 export type RatingPlayer = {
+  avatarUrl: string | null;
   eliminations: number;
   games: number;
   isMe: boolean;
@@ -32,7 +33,7 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
         {player.place ?? "—"}
       </span>
 
-      <PlayerAvatar name={player.name} size={32} />
+      <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={32} />
 
       <span className="min-w-0 flex-1 truncate text-sm font-semibold">
         {player.name || "Без никнейма"}

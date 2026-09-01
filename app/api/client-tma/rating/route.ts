@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.supabase
     .from("client_bot_users")
-    .select("telegram_id, display_name, username, games_played, eliminations_count, top7_count")
+    .select("telegram_id, display_name, username, avatar_url, games_played, eliminations_count, top7_count")
     .not("display_name", "is", null)
     .gt("games_played", 0)
     .order("eliminations_count", { ascending: false })
@@ -27,6 +27,7 @@ export async function GET(request: Request) {
 
   const players = (data ?? []).map((row, index) => {
     const record = row as {
+      avatar_url: string | null;
       display_name: string | null;
       eliminations_count: number | string | null;
       games_played: number | null;
@@ -35,6 +36,7 @@ export async function GET(request: Request) {
     };
 
     return {
+      avatarUrl: record.avatar_url,
       eliminations: Math.round(Number(record.eliminations_count ?? 0)),
       games: Number(record.games_played ?? 0),
       isMe: record.telegram_id === auth.user.telegram_id,
@@ -46,6 +48,7 @@ export async function GET(request: Request) {
   });
 
   const me = players.find((player) => player.isMe) ?? {
+    avatarUrl: auth.user.avatar_url ?? null,
     eliminations: 0,
     games: 0,
     isMe: true,

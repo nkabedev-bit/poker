@@ -4,6 +4,7 @@ import { getServerEnv } from "@/lib/env";
 import { validateClientInitData } from "./auth";
 
 export type ClientTmaUser = {
+  avatar_url: string | null;
   telegram_id: number;
   username: string | null;
   display_name: string | null;
@@ -49,7 +50,7 @@ export async function requireClientTmaAuth(request: Request) {
   const { data: user } = await supabase
     .from("client_bot_users")
     .select(
-      "telegram_id, username, display_name, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
+      "telegram_id, username, display_name, avatar_url, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
     )
     .eq("telegram_id", userId)
     .maybeSingle();

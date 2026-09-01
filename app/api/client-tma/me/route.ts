@@ -33,6 +33,8 @@ export async function GET(request: Request) {
     new Date(a.event.startsAt).getTime() - new Date(b.event.startsAt).getTime();
 
   return NextResponse.json({
+    // Stored copy of the Telegram photo, used when the mini-app was opened without one.
+    avatarUrl: auth.user.avatar_url,
     // The club nickname is what the player is known by at the table, so it wins over
     // whatever Telegram calls them.
     displayName: auth.user.display_name,
