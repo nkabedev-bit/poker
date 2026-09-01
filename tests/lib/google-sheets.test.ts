@@ -10,6 +10,7 @@ import {
   getSheetStandingsPlayers,
   getVipPlayersForGame,
   pickTodayBirthdayNicknames,
+  pickUpcomingBirthdays,
 } from "@/lib/google-sheets";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -479,5 +480,78 @@ describe("birthday notifications (анкеты sheet)", () => {
     const grid = [["header"], anketaRow("NoDate", "")];
 
     expect(pickTodayBirthdayNicknames(grid, july5)).toEqual([]);
+  });
+});
+
+describe("upcoming birthdays digest (анкеты sheet)", () => {
+  // Moscow 2026-07-05 12:00 -> today is "05.07".
+  const july5 = new Date("2026-07-05T09:00:00.000Z");
+
+  function anketaRow(nickname: string, birthDate: string): string[] {
+    const row = Array<string>(11).fill("");
+    row[4] = nickname;
+    row[6] = birthDate;
+    return row;
+  }
+
+  it("lists the coming month nearest first, counting today as zero days away", () => {
+    const grid = [
+      ["header"],
+      anketaRow("Через месяц", "04.08"),
+      anketaRow("Сегодня", "05.07"),
+      anketaRow("Завтра", "06.07"),
+    ];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5 })).toEqual([
+      { date: "05.07", daysUntil: 0, nickname: "Сегодня" },
+      { date: "06.07", daysUntil: 1, nickname: "Завтра" },
+      { date: "04.08", daysUntil: 30, nickname: "Через месяц" },
+    ]);
+  });
+
+  it("leaves out birthdays past the window", () => {
+    const grid = [["header"], anketaRow("Слишком поздно", "05.08"), anketaRow("Вчера", "04.07")];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5 })).toEqual([]);
+  });
+
+  it("carries a date that already passed this year over to the next one", () => {
+    // 2026-12-20, so 05.01 belongs to 2027 — 16 days away, not 349 days behind.
+    const december20 = new Date("2026-12-20T09:00:00.000Z");
+    const grid = [["header"], anketaRow("Новогодний", "05.01")];
+
+    expect(pickUpcomingBirthdays(grid, { date: december20 })).toEqual([
+      { date: "05.01", daysUntil: 16, nickname: "Новогодний" },
+    ]);
+  });
+
+  it("understands the same date formats as the daily notification", () => {
+    const grid = [["header"], anketaRow("Numeric", "6.7"), anketaRow("WithYear", "07.07.1990")];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5 }).map((item) => item.nickname)).toEqual([
+      "Numeric",
+      "WithYear",
+    ]);
+  });
+
+  it("keeps the nearest date when a nickname has two questionnaires", () => {
+    const grid = [["header"], anketaRow("Саймон", "20.07"), anketaRow("саймон", "06.07")];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5 })).toEqual([
+      { date: "06.07", daysUntil: 1, nickname: "саймон" },
+    ]);
+  });
+
+  it("skips the header, empty dates and rows without a nickname", () => {
+    const grid = [["header"], anketaRow("", "06.07"), anketaRow("NoDate", "")];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5 })).toEqual([]);
+  });
+
+  it("honours a custom window", () => {
+    const grid = [["header"], anketaRow("Через неделю", "12.07")];
+
+    expect(pickUpcomingBirthdays(grid, { date: july5, days: 3 })).toEqual([]);
+    expect(pickUpcomingBirthdays(grid, { date: july5, days: 7 })).toHaveLength(1);
   });
 });

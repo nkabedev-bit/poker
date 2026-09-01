@@ -631,9 +631,66 @@ export function pickTodayBirthdayNicknames(grid: string[][], date = new Date()):
   return nicknames;
 }
 
-// Read the "анкеты" sheet and return today's birthday nicknames (Moscow). Returns [] when
-// Sheets is not configured, matching the rest of this module's best-effort behavior.
-export async function getTodayBirthdayNicknames(date = new Date()): Promise<string[]> {
+// How far ahead the /birthday digest looks by default.
+export const UPCOMING_BIRTHDAY_DAYS = 30;
+
+export type UpcomingBirthday = {
+  // 0 = today, 1 = tomorrow.
+  daysUntil: number;
+  // ДД.ММ, the way the digest prints it.
+  date: string;
+  nickname: string;
+};
+
+// Birthdays coming up within `days` days (Moscow), today included, nearest first. The year
+// is ignored: a date that already passed this year counts as next year's. A 29.02 birthday
+// falls on 01.03 in a non-leap year, which is how JS rolls the date over. Pure: no I/O.
+export function pickUpcomingBirthdays(
+  grid: string[][],
+  options: { date?: Date; days?: number } = {},
+): UpcomingBirthday[] {
+  const days = Math.max(0, Number(options.days ?? UPCOMING_BIRTHDAY_DAYS));
+  const { day, month, year } = getMoscowDateParts(options.date ?? new Date());
+  const todayMs = Date.UTC(year, month - 1, day);
+  const found: UpcomingBirthday[] = [];
+
+  for (let row = 1; row < grid.length; row += 1) {
+    const birthDate = String(grid[row]?.[PROFILE_BIRTH_DATE_COLUMN_INDEX] ?? "").trim();
+    if (!birthDate) continue;
+
+    const normalized = formatClientBotBirthDateForSheet(birthDate);
+    const parts = normalized.match(/^(\d{2})\.(\d{2})$/);
+    if (!parts) continue;
+
+    const nickname = String(grid[row]?.[PROFILE_NICKNAME_COLUMN_INDEX] ?? "").trim();
+    if (!nickname) continue;
+
+    const birthDay = Number(parts[1]);
+    const birthMonth = Number(parts[2]);
+    const thisYearMs = Date.UTC(year, birthMonth - 1, birthDay);
+    const nextMs = thisYearMs < todayMs ? Date.UTC(year + 1, birthMonth - 1, birthDay) : thisYearMs;
+    const daysUntil = Math.round((nextMs - todayMs) / MS_PER_DAY);
+    if (daysUntil > days) continue;
+
+    found.push({ date: normalized, daysUntil, nickname });
+  }
+
+  const seen = new Set<string>();
+
+  // Sort first, then de-duplicate: a nickname with two questionnaires keeps the nearest date.
+  return found
+    .sort((a, b) => a.daysUntil - b.daysUntil || a.nickname.localeCompare(b.nickname, "ru-RU"))
+    .filter((birthday) => {
+      const key = birthday.nickname.toLocaleLowerCase("ru-RU");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
+// Read the "анкеты" sheet as a string matrix. Returns [] when Sheets is not configured,
+// matching the rest of this module's best-effort behavior.
+async function readProfileGrid(): Promise<string[][]> {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
     console.warn("Google Sheets not configured");
     return [];
@@ -641,18 +698,24 @@ export async function getTodayBirthdayNicknames(date = new Date()): Promise<stri
 
   const auth = await getAuth();
   const sheets = google.sheets({ version: "v4", auth });
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
 
   const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
+    spreadsheetId: process.env.GOOGLE_SHEET_ID,
     range: `'${PROFILE_SHEET_NAME}'!A1:K`,
   });
 
-  const grid = ((res.data.values ?? []) as unknown[][]).map((row) =>
-    row.map((cell) => String(cell ?? "")),
-  );
+  return ((res.data.values ?? []) as unknown[][]).map((row) => row.map((cell) => String(cell ?? "")));
+}
 
-  return pickTodayBirthdayNicknames(grid, date);
+export async function getTodayBirthdayNicknames(date = new Date()): Promise<string[]> {
+  return pickTodayBirthdayNicknames(await readProfileGrid(), date);
+}
+
+// The /birthday digest in the admin bot.
+export async function getUpcomingBirthdays(
+  options: { date?: Date; days?: number } = {},
+): Promise<UpcomingBirthday[]> {
+  return pickUpcomingBirthdays(await readProfileGrid(), options);
 }
 
 // Counters render as a blank cell (not 0) when the player never did the action.

@@ -2,6 +2,12 @@ import { Bot, webhookCallback } from "grammy";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
+import {
+  ADMIN_BOT_COMMANDS_MESSAGE,
+  ADMIN_BOT_MENU_COMMANDS,
+  buildBirthdayDigestMessage,
+} from "@/lib/admin-bot/messages";
+import { getUpcomingBirthdays } from "@/lib/google-sheets";
 
 function getAdminSupabase() {
   return createClient(
@@ -27,7 +33,7 @@ bot.command("start", async (ctx) => {
     .maybeSingle();
 
   if (admin) {
-    await ctx.reply("Привет! Вы авторизованы. Нажмите на кнопку ниже, чтобы открыть панель управления.", {
+    await ctx.reply("Привет! Вы авторизованы. Нажмите на кнопку ниже, чтобы открыть панель управления.\n\nВсе команды — /info", {
       reply_markup: {
         inline_keyboard: [
           [
@@ -41,6 +47,66 @@ bot.command("start", async (ctx) => {
     });
   } else {
     await ctx.reply("У вас нет доступа к этой панели.");
+  }
+});
+
+async function isTournamentAdmin(supabase: ReturnType<typeof getAdminSupabase>, adminId: number) {
+  const { data } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  return Boolean(data);
+}
+
+bot.command("info", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  await ctx.reply(ADMIN_BOT_COMMANDS_MESSAGE);
+});
+
+// Who has a birthday coming up, read straight from the "анкеты" sheet — the same source
+// the nightly notification uses.
+bot.command("birthday", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    await ctx.reply(buildBirthdayDigestMessage(await getUpcomingBirthdays()));
+  } catch (err: unknown) {
+    console.error("Error in /birthday command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Не удалось прочитать лист «анкеты»: ${message}`);
+  }
+});
+
+// Registers the command list with Telegram so new commands show up in the "/" menu
+// without a manual trip to BotFather.
+bot.command("setupmenu", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    await ctx.api.setMyCommands(ADMIN_BOT_MENU_COMMANDS);
+    await ctx.reply(`Меню команд обновлено (${ADMIN_BOT_MENU_COMMANDS.length}). Нажмите «/» в поле ввода.`);
+  } catch (err: unknown) {
+    console.error("Error in /setupmenu command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Не удалось обновить меню: ${message}`);
   }
 });
 
