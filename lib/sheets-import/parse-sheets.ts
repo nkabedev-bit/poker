@@ -51,20 +51,55 @@ export function parseGameSheetDate(sheetName: string, year: number) {
 }
 
 /**
- * Reads the standings block our own sync writes into every game sheet: place, player,
- * PTS and the knockout count. The knockouts sit in the last column, which is the fifth
- * one in the modes that report side points separately.
+ * Reads the standings block our own sync writes into every game sheet.
+ *
+ * Columns are located by their headings rather than by counting them: in mystery,
+ * dealer, wanted and progressive games the block carries an extra column, and Sheets
+ * trims trailing empty cells, so a header row can arrive shorter than the data below
+ * it. Counting columns there silently read the side-points column as the knockout
+ * count — the source of both wrong points and impossible knockout totals.
+ *
+ * Points are the sum of the two scoring columns: the place points in PTS plus the
+ * knockout points that those modes report separately. In standard bounty the knockout
+ * points are already inside PTS and the neighbouring column counts heads, not points,
+ * so nothing is added there.
  */
 export function parseGameStandings(values: unknown[][]): ParsedGameRow[] {
   const [header = [], ...rows] = values;
-  const isWide = header.length >= 5;
+  const headings = header.map((cell) => String(cell ?? "").trim().toLocaleLowerCase("ru-RU"));
+  const width = Math.max(header.length, ...rows.map((row) => row.length), 0);
+
+  const findHeading = (match: (heading: string) => boolean) => headings.findIndex(match);
+
+  const headCountIndex = findHeading((heading) => heading.includes("кол-во выбиваний"));
+  const bountyCountIndex = findHeading((heading) => heading.includes("кол-во баунти"));
+  const sidePointsIndex = findHeading(
+    (heading) =>
+      heading.includes("mystery") ||
+      heading.includes("дилер") ||
+      heading.includes("wanted") ||
+      heading.includes("очки за баунти"),
+  );
+
+  // Without headings the layout is inferred from the width: five columns mean the wide
+  // block, where the knockout count is last and the column before it holds points.
+  const knockoutsIndex =
+    headCountIndex !== -1
+      ? headCountIndex
+      : bountyCountIndex !== -1
+        ? bountyCountIndex
+        : width >= 5
+          ? 4
+          : 3;
+  const extraPointsIndex = sidePointsIndex !== -1 ? sidePointsIndex : width >= 5 ? 3 : -1;
 
   return rows
     .map((row) => ({
-      knockouts: toNumber(isWide ? row[4] : row[3]),
+      knockouts: toNumber(row[knockoutsIndex]),
       place: toNumber(row[0]),
       playerName: String(row[1] ?? "").trim(),
-      points: toNumber(row[2]),
+      points:
+        toNumber(row[2]) + (extraPointsIndex === -1 ? 0 : toNumber(row[extraPointsIndex])),
     }))
     .filter((row) => row.place > 0 && row.playerName.length > 0);
 }

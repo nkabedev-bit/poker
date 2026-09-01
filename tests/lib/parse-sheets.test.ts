@@ -40,14 +40,43 @@ describe("parseGameStandings", () => {
     ]);
   });
 
-  // Mystery and dealer modes add a column, pushing the knockout count to the end.
-  it("takes knockouts from the last column in the wide layout", () => {
+  // In standard bounty the knockout points are already inside PTS, and the neighbouring
+  // column counts heads — adding it would count the knockouts as points.
+  it("does not add the knockout count to the points in standard bounty", () => {
+    expect(parseGameStandings(standard)[0].points).toBe(100);
+  });
+
+  // Mystery, dealer, wanted and progressive report knockout points separately, and the
+  // club counts them towards the total.
+  it("sums place points and knockout points in the side-points modes", () => {
     const wide = [
       ["Место", "Игрок", "PTS", "Mystery-Points", "Кол-во выбиваний"],
       [1, "Первый", 100, 250, 4],
     ];
 
-    expect(parseGameStandings(wide)[0]).toMatchObject({ knockouts: 4, points: 100 });
+    expect(parseGameStandings(wide)[0]).toMatchObject({ knockouts: 4, points: 350 });
+  });
+
+  it("recognises every name the side-points column goes by", () => {
+    for (const heading of ["Очки за дилера", "Wanted PTS", "Очки за баунти"]) {
+      const rows = parseGameStandings([
+        ["Место", "Игрок", "PTS", heading, "Кол-во выбиваний"],
+        [1, "Первый", 100, 60, 2],
+      ]);
+
+      expect(rows[0]).toMatchObject({ knockouts: 2, points: 160 });
+    }
+  });
+
+  // Sheets drops trailing empty cells, so the header can arrive shorter than the rows.
+  // Reading knockouts by position there took the points column instead.
+  it("keeps the columns straight when the header row is truncated", () => {
+    const truncated = [
+      ["Место", "Игрок", "PTS"],
+      [1, "Первый", 100, 250, 4],
+    ];
+
+    expect(parseGameStandings(truncated)[0]).toMatchObject({ knockouts: 4, points: 350 });
   });
 
   it("skips the padding rows the sheet is filled with", () => {
