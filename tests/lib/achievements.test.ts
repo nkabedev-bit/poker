@@ -1,40 +1,94 @@
 import { describe, expect, it } from "vitest";
-import { countEarnedAchievements, getAchievements } from "@/lib/client/achievements";
+import {
+  ACHIEVEMENTS_TOTAL,
+  countEarnedAchievements,
+  EMPTY_PLAYER_STATS,
+  getAchievementSections,
+  getAchievements,
+  type PlayerStats,
+} from "@/lib/client/achievements";
 
-function achievementsFor(stats: { eliminations?: number; games?: number; top9?: number }) {
-  return getAchievements({ eliminations: 0, games: 0, top9: 0, ...stats });
+function achievementsFor(stats: Partial<PlayerStats>) {
+  return getAchievements({ ...EMPTY_PLAYER_STATS, ...stats });
+}
+
+function badge(stats: Partial<PlayerStats>, id: string) {
+  return achievementsFor(stats).find((item) => item.id === id);
 }
 
 describe("achievements", () => {
   it("gives nothing to a player who never played", () => {
     expect(countEarnedAchievements(achievementsFor({}))).toBe(0);
+    expect(getAchievements(EMPTY_PLAYER_STATS)).toHaveLength(ACHIEVEMENTS_TOTAL);
   });
 
-  it("earns the first-game badge after a single tournament", () => {
-    const first = achievementsFor({ games: 1 }).find((item) => item.id === "first-game");
+  it("counts games attended", () => {
+    const earned = achievementsFor({ games: 3 }).filter((item) => item.earned);
 
-    expect(first?.earned).toBe(true);
+    expect(earned.map((item) => item.id)).toEqual(["debut", "first-vibe"]);
   });
 
-  it("tracks partial progress towards a goal", () => {
-    const hunter = achievementsFor({ eliminations: 5 }).find((item) => item.id === "hunter");
-
-    expect(hunter).toMatchObject({ earned: false, goal: 25, value: 5 });
-    expect(hunter?.progress).toBeCloseTo(5 / 25);
+  it("counts top-18 finishes apart from the final table", () => {
+    expect(badge({ top18: 3 }, "in-rhythm")?.earned).toBe(true);
+    expect(badge({ top18: 3 }, "real-rival")).toMatchObject({ earned: false, goal: 10, value: 3 });
   });
 
-  // Knockouts are stored as a numeric because a split bounty pays fractions.
-  it("floors fractional knockouts rather than showing 2.5", () => {
-    const firstBlood = achievementsFor({ eliminations: 2.5 }).find(
-      (item) => item.id === "first-blood",
-    );
+  it("counts wins, up to the club's own face", () => {
+    const earned = achievementsFor({ wins: 10 }).filter((item) => item.earned);
 
-    expect(firstBlood?.value).toBe(2);
+    expect(earned.map((item) => item.id)).toEqual([
+      "first-trophy",
+      "title-collector",
+      "well-known",
+      "face-of-majestic",
+    ]);
   });
 
-  it("earns every badge a veteran has cleared", () => {
-    const veteran = achievementsFor({ eliminations: 120, games: 60, top9: 12 });
+  it("hands the early flight to a player who finished last", () => {
+    expect(badge({ lastPlace: 1 }, "early-flight")?.earned).toBe(true);
+  });
 
-    expect(countEarnedAchievements(veteran)).toBe(8);
+  it("reads the best single tournament for the knockout badges", () => {
+    const stats = { bestTournamentBounty: 10.5 };
+
+    expect(badge(stats, "precise-aim")?.earned).toBe(true);
+    expect(badge(stats, "table-storm")?.earned).toBe(true);
+    // 15 knockouts in one tournament is still ahead.
+    expect(badge(stats, "butcher")).toMatchObject({ earned: false, goal: 15, value: 10.5 });
+  });
+
+  it("reads the longest run of final tables, not the current one", () => {
+    expect(badge({ bestTop9Streak: 3 }, "caught-the-wave")?.earned).toBe(true);
+    expect(badge({ bestTop9Streak: 3 }, "series-shark")?.earned).toBe(true);
+    expect(badge({ bestTop9Streak: 3 }, "perfect-distance")?.earned).toBe(false);
+  });
+
+  it("rewards surviving a run without a single final table", () => {
+    expect(badge({ bestMissStreak: 5 }, "character-test")?.earned).toBe(true);
+  });
+
+  it("groups the badges into the club's five sections", () => {
+    const sections = getAchievementSections(EMPTY_PLAYER_STATS);
+
+    expect(sections.map((section) => section.title)).toEqual([
+      "Посещение игр",
+      "Попадания в топ-18",
+      "Победы",
+      "Специальные достижения",
+      "Попади в топ-9",
+    ]);
+  });
+
+  it("speaks of the final table rather than points, and carries the club's own name", () => {
+    const all = getAchievements(EMPTY_PLAYER_STATS);
+    const streakBadges = all.filter((item) => item.id.startsWith("caught") || item.id === "character-test");
+
+    for (const item of streakBadges) {
+      expect(item.description).toContain("финальн");
+      expect(item.description).not.toContain("очках");
+    }
+
+    expect(all.some((item) => item.title === "Лицо Majestic")).toBe(true);
+    expect(all.some((item) => item.title.includes("Magnum"))).toBe(false);
   });
 });

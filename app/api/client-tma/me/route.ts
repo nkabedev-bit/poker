@@ -6,6 +6,41 @@ import { isUpcomingEvent } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
 
+type AchievementStatsRow = {
+  best_miss_streak: number | string | null;
+  best_top9_streak: number | string | null;
+  best_tournament_bounty: number | string | null;
+  last_place_count: number | string | null;
+  top18_count: number | string | null;
+  wins_count: number | string | null;
+};
+
+// The achievement counters live in columns added after the mini-app shipped. They are read
+// apart from the auth query on purpose: if the migration is not applied yet the select
+// fails, and the profile must still open — with those counters at zero — instead of
+// locking every player out.
+async function readAchievementStats(
+  supabase: Awaited<ReturnType<typeof requireClientTmaAuth>>["supabase"],
+  telegramId: number,
+): Promise<AchievementStatsRow | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("client_bot_users")
+    .select(
+      "top18_count, wins_count, last_place_count, best_tournament_bounty, best_top9_streak, best_miss_streak",
+    )
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Achievement stats columns are unavailable", error.message);
+    return null;
+  }
+
+  return (data as AchievementStatsRow | null) ?? null;
+}
+
 export async function GET(request: Request) {
   const auth = await requireClientTmaAuth(request);
   if (auth.error) return auth.error;
@@ -18,6 +53,8 @@ export async function GET(request: Request) {
   const player = context?.extras.players.find(
     (item) => item.telegramId === auth.user.telegram_id,
   );
+
+  const achievementStats = await readAchievementStats(auth.supabase, auth.user.telegram_id);
 
   const now = new Date();
   const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
@@ -50,10 +87,19 @@ export async function GET(request: Request) {
           name: player.name,
         }
       : null,
+    // Achievement counters. The ones past top-9 only start filling from the tournament
+    // that follows the migration — earlier games left no per-player record of places or
+    // knockouts to count.
     stats: {
+      bestMissStreak: Number(achievementStats?.best_miss_streak ?? 0),
+      bestTop9Streak: Number(achievementStats?.best_top9_streak ?? 0),
+      bestTournamentBounty: Number(achievementStats?.best_tournament_bounty ?? 0),
       eliminations: Number(auth.user.eliminations_count ?? 0),
       games: auth.user.games_played ?? 0,
+      lastPlace: Number(achievementStats?.last_place_count ?? 0),
       top9: auth.user.top7_count ?? 0,
+      top18: Number(achievementStats?.top18_count ?? 0),
+      wins: Number(achievementStats?.wins_count ?? 0),
     },
     tablesCount,
     username: auth.user.username,

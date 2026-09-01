@@ -2,13 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, Crosshair, Medal, Spade, Ticket, Trophy } from "lucide-react";
+import { CalendarDays, ChevronRight, Crosshair, Medal, Spade, Ticket, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
-import { countEarnedAchievements, getAchievements } from "@/lib/client/achievements";
+import {
+  countEarnedAchievements,
+  EMPTY_PLAYER_STATS,
+  getAchievements,
+  type PlayerStats,
+} from "@/lib/client/achievements";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -23,7 +28,7 @@ type Me = {
   history: { active: HistoryItem[]; past: HistoryItem[] };
   profileSubmitted: boolean;
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
-  stats: { eliminations: number; games: number; top9: number };
+  stats: Partial<PlayerStats>;
   username: string | null;
 };
 
@@ -55,8 +60,10 @@ export default function ClientProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  // A player who has not played since the counters were added reads zero for the newer
+  // ones, so the defaults fill in whatever the API does not send.
   const stats = useMemo(
-    () => me?.stats ?? { eliminations: 0, games: 0, top9: 0 },
+    () => ({ ...EMPTY_PLAYER_STATS, ...(me?.stats ?? {}) }),
     [me],
   );
   const achievements = useMemo(() => getAchievements(stats), [stats]);
@@ -91,39 +98,30 @@ export default function ClientProfilePage() {
         <StatTile icon={<Medal size={18} />} label="Топ-9" value={stats.top9} />
       </div>
 
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Достижения</h2>
-          <span className="text-sm text-white/45">
-            {earned} / {achievements.length}
-          </span>
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          {achievements.map((achievement) => (
-            <div
-              key={achievement.id}
-              className={`rounded-[18px] border p-3 text-center ${
-                achievement.earned
-                  ? "border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.18),rgba(233,192,122,0.02))] shadow-[0_8px_22px_rgba(233,192,122,0.12)]"
-                  : "border-white/[0.06] bg-white/[0.03]"
-              }`}
-            >
-              <Trophy
-                className={`mx-auto ${achievement.earned ? "text-[#e9c07a]" : "text-white/15"}`}
-                fill={achievement.earned ? "currentColor" : "none"}
-                size={24}
-              />
-              <p className="mt-2 text-[11px] font-semibold leading-tight">{achievement.title}</p>
-              <p className="mt-1 text-[10px] text-white/40">
-                {achievement.earned
-                  ? "получено"
-                  : `${Math.min(achievement.value, achievement.goal)} / ${achievement.goal}`}
-              </p>
+      <Link className="block active:scale-[0.99] transition-transform" href="/client/achievements">
+        <GlassCard className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">Достижения</h2>
+              <ChevronRight className="text-white/35" size={19} />
             </div>
-          ))}
-        </div>
-      </section>
+            <span className="text-sm text-white/45">
+              {earned} / {achievements.length}
+            </span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-[#e9c07a]"
+              style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
+            />
+          </div>
+          <p className="text-[12px] text-white/40">
+            {earned === achievements.length
+              ? "Собрана вся коллекция клуба"
+              : "Посмотреть все награды клуба и прогресс по ним"}
+          </p>
+        </GlassCard>
+      </Link>
 
       <div className="grid grid-cols-2 gap-3">
         <GlassCard className="!p-[18px]">
