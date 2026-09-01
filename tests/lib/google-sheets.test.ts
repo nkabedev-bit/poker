@@ -481,6 +481,16 @@ describe("birthday notifications (анкеты sheet)", () => {
 
     expect(pickTodayBirthdayNicknames(grid, july5)).toEqual([]);
   });
+
+  // The pg_cron job fires at 21:00 UTC, which is 00:00 Moscow of the NEXT day. The notice
+  // must therefore be about that next day — a 02.09 birthday is announced by the run at
+  // 21:00 UTC on 01.09, and the 01.09 birthday is already yesterday by then.
+  it("announces the day that has just started in Moscow, not the UTC day", () => {
+    const midnightMoscow = new Date("2026-09-01T21:00:00.000Z");
+    const grid = [["header"], anketaRow("Второго", "02.09"), anketaRow("Первого", "01.09")];
+
+    expect(pickTodayBirthdayNicknames(grid, midnightMoscow)).toEqual(["Второго"]);
+  });
 });
 
 describe("upcoming birthdays digest (анкеты sheet)", () => {
