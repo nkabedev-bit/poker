@@ -1,15 +1,24 @@
 -- Медали и топ-3.
 -- 1) Достижение «попадания в топ-18» заменено на «топ-3», поэтому нужен свой счётчик.
---    Колонка top18_count из предыдущей миграции остаётся, но приложение её больше не
---    читает — удалять её отдельно, если решишь чистить схему.
+--    Колонка top18_count из предыдущей миграции больше не заполняется и не читается;
+--    удалять её отдельно, если решишь чистить схему.
 -- 2) Медали: победа в турнире даёт победителю +1 медаль того типа турнира, который был
 --    запущен (феникс / дип стек / баунти / прогрессив / мистери / фриролл / ласт ченс).
 --    Счётчики лежат в одном jsonb: {"freeroll": 2, "phoenix": 1}.
--- Применять вручную в Supabase SQL editor.
+-- Применять вручную в Supabase SQL editor. Миграция самодостаточна: она создаёт и те
+-- колонки, которые добавляла 202609010008, поэтому порядок применения не важен и
+-- повторный запуск безопасен.
 
 alter table public.client_bot_users
   add column if not exists top3_count integer not null default 0,
-  add column if not exists medals jsonb not null default '{}'::jsonb;
+  add column if not exists medals jsonb not null default '{}'::jsonb,
+  add column if not exists wins_count integer not null default 0,
+  add column if not exists last_place_count integer not null default 0,
+  add column if not exists best_tournament_bounty numeric not null default 0,
+  add column if not exists top9_streak integer not null default 0,
+  add column if not exists best_top9_streak integer not null default 0,
+  add column if not exists miss_streak integer not null default 0,
+  add column if not exists best_miss_streak integer not null default 0;
 
 create or replace function public.accumulate_client_bot_stats(p_tournament_id uuid)
 returns void
@@ -104,7 +113,6 @@ begin
       eliminations_count = round(eliminations_count + v_bounty_count, 6),
       top7_count = top7_count + (case when v_is_top9 then 1 else 0 end),
       top3_count = top3_count + (case when v_finish_place between 1 and 3 then 1 else 0 end),
-      top18_count = top18_count + (case when v_finish_place between 1 and 18 then 1 else 0 end),
       wins_count = wins_count + (case when v_finish_place = 1 then 1 else 0 end),
       last_place_count = last_place_count
         + (case when v_last_place is not null and v_finish_place = v_last_place then 1 else 0 end),
