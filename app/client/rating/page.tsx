@@ -9,6 +9,7 @@ import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/ratin
 import { formatMonthLabel } from "@/lib/results/tournament-results";
 
 type RatingResponse = {
+  archived?: boolean;
   countedGames: number;
   me: RatingPlayer;
   month: string;
@@ -145,7 +146,9 @@ export default function ClientRatingPage() {
 
       {data ? (
         <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-white/30">
-          В зачёт идут {data.countedGames ?? 5} лучших игр месяца.
+          {data.archived
+            ? "Итоги этого месяца перенесены из клубной таблицы."
+            : `В зачёт идут ${data.countedGames ?? 5} лучших игр месяца.`}
         </p>
       ) : null}
     </div>

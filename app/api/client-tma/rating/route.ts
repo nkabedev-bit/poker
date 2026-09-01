@@ -76,6 +76,59 @@ export async function GET(request: Request) {
     }
   }
 
+  // Months the club played before the app kept its own results exist only as the hand-made
+  // totals we imported; they are served as they are when there are no games to compute.
+  if (rows.length === 0) {
+    const { data: archived } = await auth.supabase
+      .from("monthly_rating_archive")
+      .select("player_name, points, knockouts")
+      .eq("month", month)
+      .order("points", { ascending: false });
+
+    if (archived && archived.length > 0) {
+      const players = archived.map((row, index) => {
+        const record = row as {
+          knockouts: number | string | null;
+          player_name: string;
+          points: number | string | null;
+        };
+        const isMe =
+          record.player_name.trim().toLocaleLowerCase("ru-RU") ===
+          (auth.user.display_name ?? "").trim().toLocaleLowerCase("ru-RU");
+
+        return {
+          avatarUrl: isMe ? (auth.user.avatar_url ?? null) : null,
+          eliminations: Math.round(Number(record.knockouts ?? 0)),
+          games: 0,
+          isMe,
+          name: record.player_name,
+          place: index + 1,
+          points: Number(record.points ?? 0),
+          top9: 0,
+        };
+      });
+
+      return NextResponse.json({
+        archived: true,
+        countedGames: MONTHLY_COUNTED_GAMES,
+        me: players.find((player) => player.isMe) ?? {
+          avatarUrl: auth.user.avatar_url ?? null,
+          eliminations: 0,
+          games: 0,
+          isMe: true,
+          name: auth.user.display_name ?? "",
+          place: null,
+          points: null,
+          top9: 0,
+        },
+        month,
+        months,
+        players,
+        pointsAvailable: true,
+      });
+    }
+  }
+
   const standings = buildMonthlyStandings(
     rows.map((row) => ({
       ...row,
@@ -106,6 +159,7 @@ export async function GET(request: Request) {
   };
 
   return NextResponse.json({
+    archived: false,
     countedGames: MONTHLY_COUNTED_GAMES,
     me,
     month,
