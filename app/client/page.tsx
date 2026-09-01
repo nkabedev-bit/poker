@@ -68,24 +68,24 @@ export default function ClientHomePage() {
   const meInTop = topPlayers.some((player) => player.isMe);
 
   return (
-    <div className="space-y-6 pt-2">
-      <GlassCard className="flex items-center gap-3 !p-4">
-        <PlayerAvatar name={playerName} photoUrl={telegramUser?.photo_url} size={48} />
+    <div className="space-y-7 pt-1">
+      <div className="flex items-center gap-3 px-0.5">
+        <PlayerAvatar name={playerName} photoUrl={telegramUser?.photo_url} size={52} />
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold">{playerName}</p>
-          <p className="text-xs text-white/45">
+          <p className="truncate text-[19px] font-bold tracking-tight">{playerName}</p>
+          <p className="text-[13px] text-white/40">
             {data?.player.username ? `@${data.player.username}` : "Игрок клуба"}
           </p>
         </div>
-      </GlassCard>
+      </div>
 
       {data && !data.player.profileSubmitted ? (
-        <GlassCard className="space-y-3 border-[#b8163c]/40 bg-[#b8163c]/10">
+        <GlassCard className="space-y-4 border-[#c8163f]/40 bg-[linear-gradient(135deg,rgba(200,22,63,0.18),rgba(200,22,63,0.04))]">
           <div className="flex items-start gap-3">
-            <ClipboardList className="mt-0.5 shrink-0 text-[#f05a7e]" size={20} />
+            <ClipboardList className="mt-0.5 shrink-0 text-[#f05a7e]" size={22} />
             <div>
-              <p className="text-base font-semibold">Заполните анкету</p>
-              <p className="mt-1 text-sm text-white/60">
+              <p className="text-[17px] font-bold">Заполните анкету</p>
+              <p className="mt-1 text-sm text-white/55">
                 Пара минут — и откроется запись на турниры.
               </p>
             </div>
@@ -99,10 +99,10 @@ export default function ClientHomePage() {
       {nextEvent ? (
         <EventCard event={nextEvent} featured />
       ) : (
-        <GlassCard className="text-center">
-          <CalendarDays className="mx-auto mb-3 text-white/35" size={28} />
-          <p className="text-base font-semibold">Ближайших турниров пока нет</p>
-          <p className="mt-1 text-sm text-white/50">
+        <GlassCard className="py-8 text-center">
+          <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
+          <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
+          <p className="mx-auto mt-1.5 max-w-[240px] text-sm text-white/45">
             Как только появится новая игра, она возникнет здесь.
           </p>
         </GlassCard>
@@ -132,8 +132,8 @@ export default function ClientHomePage() {
             ) : null}
           </div>
         ) : (
-          <GlassCard className="text-center">
-            <p className="text-sm text-white/55">
+          <GlassCard className="py-7 text-center">
+            <p className="text-sm text-white/45">
               Рейтинг наполнится после первых сыгранных турниров.
             </p>
           </GlassCard>
@@ -141,27 +141,27 @@ export default function ClientHomePage() {
       </section>
 
       <div className="grid grid-cols-2 gap-3">
-        <button className="text-left" type="button" onClick={openSupportChat}>
-          <GlassCard className="h-full !p-4">
-            <LifeBuoy className="mb-2 text-white/45" size={20} />
-            <p className="text-sm font-semibold">Поддержка</p>
-            <p className="mt-1 text-xs text-white/45">Написать администратору</p>
+        <button className="text-left active:scale-[0.98] transition-transform" type="button" onClick={openSupportChat}>
+          <GlassCard className="h-full !p-[18px]">
+            <LifeBuoy className="mb-3 text-[#f05a7e]" size={22} />
+            <p className="text-[15px] font-bold">Поддержка</p>
+            <p className="mt-1 text-[12px] text-white/40">Написать администратору</p>
           </GlassCard>
         </button>
-        <GlassCard className="!p-4">
-          <Spade className="mb-2 text-white/45" size={20} />
-          <p className="text-sm font-semibold">О клубе</p>
-          <p className="mt-1 text-xs text-white/45">Majestic Poker</p>
+        <GlassCard className="!p-[18px]">
+          <Spade className="mb-3 text-[#e9c07a]" size={22} />
+          <p className="text-[15px] font-bold">О клубе</p>
+          <p className="mt-1 text-[12px] text-white/40">Majestic Poker</p>
         </GlassCard>
       </div>
 
       {address ? (
-        <GlassCard className="!p-4">
+        <GlassCard className="!p-[18px]">
           <div className="flex items-start gap-3">
-            <MapPin className="mt-0.5 shrink-0 text-white/45" size={18} />
+            <MapPin className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
             <div>
-              <p className="text-sm font-semibold">Адрес</p>
-              <p className="mt-1 text-sm text-white/55">{address}</p>
+              <p className="text-[15px] font-bold">Адрес</p>
+              <p className="mt-1 text-sm leading-relaxed text-white/50">{address}</p>
             </div>
           </div>
         </GlassCard>

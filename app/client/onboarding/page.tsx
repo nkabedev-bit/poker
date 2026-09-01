@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
-import { GlassCard, PrimaryButton } from "../_components/ui";
+import { GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
 
 const AGREEMENT_TEXT =
   "Я ознакомлен с положением и принимаю пользовательское соглашение и соблюдаю правила сообщества: фишки НЕ имеют денежного эквивалента, турнир проводится БЕЗ денежных призов, встреча НЕ является игорной деятельностью.";
@@ -61,10 +61,10 @@ export default function ClientOnboardingPage() {
   };
 
   return (
-    <div className="space-y-5 pt-2">
-      <div className="px-1">
-        <h1 className="text-2xl font-bold">Анкета игрока</h1>
-        <p className="mt-1 text-sm text-white/55">
+    <div className="space-y-5 pt-1">
+      <div className="space-y-1.5">
+        <PageTitle>Анкета игрока</PageTitle>
+        <p className="px-0.5 text-sm text-white/45">
           Заполните один раз — после этого откроется запись на турниры.
         </p>
       </div>
@@ -142,7 +142,7 @@ export default function ClientOnboardingPage() {
 }
 
 const inputClass =
-  "w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-base text-white placeholder:text-white/30 outline-none focus:border-[#b8163c]";
+  "w-full rounded-2xl border border-white/[0.07] bg-black/30 px-4 py-3.5 text-[15px] text-white placeholder:text-white/25 outline-none focus:border-[#c8163f]";
 
 function Field({
   children,
@@ -155,9 +155,9 @@ function Field({
 }) {
   return (
     <label className="block space-y-2">
-      <span className="text-sm font-medium text-white/80">{label}</span>
+      <span className="text-sm font-semibold text-white/75">{label}</span>
       {children}
-      {hint ? <span className="block text-xs text-white/40">{hint}</span> : null}
+      {hint ? <span className="block text-[12px] leading-relaxed text-white/35">{hint}</span> : null}
     </label>
   );
 }
@@ -175,11 +175,11 @@ function Toggle({
     <label className="flex cursor-pointer items-start gap-3">
       <input
         checked={checked}
-        className="mt-1 h-5 w-5 shrink-0 accent-[#b8163c]"
+        className="mt-0.5 h-5 w-5 shrink-0 accent-[#c8163f]"
         type="checkbox"
         onChange={(event) => onChange(event.target.checked)}
       />
-      <span className="text-sm leading-relaxed text-white/75">{children}</span>
+      <span className="text-sm leading-relaxed text-white/70">{children}</span>
     </label>
   );
 }

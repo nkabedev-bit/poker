@@ -72,30 +72,30 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         onReady={initTg}
       />
 
-      <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#0b0708] text-white">
-        {/* Club colours: deep crimson glow over near-black felt */}
+      <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#0a0608] text-white">
+        {/* Club colours: a crimson glow bleeding into near-black felt */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-32 left-1/2 h-72 w-72 -translate-x-1/2 rounded-full bg-[#b8163c]/25 blur-3xl" />
-          <div className="absolute -bottom-24 -right-16 h-64 w-64 rounded-full bg-[#7d0d26]/25 blur-3xl" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(184,22,60,0.12),transparent_55%)]" />
+          <div className="absolute -top-40 left-1/2 h-80 w-[130%] -translate-x-1/2 rounded-full bg-[#b8163c]/20 blur-[90px]" />
+          <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_50%_0%,rgba(200,22,63,0.14),transparent_60%)]" />
         </div>
 
-        <header className="relative z-10 flex items-center justify-center gap-2 px-4 pt-[calc(env(safe-area-inset-top)+14px)] pb-3">
-          <span className="text-base font-semibold tracking-[0.32em] text-[#e8b465]">MAJESTIC</span>
-          <span className="text-base">♠</span>
+        <header className="relative z-10 flex items-center justify-center gap-2 px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2">
+          <span className="text-[13px] font-semibold tracking-[0.38em] text-[#e9c07a]">MAJESTIC</span>
         </header>
 
         {!initData ? (
-          <div className="relative z-10 flex flex-1 items-center justify-center text-white/50">
+          <div className="relative z-10 flex flex-1 items-center justify-center text-white/40">
             Загрузка…
           </div>
         ) : (
           <ClientTMAContext.Provider value={{ initData, telegramUser }}>
-            <main className="relative z-10 flex-1 overflow-y-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom)+12px)]">
+            <main className="relative z-10 flex-1 overflow-y-auto px-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
               {children}
             </main>
 
-            <nav className="fixed inset-x-0 bottom-0 z-20 flex items-stretch justify-around border-t border-white/10 bg-[#120a0d]/90 px-2 pt-2 pb-[max(env(safe-area-inset-bottom),14px)] backdrop-blur-xl">
+            {/* A floating capsule rather than a full-width bar: the content keeps
+                running underneath it, which is what makes the screen feel deep. */}
+            <nav className="fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),18px)] z-20 mx-auto flex w-fit items-center gap-1 rounded-full border border-white/[0.08] bg-[#160c11]/90 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = item.match(pathname);
@@ -103,18 +103,14 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex w-full flex-col items-center justify-center gap-1 rounded-xl py-1.5 transition-colors ${
-                      active ? "text-[#f05a7e]" : "text-white/45"
+                    aria-label={item.label}
+                    className={`flex h-[52px] w-[74px] items-center justify-center rounded-full transition-all ${
+                      active
+                        ? "bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] text-white shadow-[0_8px_22px_rgba(200,22,63,0.45)]"
+                        : "text-white/40"
                     }`}
                   >
-                    <span
-                      className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
-                        active ? "bg-[#b8163c]/20 shadow-[0_0_18px_rgba(184,22,60,0.35)]" : ""
-                      }`}
-                    >
-                      <Icon size={20} strokeWidth={active ? 2.4 : 2} />
-                    </span>
-                    <span className="text-[10px] font-medium tracking-wide">{item.label}</span>
+                    <Icon size={22} strokeWidth={active ? 2.4 : 1.9} />
                   </Link>
                 );
               })}

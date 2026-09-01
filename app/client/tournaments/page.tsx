@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 import { useClientTMA } from "../layout";
-import { GlassCard, LoadingScreen } from "../_components/ui";
+import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
 import { EventCard, type EventCardData } from "../_components/event-card";
 
 export default function ClientTournamentsPage() {
@@ -33,14 +33,14 @@ export default function ClientTournamentsPage() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <div className="space-y-4 pt-2">
-      <h1 className="px-1 text-2xl font-bold">Турниры</h1>
+    <div className="space-y-4 pt-1">
+      <PageTitle>Турниры</PageTitle>
 
       {events.length === 0 ? (
-        <GlassCard className="text-center">
-          <CalendarDays className="mx-auto mb-3 text-white/35" size={28} />
-          <p className="text-base font-semibold">Ближайших турниров пока нет</p>
-          <p className="mt-1 text-sm text-white/50">
+        <GlassCard className="py-8 text-center">
+          <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
+          <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
+          <p className="mx-auto mt-1.5 max-w-[240px] text-sm text-white/45">
             Как только появится новая игра, она возникнет здесь.
           </p>
         </GlassCard>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CalendarDays, Crosshair, Medal, Spade, Ticket, Trophy } from "lucide-react";
 import type { ReactNode } from "react";
 import { useClientTMA } from "../layout";
-import { GlassCard, LoadingScreen, SectionHeader } from "../_components/ui";
+import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { RatingRow, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedAchievements, getAchievements } from "@/lib/client/achievements";
@@ -71,18 +71,18 @@ export default function ClientProfilePage() {
   const history = historyTab === "active" ? me?.history.active : me?.history.past;
 
   return (
-    <div className="space-y-5 pt-2">
-      <h1 className="px-1 text-2xl font-bold">Профиль</h1>
+    <div className="space-y-6 pt-1">
+      <PageTitle>Профиль</PageTitle>
 
-      <GlassCard className="flex items-center gap-4">
-        <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={64} />
+      <div className="flex items-center gap-4 px-0.5">
+        <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
-          <p className="truncate text-xl font-bold">{name}</p>
-          <p className="text-sm text-white/45">
+          <p className="truncate text-[22px] font-bold tracking-tight">{name}</p>
+          <p className="text-sm text-white/40">
             {me?.username ? `@${me.username}` : "Игрок клуба"}
           </p>
         </div>
-      </GlassCard>
+      </div>
 
       <div className="grid grid-cols-3 gap-3">
         <StatTile icon={<Spade size={18} />} label="Игр" value={stats.games} />
@@ -91,7 +91,7 @@ export default function ClientProfilePage() {
       </div>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between px-1">
+        <div className="flex items-center justify-between px-0.5">
           <h2 className="text-lg font-bold">Достижения</h2>
           <span className="text-sm text-white/45">
             {earned} / {achievements.length}
@@ -102,15 +102,16 @@ export default function ClientProfilePage() {
           {achievements.map((achievement) => (
             <div
               key={achievement.id}
-              className={`rounded-2xl border p-3 text-center ${
+              className={`rounded-[18px] border p-3 text-center ${
                 achievement.earned
-                  ? "border-[#e8b465]/50 bg-gradient-to-b from-[#4a3410]/60 to-transparent"
-                  : "border-white/10 bg-white/[0.03]"
+                  ? "border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.18),rgba(233,192,122,0.02))] shadow-[0_8px_22px_rgba(233,192,122,0.12)]"
+                  : "border-white/[0.06] bg-white/[0.03]"
               }`}
             >
               <Trophy
-                className={`mx-auto ${achievement.earned ? "text-[#e8b465]" : "text-white/20"}`}
-                size={22}
+                className={`mx-auto ${achievement.earned ? "text-[#e9c07a]" : "text-white/15"}`}
+                fill={achievement.earned ? "currentColor" : "none"}
+                size={24}
               />
               <p className="mt-2 text-[11px] font-semibold leading-tight">{achievement.title}</p>
               <p className="mt-1 text-[10px] text-white/40">
@@ -124,18 +125,18 @@ export default function ClientProfilePage() {
       </section>
 
       <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="!p-4">
-          <Ticket className="text-white/45" size={18} />
-          <p className="mt-2 text-2xl font-bold text-[#e8b465]">—</p>
-          <p className="mt-1 text-xs text-white/55">Бесплатные проходки</p>
-          <p className="text-[11px] text-white/30">Скоро</p>
+        <GlassCard className="!p-[18px]">
+          <Ticket className="text-[#e9c07a]" size={20} />
+          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">—</p>
+          <p className="mt-2 text-[12px] text-white/50">Бесплатные проходки</p>
+          <p className="text-[11px] text-white/25">Скоро</p>
         </GlassCard>
-        <GlassCard className="!p-4">
-          <Trophy className="text-white/45" size={18} />
-          <p className="mt-2 text-2xl font-bold text-[#e8b465]">
+        <GlassCard className="!p-[18px]">
+          <Trophy className="text-[#e9c07a]" size={20} />
+          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
             {myRating?.place ?? "—"}
           </p>
-          <p className="mt-1 text-xs text-white/55">Место в рейтинге</p>
+          <p className="mt-2 text-[12px] text-white/50">Место в рейтинге</p>
         </GlassCard>
       </div>
 
@@ -143,15 +144,15 @@ export default function ClientProfilePage() {
         <GlassCard>
           <p className="text-sm font-semibold">Вы в игре прямо сейчас</p>
           <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-              <p className="text-2xl font-bold text-[#e8b465]">
+            <div className="rounded-[18px] border border-white/[0.07] bg-black/30 p-4">
+              <p className="text-[26px] font-extrabold leading-none text-[#e9c07a]">
                 {me.registered.registrationNumber ?? "—"}
               </p>
-              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/45">Номер</p>
+              <p className="mt-2 text-[11px] uppercase tracking-wider text-white/40">Номер</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-              <p className="text-2xl font-bold text-[#e8b465]">{me.registered.table ?? "—"}</p>
-              <p className="mt-1 text-[11px] uppercase tracking-wide text-white/45">Стол</p>
+            <div className="rounded-[18px] border border-white/[0.07] bg-black/30 p-4">
+              <p className="text-[26px] font-extrabold leading-none text-[#e9c07a]">{me.registered.table ?? "—"}</p>
+              <p className="mt-2 text-[11px] uppercase tracking-wider text-white/40">Стол</p>
             </div>
           </div>
         </GlassCard>
@@ -172,16 +173,16 @@ export default function ClientProfilePage() {
             ) : null}
           </div>
         ) : (
-          <GlassCard className="text-center">
-            <p className="text-sm text-white/55">Рейтинг наполнится после первых игр.</p>
+          <GlassCard className="py-7 text-center">
+            <p className="text-sm text-white/45">Рейтинг наполнится после первых игр.</p>
           </GlassCard>
         )}
       </section>
 
       <section className="space-y-3">
-        <h2 className="px-1 text-lg font-bold">История игр</h2>
+        <h2 className="px-0.5 text-[19px] font-bold tracking-tight">История игр</h2>
 
-        <div className="grid grid-cols-2 gap-2 rounded-2xl bg-white/[0.04] p-1">
+        <div className="grid grid-cols-2 gap-1 rounded-full bg-white/[0.05] p-1">
           <TabButton active={historyTab === "active"} onClick={() => setHistoryTab("active")}>
             Активные
           </TabButton>
@@ -195,7 +196,7 @@ export default function ClientProfilePage() {
             {history.map((item) => (
               <Link
                 key={item.event.id}
-                className="block rounded-2xl border border-white/10 bg-white/[0.04] p-4"
+                className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
                 href={`/client/events/${item.event.id}`}
               >
                 <p className="font-semibold">{item.event.title}</p>
@@ -208,9 +209,9 @@ export default function ClientProfilePage() {
             ))}
           </div>
         ) : (
-          <GlassCard className="text-center">
-            <CalendarDays className="mx-auto mb-3 text-white/30" size={24} />
-            <p className="text-sm text-white/50">
+          <GlassCard className="py-8 text-center">
+            <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
+            <p className="text-sm text-white/45">
               {historyTab === "active"
                 ? "Вы пока никуда не записаны."
                 : "Сыгранных турниров пока нет."}
@@ -225,9 +226,9 @@ export default function ClientProfilePage() {
 function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
   return (
     <GlassCard className="!p-4 text-center">
-      <span className="flex justify-center text-white/40">{icon}</span>
-      <p className="mt-2 text-2xl font-bold">{value}</p>
-      <p className="mt-1 text-[11px] text-white/50">{label}</p>
+      <span className="flex justify-center text-white/35">{icon}</span>
+      <p className="mt-2.5 text-[26px] font-extrabold leading-none">{value}</p>
+      <p className="mt-2 text-[11px] text-white/45">{label}</p>
     </GlassCard>
   );
 }
@@ -243,8 +244,8 @@ function TabButton({
 }) {
   return (
     <button
-      className={`rounded-xl py-2.5 text-sm font-semibold transition ${
-        active ? "bg-white text-[#0b0708]" : "text-white/60"
+      className={`rounded-full py-2.5 text-sm font-bold transition ${
+        active ? "bg-white text-[#0a0608]" : "text-white/50"
       }`}
       type="button"
       onClick={onClick}

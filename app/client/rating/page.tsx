@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
-import { GlassCard, LoadingScreen } from "../_components/ui";
+import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
 import { RatingRow, type RatingPlayer } from "../_components/rating-row";
 
 type RatingResponse = {
@@ -58,31 +58,31 @@ export default function ClientRatingPage() {
   const meVisible = players.some((player) => player.isMe);
 
   return (
-    <div className="space-y-4 pt-2">
-      <h1 className="px-1 text-2xl font-bold">Рейтинг</h1>
+    <div className="space-y-4 pt-1">
+      <PageTitle>Рейтинг</PageTitle>
 
       <div className="relative">
-        <Search className="absolute left-3 top-3.5 text-white/35" size={16} />
+        <Search className="absolute left-4 top-4 text-white/30" size={17} />
         <input
-          className="w-full rounded-2xl border border-white/10 bg-black/30 py-3 pl-10 pr-4 text-sm outline-none placeholder:text-white/30 focus:border-[#b8163c]"
+          className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.04] py-3.5 pl-11 pr-4 text-[15px] outline-none placeholder:text-white/25 focus:border-[#c8163f]"
           placeholder="Поиск по никнейму"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
 
-      <div className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-[#b8163c] to-[#7d0d26] px-3 py-2.5 text-xs font-semibold">
-        <span className="w-7 text-center">#</span>
+      <div className="flex items-center gap-3 rounded-[18px] bg-gradient-to-r from-[#c8163f] to-[#7d0d26] px-3 py-3 text-[12px] font-bold shadow-[0_8px_24px_rgba(200,22,63,0.3)]">
+        <span className="w-8 text-center">#</span>
         <span className="flex-1">Никнейм</span>
         <button
-          className={`w-14 text-right ${sortKey === "eliminations" ? "text-white" : "text-white/60"}`}
+          className={`w-[52px] text-right ${sortKey === "eliminations" ? "text-white" : "text-white/55"}`}
           type="button"
           onClick={() => setSortKey("eliminations")}
         >
           Нокауты
         </button>
         <button
-          className={`w-16 text-right ${sortKey === "points" ? "text-white" : "text-white/60"}`}
+          className={`w-[74px] text-right ${sortKey === "points" ? "text-white" : "text-white/55"}`}
           type="button"
           onClick={() => setSortKey("points")}
         >
@@ -91,9 +91,9 @@ export default function ClientRatingPage() {
       </div>
 
       {players.length === 0 ? (
-        <GlassCard className="text-center">
-          <Trophy className="mx-auto mb-3 text-white/35" size={26} />
-          <p className="text-sm text-white/60">
+        <GlassCard className="py-8 text-center">
+          <Trophy className="mx-auto mb-3 text-white/25" size={28} />
+          <p className="text-sm text-white/45">
             {query ? "Никого не нашли по этому нику." : "Рейтинг наполнится после первых игр."}
           </p>
         </GlassCard>
@@ -113,7 +113,7 @@ export default function ClientRatingPage() {
       )}
 
       {data && !data.pointsAvailable ? (
-        <p className="px-2 pb-2 text-center text-xs text-white/40">
+        <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-white/30">
           Очки рейтинга подключим из клубной таблицы — пока в колонке прочерк, нокауты
           настоящие.
         </p>
