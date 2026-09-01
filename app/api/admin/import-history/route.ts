@@ -57,14 +57,21 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const year = Number(body.year) || new Date().getFullYear();
+  // Sheet names the admin unticked in the preview: skipped entirely, or imported as a
+  // fun game that stays in the players' history without touching the standings.
+  const skipped = new Set<string>(Array.isArray(body.skip) ? body.skip.map(String) : []);
+  const funGames = new Set<string>(Array.isArray(body.fun) ? body.fun.map(String) : []);
 
   try {
     const [games, months] = await Promise.all([readGames(year), readMonths(year)]);
 
     // Imported games carry midday as their start time: the sheets keep the date only,
     // and a fixed hour keeps two imports from producing two copies of one evening.
-    const gameRows = games.flatMap((game) =>
+    const gameRows = games
+      .filter((game) => !skipped.has(game.sheetName))
+      .flatMap((game) =>
       game.rows.map((row) => ({
+        counts_for_rating: !funGames.has(game.sheetName),
         knockouts: row.knockouts,
         place: row.place,
         played_on: game.playedOn,
@@ -84,7 +91,9 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
 
-    const monthRows = months.flatMap((month) =>
+    const monthRows = months
+      .filter((month) => !skipped.has(month.sheetName))
+      .flatMap((month) =>
       month.rows.map((row) => ({
         knockouts: row.knockouts,
         month: month.month,
@@ -103,9 +112,9 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json({
-      games: games.length,
+      games: games.filter((game) => !skipped.has(game.sheetName)).length,
       gameRows: gameRows.length,
-      months: months.length,
+      months: months.filter((month) => !skipped.has(month.sheetName)).length,
       monthRows: monthRows.length,
     });
   } catch (error) {

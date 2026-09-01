@@ -37,6 +37,7 @@ export async function GET(request: Request) {
   const { data, error } = await auth.supabase
     .from("tournament_results")
     .select("telegram_id, player_name, place, points, knockouts")
+    .eq("counts_for_rating", true)
     .gte("played_on", from)
     .lt("played_on", to);
 

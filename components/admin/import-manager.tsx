@@ -19,9 +19,16 @@ type MonthPreview = {
 
 type Preview = { games: GamePreview[]; months: MonthPreview[]; year: number };
 
+function toggle(list: string[], value: string) {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
+}
+
 export function ImportManager() {
   const [year, setYear] = useState(String(new Date().getFullYear()));
   const [preview, setPreview] = useState<Preview | null>(null);
+  // Sheets the admin has unticked: skipped outright, or imported as a fun game.
+  const [skip, setSkip] = useState<string[]>([]);
+  const [fun, setFun] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -38,6 +45,8 @@ export function ImportManager() {
       }
 
       setPreview(data);
+      setSkip([]);
+      setFun([]);
     } finally {
       setBusy(false);
     }
@@ -50,7 +59,7 @@ export function ImportManager() {
       const res = await fetch("/api/admin/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ year: Number(year) }),
+        body: JSON.stringify({ fun, skip, year: Number(year) }),
       });
       const data = await res.json();
 
@@ -115,7 +124,10 @@ export function ImportManager() {
           <div className="panel-heading">
             <div>
               <h2>Игры ({preview.games.length})</h2>
-              <p className="muted">Каждый лист-дата с таблицей мест.</p>
+              <p className="muted">
+                Снимите «Импорт», чтобы пропустить лист совсем. Снимите «В зачёт» для
+                фан-игры: она попадёт в историю игроков, но не в рейтинг.
+              </p>
             </div>
           </div>
 
@@ -123,6 +135,8 @@ export function ImportManager() {
             <table>
               <thead>
                 <tr>
+                  <th>Импорт</th>
+                  <th>В зачёт</th>
                   <th>Лист</th>
                   <th>Дата</th>
                   <th>Игроков</th>
@@ -132,6 +146,21 @@ export function ImportManager() {
               <tbody>
                 {preview.games.map((game) => (
                   <tr key={game.sheetName}>
+                    <td>
+                      <input
+                        checked={!skip.includes(game.sheetName)}
+                        type="checkbox"
+                        onChange={() => setSkip((current) => toggle(current, game.sheetName))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        checked={!fun.includes(game.sheetName)}
+                        disabled={skip.includes(game.sheetName)}
+                        type="checkbox"
+                        onChange={() => setFun((current) => toggle(current, game.sheetName))}
+                      />
+                    </td>
                     <td>{game.sheetName}</td>
                     <td>{game.playedOn}</td>
                     <td>{game.players}</td>
@@ -161,6 +190,7 @@ export function ImportManager() {
             <table>
               <thead>
                 <tr>
+                  <th>Импорт</th>
                   <th>Лист</th>
                   <th>Месяц</th>
                   <th>Игроков</th>
@@ -170,6 +200,13 @@ export function ImportManager() {
               <tbody>
                 {preview.months.map((month) => (
                   <tr key={month.sheetName}>
+                    <td>
+                      <input
+                        checked={!skip.includes(month.sheetName)}
+                        type="checkbox"
+                        onChange={() => setSkip((current) => toggle(current, month.sheetName))}
+                      />
+                    </td>
                     <td>{month.sheetName}</td>
                     <td>{month.month}</td>
                     <td>{month.players}</td>

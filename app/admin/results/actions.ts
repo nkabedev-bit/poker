@@ -16,6 +16,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 export async function saveGameResults(formData: FormData) {
   const startedAt = z.string().min(1).parse(formData.get("startedAt"));
   const rows = normalizeEditedRows(JSON.parse(String(formData.get("rows") ?? "[]")));
+  const countsForRating = formData.get("countsForRating") === "yes";
 
   const supabase = await createSupabaseServerClient();
 
@@ -43,6 +44,7 @@ export async function saveGameResults(formData: FormData) {
     const { error } = await supabase.from("tournament_results").upsert(
       rows.map((row) => ({
         event_id: game.event_id,
+        counts_for_rating: countsForRating,
         knockouts: row.knockouts,
         place: row.place,
         played_on: game.played_on,

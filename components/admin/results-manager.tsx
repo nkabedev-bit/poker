@@ -7,7 +7,13 @@ import { deleteGameResults, saveGameResults } from "@/app/admin/results/actions"
 import { SubmitButton } from "@/components/admin/submit-button";
 import { formatEventDayLabel, formatEventTimeLabel } from "@/lib/events/types";
 
-type GameSummary = { playedOn: string; players: number; startedAt: string; title: string };
+type GameSummary = {
+  countsForRating: boolean;
+  playedOn: string;
+  players: number;
+  startedAt: string;
+  title: string;
+};
 
 type ResultRow = {
   knockouts: number;
@@ -46,6 +52,7 @@ export function ResultsManager({
 }) {
   const [draft, setDraft] = useState<DraftRow[]>(() => rows.map(toDraft));
   const game = games.find((item) => item.startedAt === selectedGame) ?? null;
+  const [countsForRating, setCountsForRating] = useState(game?.countsForRating ?? true);
 
   const payload = useMemo(
     () =>
@@ -93,6 +100,7 @@ export function ResultsManager({
                 <span className="muted">
                   {formatEventDayLabel(item.playedOn)}, {formatEventTimeLabel(item.startedAt)} ·{" "}
                   {item.players} чел.
+                  {item.countsForRating ? "" : " · фан"}
                 </span>
               </Link>
             ))}
@@ -125,6 +133,21 @@ export function ResultsManager({
 
           <input name="startedAt" type="hidden" value={game.startedAt} />
           <input name="rows" type="hidden" value={payload} />
+
+          <label className="checkbox-field">
+            <input
+              checked={countsForRating}
+              name="countsForRating"
+              type="checkbox"
+              value="yes"
+              onChange={(event) => setCountsForRating(event.target.checked)}
+            />
+            Идёт в зачёт рейтинга
+          </label>
+          <p className="field-help">
+            Снимите галочку для фан-игры: она останется в истории игроков, но в месячный
+            рейтинг не попадёт.
+          </p>
 
           <div className="admin-table-wrap">
             <table>

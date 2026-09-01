@@ -18,7 +18,7 @@ export async function GET(
 
   const { data, error } = await auth.supabase
     .from("tournament_results")
-    .select("telegram_id, player_name, place, points, knockouts, title, played_on")
+    .select("telegram_id, player_name, place, points, knockouts, title, played_on, counts_for_rating")
     .eq("started_at", startedAt)
     .order("place");
 
@@ -26,6 +26,7 @@ export async function GET(
 
   const rows = (data ?? []).map((row) => {
     const record = row as {
+      counts_for_rating: boolean | null;
       knockouts: number | string | null;
       place: number | null;
       played_on: string;
@@ -36,6 +37,7 @@ export async function GET(
     };
 
     return {
+      countsForRating: record.counts_for_rating !== false,
       isMe: record.telegram_id === auth.user.telegram_id,
       knockouts: Number(record.knockouts ?? 0),
       place: record.place,
@@ -51,7 +53,12 @@ export async function GET(
   }
 
   return NextResponse.json({
-    game: { playedOn: rows[0].playedOn, startedAt, title: rows[0].title },
+    game: {
+      countsForRating: rows[0].countsForRating,
+      playedOn: rows[0].playedOn,
+      startedAt,
+      title: rows[0].title,
+    },
     rows: rows.map((row) => ({
       isMe: row.isMe,
       knockouts: row.knockouts,

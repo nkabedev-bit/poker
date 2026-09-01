@@ -20,7 +20,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.supabase
     .from("tournament_results")
-    .select("started_at, played_on, title, place, points, knockouts")
+    .select("started_at, played_on, title, place, points, knockouts, counts_for_rating")
     .or(filters.join(","))
     .order("started_at", { ascending: false })
     .limit(GAMES_LIMIT);
@@ -30,6 +30,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     games: (data ?? []).map((row) => {
       const record = row as {
+        counts_for_rating: boolean | null;
         knockouts: number | string | null;
         place: number | null;
         played_on: string;
@@ -39,6 +40,7 @@ export async function GET(request: Request) {
       };
 
       return {
+        countsForRating: record.counts_for_rating !== false,
         knockouts: Number(record.knockouts ?? 0),
         place: record.place,
         playedOn: record.played_on,
