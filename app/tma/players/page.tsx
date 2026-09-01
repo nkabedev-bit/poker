@@ -90,10 +90,22 @@ export default function TMAPlayersPage() {
             body: JSON.stringify({ name, table, seat }),
           });
           if (res.ok) {
+            const data = await res.json().catch(() => null);
             tg.HapticFeedback.notificationOccurred("success");
             setShowAddForm(false);
             setName("");
             await fetchPlayers();
+
+            // Say out loud whether the nickname found its questionnaire: a walk-in who
+            // was not matched earns nothing tonight, and the admin should know now.
+            if (data?.linkedTo) {
+              const username = data.linkedTo.username ? ` (@${data.linkedTo.username})` : "";
+              tg.showAlert(`Игрок привязан к анкете ${data.linkedTo.displayName}${username}. Достижения зачтутся.`);
+            } else if (data?.nicknameAmbiguous) {
+              tg.showAlert("Ник встречается у нескольких игроков — достижения не зачтутся. Уточните ник.");
+            } else {
+              tg.showAlert("Анкета с таким ником не найдена — достижения за эту игру не зачтутся.");
+            }
           } else {
             const data = await res.json().catch(() => null);
             tg.HapticFeedback.notificationOccurred("error");

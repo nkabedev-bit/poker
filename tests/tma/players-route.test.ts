@@ -38,7 +38,12 @@ vi.mock("next/server", () => ({
   },
 }));
 
-function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unknown>> } = {}) {
+function createSupabaseMock(
+  options: {
+    blindLevelRows?: Array<Record<string, unknown>>;
+    clientBotUsers?: Array<Record<string, unknown>>;
+  } = {},
+) {
   const bountyLogDelete = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(async () => ({ data: null, error: null })),
@@ -112,6 +117,17 @@ function createSupabaseMock(options: { blindLevelRows?: Array<Record<string, unk
             return chain;
           }),
           update: bountyLogUpdate,
+        };
+      }
+
+      if (table === "client_bot_users") {
+        return {
+          select: vi.fn(() => ({
+            ilike: vi.fn(() => ({
+              limit: vi.fn(async () => ({ data: options.clientBotUsers ?? [], error: null })),
+            })),
+          })),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ data: null, error: null })) })),
         };
       }
 
@@ -553,6 +569,57 @@ describe("TMA players route", () => {
     );
     expect(supabase.bountyLogDelete).toHaveBeenCalled();
     expect(mocks.syncTournamentToSheets).toHaveBeenCalled();
+  });
+
+  // A walk-in typed by hand must still earn tonight's games and knockouts, which are
+  // credited by Telegram id alone.
+  it("links a hand-typed nickname to the questionnaire behind it", async () => {
+    const supabase = createSupabaseMock({
+      clientBotUsers: [{ display_name: "Ace High", telegram_id: 42, username: "ace" }],
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [] }));
+
+    const { POST } = await import("@/app/api/tma/players/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/players", {
+        method: "POST",
+        body: JSON.stringify({ name: "  ace   HIGH ", table: 1, seat: 1 }),
+      }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.linkedTo).toEqual({ displayName: "Ace High", username: "ace" });
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "append_tournament_player",
+      expect.objectContaining({
+        p_player: expect.objectContaining({ telegramId: 42 }),
+      }),
+    );
+  });
+
+  it("adds an unknown walk-in without a link and says so", async () => {
+    const supabase = createSupabaseMock({ clientBotUsers: [] });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [] }));
+
+    const { POST } = await import("@/app/api/tma/players/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/players", {
+        method: "POST",
+        body: JSON.stringify({ name: "Прохожий", table: 1, seat: 1 }),
+      }),
+    );
+    const data = await response.json();
+
+    expect(data.linkedTo).toBeNull();
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "append_tournament_player",
+      expect.objectContaining({
+        p_player: expect.not.objectContaining({ telegramId: expect.anything() }),
+      }),
+    );
   });
 
   function eliminatedRosterExtras() {

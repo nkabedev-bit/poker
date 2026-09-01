@@ -8,6 +8,7 @@ import {
   isTournamentRegistrationCapacityError,
   TournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
+import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
 import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
@@ -106,6 +107,12 @@ export async function POST(request: Request) {
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+
+  // A walk-in typed by hand still owns an account and a history. Games, knockouts and
+  // final tables are credited by Telegram id, so without this lookup everything the
+  // player does tonight would be counted for nobody.
+  const match = await findClientBotUserByNickname(auth.supabase, String(name));
+
   const newPlayer = {
     id: crypto.randomUUID(),
     name,
@@ -119,6 +126,8 @@ export async function POST(request: Request) {
     bountyChipsTotal: 0,
     bountyCount: 0,
     finishPlace: null,
+    registeredVia: "admin" as const,
+    ...(match.user ? { telegramId: match.user.telegramId } : {}),
   };
 
   try {
@@ -137,7 +146,15 @@ export async function POST(request: Request) {
       console.error("Failed to sync VIP sheet", sheetError);
     }
 
-    return NextResponse.json({ player });
+    return NextResponse.json({
+      // The admin is told who the nickname was matched to, so a wrong match is caught
+      // on the spot rather than at the end of the tournament.
+      linkedTo: match.user
+        ? { displayName: match.user.displayName, username: match.user.username }
+        : null,
+      nicknameAmbiguous: match.ambiguous,
+      player,
+    });
   } catch (error) {
     if (isTournamentRegistrationCapacityError(error)) {
       const registeredPlayersCount = error instanceof TournamentRegistrationCapacityError
