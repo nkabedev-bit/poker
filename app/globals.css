@@ -2944,3 +2944,30 @@ p {
     height: clamp(32px, 6.2vh, 48px);
   }
 }
+
+.events-form-row {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.events-row-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.events-signups {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 4px;
+  list-style: none;
+}
+
+.events-signups li {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
