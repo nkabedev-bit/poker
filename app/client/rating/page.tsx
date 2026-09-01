@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
+import { BackLink } from "../_components/back-link";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 
 type RatingResponse = {
@@ -61,6 +62,7 @@ export default function ClientRatingPage() {
 
   return (
     <div className="space-y-4 pt-1">
+      <BackLink />
       <PageTitle>Рейтинг</PageTitle>
 
       <div className="relative">

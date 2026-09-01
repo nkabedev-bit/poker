@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import Script from "next/script";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { House, Trophy, User } from "lucide-react";
 
 export type ClientTelegramUser = {
@@ -21,6 +21,12 @@ export type ClientTelegramWebApp = {
   expand: () => void;
   openTelegramLink?: (url: string) => void;
   showAlert: (message: string) => void;
+  BackButton?: {
+    hide: () => void;
+    offClick: (handler: () => void) => void;
+    onClick: (handler: () => void) => void;
+    show: () => void;
+  };
   HapticFeedback?: {
     impactOccurred: (style: string) => void;
     notificationOccurred: (type: string) => void;
@@ -47,6 +53,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [initData, setInitData] = useState<string | null>(null);
   const [telegramUser, setTelegramUser] = useState<ClientTelegramUser | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
 
   const initTg = useCallback(() => {
     const tg = getClientTelegramWebApp();
@@ -62,6 +69,35 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const timeout = window.setTimeout(initTg, 0);
     return () => window.clearTimeout(timeout);
   }, [initTg]);
+
+  // Telegram's own back button. Screens outside the bottom navigation (the rating, the
+  // club page, achievements, medals, a tournament) have no tab of their own, so without
+  // this there is no way back to where the player came from.
+  useEffect(() => {
+    const backButton = getClientTelegramWebApp()?.BackButton;
+    if (!backButton) return;
+
+    if (pathname === "/client") {
+      backButton.hide();
+      return;
+    }
+
+    const goBack = () => {
+      if (window.history.length > 1) {
+        router.back();
+        return;
+      }
+      router.push("/client");
+    };
+
+    backButton.onClick(goBack);
+    backButton.show();
+
+    return () => {
+      backButton.offClick(goBack);
+      backButton.hide();
+    };
+  }, [pathname, router]);
 
   return (
     <>
