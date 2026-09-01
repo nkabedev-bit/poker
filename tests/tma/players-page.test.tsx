@@ -366,4 +366,120 @@ describe("TMAPlayersPage", () => {
     expect(doubleRebuyButton.disabled).toBe(true);
     expect(mistakeButton.disabled).toBe(false);
   });
+
+  it("adds an addon to several players picked from the list in one request", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          addonEnabled: true,
+          maxAddons: 1,
+          tablesCount: 3,
+          players: [
+            { id: "player-1", name: "Первый", table: 1, seat: 1, stack: 1000, status: "active", addons: 0 },
+            { id: "player-2", name: "Второй", table: 1, seat: 2, stack: 1000, status: "active", addons: 0 },
+            { id: "player-3", name: "Третий", table: 2, seat: 1, stack: 1000, status: "active", addons: 0 },
+          ],
+        });
+      }
+
+      if (String(input) === "/api/tma/players/addons") {
+        return Response.json({ applied: [{ id: "player-1", name: "Первый" }, { id: "player-2", name: "Второй" }], failed: [] });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Аддон списком" }));
+    fireEvent.click(await screen.findByLabelText("Выбрать Первый"));
+    fireEvent.click(screen.getByLabelText("Выбрать Второй"));
+    fireEvent.click(screen.getByRole("button", { name: /добавить аддон 2 игрокам/i }));
+
+    const confirmText = String(showConfirm.mock.calls[0]?.[0] ?? "");
+    expect(confirmText).toContain("2 игрокам?");
+    expect(confirmText).toContain("Первый, Второй");
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/addons",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify({ playerIds: ["player-1", "player-2"] }),
+        }),
+      );
+    });
+  });
+
+  it("disables players who used their addon limit and hides eliminated ones from the list", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          addonEnabled: true,
+          maxAddons: 1,
+          tablesCount: 3,
+          players: [
+            { id: "player-1", name: "Свободный", table: 1, seat: 1, stack: 1000, status: "active", addons: 0 },
+            { id: "player-2", name: "Лимитный", table: 1, seat: 2, stack: 1000, status: "active", addons: 1 },
+            { id: "player-3", name: "Выбывший", table: 1, seat: 3, stack: 0, status: "eliminated", addons: 0 },
+          ],
+        }),
+      ),
+    );
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Аддон списком" }));
+
+    expect((await screen.findByLabelText("Выбрать Свободный") as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByLabelText("Выбрать Лимитный") as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByLabelText("Выбрать Выбывший")).toBeNull();
+  });
+
+  it("names the players a bulk addon could not be applied to", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    const showAlert = vi.mocked(window.Telegram!.WebApp!.showAlert);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (String(input) === "/api/tma/players" && !init?.method) {
+          return Response.json({
+            addonEnabled: true,
+            maxAddons: 1,
+            tablesCount: 3,
+            players: [
+              { id: "player-1", name: "Первый", table: 1, seat: 1, stack: 1000, status: "active", addons: 0 },
+              { id: "player-2", name: "Второй", table: 1, seat: 2, stack: 1000, status: "active", addons: 0 },
+            ],
+          });
+        }
+
+        if (String(input) === "/api/tma/players/addons") {
+          return Response.json({
+            applied: [{ id: "player-1", name: "Первый" }],
+            failed: [{ id: "player-2", name: "Второй", reason: "limit" }],
+          });
+        }
+
+        return Response.json({ ok: true });
+      }),
+    );
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Аддон списком" }));
+    fireEvent.click(await screen.findByLabelText("Выбрать Первый"));
+    fireEvent.click(screen.getByLabelText("Выбрать Второй"));
+    fireEvent.click(screen.getByRole("button", { name: /добавить аддон 2 игрокам/i }));
+
+    await waitFor(() => {
+      expect(showAlert).toHaveBeenCalledWith(
+        "Аддон добавлен: 1. Не прошли: 1 (Второй — лимит аддонов)",
+      );
+    });
+  });
 });
