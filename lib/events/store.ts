@@ -118,6 +118,35 @@ export async function listEventSignups(
   });
 }
 
+/** A player's own sign-ups joined with the event, for the history on their profile. */
+export async function getUserSignupsWithEvents(
+  supabase: SupabaseClient,
+  telegramId: number,
+): Promise<Array<{ event: TournamentEvent; status: EventSignup["status"] }>> {
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select(`id, status, tournament_events(${EVENT_COLUMNS})`)
+    .eq("telegram_id", telegramId)
+    .neq("status", "cancelled");
+
+  if (error) throw error;
+
+  return (data ?? []).flatMap((row) => {
+    const record = row as Record<string, unknown>;
+    const embedded = record.tournament_events;
+    const eventRow = (Array.isArray(embedded) ? embedded[0] : embedded) as
+      | Record<string, unknown>
+      | undefined;
+
+    if (!eventRow) return [];
+
+    return [{
+      event: mapEventRow(eventRow),
+      status: (record.status as EventSignup["status"]) ?? "signed_up",
+    }];
+  });
+}
+
 export async function getUserSignups(
   supabase: SupabaseClient,
   telegramId: number,

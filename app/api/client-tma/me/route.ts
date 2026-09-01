@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
+import { getUserSignupsWithEvents } from "@/lib/events/store";
+import { isUpcomingEvent } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +19,28 @@ export async function GET(request: Request) {
     (item) => item.telegramId === auth.user.telegram_id,
   );
 
+  const now = new Date();
+  const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
+  const [active, past] = history.reduce<[typeof history, typeof history]>(
+    (split, item) => {
+      split[isUpcomingEvent(item.event, now) ? 0 : 1].push(item);
+      return split;
+    },
+    [[], []],
+  );
+
+  const byStartDate = (a: (typeof history)[number], b: (typeof history)[number]) =>
+    new Date(a.event.startsAt).getTime() - new Date(b.event.startsAt).getTime();
+
   return NextResponse.json({
+    // The club nickname is what the player is known by at the table, so it wins over
+    // whatever Telegram calls them.
+    displayName: auth.user.display_name,
+    history: {
+      active: active.sort(byStartDate),
+      past: past.sort((a, b) => byStartDate(b, a)),
+    },
     profileSubmitted: Boolean(auth.user.profile_submitted_at),
-    tablesCount,
     registered: player
       ? {
           registrationNumber: player.registrationNumber ?? null,
@@ -28,9 +49,11 @@ export async function GET(request: Request) {
         }
       : null,
     stats: {
-      games: auth.user.games_played ?? 0,
       eliminations: Number(auth.user.eliminations_count ?? 0),
-      top7: auth.user.top7_count ?? 0,
+      games: auth.user.games_played ?? 0,
+      top9: auth.user.top7_count ?? 0,
     },
+    tablesCount,
+    username: auth.user.username,
   });
 }

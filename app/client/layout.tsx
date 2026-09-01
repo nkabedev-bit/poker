@@ -6,10 +6,20 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { House, Trophy, User } from "lucide-react";
 
+export type ClientTelegramUser = {
+  first_name?: string;
+  id?: number;
+  last_name?: string;
+  photo_url?: string;
+  username?: string;
+};
+
 export type ClientTelegramWebApp = {
   initData?: string;
+  initDataUnsafe?: { user?: ClientTelegramUser };
   ready: () => void;
   expand: () => void;
+  openTelegramLink?: (url: string) => void;
   showAlert: (message: string) => void;
   HapticFeedback?: {
     impactOccurred: (style: string) => void;
@@ -21,17 +31,21 @@ export function getClientTelegramWebApp(): ClientTelegramWebApp | undefined {
   return (window as unknown as { Telegram?: { WebApp?: ClientTelegramWebApp } }).Telegram?.WebApp;
 }
 
-export const ClientTMAContext = createContext<{ initData: string }>({ initData: "" });
+export const ClientTMAContext = createContext<{ initData: string; telegramUser: ClientTelegramUser | null }>({
+  initData: "",
+  telegramUser: null,
+});
 export const useClientTMA = () => useContext(ClientTMAContext);
 
 const NAV_ITEMS = [
-  { href: "/client", label: "Турниры", icon: House, match: (p: string) => p === "/client" || p.includes("/events") },
-  { href: "/client/rating", label: "Рейтинг", icon: Trophy, match: (p: string) => p.includes("/rating") },
+  { href: "/client", label: "Главная", icon: House, match: (p: string) => p === "/client" },
+  { href: "/client/tournaments", label: "Турниры", icon: Trophy, match: (p: string) => p.includes("/tournaments") || p.includes("/events") },
   { href: "/client/profile", label: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
+  const [telegramUser, setTelegramUser] = useState<ClientTelegramUser | null>(null);
   const pathname = usePathname();
 
   const initTg = useCallback(() => {
@@ -40,6 +54,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       tg.ready();
       tg.expand();
       setInitData(tg.initData || "mock");
+      setTelegramUser(tg.initDataUnsafe?.user ?? null);
     }
   }, []);
 
@@ -75,7 +90,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             Загрузка…
           </div>
         ) : (
-          <ClientTMAContext.Provider value={{ initData }}>
+          <ClientTMAContext.Provider value={{ initData, telegramUser }}>
             <main className="relative z-10 flex-1 overflow-y-auto px-4 pb-[calc(6rem+env(safe-area-inset-bottom)+12px)]">
               {children}
             </main>
