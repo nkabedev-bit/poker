@@ -17,6 +17,7 @@ export const eventInputSchema = z.object({
   startsAt: z.string().trim().min(1, "Укажите дату и время начала"),
   title: z.string().trim().min(1, "Укажите название").max(80),
   venueAddress: z.string().trim().max(200).optional().default(""),
+  vipBuyIn: z.coerce.number().int().min(0).nullable().optional().default(null),
 });
 
 export type EventInput = z.infer<typeof eventInputSchema>;
@@ -48,5 +49,6 @@ export function toEventDraft(input: EventInput): Omit<TournamentEvent, "id"> {
     startsAt,
     title: input.title,
     venueAddress: input.venueAddress,
+    vipBuyIn: input.vipBuyIn ?? null,
   };
 }

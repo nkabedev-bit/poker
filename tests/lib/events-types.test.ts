@@ -22,6 +22,7 @@ const row = {
   starts_at: "2026-09-01T16:00:00.000Z",
   title: "ONE SHOT KNOCKOUT",
   venue_address: "Москва, Большая Новодмитровская улица, 36с13",
+  vip_buy_in: 2000,
 };
 
 function event(overrides: Partial<TournamentEvent> = {}): TournamentEvent {
@@ -36,6 +37,11 @@ describe("mapEventRow", () => {
     expect(mapped.posterUrl).toBeNull();
   });
 
+  it("reads the VIP ticket price, or null when the game has no VIP seat", () => {
+    expect(mapEventRow(row).vipBuyIn).toBe(2000);
+    expect(mapEventRow({ ...row, vip_buy_in: null }).vipBuyIn).toBeNull();
+  });
+
   it("rejects non-positive counts instead of surfacing zeros", () => {
     const mapped = mapEventRow({ ...row, max_players: 0, starting_stack: -5 });
 
@@ -48,6 +54,7 @@ describe("mapEventRow", () => {
 
     expect(toEventRow(mapped)).toMatchObject({
       buy_in: 1500,
+      vip_buy_in: 2000,
       is_published: true,
       max_players: 90,
       starts_at: "2026-09-01T16:00:00.000Z",

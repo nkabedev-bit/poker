@@ -28,9 +28,20 @@ describe("event input", () => {
   });
 
   it("accepts the counts the admin did fill in", () => {
-    const draft = toEventDraft(parse({ buyIn: "1500", maxPlayers: "90", startingStack: "120000" }));
+    const draft = toEventDraft(parse({ buyIn: "1250", maxPlayers: "90", startingStack: "120000" }));
 
-    expect(draft).toMatchObject({ buyIn: 1500, maxPlayers: 90, startingStack: 120000 });
+    expect(draft).toMatchObject({ buyIn: 1250, maxPlayers: 90, startingStack: 120000 });
+  });
+
+  // Two tickets are sold: a regular seat and a VIP one.
+  it("keeps the regular and the VIP ticket prices apart", () => {
+    const draft = toEventDraft(parse({ buyIn: "1250", vipBuyIn: "2000" }));
+
+    expect(draft).toMatchObject({ buyIn: 1250, vipBuyIn: 2000 });
+  });
+
+  it("leaves the VIP price empty when the tournament has no VIP ticket", () => {
+    expect(toEventDraft(parse({ buyIn: "1250" })).vipBuyIn).toBeNull();
   });
 
   // A late entry before the start would let the app hide a game that has not begun.

@@ -13,9 +13,13 @@ import {
   type TournamentEvent,
 } from "@/lib/events/types";
 
+// The club's standing prices; an admin can still change them per tournament.
+const DEFAULT_BUY_IN = "1250";
+const DEFAULT_VIP_BUY_IN = "2000";
+
 const EMPTY_DRAFT = {
   badge: "",
-  buyIn: "",
+  buyIn: DEFAULT_BUY_IN,
   featuresText: "",
   id: "",
   isPublished: false,
@@ -27,6 +31,7 @@ const EMPTY_DRAFT = {
   startsAt: "",
   title: "",
   venueAddress: "",
+  vipBuyIn: DEFAULT_VIP_BUY_IN,
 };
 
 type Draft = typeof EMPTY_DRAFT;
@@ -46,6 +51,7 @@ function toDraft(event: TournamentEvent): Draft {
     startsAt: utcISOToMoscowLocal(event.startsAt),
     title: event.title,
     venueAddress: event.venueAddress,
+    vipBuyIn: event.vipBuyIn ? String(event.vipBuyIn) : "",
   };
 }
 
@@ -142,13 +148,21 @@ export function EventsManager({
             />
           </label>
           <label>
-            Бай-ин, ₽
+            Обычный билет, ₽
             <input
               name="buyIn"
               inputMode="numeric"
-              placeholder="1500"
               value={draft.buyIn}
               onChange={(event) => update({ buyIn: event.target.value })}
+            />
+          </label>
+          <label>
+            VIP билет, ₽
+            <input
+              name="vipBuyIn"
+              inputMode="numeric"
+              value={draft.vipBuyIn}
+              onChange={(event) => update({ vipBuyIn: event.target.value })}
             />
           </label>
           <label>

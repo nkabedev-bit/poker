@@ -168,7 +168,7 @@ export default function ClientEventPage() {
         </section>
       ) : null}
 
-      {featureLines.length > 0 || event.buyIn > 0 || event.startingStack ? (
+      {featureLines.length > 0 || event.startingStack ? (
         <section className="space-y-2">
           <h2 className="px-1 text-lg font-bold">Особенности</h2>
           <GlassCard className="space-y-2 !p-4">
@@ -182,12 +182,31 @@ export default function ClientEventPage() {
                 Стартовый стек {event.startingStack.toLocaleString("ru-RU")} фишек
               </p>
             ) : null}
-            {event.buyIn > 0 ? (
-              <p className="text-sm text-white/80">
-                Стоимость участия {event.buyIn.toLocaleString("ru-RU")} ₽
-              </p>
-            ) : null}
           </GlassCard>
+        </section>
+      ) : null}
+
+      {event.buyIn > 0 || event.vipBuyIn ? (
+        <section className="space-y-2">
+          <h2 className="px-1 text-lg font-bold">Билеты</h2>
+          <div className="grid grid-cols-2 gap-3">
+            {event.buyIn > 0 ? (
+              <GlassCard className="!p-4">
+                <p className="text-xs uppercase tracking-wide text-white/45">Обычный</p>
+                <p className="mt-1 text-xl font-bold">
+                  {event.buyIn.toLocaleString("ru-RU")} ₽
+                </p>
+              </GlassCard>
+            ) : null}
+            {event.vipBuyIn ? (
+              <GlassCard className="border-[#e8b465]/40 bg-[#e8b465]/[0.07] !p-4">
+                <p className="text-xs uppercase tracking-wide text-[#e8b465]">VIP</p>
+                <p className="mt-1 text-xl font-bold text-[#e8b465]">
+                  {event.vipBuyIn.toLocaleString("ru-RU")} ₽
+                </p>
+              </GlassCard>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

@@ -10,7 +10,7 @@ import {
 } from "@/lib/events/types";
 
 const EVENT_COLUMNS =
-  "id, title, badge, starts_at, late_entry_until, max_players, buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
+  "id, title, badge, starts_at, late_entry_until, max_players, buy_in, vip_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;

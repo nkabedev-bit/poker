@@ -55,6 +55,7 @@ export async function saveTournamentEvent(formData: FormData) {
     startsAt: formData.get("startsAt"),
     title: formData.get("title"),
     venueAddress: formData.get("venueAddress"),
+    vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
   });
 
   const supabase = await createSupabaseServerClient();

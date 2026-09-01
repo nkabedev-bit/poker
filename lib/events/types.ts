@@ -14,6 +14,7 @@ export type TournamentEvent = {
   startsAt: string;
   title: string;
   venueAddress: string;
+  vipBuyIn: number | null;
 };
 
 export type EventSignupStatus = "signed_up" | "cancelled" | "seated";
@@ -51,6 +52,9 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
     startsAt: String(row.starts_at),
     title: String(row.title ?? ""),
     venueAddress: String(row.venue_address ?? ""),
+    vipBuyIn: Number.isFinite(Number(row.vip_buy_in)) && row.vip_buy_in !== null
+      ? Math.max(0, Number(row.vip_buy_in))
+      : null,
   };
 }
 
@@ -78,6 +82,7 @@ export function toEventRow(event: Omit<TournamentEvent, "id">) {
     starts_at: event.startsAt,
     title: event.title,
     venue_address: event.venueAddress,
+    vip_buy_in: event.vipBuyIn,
   };
 }
 

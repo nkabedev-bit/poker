@@ -26,9 +26,13 @@ type EventRow = TournamentEvent & { signupsCount: number };
 const textFieldClass =
   "w-full rounded-lg border border-neutral-300 bg-white p-3 text-black placeholder:text-neutral-500 outline-none";
 
+// The club's standing prices; an admin can still change them per tournament.
+const DEFAULT_BUY_IN = "1250";
+const DEFAULT_VIP_BUY_IN = "2000";
+
 const EMPTY_DRAFT = {
   badge: "",
-  buyIn: "",
+  buyIn: DEFAULT_BUY_IN,
   featuresText: "",
   id: "",
   isPublished: false,
@@ -41,6 +45,7 @@ const EMPTY_DRAFT = {
   startsAt: "",
   title: "",
   venueAddress: "",
+  vipBuyIn: DEFAULT_VIP_BUY_IN,
 };
 
 type Draft = typeof EMPTY_DRAFT;
@@ -61,6 +66,7 @@ function toDraft(event: EventRow): Draft {
     startsAt: utcISOToMoscowLocal(event.startsAt),
     title: event.title,
     venueAddress: event.venueAddress,
+    vipBuyIn: event.vipBuyIn ? String(event.vipBuyIn) : "",
   };
 }
 
@@ -125,6 +131,7 @@ export default function TMAEventsPage() {
         startsAt: draft.startsAt,
         title: draft.title,
         venueAddress: draft.venueAddress,
+        vipBuyIn: draft.vipBuyIn ? Number(draft.vipBuyIn) : null,
       };
 
       const res = await fetch(draft.id ? `/api/tma/events/${draft.id}` : "/api/tma/events", {
@@ -243,7 +250,19 @@ export default function TMAEventsPage() {
             />
           </div>
           <div>
-            <FieldLabel title="Бай-ин ₽" />
+            <FieldLabel title="Стек" />
+            <input
+              className={textFieldClass}
+              inputMode="numeric"
+              value={draft.startingStack}
+              onChange={(event) => update({ startingStack: event.target.value })}
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <FieldLabel title="Обычный билет ₽" />
             <input
               className={textFieldClass}
               inputMode="numeric"
@@ -252,12 +271,12 @@ export default function TMAEventsPage() {
             />
           </div>
           <div>
-            <FieldLabel title="Стек" />
+            <FieldLabel title="VIP билет ₽" />
             <input
               className={textFieldClass}
               inputMode="numeric"
-              value={draft.startingStack}
-              onChange={(event) => update({ startingStack: event.target.value })}
+              value={draft.vipBuyIn}
+              onChange={(event) => update({ vipBuyIn: event.target.value })}
             />
           </div>
         </div>
