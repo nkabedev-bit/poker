@@ -321,5 +321,15 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     );
   }
 
+  // An addon changes both the sheet's addon column and the money owed, so the sheets are
+  // refreshed here instead of waiting for the next elimination.
+  after(async () => {
+    try {
+      await syncTournamentToSheets(auth.supabase, t.id);
+    } catch (sheetError) {
+      console.error("Non-critical addon sheets sync error:", sheetError);
+    }
+  });
+
   return NextResponse.json({ player: updatedPlayer });
 }

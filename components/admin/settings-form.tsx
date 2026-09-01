@@ -197,9 +197,6 @@ export function SettingsForm({
 
   return (
     <form action={action} className="poker-panel settings-form">
-      <input name="buyIn" type="hidden" value={settings.buyIn} />
-      <input name="rebuyPrice" type="hidden" value={settings.rebuyPrice} />
-      <input name="addonPrice" type="hidden" value={settings.addonPrice} />
       <input name="addonChips" type="hidden" value={settings.addonChips} />
       <input name="addonMinutes" type="hidden" value={settings.addonMinutes} />
       <input name="registrationMinutes" type="hidden" value={tournament.registrationMinutes} />
@@ -340,6 +337,70 @@ export function SettingsForm({
           </label>
         ) : null}
       </div>
+      <div className="panel-heading">
+        <h2>💰 Цены</h2>
+      </div>
+      <div className="form-grid">
+        <label>
+          Билет, ₽
+          <input
+            aria-label="Цена билета"
+            defaultValue={settings.buyIn}
+            inputMode="numeric"
+            min={0}
+            name="buyIn"
+            type="number"
+          />
+        </label>
+        <label>
+          VIP билет, ₽
+          <input
+            aria-label="Цена VIP билета"
+            defaultValue={settings.vipBuyIn}
+            inputMode="numeric"
+            min={0}
+            name="vipBuyIn"
+            type="number"
+          />
+        </label>
+        <label>
+          Ре-энтри, ₽
+          <input
+            aria-label="Цена ре-энтри"
+            defaultValue={settings.rebuyPrice}
+            inputMode="numeric"
+            min={0}
+            name="rebuyPrice"
+            type="number"
+          />
+        </label>
+        <label>
+          Двойной ре-энтри, ₽
+          <input
+            aria-label="Цена двойного ре-энтри"
+            defaultValue={settings.doubleRebuyPrice}
+            inputMode="numeric"
+            min={0}
+            name="doubleRebuyPrice"
+            type="number"
+          />
+        </label>
+        <label>
+          Аддон, ₽
+          <input
+            aria-label="Цена аддона"
+            defaultValue={settings.addonPrice}
+            inputMode="numeric"
+            min={0}
+            name="addonPrice"
+            type="number"
+          />
+        </label>
+      </div>
+      <p className="field-help">
+        По этим ценам считается финансовая таблица. Во FREEROLL билет не начисляется.
+      </p>
+
       <div className="logo-upload-section">
         <div className="panel-heading logo-upload-heading">
           <h2>🖼️ Загрузить ваш логотип</h2>

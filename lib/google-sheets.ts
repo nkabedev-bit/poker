@@ -9,7 +9,7 @@ import {
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
-import type { TournamentPlayer } from "@/lib/timer/types";
+import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 const ELIMINATION_SHEET_HEADERS = [
   "Вылетел",
@@ -785,6 +785,159 @@ function buildEliminationBlock(
   };
 }
 
+
+// ---------------------------------------------------------------------------
+// Finance sheet: a separate spreadsheet (GOOGLE_FINANCE_SHEET_ID) with one tab per game
+// date, listing what every player owes for the evening and the totals per category.
+// ---------------------------------------------------------------------------
+
+const FINANCE_SHEET_HEADERS = [
+  "№",
+  "Игрок",
+  "Билет, ₽",
+  "Ре-энтри, шт",
+  "Ре-энтри, ₽",
+  "Двойной, шт",
+  "Двойной, ₽",
+  "Аддоны, шт",
+  "Аддоны, ₽",
+  "Итого, ₽",
+];
+
+const FINANCE_TOTALS_LABEL = "ИТОГО";
+
+export type FinancePrices = {
+  addonPrice: number;
+  buyIn: number;
+  doubleRebuyPrice: number;
+  rebuyPrice: number;
+  vipBuyIn: number;
+};
+
+function getPrice(value: unknown) {
+  const price = Number(value);
+  return Number.isFinite(price) && price > 0 ? price : 0;
+}
+
+export function getFinancePrices(settings: Partial<TournamentExtras["settings"]>): FinancePrices {
+  return {
+    addonPrice: getPrice(settings.addonPrice),
+    buyIn: getPrice(settings.buyIn),
+    doubleRebuyPrice: getPrice(settings.doubleRebuyPrice),
+    rebuyPrice: getPrice(settings.rebuyPrice),
+    vipBuyIn: getPrice(settings.vipBuyIn),
+  };
+}
+
+// The ticket a player was sold at the door: the VIP price only when the VIP ticket was
+// actually picked on the card scan. FREEROLL charges no entry at all, so the ticket
+// column is left empty rather than written as a zero.
+function getPlayerTicketPrice(player: TournamentPlayer, prices: FinancePrices, freeEntry: boolean) {
+  if (freeEntry) return 0;
+  return player.ticketType === "vip" ? prices.vipBuyIn : prices.buyIn;
+}
+
+export function buildFinanceSheetRows(
+  players: TournamentPlayer[],
+  prices: FinancePrices,
+  options: { freeEntry?: boolean } = {},
+): (string | number)[][] {
+  const freeEntry = Boolean(options.freeEntry);
+  const rows = [...players]
+    .sort((a, b) => {
+      const left = Number(a.registrationNumber) || Number.MAX_SAFE_INTEGER;
+      const right = Number(b.registrationNumber) || Number.MAX_SAFE_INTEGER;
+      return left - right;
+    })
+    .map((player) => {
+      const doubleRebuys = Math.max(0, Number(player.doubleRebuys) || 0);
+      // `rebuys` counts every re-entry including the double ones, which are priced apart.
+      const singleRebuys = Math.max(0, (Number(player.rebuys) || 0) - doubleRebuys);
+      const addons = Math.max(0, Number(player.addons) || 0);
+      const ticket = getPlayerTicketPrice(player, prices, freeEntry);
+      const rebuysSum = singleRebuys * prices.rebuyPrice;
+      const doubleSum = doubleRebuys * prices.doubleRebuyPrice;
+      const addonsSum = addons * prices.addonPrice;
+      const registrationNumber = Number(player.registrationNumber);
+
+      return [
+        Number.isInteger(registrationNumber) && registrationNumber > 0 ? registrationNumber : "",
+        player.name || "",
+        freeEntry ? "" : ticket,
+        blankIfZero(singleRebuys),
+        blankIfZero(rebuysSum),
+        blankIfZero(doubleRebuys),
+        blankIfZero(doubleSum),
+        blankIfZero(addons),
+        blankIfZero(addonsSum),
+        ticket + rebuysSum + doubleSum + addonsSum,
+      ];
+    });
+
+  if (rows.length === 0) return rows;
+
+  const sumColumn = (index: number) =>
+    rows.reduce((total, row) => total + (Number(row[index]) || 0), 0);
+
+  return [
+    ...rows,
+    [
+      "",
+      FINANCE_TOTALS_LABEL,
+      freeEntry ? "" : sumColumn(2),
+      sumColumn(3),
+      sumColumn(4),
+      sumColumn(5),
+      sumColumn(6),
+      sumColumn(7),
+      sumColumn(8),
+      sumColumn(9),
+    ],
+  ];
+}
+
+export function buildFinanceSheetGrid(
+  players: TournamentPlayer[],
+  prices: FinancePrices,
+  options: { freeEntry?: boolean } = {},
+): (string | number)[][] {
+  return [
+    FINANCE_SHEET_HEADERS,
+    ...padRowsToClearTail(buildFinanceSheetRows(players, prices, options), FINANCE_SHEET_HEADERS.length, 0),
+  ];
+}
+
+// Writes the whole finance tab in a single request. Failures here must never break the
+// main sync, so the caller swallows them — the money is recomputed from scratch on the
+// next sync anyway.
+export async function syncFinanceSheet(
+  sheetName: string,
+  players: TournamentPlayer[],
+  settings: TournamentExtras["settings"],
+) {
+  const spreadsheetId = process.env.GOOGLE_FINANCE_SHEET_ID;
+  if (!spreadsheetId || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  await ensureSheetExists(sheets, spreadsheetId, sheetName);
+
+  const values = buildFinanceSheetGrid(players, getFinancePrices(settings), {
+    freeEntry: settings.tournamentFormat === "freeroll",
+  });
+
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${sheetName}'!A1:${getSheetColumnName(FINANCE_SHEET_HEADERS.length)}${values.length}`,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    }),
+  );
+
+  return { playerCount: players.length, sheetName };
+}
+
 export type TournamentSheetSyncResult = {
   eliminationCount: number;
   sheetName: string;
@@ -859,6 +1012,14 @@ export async function syncTournamentToSheets(
   await batchUpdateValues(sheets, spreadsheetId, "USER_ENTERED", [
     buildEliminationBlock(sheetName, buildEliminationSheetRows(sheetLogs)),
   ]);
+
+  // The money lives in its own spreadsheet, so a problem with it (missing id, no access)
+  // must not take the tournament sheet down with it.
+  try {
+    await syncFinanceSheet(sheetName, standingsPlayers, extras.settings);
+  } catch (financeError) {
+    console.error("Non-critical finance sheet sync error:", financeError);
+  }
 
   return {
     eliminationCount: sheetLogs.length,

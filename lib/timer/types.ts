@@ -96,6 +96,10 @@ export type TournamentExtras = {
     blindAlertSeconds: number;
     blindAlertSound: BlindAlertSound;
     buyIn: number;
+    // Ticket price for a VIP seat; regular seats pay `buyIn`.
+    vipBuyIn: number;
+    // Price of the double (x2) re-entry; a single re-entry costs `rebuyPrice`.
+    doubleRebuyPrice: number;
     bountyType: BountyType;
     isBounty: boolean;
     maxPlayersPerTable: number;

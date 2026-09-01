@@ -151,6 +151,7 @@ beforeEach(() => {
   batchUpdateFailures = 0;
   vi.clearAllMocks();
   process.env.GOOGLE_SHEET_ID = "sheet-id";
+  delete process.env.GOOGLE_FINANCE_SHEET_ID;
   process.env.GOOGLE_SERVICE_ACCOUNT_KEY = JSON.stringify({ client_email: "a@b.c", private_key: "k" });
 });
 
@@ -186,6 +187,28 @@ describe("syncTournamentToSheets write budget", () => {
     await syncTournamentToSheets(fakeSupabase(extrasWith(roster), []), "t1");
 
     expect(calls.filter((call) => call.method === "spreadsheets.batchUpdate")).toHaveLength(0);
+  });
+});
+
+describe("finance sheet sync", () => {
+  it("costs one extra write and fills the money block when the finance sheet is configured", async () => {
+    process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
+
+    await syncTournamentToSheets(
+      fakeSupabase(extrasWith([player(1, { addons: 1, rebuys: 2 } as Partial<TournamentPlayer>)]), []),
+      "t1",
+    );
+
+    expect(writeCalls()).toHaveLength(3);
+    const financeWrite = calls.find((call) => call.method === "values.update");
+    expect(financeWrite?.range).toStrictEqual(expect.stringContaining(`'${SHEET}'!A1:J`));
+  });
+
+  it("stays out of the way when the finance spreadsheet is not configured", async () => {
+    await syncTournamentToSheets(fakeSupabase(extrasWith(roster), []), "t1");
+
+    expect(writeCalls()).toHaveLength(2);
+    expect(calls.some((call) => call.method === "values.update")).toBe(false);
   });
 });
 
