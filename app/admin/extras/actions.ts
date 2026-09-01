@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { saveDemoExtras } from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
-import { normalizePlacePoints } from "@/lib/pts-rating";
+import { normalizePlacePoints, PTS_PLACE_COUNT } from "@/lib/pts-rating";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
 
 const playerSchema = z.object({
@@ -153,7 +153,7 @@ function parseNumber(value: FormDataEntryValue | null) {
 }
 
 function parsePlacePoints(formData: FormData) {
-  const values = Array.from({ length: 28 }, (_, index) =>
+  const values = Array.from({ length: PTS_PLACE_COUNT }, (_, index) =>
     parseNumber(formData.get(`place_${index + 1}`)),
   );
   return normalizePlacePoints(values);

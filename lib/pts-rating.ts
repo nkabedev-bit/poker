@@ -1,6 +1,6 @@
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
-export const PTS_PLACE_COUNT = 28;
+export const PTS_PLACE_COUNT = 30;
 
 // Dealer Revenge: knocking out a player marked with the dealer label awards this many
 // points (split by killer shares, so a 50/50 knockout gives 50 each) plus a 3-big-blind

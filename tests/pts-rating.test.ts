@@ -27,10 +27,10 @@ function player(
 }
 
 describe("PTS rating", () => {
-  it("fills default PTS settings with 28 places, bounty points, and split templates", () => {
+  it("fills default PTS settings with 30 places, bounty points, and split templates", () => {
     const extras = mergeTournamentExtras({});
 
-    expect(extras.pts.placePoints).toHaveLength(28);
+    expect(extras.pts.placePoints).toHaveLength(30);
     expect(extras.pts.bountyPoints).toBe(0);
     expect(extras.pts.placeTemplates).toEqual([]);
     expect(extras.pts.bountyTemplates).toEqual([]);

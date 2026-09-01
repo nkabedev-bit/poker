@@ -6,7 +6,7 @@ import {
   formatClientBotBirthDateForSheet,
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
-import { buildPtsStandingsRows, isSideBountyPoints, type PtsStandingRow } from "@/lib/pts-rating";
+import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -705,7 +705,7 @@ function buildPtsStandingsBlock(
   rows: PtsStandingRow[],
   bountyType: string,
 ): SheetValueRange {
-  const paddedRows = Array.from({ length: 28 }, (_, index) => {
+  const paddedRows = Array.from({ length: PTS_PLACE_COUNT }, (_, index) => {
     return (
       rows[index] ?? { bountyCount: null, mysteryPoints: null, place: index + 1, playerName: "", points: null }
     );
@@ -730,7 +730,7 @@ function buildPtsStandingsBlock(
     : ["Место", "Игрок", "PTS", "Кол-во баунти"];
 
   return {
-    range: `'${sheetName}'!F1:${isWide ? "J" : "I"}29`,
+    range: `'${sheetName}'!F1:${isWide ? "J" : "I"}${PTS_PLACE_COUNT + 1}`,
     values: [
       headers,
       ...paddedRows.map((row) => [
