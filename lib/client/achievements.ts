@@ -11,19 +11,22 @@ export type PlayerStats = {
   // Times the player was the first one out — the last place of the tournament.
   lastPlace: number;
   top9: number;
-  top18: number;
+  top3: number;
   wins: number;
 };
 
 export type AchievementIcon =
   | "briefcase"
   | "check"
+  | "clock"
   | "compass"
   | "crown"
   | "dumbbell"
   | "flag"
   | "flame"
+  | "gift"
   | "heart"
+  | "layers"
   | "medal"
   | "megaphone"
   | "message"
@@ -32,6 +35,7 @@ export type AchievementIcon =
   | "star"
   | "sun"
   | "target"
+  | "ticket"
   | "thumbs-up"
   | "trophy"
   | "wand"
@@ -76,12 +80,12 @@ const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] 
     ],
   },
   {
-    title: "Попадания в топ-18",
+    title: "Попадания в топ-3",
     items: [
-      { description: "3 раза", goal: 3, icon: "dumbbell", id: "in-rhythm", metric: "top18", title: "Поймал ритм" },
-      { description: "10 раз", goal: 10, icon: "medal", id: "real-rival", metric: "top18", title: "Серьёзный соперник" },
-      { description: "25 раз", goal: 25, icon: "star", id: "experienced", metric: "top18", title: "На опыте" },
-      { description: "50 раз", goal: 50, icon: "sun", id: "elite", metric: "top18", title: "Элита" },
+      { description: "3 раза", goal: 3, icon: "dumbbell", id: "in-rhythm", metric: "top3", title: "Поймал ритм" },
+      { description: "10 раз", goal: 10, icon: "medal", id: "real-rival", metric: "top3", title: "Серьёзный соперник" },
+      { description: "25 раз", goal: 25, icon: "star", id: "experienced", metric: "top3", title: "На опыте" },
+      { description: "50 раз", goal: 50, icon: "sun", id: "elite", metric: "top3", title: "Элита" },
     ],
   },
   {
@@ -163,6 +167,6 @@ export const EMPTY_PLAYER_STATS: PlayerStats = {
   games: 0,
   lastPlace: 0,
   top9: 0,
-  top18: 0,
+  top3: 0,
   wins: 0,
 };

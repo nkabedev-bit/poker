@@ -17,6 +17,18 @@ export type BountyType = "standard" | "mystery" | "dealer" | "wanted" | "progres
 // so nothing is charged for it in the finance sheet.
 export type TournamentFormat = "regular" | "phoenix" | "deepstack" | "freeroll";
 
+// The seven tournaments the club runs. Picking one prefills the settings below, and the
+// choice is kept: it names the tournament type, which is what decides the medal its
+// winner is awarded.
+export type TournamentPresetName =
+  | "phoenix"
+  | "deepstack"
+  | "bounty"
+  | "progressive"
+  | "mystery"
+  | "freeroll"
+  | "lastchance";
+
 export type BlindLevel = {
   id: string;
   levelOrder: number;
@@ -110,6 +122,7 @@ export type TournamentExtras = {
     sheetsSessionStartedAt: string | null;
     statsCountedAt: string | null;
     tablesCount: number;
+    tournamentPreset: TournamentPresetName | null;
     tournamentFormat: TournamentFormat;
   };
   players: TournamentPlayer[];

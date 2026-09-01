@@ -87,6 +87,10 @@ const settingsSchema = z.object({
   reentryEnabled: z.boolean().optional(),
   tablesCount: z.number().int().positive().optional(),
   tournamentFormat: z.enum(["regular", "phoenix", "deepstack", "freeroll"]).optional(),
+  tournamentPreset: z
+    .enum(["phoenix", "deepstack", "bounty", "progressive", "mystery", "freeroll", "lastchance"])
+    .nullable()
+    .optional(),
 });
 
 const prizeSchema = z.object({

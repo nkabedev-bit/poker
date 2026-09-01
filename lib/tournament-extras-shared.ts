@@ -71,6 +71,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     statsCountedAt: null,
     tablesCount: 3,
     tournamentFormat: "regular",
+    tournamentPreset: null,
   },
   players: [],
   playerLabels: {},

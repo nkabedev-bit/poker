@@ -65,7 +65,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), {
       target: { value: "phoenix" },
     });
 
@@ -74,8 +74,8 @@ describe("re-entry settings UI", () => {
     expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
     expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
     expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("1");
-    // The preset control itself goes back to the placeholder: it prefills, it is not state.
-    expect(screen.getByLabelText<HTMLSelectElement>(/пресет турнира/i).value).toBe("");
+    // The picked type is kept: it is what names the tournament (and its winner's medal).
+    expect(screen.getByLabelText<HTMLSelectElement>(/тип турнира/i).value).toBe("phoenix");
   });
 
   it("autofills every field when the DEEP STACK preset is picked", () => {
@@ -88,7 +88,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), {
       target: { value: "deepstack" },
     });
 
@@ -108,7 +108,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), {
       target: { value: "deepstack" },
     });
     fireEvent.change(screen.getByLabelText(/кол-во ре-энтри/i), {
@@ -128,7 +128,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), {
       target: { value: "progressive" },
     });
 
@@ -148,7 +148,7 @@ describe("re-entry settings UI", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/пресет турнира/i), {
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), {
       target: { value: "freeroll" },
     });
 

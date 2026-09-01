@@ -11,7 +11,8 @@ type AchievementStatsRow = {
   best_top9_streak: number | string | null;
   best_tournament_bounty: number | string | null;
   last_place_count: number | string | null;
-  top18_count: number | string | null;
+  medals: Record<string, unknown> | null;
+  top3_count: number | string | null;
   wins_count: number | string | null;
 };
 
@@ -28,7 +29,7 @@ async function readAchievementStats(
   const { data, error } = await supabase
     .from("client_bot_users")
     .select(
-      "top18_count, wins_count, last_place_count, best_tournament_bounty, best_top9_streak, best_miss_streak",
+      "top3_count, wins_count, last_place_count, best_tournament_bounty, best_top9_streak, best_miss_streak, medals",
     )
     .eq("telegram_id", telegramId)
     .maybeSingle();
@@ -98,9 +99,11 @@ export async function GET(request: Request) {
       games: auth.user.games_played ?? 0,
       lastPlace: Number(achievementStats?.last_place_count ?? 0),
       top9: auth.user.top7_count ?? 0,
-      top18: Number(achievementStats?.top18_count ?? 0),
+      top3: Number(achievementStats?.top3_count ?? 0),
       wins: Number(achievementStats?.wins_count ?? 0),
     },
+    // One counter per tournament type the player has won; the medals screen reads it.
+    medals: achievementStats?.medals ?? {},
     tablesCount,
     username: auth.user.username,
   });

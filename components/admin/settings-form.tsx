@@ -3,7 +3,14 @@
 import { useRef, useState } from "react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
-import type { BlindAlertSound, BountyType, Tournament, TournamentExtras, TournamentFormat } from "@/lib/timer/types";
+import type {
+  BlindAlertSound,
+  BountyType,
+  Tournament,
+  TournamentExtras,
+  TournamentFormat,
+  TournamentPresetName,
+} from "@/lib/timer/types";
 
 const blindAlertSoundLabels: Record<BlindAlertSound, string> = {
   standard: "Стандартный сигнал",
@@ -37,7 +44,7 @@ type TournamentPreset = {
 
 // Presets for the tournaments the club actually runs. Picking one only PREFILLS the
 // fields below — whatever the admin saves last wins, so every value stays editable.
-const tournamentPresets: Record<string, TournamentPreset> = {
+const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   phoenix: {
     addonEnabled: false,
     bountyMode: "off",
@@ -134,11 +141,13 @@ export function SettingsForm({
     settings.isBounty ? settings.bountyType : "off",
   );
   const [startingStack, setStartingStack] = useState(tournament.startingStack);
-  const [presetName, setPresetName] = useState("");
+  // The picked type is saved with the tournament: it names the game (and so the medal its
+  // winner earns), while the fields below stay free to edit afterwards.
+  const [presetName, setPresetName] = useState<string>(settings.tournamentPreset ?? "");
 
   function applyPreset(name: string) {
-    setPresetName("");
-    const preset = tournamentPresets[name];
+    setPresetName(name);
+    const preset = tournamentPresets[name as TournamentPresetName];
     if (!preset) return;
 
     setAddonEnabled(preset.addonEnabled);
@@ -220,13 +229,14 @@ export function SettingsForm({
           />
         </label>
         <label>
-          ⚡ Пресет турнира
+          ⚡ Тип турнира
           <select
-            aria-label="Пресет турнира"
+            aria-label="Тип турнира"
+            name="tournamentPreset"
             value={presetName}
             onChange={(event) => applyPreset(event.target.value)}
           >
-            <option value="">Выбрать пресет…</option>
+            <option value="">Не выбран</option>
             {Object.entries(tournamentPresets).map(([name, preset]) => (
               <option key={name} value={name}>
                 {preset.label}

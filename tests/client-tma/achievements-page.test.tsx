@@ -27,7 +27,7 @@ describe("client mini-app: достижения", () => {
 
     for (const title of [
       "Посещение игр",
-      "Попадания в топ-18",
+      "Попадания в топ-3",
       "Победы",
       "Специальные достижения",
       "Попади в топ-9",
@@ -46,7 +46,7 @@ describe("client mini-app: достижения", () => {
   });
 
   it("shows progress towards a goal that is still ahead", async () => {
-    respondWithStats({ top18: 3 });
+    respondWithStats({ top3: 3 });
 
     render(<ClientAchievementsPage />);
 

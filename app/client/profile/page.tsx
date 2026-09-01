@@ -8,6 +8,7 @@ import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
+import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
@@ -28,6 +29,7 @@ type Me = {
   history: { active: HistoryItem[]; past: HistoryItem[] };
   profileSubmitted: boolean;
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
+  medals: Record<string, number> | null;
   stats: Partial<PlayerStats>;
   username: string | null;
 };
@@ -68,6 +70,8 @@ export default function ClientProfilePage() {
   );
   const achievements = useMemo(() => getAchievements(stats), [stats]);
 
+  const medalsEarned = countEarnedMedals(getMedals(me?.medals));
+
   if (loading) return <LoadingScreen />;
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
@@ -97,6 +101,22 @@ export default function ClientProfilePage() {
         <StatTile icon={<Crosshair size={18} />} label="Нокаутов" value={Math.round(stats.eliminations)} />
         <StatTile icon={<Medal size={18} />} label="Топ-9" value={stats.top9} />
       </div>
+
+      <Link className="block active:scale-[0.99] transition-transform" href="/client/medals">
+        <GlassCard className="flex items-center justify-between gap-3 !p-[18px]">
+          <div className="flex items-center gap-3">
+            <Medal className="text-[#e9c07a]" size={22} />
+            <div>
+              <p className="text-[15px] font-bold">Медали</p>
+              <p className="mt-0.5 text-[12px] text-white/40">Кубки за победы в турнирах</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm text-white/45">{medalsEarned} / {MEDALS_TOTAL}</span>
+            <ChevronRight className="text-white/35" size={19} />
+          </div>
+        </GlassCard>
+      </Link>
 
       <Link className="block active:scale-[0.99] transition-transform" href="/client/achievements">
         <GlassCard className="space-y-3">

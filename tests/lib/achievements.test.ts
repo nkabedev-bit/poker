@@ -28,9 +28,9 @@ describe("achievements", () => {
     expect(earned.map((item) => item.id)).toEqual(["debut", "first-vibe"]);
   });
 
-  it("counts top-18 finishes apart from the final table", () => {
-    expect(badge({ top18: 3 }, "in-rhythm")?.earned).toBe(true);
-    expect(badge({ top18: 3 }, "real-rival")).toMatchObject({ earned: false, goal: 10, value: 3 });
+  it("counts top-3 finishes apart from the final table", () => {
+    expect(badge({ top3: 3 }, "in-rhythm")?.earned).toBe(true);
+    expect(badge({ top3: 3 }, "real-rival")).toMatchObject({ earned: false, goal: 10, value: 3 });
   });
 
   it("counts wins, up to the club's own face", () => {
@@ -72,7 +72,7 @@ describe("achievements", () => {
 
     expect(sections.map((section) => section.title)).toEqual([
       "Посещение игр",
-      "Попадания в топ-18",
+      "Попадания в топ-3",
       "Победы",
       "Специальные достижения",
       "Попади в топ-9",
