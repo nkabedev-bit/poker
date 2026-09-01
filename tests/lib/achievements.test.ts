@@ -48,6 +48,15 @@ describe("achievements", () => {
     expect(badge({ lastPlace: 1 }, "early-flight")?.earned).toBe(true);
   });
 
+  // 11 knockouts in one tournament clear the 5 and the 10, but not the 15.
+  it("earns every knockout badge whose goal the best tournament passed", () => {
+    const earned = achievementsFor({ bestTournamentBounty: 11 })
+      .filter((item) => item.earned)
+      .map((item) => item.title);
+
+    expect(earned).toEqual(["Точный прицел", "Шторм за столом"]);
+  });
+
   it("reads the best single tournament for the knockout badges", () => {
     const stats = { bestTournamentBounty: 10.5 };
 
