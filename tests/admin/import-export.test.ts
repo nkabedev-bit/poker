@@ -59,7 +59,6 @@ const baseState: PublicTournamentState = {
     ],
     clientBot: {
       ratingUrl: "https://example.com/rating",
-      registrationCode: "FRIDAY",
       scheduleText: "Every Friday",
       scheduleVersions: [],
     },

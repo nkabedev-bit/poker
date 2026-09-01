@@ -33,7 +33,6 @@ export async function POST(request: Request) {
   const next = await saveTournamentExtrasFromContext(auth.supabase, context, {
     clientBot: {
       ratingUrl: trimField(body.ratingUrl),
-      registrationCode: trimField(body.registrationCode),
       scheduleText: trimField(body.scheduleText),
       scheduleVersions: normalizeScheduleVersions(body.scheduleVersions),
     },

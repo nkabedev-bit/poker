@@ -45,7 +45,6 @@ export const defaultTournamentExtras: TournamentExtras = {
   blindTemplates: [],
   clientBot: {
     ratingUrl: "",
-    registrationCode: "",
     scheduleText: "",
     scheduleVersions: [],
   },

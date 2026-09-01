@@ -6,7 +6,6 @@ import {
   CalendarDays,
   CalendarPlus,
   Clock,
-  KeyRound,
   Link,
   Loader2,
   MessageSquare,
@@ -21,7 +20,6 @@ type ScheduleVersion = { effectiveFrom: string; text: string };
 
 type ClientBotSettings = {
   ratingUrl: string;
-  registrationCode: string;
   scheduleText: string;
   scheduleVersions: ScheduleVersion[];
 };
@@ -37,7 +35,6 @@ type ScheduledBroadcast = {
 
 const emptySettings: ClientBotSettings = {
   ratingUrl: "",
-  registrationCode: "",
   scheduleText: "",
   scheduleVersions: [],
 };
@@ -367,14 +364,6 @@ export default function TMABotPage() {
             Добавить версию
           </button>
         </div>
-
-        <SettingLabel icon={<KeyRound size={18} />} title="Кодовое слово" />
-        <input
-          className={textFieldClass}
-          value={settings.registrationCode}
-          onChange={(event) => updateSetting({ registrationCode: event.target.value })}
-          placeholder="Код для регистрации"
-        />
 
         <SettingLabel icon={<Link size={18} />} title="Ссылка на Google-таблицу с рейтингом" />
         <input

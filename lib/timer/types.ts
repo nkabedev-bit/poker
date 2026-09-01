@@ -74,7 +74,6 @@ export type TournamentExtras = {
   blindTemplates: BlindTemplate[];
   clientBot: {
     ratingUrl: string;
-    registrationCode: string;
     scheduleText: string;
     scheduleVersions: ScheduleVersion[];
   };

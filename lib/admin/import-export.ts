@@ -128,7 +128,6 @@ const extrasSchema = z.object({
   blindTemplates: z.array(blindTemplateSchema).optional(),
   clientBot: z.object({
     ratingUrl: z.string().optional(),
-    registrationCode: z.string().optional(),
     scheduleText: z.string().optional(),
   }).optional(),
   settings: settingsSchema.optional(),

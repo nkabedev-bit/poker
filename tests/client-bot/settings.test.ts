@@ -7,7 +7,6 @@ describe("client bot settings", () => {
 
     expect(extras.clientBot).toEqual({
       ratingUrl: "",
-      registrationCode: "",
       scheduleText: "",
       scheduleVersions: [],
     });
@@ -17,14 +16,12 @@ describe("client bot settings", () => {
     const extras = mergeTournamentExtras({
       clientBot: {
         ratingUrl: "https://docs.google.com/spreadsheets/d/example",
-        registrationCode: "river",
         scheduleText: "Friday 20:00",
       },
     });
 
     expect(extras.clientBot).toEqual({
       ratingUrl: "https://docs.google.com/spreadsheets/d/example",
-      registrationCode: "river",
       scheduleText: "Friday 20:00",
       scheduleVersions: [],
     });
