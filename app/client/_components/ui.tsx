@@ -79,16 +79,16 @@ export function SectionHeader({ href, title }: { href?: string; title: string })
   );
 
   return href ? (
-    <Link className="flex items-center gap-1 px-0.5" href={href}>
+    <Link className="flex items-center gap-1" href={href}>
       {content}
     </Link>
   ) : (
-    <div className="flex items-center gap-1 px-0.5">{content}</div>
+    <div className="flex items-center gap-1">{content}</div>
   );
 }
 
 export function PageTitle({ children }: { children: ReactNode }) {
-  return <h1 className="px-0.5 text-[28px] font-bold tracking-tight">{children}</h1>;
+  return <h1 className="text-[28px] font-bold tracking-tight">{children}</h1>;
 }
 
 export function ScreenMessage({

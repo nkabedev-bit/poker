@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
 import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
-import { RatingRow, type RatingPlayer } from "../_components/rating-row";
+import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedAchievements, getAchievements } from "@/lib/client/achievements";
 import {
   formatEventDayLabel,
@@ -65,8 +65,9 @@ export default function ClientProfilePage() {
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
   const earned = countEarnedAchievements(achievements);
-  const topPlayers = rating?.players.slice(0, 3) ?? [];
-  const myRating = rating?.me;
+  const ownPhoto = telegramUser?.photo_url ?? me?.avatarUrl ?? undefined;
+  const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], ownPhoto);
+  const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
   const history = historyTab === "active" ? me?.history.active : me?.history.past;
 
@@ -74,7 +75,7 @@ export default function ClientProfilePage() {
     <div className="space-y-6 pt-1">
       <PageTitle>Профиль</PageTitle>
 
-      <div className="flex items-center gap-4 px-0.5">
+      <div className="flex items-center gap-4">
         <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
           <p className="truncate text-[22px] font-bold tracking-tight">{name}</p>
@@ -91,7 +92,7 @@ export default function ClientProfilePage() {
       </div>
 
       <section className="space-y-3">
-        <div className="flex items-center justify-between px-0.5">
+        <div className="flex items-center justify-between">
           <h2 className="text-lg font-bold">Достижения</h2>
           <span className="text-sm text-white/45">
             {earned} / {achievements.length}
@@ -180,7 +181,7 @@ export default function ClientProfilePage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="px-0.5 text-[19px] font-bold tracking-tight">История игр</h2>
+        <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
 
         <div className="grid grid-cols-2 gap-1 rounded-full bg-white/[0.05] p-1">
           <TabButton active={historyTab === "active"} onClick={() => setHistoryTab("active")}>

@@ -7,7 +7,7 @@ import { getClientTelegramWebApp, useClientTMA } from "./layout";
 import { GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_components/ui";
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
-import { RatingRow, type RatingPlayer } from "./_components/rating-row";
+import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
 
 type EventsResponse = {
   events: EventCardData[];
@@ -63,13 +63,15 @@ export default function ClientHomePage() {
   const [nextEvent, ...laterEvents] = events;
   const playerName = data?.player.displayName?.trim() || telegramUser?.first_name || "Гость";
   const address = events.find((event) => event.venueAddress)?.venueAddress ?? "";
-  const topPlayers = rating?.players.slice(0, 3) ?? [];
-  const me = rating?.me;
+  const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], telegramUser?.photo_url);
+  const me = rating?.me
+    ? withOwnPhoto([rating.me], telegramUser?.photo_url)[0]
+    : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
 
   return (
     <div className="space-y-7 pt-1">
-      <div className="flex items-center gap-3 px-0.5">
+      <div className="flex items-center gap-3">
         <PlayerAvatar name={playerName} photoUrl={telegramUser?.photo_url} size={52} />
         <div className="min-w-0">
           <p className="truncate text-[19px] font-bold tracking-tight">{playerName}</p>
@@ -102,7 +104,7 @@ export default function ClientHomePage() {
         <GlassCard className="py-8 text-center">
           <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
           <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
-          <p className="mx-auto mt-1.5 max-w-[240px] text-sm text-white/45">
+          <p className="mt-1.5 text-sm text-white/45">
             Как только появится новая игра, она возникнет здесь.
           </p>
         </GlassCard>

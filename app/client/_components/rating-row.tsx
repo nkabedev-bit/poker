@@ -29,6 +29,16 @@ const PODIUM = {
   },
 } as const;
 
+
+/** Own row falls back to the Telegram photo until the bot has stored a copy. */
+export function withOwnPhoto(players: RatingPlayer[], photoUrl?: string) {
+  if (!photoUrl) return players;
+
+  return players.map((player) =>
+    player.isMe && !player.avatarUrl ? { ...player, avatarUrl: photoUrl } : player,
+  );
+}
+
 export function RatingRow({ player }: { player: RatingPlayer }) {
   const podium = player.place && player.place <= 3 ? PODIUM[player.place as 1 | 2 | 3] : null;
 

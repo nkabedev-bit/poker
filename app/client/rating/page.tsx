@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
-import { RatingRow, type RatingPlayer } from "../_components/rating-row";
+import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 
 type RatingResponse = {
   me: RatingPlayer;
@@ -15,7 +15,7 @@ type RatingResponse = {
 type SortKey = "eliminations" | "points";
 
 export default function ClientRatingPage() {
-  const { initData } = useClientTMA();
+  const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
@@ -44,17 +44,19 @@ export default function ClientRatingPage() {
       ? all.filter((player) => player.name.toLowerCase().includes(search))
       : all;
 
+    const withPhoto = withOwnPhoto(filtered, telegramUser?.photo_url);
+
     if (sortKey === "points") {
       // Places stay as the server ranked them; sorting only reorders what is shown.
-      return [...filtered].sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
+      return [...withPhoto].sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
     }
 
-    return filtered;
-  }, [data, query, sortKey]);
+    return withPhoto;
+  }, [data, query, sortKey, telegramUser]);
 
   if (loading) return <LoadingScreen />;
 
-  const me = data?.me;
+  const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
   const meVisible = players.some((player) => player.isMe);
 
   return (

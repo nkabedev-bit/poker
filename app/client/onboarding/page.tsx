@@ -64,7 +64,7 @@ export default function ClientOnboardingPage() {
     <div className="space-y-5 pt-1">
       <div className="space-y-1.5">
         <PageTitle>Анкета игрока</PageTitle>
-        <p className="px-0.5 text-sm text-white/45">
+        <p className="text-sm text-white/45">
           Заполните один раз — после этого откроется запись на турниры.
         </p>
       </div>

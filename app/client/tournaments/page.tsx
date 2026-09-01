@@ -40,7 +40,7 @@ export default function ClientTournamentsPage() {
         <GlassCard className="py-8 text-center">
           <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
           <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
-          <p className="mx-auto mt-1.5 max-w-[240px] text-sm text-white/45">
+          <p className="mt-1.5 text-sm text-white/45">
             Как только появится новая игра, она возникнет здесь.
           </p>
         </GlassCard>

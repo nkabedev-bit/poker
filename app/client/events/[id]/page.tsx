@@ -153,7 +153,7 @@ export default function ClientEventPage() {
 
       {event.venueAddress ? (
         <section className="space-y-2">
-          <h2 className="px-0.5 text-[19px] font-bold tracking-tight">Где проходит турнир?</h2>
+          <h2 className="text-[19px] font-bold tracking-tight">Где проходит турнир?</h2>
           <GlassCard className="!p-4">
             <div className="flex items-start gap-3">
               <MapPin className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
@@ -165,7 +165,7 @@ export default function ClientEventPage() {
 
       {event.rulesText ? (
         <section className="space-y-2">
-          <h2 className="px-0.5 text-[19px] font-bold tracking-tight">Общие правила</h2>
+          <h2 className="text-[19px] font-bold tracking-tight">Общие правила</h2>
           <GlassCard className="!p-4">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">
               {event.rulesText}
@@ -176,7 +176,7 @@ export default function ClientEventPage() {
 
       {featureLines.length > 0 || event.startingStack ? (
         <section className="space-y-2">
-          <h2 className="px-0.5 text-[19px] font-bold tracking-tight">Особенности</h2>
+          <h2 className="text-[19px] font-bold tracking-tight">Особенности</h2>
           <GlassCard className="space-y-2 !p-4">
             {featureLines.map((line, index) => (
               <p key={index} className="text-sm leading-relaxed text-white/80">
@@ -194,7 +194,7 @@ export default function ClientEventPage() {
 
       {event.buyIn > 0 || event.vipBuyIn ? (
         <section className="space-y-2">
-          <h2 className="px-0.5 text-[19px] font-bold tracking-tight">Билеты</h2>
+          <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
           <div className="grid grid-cols-2 gap-3">
             {event.buyIn > 0 ? (
               <GlassCard className="!p-[18px]">

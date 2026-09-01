@@ -75,7 +75,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#0a0608] text-white">
         {/* Club colours: a crimson glow bleeding into near-black felt */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 left-1/2 h-80 w-[130%] -translate-x-1/2 rounded-full bg-[#b8163c]/20 blur-[90px]" />
+          <div className="absolute -top-40 inset-x-0 h-80 rounded-full bg-[#b8163c]/20 blur-[90px]" />
           <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_50%_0%,rgba(200,22,63,0.14),transparent_60%)]" />
         </div>
 
@@ -89,7 +89,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           </div>
         ) : (
           <ClientTMAContext.Provider value={{ initData, telegramUser }}>
-            <main className="relative z-10 flex-1 overflow-y-auto px-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+            <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
               {children}
             </main>
 
