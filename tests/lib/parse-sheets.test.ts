@@ -168,6 +168,28 @@ describe("parseMonthStandings", () => {
     ]);
   });
 
+  // Sheets name the score column whatever they like: "Итоговая сумма" is the same
+  // thing as "Очки", and missing it threw a whole month away.
+  it("recognises the score column under any of its names", () => {
+    for (const heading of ["Очки", "Рейтинг", "Итоговая сумма", "PTS"]) {
+      const rows = parseMonthStandings([
+        ["Ник игрока", heading, "БАУНТИ"],
+        ["Ace", 500, 12],
+      ]);
+
+      expect(rows).toEqual([{ knockouts: 12, playerName: "Ace", points: 500 }]);
+    }
+  });
+
+  it("reads a sheet whose game dates follow the totals", () => {
+    const rows = parseMonthStandings([
+      ["Ник игрока", "Итоговая сумма", "БАУНТИ", "4.6.26", "07.06.26"],
+      ["Seller", 720, 8, 120, 90],
+    ]);
+
+    expect(rows).toEqual([{ knockouts: 8, playerName: "Seller", points: 720 }]);
+  });
+
   it("works without a knockout column", () => {
     const rows = parseMonthStandings([
       ["Игрок", "Очки"],

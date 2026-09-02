@@ -207,7 +207,17 @@ export function parseMonthStandings(values: unknown[][]): ParsedMonthRow[] {
 
   const header = values[headerIndex].map((cell) => String(cell ?? ""));
   const nameColumn = findColumn(header, ["ник", "игрок", "имя"]);
-  const pointsColumn = findColumn(header, ["очк", "рейтинг", "pts", "балл"]);
+  // The club names this column differently from sheet to sheet: "Очки", "Рейтинг",
+  // "Итоговая сумма". Anything that reads as a total counts.
+  const pointsColumn = findColumn(header, [
+    "очк",
+    "рейтинг",
+    "pts",
+    "балл",
+    "итог",
+    "сумм",
+    "total",
+  ]);
   const knockoutsColumn = findColumn(header, ["нокаут", "выбива", "баунти"]);
 
   if (nameColumn === -1 || pointsColumn === -1) return [];

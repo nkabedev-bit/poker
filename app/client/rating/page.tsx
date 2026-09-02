@@ -73,7 +73,7 @@ export default function ClientRatingPage() {
     data?.periods ??
     (data?.months ?? []).map((key) => ({ key, label: formatMonthLabel(key) }));
   const selectedLabel =
-    data?.periodLabel ?? periods.find((period) => period.key === data?.month)?.label ?? "";
+    periods.find((period) => period.key === data?.month)?.label ?? data?.periodLabel ?? "";
 
   const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
   const meVisible = players.some((player) => player.isMe);
