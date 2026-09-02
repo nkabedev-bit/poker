@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn() }));
@@ -31,7 +31,7 @@ function telegramWebApp() {
   };
 }
 
-describe("client mini-app layout: кнопка «Назад» Telegram", () => {
+describe("client mini-app layout: кнопка «Назад»", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     nav.pathname = "/client";
@@ -43,59 +43,41 @@ describe("client mini-app layout: кнопка «Назад» Telegram", () => {
     delete (window as unknown as { Telegram?: unknown }).Telegram;
   });
 
-  it("keeps the button hidden on the home screen — the tabs are enough there", async () => {
-    const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
-      .Telegram.WebApp;
-
+  it("keeps the header clear on the home screen — the tabs are enough there", () => {
     render(<ClientLayout>screen</ClientLayout>);
 
-    await waitFor(() => expect(tg.BackButton.hide).toHaveBeenCalled());
-    expect(tg.BackButton.show).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /назад/i })).toBeNull();
   });
 
-  it("shows it on a screen with no tab of its own, and goes back on tap", async () => {
-    const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
-      .Telegram.WebApp;
-
+  it("shows it on a screen with no tab of its own, and goes back on tap", () => {
     const { rerender } = render(<ClientLayout>screen</ClientLayout>);
 
     // The player walks from the home screen into the rating, as they would in the app.
     nav.pathname = "/client/rating";
     rerender(<ClientLayout>screen</ClientLayout>);
 
-    await waitFor(() => expect(tg.BackButton.show).toHaveBeenCalled());
-
-    const handler = tg.BackButton.onClick.mock.calls[0]?.[0] as () => void;
-    handler();
+    fireEvent.click(screen.getByRole("button", { name: /назад/i }));
     expect(router.back).toHaveBeenCalled();
   });
 
-  // Navigating between two inner screens must not blink the button off and on.
-  it("keeps the button up while moving between screens without tabs", async () => {
-    nav.pathname = "/client/rating";
-    const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
-      .Telegram.WebApp;
+  // history.length lies in a WebView: it counts entries from before the mini-app opened,
+  // so trusting it walked the player out of the app entirely.
+  it("takes a deep link with no history back to the home screen", () => {
+    nav.pathname = "/client/achievements";
 
-    const { rerender } = render(<ClientLayout>screen</ClientLayout>);
-    await waitFor(() => expect(tg.BackButton.show).toHaveBeenCalled());
+    render(<ClientLayout>screen</ClientLayout>);
 
-    nav.pathname = "/client/games/2026-09-01T19:00:00.000Z";
-    rerender(<ClientLayout>screen</ClientLayout>);
-
-    expect(tg.BackButton.hide).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: /назад/i }));
+    expect(router.push).toHaveBeenCalledWith("/client");
   });
 
-  it("takes a deep link with no history back to the home screen", async () => {
-    nav.pathname = "/client/achievements";
+  it("leaves Telegram's own back button hidden — one control is enough", () => {
+    nav.pathname = "/client/rating";
     const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
       .Telegram.WebApp;
 
     render(<ClientLayout>screen</ClientLayout>);
 
-    await waitFor(() => expect(tg.BackButton.onClick).toHaveBeenCalled());
-
-    const handler = tg.BackButton.onClick.mock.calls[0]?.[0] as () => void;
-    handler();
-    expect(router.push).toHaveBeenCalledWith("/client");
+    expect(tg.BackButton.show).not.toHaveBeenCalled();
   });
 });

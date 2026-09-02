@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarDays, ChevronLeft, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "../../layout";
 import {
   Badge,
@@ -112,9 +112,6 @@ export default function ClientEventPage() {
 
   return (
     <div className="space-y-5 pt-1">
-      <Link className="flex items-center gap-1 text-sm text-white/60" href="/client">
-        <ChevronLeft size={18} /> Назад
-      </Link>
 
       <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
         {event.posterUrl ? (

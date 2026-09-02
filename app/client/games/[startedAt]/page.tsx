@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronLeft, Trophy, Zap } from "lucide-react";
+import { Trophy, Zap } from "lucide-react";
 import { useClientTMA } from "../../layout";
 import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui";
 import { PlayerAvatar } from "../../_components/player-avatar";
@@ -72,9 +72,6 @@ export default function ClientGamePage() {
 
   return (
     <div className="space-y-4 pt-1">
-      <Link className="flex items-center gap-1 text-sm text-white/60" href="/client/profile">
-        <ChevronLeft size={18} /> Назад
-      </Link>
 
       <div>
         <h1 className="text-[24px] font-bold uppercase leading-tight tracking-tight">

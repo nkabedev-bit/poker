@@ -1,5 +1,3 @@
-import Link from "next/link";
-import { ChevronLeft } from "lucide-react";
 import { GlassCard, PageTitle } from "../_components/ui";
 import {
   ABOUT_CLUB_OUTRO,
@@ -47,9 +45,6 @@ function Block({ block }: { block: AboutBlock }) {
 export default function ClientAboutPage() {
   return (
     <div className="space-y-6 pt-1">
-      <Link className="flex items-center gap-1 text-sm text-white/60" href="/client">
-        <ChevronLeft size={18} /> Назад
-      </Link>
 
       <div className="overflow-hidden rounded-[22px] border border-white/[0.07] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

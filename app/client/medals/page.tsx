@@ -1,8 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import { ChevronLeft, Medal as MedalIcon } from "lucide-react";
+import { Medal as MedalIcon } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { LoadingScreen } from "../_components/ui";
 import { AchievementIcon } from "../_components/achievement-icon";
@@ -67,9 +66,6 @@ export default function ClientMedalsPage() {
 
   return (
     <div className="space-y-7 pt-1">
-      <Link className="flex items-center gap-1 text-sm text-white/60" href="/client/profile">
-        <ChevronLeft size={18} /> Назад
-      </Link>
 
       <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,#c8163f,#7d0d26)] p-5 shadow-[0_14px_38px_rgba(200,22,63,0.35)]">
         <MedalIcon

@@ -11,11 +11,11 @@ describe("client mini-app: О клубе", () => {
     cleanup();
   });
 
-  it("shows the club photo and the way back to the home screen", () => {
+  // The way back lives in the app header now, one control for every screen.
+  it("shows the club photo", () => {
     const { container } = render(<ClientAboutPage />);
 
     expect(container.querySelector(`img[src="${ABOUT_CLUB_PHOTO}"]`)).not.toBeNull();
-    expect(container.querySelector('a[href="/client"]')).not.toBeNull();
   });
 
   it("keeps the rules a player joins for: no money, the fee, the seat limit", () => {

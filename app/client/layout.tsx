@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { House, Trophy, User } from "lucide-react";
+import { ChevronLeft, House, Trophy, User } from "lucide-react";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -116,8 +116,9 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     const backButton = getClientTelegramWebApp()?.BackButton;
     if (!backButton) return;
 
-    if (pathname === "/client") backButton.hide();
-    else backButton.show();
+    // The app draws its own back control in the header, so Telegram's is kept hidden:
+    // two "back" buttons stacked on one screen is one too many.
+    backButton.hide();
   }, [initData, pathname]);
 
   return (
@@ -137,6 +138,16 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </div>
 
         <header className="relative z-10 flex items-center justify-center gap-2 px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2">
+          {pathname !== "/client" ? (
+            <button
+              aria-label="Назад"
+              className="absolute left-5 flex items-center gap-1 rounded-full border border-white/[0.09] bg-white/[0.06] py-1.5 pl-2 pr-3.5 text-[13px] font-semibold text-white/80 backdrop-blur-xl transition active:scale-95"
+              type="button"
+              onClick={() => goBackRef.current()}
+            >
+              <ChevronLeft size={17} /> Назад
+            </button>
+          ) : null}
           <span className="text-[13px] font-semibold tracking-[0.38em] text-[#e9c07a]">MAJESTIC</span>
         </header>
 
