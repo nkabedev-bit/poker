@@ -54,21 +54,35 @@ describe("client mini-app layout: кнопка «Назад» Telegram", () => {
   });
 
   it("shows it on a screen with no tab of its own, and goes back on tap", async () => {
-    nav.pathname = "/client/rating";
     const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
       .Telegram.WebApp;
-    const history = window.history;
-    Object.defineProperty(window, "history", { configurable: true, value: { length: 2 } });
 
-    render(<ClientLayout>screen</ClientLayout>);
+    const { rerender } = render(<ClientLayout>screen</ClientLayout>);
+
+    // The player walks from the home screen into the rating, as they would in the app.
+    nav.pathname = "/client/rating";
+    rerender(<ClientLayout>screen</ClientLayout>);
 
     await waitFor(() => expect(tg.BackButton.show).toHaveBeenCalled());
 
     const handler = tg.BackButton.onClick.mock.calls[0]?.[0] as () => void;
     handler();
     expect(router.back).toHaveBeenCalled();
+  });
 
-    Object.defineProperty(window, "history", { configurable: true, value: history });
+  // Navigating between two inner screens must not blink the button off and on.
+  it("keeps the button up while moving between screens without tabs", async () => {
+    nav.pathname = "/client/rating";
+    const tg = (window as unknown as { Telegram: { WebApp: ReturnType<typeof telegramWebApp> } })
+      .Telegram.WebApp;
+
+    const { rerender } = render(<ClientLayout>screen</ClientLayout>);
+    await waitFor(() => expect(tg.BackButton.show).toHaveBeenCalled());
+
+    nav.pathname = "/client/games/2026-09-01T19:00:00.000Z";
+    rerender(<ClientLayout>screen</ClientLayout>);
+
+    expect(tg.BackButton.hide).not.toHaveBeenCalled();
   });
 
   it("takes a deep link with no history back to the home screen", async () => {

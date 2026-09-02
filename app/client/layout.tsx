@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -70,34 +70,55 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return () => window.clearTimeout(timeout);
   }, [initTg]);
 
-  // Telegram's own back button. Screens outside the bottom navigation (the rating, the
-  // club page, achievements, medals, a tournament) have no tab of their own, so without
-  // this there is no way back to where the player came from.
+  // Telegram's own back button, wired the way a native screen behaves: present on every
+  // screen except the home one, and pressing it returns to where the player came from.
+  //
+  // It used to disappear for two reasons. The effect read the Telegram SDK once, so a
+  // screen opened before the script finished loading got no button at all and never
+  // retried; and every navigation hid the button before showing it again, which flickers
+  // between two inner screens. Subscription and visibility are separate now: the handler
+  // is attached once the SDK is ready, and only visibility follows the route.
+  const goBackRef = useRef(() => {});
+  // Whether anything was navigated inside the app. history.length lies in a WebView —
+  // it counts entries from before the app opened — so a deep link would otherwise send
+  // the player back out of the mini-app instead of to the home screen.
+  const navigatedRef = useRef(false);
+  const firstPathRef = useRef(pathname);
+
+  useEffect(() => {
+    if (pathname !== firstPathRef.current) navigatedRef.current = true;
+  }, [pathname]);
+
+  useEffect(() => {
+    goBackRef.current = () => {
+      if (navigatedRef.current) {
+        router.back();
+        return;
+      }
+
+      router.push("/client");
+    };
+  }, [router]);
+
   useEffect(() => {
     const backButton = getClientTelegramWebApp()?.BackButton;
     if (!backButton) return;
 
-    if (pathname === "/client") {
-      backButton.hide();
-      return;
-    }
+    const handler = () => goBackRef.current();
+    backButton.onClick(handler);
 
-    const goBack = () => {
-      if (window.history.length > 1) {
-        router.back();
-        return;
-      }
-      router.push("/client");
-    };
+    return () => backButton.offClick(handler);
+    // initData marks the SDK as ready: without it the button would never be wired on a
+    // screen that rendered before the script loaded.
+  }, [initData]);
 
-    backButton.onClick(goBack);
-    backButton.show();
+  useEffect(() => {
+    const backButton = getClientTelegramWebApp()?.BackButton;
+    if (!backButton) return;
 
-    return () => {
-      backButton.offClick(goBack);
-      backButton.hide();
-    };
-  }, [pathname, router]);
+    if (pathname === "/client") backButton.hide();
+    else backButton.show();
+  }, [initData, pathname]);
 
   return (
     <>
