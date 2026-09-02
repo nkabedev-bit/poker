@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
+import { buildPlayerResultsFilter, computePlayerStats } from "@/lib/results/player-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -58,6 +59,21 @@ export async function GET(request: Request) {
   const achievementStats = await readAchievementStats(auth.supabase, auth.user.telegram_id);
 
   const now = new Date();
+
+  // Counted from the games themselves: correcting a result in the admin corrects the
+  // profile and its achievements with it, which separate counters could never do.
+  const { data: playedRows } = await auth.supabase
+    .from("tournament_results")
+    .select("place, knockouts")
+    .or(buildPlayerResultsFilter(auth.user.telegram_id, auth.user.display_name ?? ""));
+
+  const stats = computePlayerStats(
+    (playedRows ?? []).map((row) => {
+      const record = row as { knockouts: number | string | null; place: number | null };
+      return { knockouts: Number(record.knockouts ?? 0), place: record.place };
+    }),
+  );
+
   const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
     (split, item) => {
@@ -88,17 +104,18 @@ export async function GET(request: Request) {
           name: player.name,
         }
       : null,
-    // Achievement counters. The ones past top-9 only start filling from the tournament
-    // that follows the migration — earlier games left no per-player record of places or
-    // knockouts to count.
+    // Games, knockouts and top-9 finishes are counted from the stored results, so an
+    // admin correcting a game corrects the achievements with it. The counters below are
+    // still accumulated at finish time and only start filling from the tournament that
+    // follows their migration.
     stats: {
       bestMissStreak: Number(achievementStats?.best_miss_streak ?? 0),
       bestTop9Streak: Number(achievementStats?.best_top9_streak ?? 0),
       bestTournamentBounty: Number(achievementStats?.best_tournament_bounty ?? 0),
-      eliminations: Number(auth.user.eliminations_count ?? 0),
-      games: auth.user.games_played ?? 0,
+      eliminations: stats.eliminations,
+      games: stats.games,
       lastPlace: Number(achievementStats?.last_place_count ?? 0),
-      top9: auth.user.top7_count ?? 0,
+      top9: stats.top9,
       top3: Number(achievementStats?.top3_count ?? 0),
       wins: Number(achievementStats?.wins_count ?? 0),
     },

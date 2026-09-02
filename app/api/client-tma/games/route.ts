@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
+import { buildPlayerResultsFilter } from "@/lib/results/player-stats";
 
 export const dynamic = "force-dynamic";
 
@@ -14,14 +15,10 @@ export async function GET(request: Request) {
   const auth = await requireClientTmaAuth(request);
   if (auth.error) return auth.error;
 
-  const nickname = auth.user.display_name?.trim() ?? "";
-  const filters = [`telegram_id.eq.${auth.user.telegram_id}`];
-  if (nickname) filters.push(`player_name.ilike.${nickname.replace(/[\\%_]/g, "\\$&")}`);
-
   const { data, error } = await auth.supabase
     .from("tournament_results")
     .select("started_at, played_on, title, place, points, knockouts, counts_for_rating")
-    .or(filters.join(","))
+    .or(buildPlayerResultsFilter(auth.user.telegram_id, auth.user.display_name ?? ""))
     .order("started_at", { ascending: false })
     .limit(GAMES_LIMIT);
 
