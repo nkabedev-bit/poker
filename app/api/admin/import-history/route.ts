@@ -120,6 +120,21 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
 
+    // A season replaces the months it spans: an earlier import may have filed those
+    // months separately, and leaving them behind offers the same games twice.
+    const monthsInsideSeasons = months
+      .filter((month) => !/^\d{4}-\d{2}$/.test(month.month))
+      .flatMap((month) => month.coveredMonths);
+
+    if (monthsInsideSeasons.length > 0) {
+      const { error } = await supabase
+        .from("monthly_rating_archive")
+        .delete()
+        .in("month", monthsInsideSeasons);
+
+      if (error) throw error;
+    }
+
     return NextResponse.json({
       games: games.filter((game) => !skipped.has(game.sheetName)).length,
       gameRows: gameRows.length,

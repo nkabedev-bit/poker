@@ -16,6 +16,7 @@ type RatingResponse = {
   me: RatingPlayer;
   month: string;
   months: string[];
+  periodLabel?: string;
   periods?: RatingPeriod[];
   players: RatingPlayer[];
   pointsAvailable: boolean;
@@ -71,6 +72,8 @@ export default function ClientRatingPage() {
   const periods =
     data?.periods ??
     (data?.months ?? []).map((key) => ({ key, label: formatMonthLabel(key) }));
+  const selectedLabel =
+    data?.periodLabel ?? periods.find((period) => period.key === data?.month)?.label ?? "";
 
   const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
   const meVisible = players.some((player) => player.isMe);
@@ -78,7 +81,12 @@ export default function ClientRatingPage() {
   return (
     <div className="space-y-4 pt-1">
       <BackLink />
-      <PageTitle>Рейтинг</PageTitle>
+      <div className="space-y-1">
+        <PageTitle>Рейтинг</PageTitle>
+        {selectedLabel ? (
+          <p className="text-sm capitalize text-white/40">{selectedLabel}</p>
+        ) : null}
+      </div>
 
       {periods.length > 0 ? (
         <div className="-mx-5 overflow-x-auto px-5">

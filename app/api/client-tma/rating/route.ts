@@ -38,8 +38,11 @@ export async function GET(request: Request) {
     .from("monthly_rating_archive")
     .select("month, label, covered_months, sort_key");
 
-  const periodsByKey = new Map<string, { covered: string[]; key: string; label: string; sort: string }>();
-  for (const row of archivedPeriods ?? []) {
+  type Period = { covered: string[]; key: string; label: string; sort: string };
+
+  const isMonthKey = (key: string) => /^\d{4}-\d{2}$/.test(key);
+
+  const archivedPeriodsList: Period[] = (archivedPeriods ?? []).map((row) => {
     const record = row as {
       covered_months: string[] | null;
       label: string | null;
@@ -47,29 +50,48 @@ export async function GET(request: Request) {
       sort_key: string | null;
     };
 
-    periodsByKey.set(record.month, {
-      covered: record.covered_months ?? [record.month],
+    const covered = record.covered_months?.length ? record.covered_months : [record.month];
+
+    return {
+      covered,
       key: record.month,
-      label: record.label ?? formatMonthLabel(record.month),
-      sort: record.sort_key ?? record.month,
-    });
-  }
+      // A sheet keeps the name the club gave it ("Summer Series Июнь"); only a period
+      // with no stored title falls back to the calendar name.
+      label: record.label?.trim() || formatMonthLabel(record.month),
+      sort: record.sort_key ?? covered[0] ?? record.month,
+    };
+  });
 
-  const archived_ = [...periodsByKey.values()];
-  const coveredMonths = new Set(archived_.flatMap((period) => period.covered));
+  // Deduplicate: the same period is stored once per player.
+  const uniquePeriods = new Map<string, Period>();
+  for (const period of archivedPeriodsList) uniquePeriods.set(period.key, period);
 
-  const periods = [
-    ...archived_,
+  // A season spans months, and those months must not also appear on their own — neither
+  // as leftovers of an earlier import nor as calendar entries. Both are the same games.
+  const seasons = [...uniquePeriods.values()].filter((period) => !isMonthKey(period.key));
+  const monthsInsideSeasons = new Set(seasons.flatMap((season) => season.covered));
+
+  const archivedPeriodsToOffer = [...uniquePeriods.values()].filter(
+    (period) => !isMonthKey(period.key) || !monthsInsideSeasons.has(period.key),
+  );
+  const coveredMonths = new Set(archivedPeriodsToOffer.flatMap((period) => period.covered));
+
+  const periods: Period[] = [
+    ...archivedPeriodsToOffer,
     ...listRecentMonths(now)
-      .filter((key) => !coveredMonths.has(key))
+      .filter((key) => !coveredMonths.has(key) && !monthsInsideSeasons.has(key))
       .map((key) => ({ covered: [key], key, label: formatMonthLabel(key), sort: key })),
   ].sort((a, b) => b.sort.localeCompare(a.sort));
 
+  const periodByKey = new Map(periods.map((period) => [period.key, period]));
   const months = periods.map((period) => period.key);
   const requested = new URL(request.url).searchParams.get("month");
-  const month = requested && months.includes(requested) ? requested : months[0] ?? "";
-  const isArchivedPeriod = periodsByKey.has(month);
-  const { from, to } = getMonthRange(isArchivedPeriod ? (periodsByKey.get(month)?.sort ?? month) : month);
+  const month = requested && periodByKey.has(requested) ? requested : (months[0] ?? "");
+  const selected = periodByKey.get(month);
+  const archivedRow = uniquePeriods.get(month);
+  const coveredBySelected = selected?.covered?.length ? [...selected.covered].sort() : [month];
+  const from = getMonthRange(coveredBySelected[0]).from;
+  const to = getMonthRange(coveredBySelected[coveredBySelected.length - 1]).to;
 
   const { data, error } = await auth.supabase
     .from("tournament_results")
@@ -114,9 +136,11 @@ export async function GET(request: Request) {
     }
   }
 
-  // Months the club played before the app kept its own results exist only as the hand-made
-  // totals we imported; they are served as they are when there are no games to compute.
-  if (rows.length === 0) {
+  // A season is served from the club's own table: it is a period the app never scored
+  // itself. A month falls back to the archive only when there are no games to count.
+  const useArchive = Boolean(archivedRow) && (!isMonthKey(month) || rows.length === 0);
+
+  if (useArchive) {
     const { data: archived } = await auth.supabase
       .from("monthly_rating_archive")
       .select("player_name, points, knockouts")

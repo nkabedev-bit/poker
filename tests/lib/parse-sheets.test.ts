@@ -142,7 +142,7 @@ describe("parseSheetPeriod", () => {
   });
 
   it("takes the year written on the sheet", () => {
-    expect(parseSheetPeriod("Сезон 1 (март-апрель) 2025", 2026).coveredMonths).toEqual([
+    expect(parseSheetPeriod("Сезон 1 (март-апрель) 2025", 2026)?.coveredMonths).toEqual([
       "2025-03",
       "2025-04",
     ]);
