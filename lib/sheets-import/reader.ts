@@ -3,6 +3,7 @@ import {
   isMonthSheetName,
   parseGameSheetDate,
   parseGameStandings,
+  findMonthSheetHeaders,
   parseMonthStandings,
   parseSheetPeriod,
   type ParsedGameRow,
@@ -20,6 +21,8 @@ export type ImportedGame = {
 
 export type ImportedMonth = {
   coveredMonths: string[];
+  headers: string[];
+  pointsHeading: string | null;
   label: string;
   month: string;
   rows: ParsedMonthRow[];
@@ -80,6 +83,7 @@ export async function readGames(year: number): Promise<ImportedGame[]> {
 /** The month sheets of the club's rating spreadsheet, skipping the reference tabs. */
 export async function readMonths(
   fallbackYear: number,
+  pointsHeadings: Record<string, string> = {},
 ): Promise<{ months: ImportedMonth[]; skipped: SkippedSheet[] }> {
   const names = await listSheetNames(RATING_SPREADSHEET_ID);
   const skipped: SkippedSheet[] = [];
@@ -118,7 +122,8 @@ export async function readMonths(
   const months: ImportedMonth[] = [];
   candidates.forEach((candidate, index) => {
     const sheetValues = values[index] ?? [];
-    const rows = parseMonthStandings(sheetValues);
+    const pointsHeading = pointsHeadings[candidate.sheetName] ?? null;
+    const rows = parseMonthStandings(sheetValues, pointsHeading ?? undefined);
 
     if (rows.length === 0) {
       const header = (sheetValues[0] ?? []).map((cell) => String(cell ?? "")).filter(Boolean);
@@ -131,7 +136,12 @@ export async function readMonths(
       return;
     }
 
-    months.push({ ...candidate, rows });
+    months.push({
+      ...candidate,
+      headers: findMonthSheetHeaders(sheetValues),
+      pointsHeading,
+      rows,
+    });
   });
 
   return { months, skipped };

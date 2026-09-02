@@ -21,10 +21,15 @@ export async function GET(request: Request) {
   const supabase = await requireAdmin();
   if (!supabase) return NextResponse.json({ error: "Не авторизован" }, { status: 401 });
 
-  const year = Number(new URL(request.url).searchParams.get("year")) || new Date().getFullYear();
+  const url = new URL(request.url);
+  const year = Number(url.searchParams.get("year")) || new Date().getFullYear();
+  const pointsHeadings = JSON.parse(url.searchParams.get("points") ?? "{}") as Record<string, string>;
 
   try {
-    const [games, monthsResult] = await Promise.all([readGames(year), readMonths(year)]);
+    const [games, monthsResult] = await Promise.all([
+      readGames(year),
+      readMonths(year, pointsHeadings),
+    ]);
     const months = monthsResult.months;
 
     return NextResponse.json({
@@ -35,8 +40,10 @@ export async function GET(request: Request) {
         sheetName: game.sheetName,
       })),
       months: months.map((month) => ({
+        headers: month.headers,
         label: month.label,
         month: month.month,
+        pointsHeading: month.pointsHeading,
         players: month.rows.length,
         sample: month.rows.slice(0, 3),
         sheetName: month.sheetName,
@@ -66,9 +73,15 @@ export async function POST(request: Request) {
   // fun game that stays in the players' history without touching the standings.
   const skipped = new Set<string>(Array.isArray(body.skip) ? body.skip.map(String) : []);
   const funGames = new Set<string>(Array.isArray(body.fun) ? body.fun.map(String) : []);
+  // Which column of a sheet holds the score that counted, when the automatic pick is
+  // wrong: a club sheet often carries both a running total and the scoring figure.
+  const pointsHeadings = (body.points ?? {}) as Record<string, string>;
 
   try {
-    const [games, monthsResult] = await Promise.all([readGames(year), readMonths(year)]);
+    const [games, monthsResult] = await Promise.all([
+      readGames(year),
+      readMonths(year, pointsHeadings),
+    ]);
     const months = monthsResult.months;
 
     // Imported games carry midday as their start time: the sheets keep the date only,

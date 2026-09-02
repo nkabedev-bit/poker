@@ -11,7 +11,9 @@ type GamePreview = {
 };
 
 type MonthPreview = {
+  headers?: string[];
   month: string;
+  pointsHeading?: string | null;
   players: number;
   sample: Array<{ knockouts: number; playerName: string; points: number }>;
   sheetName: string;
@@ -36,6 +38,8 @@ export function ImportManager() {
   // Sheets the admin has unticked: skipped outright, or imported as a fun game.
   const [skip, setSkip] = useState<string[]>([]);
   const [fun, setFun] = useState<string[]>([]);
+  // Which column of a month sheet holds the score that counted, per sheet.
+  const [points, setPoints] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState("");
@@ -45,7 +49,11 @@ export function ImportManager() {
     setBusy(true);
     setMessage("");
     try {
-      const res = await fetch(`/api/admin/import-history?year=${encodeURIComponent(year)}`);
+      const res = await fetch(
+        `/api/admin/import-history?year=${encodeURIComponent(year)}&points=${encodeURIComponent(
+          JSON.stringify(points),
+        )}`,
+      );
       const data = await res.json();
 
       if (!res.ok) {
@@ -68,7 +76,7 @@ export function ImportManager() {
       const res = await fetch("/api/admin/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fun, skip, year: Number(year) }),
+        body: JSON.stringify({ fun, points, skip, year: Number(year) }),
       });
       const data = await res.json();
 
@@ -267,7 +275,9 @@ export function ImportManager() {
             <div>
               <h2>Месяцы рейтинга ({preview.months.length})</h2>
               <p className="muted">
-                Листы, из которых не удалось прочитать таблицу, перечислены ниже с причиной.
+                Если в листе несколько колонок с суммами, выберите ту, что шла в зачёт,
+                и нажмите «Посмотреть» ещё раз — числа пересчитаются. Листы, которые не
+                удалось прочитать, перечислены ниже с причиной.
               </p>
             </div>
           </div>
@@ -279,6 +289,7 @@ export function ImportManager() {
                   <th>Импорт</th>
                   <th>Лист</th>
                   <th>Месяц</th>
+                  <th>Колонка очков</th>
                   <th>Игроков</th>
                   <th>Первые строки</th>
                 </tr>
@@ -295,6 +306,30 @@ export function ImportManager() {
                     </td>
                     <td>{month.sheetName}</td>
                     <td>{month.month}</td>
+                    <td>
+                      {month.headers && month.headers.length > 0 ? (
+                        <select
+                          value={points[month.sheetName] ?? month.pointsHeading ?? ""}
+                          onChange={(event) =>
+                            setPoints((current) => ({
+                              ...current,
+                              [month.sheetName]: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">определить самому</option>
+                          {month.headers
+                            .filter((header) => header.length > 0)
+                            .map((header) => (
+                              <option key={header} value={header}>
+                                {header}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <span className="muted">—</span>
+                      )}
+                    </td>
                     <td>{month.players}</td>
                     <td className="muted">
                       {month.sample

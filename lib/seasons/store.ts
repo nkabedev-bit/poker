@@ -106,13 +106,17 @@ export async function readSeasonSnapshot(
 export async function writeSeasonSnapshot(supabase: SupabaseClient, season: Season) {
   const standings = await computeSeasonStandings(supabase, season);
 
+  // Some seasons exist only as imported totals — the games behind them were never kept.
+  // Recomputing those from nothing would wipe the table the club announced, so an empty
+  // recount leaves the existing one alone.
+  if (standings.length === 0) return { rows: 0, skipped: true as const };
+
   const { error: clearError } = await supabase
     .from("season_standings")
     .delete()
     .eq("season_id", season.id);
 
   if (clearError) throw clearError;
-  if (standings.length === 0) return { rows: 0 };
 
   const { error } = await supabase.from("season_standings").insert(
     standings.map((standing) => ({
@@ -128,5 +132,5 @@ export async function writeSeasonSnapshot(supabase: SupabaseClient, season: Seas
 
   if (error) throw error;
 
-  return { rows: standings.length };
+  return { rows: standings.length, skipped: false as const };
 }

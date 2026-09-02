@@ -198,7 +198,25 @@ function findColumn(header: string[], keywords: string[]) {
  * headings rather than by position: nickname, points and knockouts under whatever
  * names they were given.
  */
-export function parseMonthStandings(values: unknown[][]): ParsedMonthRow[] {
+export function findMonthSheetHeaders(values: unknown[][]): string[] {
+  const headerIndex = values.findIndex((row) =>
+    findColumn(row.map((cell) => String(cell ?? "")), ["ник", "игрок", "имя"]) !== -1,
+  );
+
+  if (headerIndex === -1) return [];
+
+  return values[headerIndex].map((cell) => String(cell ?? "").trim());
+}
+
+/**
+ * @param pointsHeading exact heading to score by, when the automatic choice is wrong.
+ *   A club sheet often carries both a running total of every game and the figure that
+ *   actually counted; only the club knows which is which.
+ */
+export function parseMonthStandings(
+  values: unknown[][],
+  pointsHeading?: string,
+): ParsedMonthRow[] {
   const headerIndex = values.findIndex((row) =>
     findColumn(row.map((cell) => String(cell ?? "")), ["ник", "игрок", "имя"]) !== -1,
   );
@@ -207,6 +225,9 @@ export function parseMonthStandings(values: unknown[][]): ParsedMonthRow[] {
 
   const header = values[headerIndex].map((cell) => String(cell ?? ""));
   const nameColumn = findColumn(header, ["ник", "игрок", "имя"]);
+  const chosenColumn = pointsHeading
+    ? header.findIndex((cell) => cell.trim() === pointsHeading.trim())
+    : -1;
   // The club names this column differently from sheet to sheet: "Очки", "Рейтинг",
   // "Итоговая сумма". Anything that reads as a total counts.
   const pointsColumn = findColumn(header, [
@@ -220,14 +241,16 @@ export function parseMonthStandings(values: unknown[][]): ParsedMonthRow[] {
   ]);
   const knockoutsColumn = findColumn(header, ["нокаут", "выбива", "баунти"]);
 
-  if (nameColumn === -1 || pointsColumn === -1) return [];
+  const scoreColumn = chosenColumn !== -1 ? chosenColumn : pointsColumn;
+
+  if (nameColumn === -1 || scoreColumn === -1) return [];
 
   return values
     .slice(headerIndex + 1)
     .map((row) => ({
       knockouts: knockoutsColumn === -1 ? 0 : toNumber(row[knockoutsColumn]),
       playerName: String(row[nameColumn] ?? "").trim(),
-      points: toNumber(row[pointsColumn]),
+      points: toNumber(row[scoreColumn]),
     }))
     .filter((row) => row.playerName.length > 0);
 }

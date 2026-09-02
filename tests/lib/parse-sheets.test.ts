@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  findMonthSheetHeaders,
   isMonthSheetName,
   parseGameSheetDate,
   parseGameStandings,
@@ -211,5 +212,31 @@ describe("parseMonthStandings", () => {
     ]);
 
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe("choosing which column scores", () => {
+  const sheet = [
+    ["Ник игрока", "Итоговая сумма", "Зачёт (топ-5)", "БАУНТИ"],
+    ["inrikki", 1348, 1215, 5],
+  ];
+
+  // A club sheet often carries both a running total of every game and the figure that
+  // actually counted; only the club knows which is which.
+  it("picks a column by its heading when told to", () => {
+    expect(parseMonthStandings(sheet, "Зачёт (топ-5)")[0].points).toBe(1215);
+  });
+
+  it("falls back to its own choice when the heading is unknown", () => {
+    expect(parseMonthStandings(sheet, "Такой колонки нет")[0].points).toBe(1348);
+  });
+
+  it("lists the headings a sheet offers", () => {
+    expect(findMonthSheetHeaders(sheet)).toEqual([
+      "Ник игрока",
+      "Итоговая сумма",
+      "Зачёт (топ-5)",
+      "БАУНТИ",
+    ]);
   });
 });
