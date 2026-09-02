@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Eye, Loader2 } from "lucide-react";
+import { Download, Eye, ImageDown, Loader2 } from "lucide-react";
 
 type GamePreview = {
   playedOn: string;
@@ -38,6 +38,8 @@ export function ImportManager() {
   const [fun, setFun] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [avatarMessage, setAvatarMessage] = useState("");
+  const [avatarsBusy, setAvatarsBusy] = useState(false);
 
   async function loadPreview() {
     setBusy(true);
@@ -83,6 +85,47 @@ export function ImportManager() {
     }
   }
 
+  /**
+   * Walks the whole roster in batches until Telegram has been asked about everyone:
+   * a hundred downloads do not fit in one request, so the endpoint reports what is
+   * left and the loop keeps going.
+   */
+  async function syncAvatars(force: boolean) {
+    setAvatarsBusy(true);
+    setAvatarMessage("Забираем фото…");
+
+    let updated = 0;
+    let withoutPhoto = 0;
+
+    try {
+      for (let pass = 0; pass < 60; pass += 1) {
+        const res = await fetch("/api/admin/sync-avatars", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ force }),
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          setAvatarMessage(data.error ?? "Не удалось забрать фото");
+          return;
+        }
+
+        updated += data.updated;
+        withoutPhoto += data.withoutPhoto;
+        setAvatarMessage(`Обработано игроков: ${updated + withoutPhoto}, осталось: ${data.remaining}`);
+
+        if (data.processed === 0 || data.remaining === 0) break;
+      }
+
+      setAvatarMessage(
+        `Готово. Фото получено у ${updated} игроков, без фото — ${withoutPhoto} (скрыто настройками или его нет).`,
+      );
+    } finally {
+      setAvatarsBusy(false);
+    }
+  }
+
   return (
     <div className="settings-stack">
       <section className="poker-panel">
@@ -124,6 +167,40 @@ export function ImportManager() {
         </div>
 
         {message ? <p className="admin-action-message">{message}</p> : null}
+      </section>
+
+      <section className="poker-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Фото игроков</h2>
+            <p className="muted">
+              Фото подтягиваются, когда игрок заходит в приложение. Этот прогон спросит
+              Telegram обо всех сразу — удобно один раз после запуска.
+            </p>
+          </div>
+        </div>
+
+        <div className="qr-actions">
+          <button
+            className="gold-button"
+            disabled={avatarsBusy}
+            type="button"
+            onClick={() => void syncAvatars(false)}
+          >
+            {avatarsBusy ? <Loader2 className="animate-spin" size={16} /> : <ImageDown size={16} />}{" "}
+            Забрать недостающие
+          </button>
+          <button
+            className="ghost-button"
+            disabled={avatarsBusy}
+            type="button"
+            onClick={() => void syncAvatars(true)}
+          >
+            Обновить у всех
+          </button>
+        </div>
+
+        {avatarMessage ? <p className="admin-action-message">{avatarMessage}</p> : null}
       </section>
 
       {preview ? (
