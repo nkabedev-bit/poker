@@ -41,24 +41,38 @@ function upsertSpy() {
 }
 
 function authWith({
+  freeEntries = 0,
   profileSubmitted = true,
   supabase = upsertSpy().supabase,
-}: { profileSubmitted?: boolean; supabase?: unknown } = {}) {
+  vipFreeEntries = 0,
+}: {
+  freeEntries?: number;
+  profileSubmitted?: boolean;
+  supabase?: unknown;
+  vipFreeEntries?: number;
+} = {}) {
   return {
     supabase,
     user: {
       display_name: "Ace High",
+      free_entries: freeEntries,
       profile_submitted_at: profileSubmitted ? "2026-08-01T00:00:00.000Z" : null,
       telegram_id: 555,
+      vip_free_entries: vipFreeEntries,
     },
   };
 }
 
-async function postSignup() {
+async function postSignup(body?: Record<string, unknown>) {
   const { POST } = await import("@/app/api/client-tma/events/[id]/signup/route");
-  return POST(new Request("http://localhost/api/client-tma/events/event-1/signup", { method: "POST" }), {
-    params: Promise.resolve({ id: "event-1" }),
-  });
+  return POST(
+    new Request("http://localhost/api/client-tma/events/event-1/signup", {
+      body: body ? JSON.stringify(body) : undefined,
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }),
+    { params: Promise.resolve({ id: "event-1" }) },
+  );
 }
 
 describe("client sign-up route", () => {
@@ -77,7 +91,36 @@ describe("client sign-up route", () => {
 
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
-      { event_id: "event-1", status: "signed_up", telegram_id: 555 },
+      { event_id: "event-1", status: "signed_up", telegram_id: 555, use_pass: "none" },
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("remembers the free entry the player chose to pay with", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase, vipFreeEntries: 2 }));
+
+    const response = await postSignup({ usePass: "vip" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ usePass: "vip" });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ use_pass: "vip" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("ignores a pass the player does not hold", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 3, supabase }));
+
+    // A VIP pass is a different thing from a regular one, so holding three regular
+    // entries does not let the player claim a VIP seat for free.
+    const response = await postSignup({ usePass: "vip" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ use_pass: "none" }),
       { onConflict: "event_id,telegram_id" },
     );
   });

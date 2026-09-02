@@ -26,6 +26,7 @@ type HistoryItem = { event: TournamentEvent; status: string };
 type Me = {
   avatarUrl: string | null;
   displayName: string | null;
+  freeEntries: { regular: number; vip: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
   profileSubmitted: boolean;
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
@@ -96,6 +97,7 @@ export default function ClientProfilePage() {
   const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
   const upcoming = me?.history.active ?? [];
+  const passesTotal = (me?.freeEntries?.regular ?? 0) + (me?.freeEntries?.vip ?? 0);
 
   return (
     <div className="space-y-6 pt-1">
@@ -159,12 +161,18 @@ export default function ClientProfilePage() {
       </Link>
 
       <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="!p-[18px]">
-          <Ticket className="text-[#e9c07a]" size={20} />
-          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">—</p>
-          <p className="mt-2 text-[12px] text-white/50">Бесплатные проходки</p>
-          <p className="text-[11px] text-white/25">Скоро</p>
-        </GlassCard>
+        <Link className="block active:scale-[0.99] transition-transform" href="/client/passes">
+          <GlassCard className="h-full !p-[18px]">
+            <Ticket className="text-[#e9c07a]" size={20} />
+            <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
+              {passesTotal}
+            </p>
+            <p className="mt-2 text-[12px] text-white/50">Бесплатные проходки</p>
+            <p className="text-[11px] text-white/25">
+              {passesTotal > 0 ? "Посмотреть" : "Пока нет"}
+            </p>
+          </GlassCard>
+        </Link>
         <GlassCard className="!p-[18px]">
           <Trophy className="text-[#e9c07a]" size={20} />
           <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">

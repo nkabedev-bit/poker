@@ -34,6 +34,7 @@ export const ADMIN_BOT_MENU_COMMANDS = [
   { command: "resync", description: "Переписать лист игры из базы" },
   { command: "givecolor", description: "Выдать метку игроку: <метка> to <ник>" },
   { command: "removecolor", description: "Снять метку с игрока: <ник>" },
+  { command: "free", description: "Выдать проходки: [vip] <ник> [сколько]" },
 ];
 
 // The /info reply: every command the admin bot answers. Kept next to the digest so both
@@ -50,6 +51,12 @@ export const ADMIN_BOT_COMMANDS_MESSAGE = [
   "/givecolor <метка> to <ник> — выдать игроку метку (например «дилер»)",
   "/removecolor <ник> — снять метку с игрока",
   "/setupmenu — обновить меню команд в Telegram (после появления новых команд)",
+  "",
+  "Бесплатные проходки (владелец клуба):",
+  "/free <ник> — выдать одну обычную проходку",
+  "/free vip <ник> 3 — выдать три VIP-проходки",
+  "/delete free <ник> 2 — снять две проходки, если выдали по ошибке",
+  "Проходка закрывает только вход в турнир: ре-энтри и аддон игрок оплачивает сам.",
   "",
   "Только для супер-админа:",
   "/addadmin <telegram_id> <Имя> — выдать доступ к панели",

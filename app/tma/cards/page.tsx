@@ -10,6 +10,7 @@ type Signup = {
   id: string;
   name: string;
   seated: boolean;
+  usePass: "none" | "regular" | "vip";
   username: string | null;
 };
 
@@ -25,6 +26,11 @@ type Player = {
 const TICKET_LABELS: Record<TicketType, string> = {
   regular: "Обычный билет",
   vip: "VIP билет",
+};
+
+const PASS_LABELS: Record<TicketType, string> = {
+  regular: "проходка",
+  vip: "VIP проходка",
 };
 
 export default function TMACardsPage() {
@@ -161,6 +167,16 @@ export default function TMACardsPage() {
         return;
       }
 
+      // The pass is spent at this moment, so the desk is told plainly that this entry
+      // is already paid for and nothing is due for the ticket.
+      const announcePass = () => {
+        if (data?.passUsed === "vip") {
+          tg?.showAlert("Игрок использовал бесплатную VIP проходку");
+        } else if (data?.passUsed === "regular") {
+          tg?.showAlert("Игрок использовал бесплатную проходку");
+        }
+      };
+
       // The seat is saved even when the card clashed, so the two outcomes are told apart.
       if (data?.cardError) {
         tg?.HapticFeedback.notificationOccurred("error");
@@ -169,6 +185,7 @@ export default function TMACardsPage() {
       } else {
         tg?.HapticFeedback.notificationOccurred("success");
         setSession(data.session);
+        announcePass();
       }
 
       setSearch("");
@@ -286,6 +303,11 @@ export default function TMACardsPage() {
           <div className="flex items-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3">
             <Ticket className="text-[var(--tg-theme-button-color)]" size={18} />
             <span className="font-semibold">{TICKET_LABELS[session.ticketType]}</span>
+            {session.freePass ? (
+              <span className="ml-auto rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-500">
+                0 ₽ · проходка
+              </span>
+            ) : null}
           </div>
 
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -372,6 +394,11 @@ export default function TMACardsPage() {
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                       {signup.username ? `@${signup.username}` : "записался в приложении"}
                     </span>
+                    {signup.usePass !== "none" ? (
+                      <span className="mt-1 inline-block rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
+                        {PASS_LABELS[signup.usePass]}
+                      </span>
+                    ) : null}
                   </span>
                   <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />
                 </button>

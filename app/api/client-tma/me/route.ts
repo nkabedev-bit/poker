@@ -127,6 +127,12 @@ export async function GET(request: Request) {
   return NextResponse.json({
     // Stored copy of the Telegram photo, used when the mini-app was opened without one.
     avatarUrl: auth.user.avatar_url,
+    // Entries the club gave the player: one covers the ticket of a single tournament,
+    // never a re-entry or an add-on.
+    freeEntries: {
+      regular: Number(auth.user.free_entries ?? 0),
+      vip: Number(auth.user.vip_free_entries ?? 0),
+    },
     // The club nickname is what the player is known by at the table, so it wins over
     // whatever Telegram calls them.
     displayName: auth.user.display_name,

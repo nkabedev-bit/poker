@@ -25,7 +25,15 @@ export type EventSignup = {
   id: string;
   status: EventSignupStatus;
   telegramId: number;
+  /** Which free entry the player asked to pay with; spent only when they are seated. */
+  usePass: FreePassChoice;
 };
+
+export type FreePassChoice = "none" | "regular" | "vip";
+
+export function isFreePassChoice(value: unknown): value is FreePassChoice {
+  return value === "none" || value === "regular" || value === "vip";
+}
 
 function optionalText(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
@@ -65,6 +73,7 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
     id: String(row.id),
     status: (row.status as EventSignupStatus) ?? "signed_up",
     telegramId: Number(row.telegram_id),
+    usePass: isFreePassChoice(row.use_pass) ? row.use_pass : "none",
   };
 }
 

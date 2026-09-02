@@ -28,6 +28,10 @@ export async function GET(request: Request) {
     })),
     player: {
       displayName: auth.user.display_name,
+      freeEntries: {
+        regular: Number(auth.user.free_entries ?? 0),
+        vip: Number(auth.user.vip_free_entries ?? 0),
+      },
       profileSubmitted: Boolean(auth.user.profile_submitted_at),
       username: auth.user.username,
     },

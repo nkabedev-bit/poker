@@ -10,6 +10,8 @@ export type CardSession = {
   addons: number;
   cardCode: string;
   doubleReentries: number;
+  /** The entry was covered by a free pass — nothing to take for the ticket. */
+  freePass: boolean;
   name: string;
   registrationNumber: number | null;
   reentries: number;
@@ -36,6 +38,8 @@ export function buildCardSession(player: TournamentPlayer, cardCode: string): Ca
     // `rebuys` counts every re-entry including the doubles, and the two are reported
     // apart so the desk can tell one from the other.
     doubleReentries: doubleRebuys,
+    // A pass covers the entry only: re-entries and add-ons are still paid for.
+    freePass: player.freePass === "regular" || player.freePass === "vip",
     name: player.name,
     reentries: Math.max(0, rebuys - doubleRebuys),
     registrationNumber: player.registrationNumber ?? null,

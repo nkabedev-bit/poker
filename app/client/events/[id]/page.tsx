@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarDays, Clock, MapPin, Users } from "lucide-react";
+import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "../../layout";
 import {
   Badge,
@@ -20,7 +20,20 @@ import {
   type TournamentEvent,
 } from "@/lib/events/types";
 
-type EventDetails = TournamentEvent & { signedUp: boolean; signupsCount: number };
+type FreePassChoice = "none" | "regular" | "vip";
+
+type EventDetails = TournamentEvent & {
+  signedUp: boolean;
+  signupsCount: number;
+  usePass: FreePassChoice;
+};
+
+type FreeEntries = { regular: number; vip: number };
+
+const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
+  regular: "Обычная проходка",
+  vip: "VIP проходка",
+};
 
 export default function ClientEventPage() {
   const { initData } = useClientTMA();
@@ -29,6 +42,8 @@ export default function ClientEventPage() {
   const eventId = params?.id;
 
   const [event, setEvent] = useState<EventDetails | null>(null);
+  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ regular: 0, vip: 0 });
+  const [usePass, setUsePass] = useState<FreePassChoice>("none");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
@@ -41,6 +56,10 @@ export default function ClientEventPage() {
       if (res.ok) {
         const data = await res.json();
         setEvent(data.event as EventDetails);
+        setFreeEntries({
+          regular: Number(data.freeEntries?.regular ?? 0),
+          vip: Number(data.freeEntries?.vip ?? 0),
+        });
       }
     } finally {
       setLoading(false);
@@ -60,7 +79,8 @@ export default function ClientEventPage() {
     try {
       const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
         method: signUp ? "POST" : "DELETE",
-        headers: { "X-Telegram-Init-Data": initData },
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: signUp ? JSON.stringify({ usePass }) : undefined,
       });
 
       if (res.ok) {
@@ -105,6 +125,20 @@ export default function ClientEventPage() {
   }
 
   const seatsLeft = event.maxPlayers ? Math.max(0, event.maxPlayers - event.signupsCount) : null;
+  const hasPasses = freeEntries.regular > 0 || freeEntries.vip > 0;
+  const passOptions: Array<{ note: string | null; title: string; value: FreePassChoice }> = [
+    ...(freeEntries.regular > 0
+      ? [{
+          note: `Осталось: ${freeEntries.regular}`,
+          title: PASS_TITLES.regular,
+          value: "regular" as const,
+        }]
+      : []),
+    ...(freeEntries.vip > 0
+      ? [{ note: `Осталось: ${freeEntries.vip}`, title: PASS_TITLES.vip, value: "vip" as const }]
+      : []),
+    { note: "Оплачу вход на месте", title: "Без проходки", value: "none" as const },
+  ];
   const featureLines = event.featuresText
     .split("\n")
     .map((line) => line.trim())
@@ -211,6 +245,53 @@ export default function ClientEventPage() {
             ) : null}
           </div>
         </section>
+      ) : null}
+
+      {hasPasses && !event.signedUp ? (
+        <section className="space-y-2">
+          <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
+          <GlassCard className="space-y-2 !p-3">
+            {passOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                  usePass === option.value
+                    ? "border-[#f05a7e]/60 bg-[#f05a7e]/12"
+                    : "border-white/[0.07] bg-white/[0.03]"
+                }`}
+                type="button"
+                onClick={() => setUsePass(option.value)}
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">{option.title}</span>
+                  {option.note ? (
+                    <span className="block text-xs text-white/45">{option.note}</span>
+                  ) : null}
+                </span>
+                <span
+                  className={`h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
+                    usePass === option.value
+                      ? "border-[#f05a7e] bg-[#f05a7e]"
+                      : "border-white/25"
+                  }`}
+                />
+              </button>
+            ))}
+            <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/45">
+              Проходку можно использовать только на вход в турнир. Она не даёт права на
+              бесплатный ре-энтри или аддон.
+            </p>
+          </GlassCard>
+        </section>
+      ) : null}
+
+      {event.signedUp && event.usePass !== "none" ? (
+        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+          <Ticket className="shrink-0 text-[#f05a7e]" size={18} />
+          <p className="text-sm text-white/80">
+            Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру.
+          </p>
+        </div>
       ) : null}
 
       {seatsLeft !== null ? (

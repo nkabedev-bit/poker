@@ -94,7 +94,7 @@ export async function listEventSignups(
 ): Promise<EventSignupWithPlayer[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, created_at, client_bot_users(display_name, username)")
+    .select("id, event_id, telegram_id, status, use_pass, created_at, client_bot_users(display_name, username)")
     .eq("event_id", eventId)
     .neq("status", "cancelled")
     .order("created_at");
@@ -153,7 +153,7 @@ export async function getUserSignups(
 ): Promise<EventSignup[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, created_at")
+    .select("id, event_id, telegram_id, status, use_pass, created_at")
     .eq("telegram_id", telegramId)
     .neq("status", "cancelled");
 

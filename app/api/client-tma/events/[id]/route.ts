@@ -20,11 +20,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     getUserSignups(auth.supabase, auth.user.telegram_id),
   ]);
 
+  const mySignup = mySignups.find((signup) => signup.eventId === event.id) ?? null;
+
   return NextResponse.json({
     event: {
       ...event,
-      signedUp: mySignups.some((signup) => signup.eventId === event.id),
+      signedUp: Boolean(mySignup),
       signupsCount: signupCounts.get(event.id) ?? 0,
+      usePass: mySignup?.usePass ?? "none",
+    },
+    freeEntries: {
+      regular: Number(auth.user.free_entries ?? 0),
+      vip: Number(auth.user.vip_free_entries ?? 0),
     },
     profileSubmitted: Boolean(auth.user.profile_submitted_at),
   });

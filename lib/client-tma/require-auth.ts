@@ -6,6 +6,8 @@ import { shouldRefreshAvatar } from "@/lib/client-bot/avatar-policy";
 
 export type ClientTmaUser = {
   avatar_synced_at: string | null;
+  free_entries: number;
+  vip_free_entries: number;
   avatar_url: string | null;
   telegram_id: number;
   username: string | null;
@@ -52,7 +54,7 @@ export async function requireClientTmaAuth(request: Request) {
   const { data: user } = await supabase
     .from("client_bot_users")
     .select(
-      "telegram_id, username, display_name, avatar_url, avatar_synced_at, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
+      "telegram_id, username, display_name, avatar_url, avatar_synced_at, free_entries, vip_free_entries, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
     )
     .eq("telegram_id", userId)
     .maybeSingle();

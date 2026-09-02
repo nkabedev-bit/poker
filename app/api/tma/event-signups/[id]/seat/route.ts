@@ -35,7 +35,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
-    .select("id, telegram_id, status, client_bot_users(display_name)")
+    .select(
+      "id, telegram_id, status, use_pass, client_bot_users(display_name, free_entries, vip_free_entries)",
+    )
     .eq("id", id)
     .maybeSingle();
 
@@ -51,7 +53,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const telegramId = Number((signup as { telegram_id: unknown }).telegram_id);
   const embedded = (signup as Record<string, unknown>).client_bot_users;
   const player = (Array.isArray(embedded) ? embedded[0] : embedded) as
-    | { display_name?: string | null }
+    | { display_name?: string | null; free_entries?: number | null; vip_free_entries?: number | null }
     | undefined;
   const name = player?.display_name?.trim();
 
@@ -65,8 +67,23 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ alreadySeated: true, player: alreadySeated });
   }
 
+  // The player picked a free entry when signing up; it is spent here, at the door, and
+  // only if they still hold one of that exact kind — a VIP pass never covers a regular
+  // seat and the other way round.
+  const requestedPass = (signup as { use_pass?: unknown }).use_pass;
+  const heldPasses =
+    requestedPass === "vip"
+      ? Number(player?.vip_free_entries ?? 0)
+      : requestedPass === "regular"
+        ? Number(player?.free_entries ?? 0)
+        : 0;
+  const passUsed = heldPasses > 0 ? (requestedPass as "regular" | "vip") : null;
+  // A pass decides the ticket: what the admin picked on screen cannot contradict it.
+  const seatTicketType = passUsed ?? ticketType;
+
   const playerDraft: TournamentPlayer = {
     addons: 0,
+    freePass: passUsed,
     bountyChipsTotal: 0,
     bountyCount: 0,
     finishPlace: null,
@@ -101,13 +118,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error;
   }
 
+  const spendPass = async () => {
+    if (!passUsed) return;
+
+    const column = passUsed === "vip" ? "vip_free_entries" : "free_entries";
+    const { error: passError } = await auth.supabase
+      .from("client_bot_users")
+      .update({ [column]: Math.max(0, heldPasses - 1) })
+      .eq("telegram_id", telegramId);
+
+    if (passError) console.error("Failed to spend a free entry", passError);
+  };
+
   let session = null;
   if (cardCode) {
     const { data: carded, error: cardError } = await auth.supabase.rpc("assign_player_card", {
       p_tournament_id: t.id,
       p_player_id: seatedPlayer.id,
       p_card_code: cardCode,
-      p_ticket_type: ticketType,
+      p_ticket_type: seatTicketType,
     });
 
     // The player is seated by now, and a clashing card must not undo that: the seat
@@ -118,9 +147,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
       session = null;
       await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
+      await spendPass();
 
       return NextResponse.json({
         cardError: "Эта карта уже выдана другому игроку",
+        passUsed,
         player: seatedPlayer,
       });
     }
@@ -134,11 +165,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .update({ registered_at: new Date().toISOString(), registered_player_id: seatedPlayer.id })
     .eq("telegram_id", telegramId);
 
+  await spendPass();
+
   try {
     await syncVipSheet(auth.supabase, t.id);
   } catch (sheetError) {
     console.error("Failed to sync VIP sheet", sheetError);
   }
 
-  return NextResponse.json({ player: seatedPlayer, session });
+  return NextResponse.json({ passUsed, player: seatedPlayer, session });
 }

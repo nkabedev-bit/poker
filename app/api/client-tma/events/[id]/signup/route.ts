@@ -18,6 +18,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
+  const body = await request.json().catch(() => ({}));
+  // What the player chose to pay with. Nothing is spent here: a pass is only used when
+  // they turn up and are seated, so an intention costs nothing if they never come.
+  const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
+  const held =
+    requestedPass === "vip"
+      ? Number(auth.user.vip_free_entries ?? 0)
+      : requestedPass === "regular"
+        ? Number(auth.user.free_entries ?? 0)
+        : 0;
+  const usePass = requestedPass !== "none" && held > 0 ? requestedPass : "none";
+
   const id = (await params).id;
   const event = await getEvent(auth.supabase, id);
 
@@ -50,13 +62,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       event_id: event.id,
       status: "signed_up",
       telegram_id: auth.user.telegram_id,
+      use_pass: usePass,
     },
     { onConflict: "event_id,telegram_id" },
   );
 
   if (error) throw error;
 
-  return NextResponse.json({ signedUp: true });
+  return NextResponse.json({ signedUp: true, usePass });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {

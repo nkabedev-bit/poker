@@ -73,6 +73,12 @@ describe("buildCardSession", () => {
     });
   });
 
+  it("marks a ticket paid with a free pass so the desk takes nothing for it", () => {
+    expect(buildCardSession(player({ freePass: "vip" }), "MJ-014").freePass).toBe(true);
+    expect(buildCardSession(player(), "MJ-014").freePass).toBe(false);
+    expect(buildCardSession(player({ freePass: null }), "MJ-014").freePass).toBe(false);
+  });
+
   it("never reports negative counters from a broken record", () => {
     const session = buildCardSession(player({ addons: -3, doubleRebuys: 5, rebuys: 1 }), "MJ-014");
 

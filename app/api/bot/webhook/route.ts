@@ -1,4 +1,4 @@
-import { Bot, webhookCallback } from "grammy";
+import { Bot, webhookCallback, type Context } from "grammy";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
@@ -15,6 +15,15 @@ function getAdminSupabase() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
+
+import {
+  describeFreeEntries,
+  parseFreeEntryCommand,
+} from "@/lib/free-entries/command";
+import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
+
+// The club owner asked for one more person to be able to hand out passes.
+const FREE_ENTRY_MANAGER_ID = 384428007;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30; // max 30s timeout
@@ -509,6 +518,83 @@ bot.command("givecolor", async (ctx) => {
     const message = err instanceof Error ? err.message : String(err);
     await ctx.reply(`Ошибка: ${message}`);
   }
+});
+
+/**
+ * Free entries are money, so only the club's owners hand them out — not every admin
+ * with access to this bot.
+ */
+function canManageFreeEntries(telegramId: number | undefined) {
+  if (!telegramId) return false;
+
+  const superAdminId = parseInt(process.env.TMA_SUPER_ADMIN_ID || "0", 10);
+  const managers = [superAdminId, FREE_ENTRY_MANAGER_ID].filter(Boolean);
+
+  return managers.includes(telegramId);
+}
+
+async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
+  if (!canManageFreeEntries(ctx.from?.id)) {
+    return ctx.reply("Нет прав.");
+  }
+
+  const parsed = parseFreeEntryCommand(ctx.message?.text || "");
+  if (!parsed) {
+    return ctx.reply(
+      direction === 1
+        ? "Использование: /free [vip] <ник> [сколько]"
+        : "Использование: /delete free [vip] <ник> [сколько]",
+    );
+  }
+
+  const supabase = getAdminSupabase();
+  const match = await findClientBotUserByNickname(supabase, parsed.nickname);
+
+  if (match.ambiguous) {
+    return ctx.reply(`Ник «${parsed.nickname}» встречается у нескольких игроков — уточните.`);
+  }
+  if (!match.user) {
+    return ctx.reply(`Игрок «${parsed.nickname}» не найден среди анкет.`);
+  }
+
+  const column = parsed.vip ? "vip_free_entries" : "free_entries";
+  const { data: current } = await supabase
+    .from("client_bot_users")
+    .select(column)
+    .eq("telegram_id", match.user.telegramId)
+    .maybeSingle();
+
+  const held = Number((current as Record<string, number> | null)?.[column] ?? 0);
+  // Taking away more than a player holds leaves them at zero rather than in debt.
+  const next = Math.max(0, held + direction * parsed.count);
+
+  const { error } = await supabase
+    .from("client_bot_users")
+    .update({ [column]: next })
+    .eq("telegram_id", match.user.telegramId);
+
+  if (error) {
+    console.error("Failed to change free entries", error);
+    return ctx.reply("Не удалось изменить проходки. Попробуйте ещё раз.");
+  }
+
+  const changed = Math.abs(next - held);
+  const action = direction === 1 ? "Выдано" : "Снято";
+  const kindLeft = parsed.vip ? "VIP-проходок" : "проходок";
+
+  return ctx.reply(
+    `${action}: ${describeFreeEntries(changed, parsed.vip)} игроку «${match.user.displayName}».\n` +
+      `Теперь у него ${next} ${kindLeft}.`,
+  );
+}
+
+bot.command("free", async (ctx) => {
+  await changeFreeEntries(ctx, 1);
+});
+
+// Telegram cannot register "/delete free" as one command, so the text is matched.
+bot.hears(/^\/(?:delete\s*free|deletefree)(?:@\S+)?\b/i, async (ctx) => {
+  await changeFreeEntries(ctx, -1);
 });
 
 bot.command("removecolor", async (ctx) => {

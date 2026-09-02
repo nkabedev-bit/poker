@@ -4,6 +4,7 @@ import {
   formatEventTimeLabel,
   isUpcomingEvent,
   mapEventRow,
+  mapSignupRow,
   toEventRow,
   type TournamentEvent,
 } from "@/lib/events/types";
@@ -88,5 +89,25 @@ describe("isUpcomingEvent", () => {
     const justAfterStart = new Date("2026-09-01T16:01:00.000Z");
 
     expect(isUpcomingEvent(event({ lateEntryUntil: null }), justAfterStart)).toBe(false);
+  });
+});
+
+describe("mapSignupRow", () => {
+  const signupRow = {
+    created_at: "2026-09-02T10:00:00.000Z",
+    event_id: "22222222-2222-2222-2222-222222222222",
+    id: "33333333-3333-3333-3333-333333333333",
+    status: "signed_up",
+    telegram_id: 42,
+  };
+
+  it("reads the free entry the player asked to pay with", () => {
+    expect(mapSignupRow({ ...signupRow, use_pass: "vip" }).usePass).toBe("vip");
+    expect(mapSignupRow({ ...signupRow, use_pass: "regular" }).usePass).toBe("regular");
+  });
+
+  it("falls back to a paid entry for rows written before passes existed", () => {
+    expect(mapSignupRow(signupRow).usePass).toBe("none");
+    expect(mapSignupRow({ ...signupRow, use_pass: "gold" }).usePass).toBe("none");
   });
 });
