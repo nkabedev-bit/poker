@@ -110,10 +110,61 @@ export function isMonthSheetName(sheetName: string) {
   if (!name) return false;
 
   return (
+    name.includes("сезон") ||
     MONTH_NAMES.some((month) => name.includes(month)) ||
     /\b\d{1,2}[./-]\d{4}\b/.test(name) ||
     /\b\d{4}[./-]\d{1,2}\b/.test(name)
   );
+}
+
+export type SheetPeriod = {
+  coveredMonths: string[];
+  key: string;
+  label: string;
+};
+
+/** Every month mentioned in a sheet title, in the order they appear. */
+function findMentionedMonths(name: string, fallbackYear: number) {
+  const year = name.match(/(\d{4})/)?.[1] ?? String(fallbackYear);
+  const months: string[] = [];
+
+  MONTH_NAMES.forEach((monthName, index) => {
+    if (!name.includes(monthName)) return;
+
+    // "мая" is the same month as "май" and shares its slot in the calendar.
+    const month = index >= 5 ? index : index + 1;
+    const key = `${year}-${String(month).padStart(2, "0")}`;
+    if (!months.includes(key)) months.push(key);
+  });
+
+  return months;
+}
+
+/**
+ * What period a rating sheet describes.
+ *
+ * Most sheets are a calendar month. The club's first two seasons, though, ran across
+ * two months and are titled accordingly ("Сезон 1 (март-апрель)") — reading only the
+ * first month name would file a season under March and lose the season entirely.
+ */
+export function parseSheetPeriod(sheetName: string, fallbackYear: number): SheetPeriod | null {
+  const name = sheetName.trim().toLocaleLowerCase("ru-RU");
+  const season = name.match(/сезон\s*(\d+)/);
+
+  if (season) {
+    const covered = findMentionedMonths(name, fallbackYear);
+
+    return {
+      coveredMonths: covered,
+      key: `season-${season[1]}`,
+      label: `Сезон ${season[1]}`,
+    };
+  }
+
+  const month = parseMonthSheetKey(sheetName, fallbackYear);
+  if (!month) return null;
+
+  return { coveredMonths: [month], key: month, label: sheetName.trim() };
 }
 
 export function parseMonthSheetKey(sheetName: string, fallbackYear: number) {

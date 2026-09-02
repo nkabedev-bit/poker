@@ -5,6 +5,7 @@ import {
   parseGameStandings,
   parseMonthSheetKey,
   parseMonthStandings,
+  parseSheetPeriod,
 } from "@/lib/sheets-import/parse-sheets";
 
 describe("parseGameSheetDate", () => {
@@ -111,6 +112,44 @@ describe("parseMonthSheetKey", () => {
   it("reads May under either spelling", () => {
     expect(parseMonthSheetKey("май", 2026)).toBe("2026-05");
     expect(parseMonthSheetKey("мая", 2026)).toBe("2026-05");
+  });
+});
+
+describe("parseSheetPeriod", () => {
+  it("reads a plain month sheet as itself", () => {
+    expect(parseSheetPeriod("СЕНТЯБРЬ", 2026)).toMatchObject({
+      coveredMonths: ["2026-09"],
+      key: "2026-09",
+    });
+  });
+
+  // The club's first two seasons ran across two months and are titled that way; reading
+  // only the first month would file the season under March and lose the season itself.
+  it("keeps a two-month season as one period", () => {
+    expect(parseSheetPeriod("Сезон 1 (март-апрель)", 2026)).toEqual({
+      coveredMonths: ["2026-03", "2026-04"],
+      key: "season-1",
+      label: "Сезон 1",
+    });
+  });
+
+  it("numbers each season separately", () => {
+    expect(parseSheetPeriod("Сезон 2 (апрель-май)", 2026)).toMatchObject({
+      coveredMonths: ["2026-04", "2026-05"],
+      key: "season-2",
+      label: "Сезон 2",
+    });
+  });
+
+  it("takes the year written on the sheet", () => {
+    expect(parseSheetPeriod("Сезон 1 (март-апрель) 2025", 2026).coveredMonths).toEqual([
+      "2025-03",
+      "2025-04",
+    ]);
+  });
+
+  it("ignores a sheet that names no period at all", () => {
+    expect(parseSheetPeriod("система рейтинга", 2026)).toBeNull();
   });
 });
 

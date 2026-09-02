@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import {
   buildMonthlyStandings,
+  formatMonthLabel,
   getMonthRange,
   MONTHLY_COUNTED_GAMES,
   toMonthKey,
@@ -29,10 +30,46 @@ export async function GET(request: Request) {
   if (auth.error) return auth.error;
 
   const now = new Date();
-  const months = listRecentMonths(now);
+
+  // Archived periods come first: the club's first two seasons ran across two months
+  // each, so they are periods in their own right, and the months they cover are hidden
+  // from the picker rather than offered as a second view of the same games.
+  const { data: archivedPeriods } = await auth.supabase
+    .from("monthly_rating_archive")
+    .select("month, label, covered_months, sort_key");
+
+  const periodsByKey = new Map<string, { covered: string[]; key: string; label: string; sort: string }>();
+  for (const row of archivedPeriods ?? []) {
+    const record = row as {
+      covered_months: string[] | null;
+      label: string | null;
+      month: string;
+      sort_key: string | null;
+    };
+
+    periodsByKey.set(record.month, {
+      covered: record.covered_months ?? [record.month],
+      key: record.month,
+      label: record.label ?? formatMonthLabel(record.month),
+      sort: record.sort_key ?? record.month,
+    });
+  }
+
+  const archived_ = [...periodsByKey.values()];
+  const coveredMonths = new Set(archived_.flatMap((period) => period.covered));
+
+  const periods = [
+    ...archived_,
+    ...listRecentMonths(now)
+      .filter((key) => !coveredMonths.has(key))
+      .map((key) => ({ covered: [key], key, label: formatMonthLabel(key), sort: key })),
+  ].sort((a, b) => b.sort.localeCompare(a.sort));
+
+  const months = periods.map((period) => period.key);
   const requested = new URL(request.url).searchParams.get("month");
-  const month = requested && months.includes(requested) ? requested : months[0];
-  const { from, to } = getMonthRange(month);
+  const month = requested && months.includes(requested) ? requested : months[0] ?? "";
+  const isArchivedPeriod = periodsByKey.has(month);
+  const { from, to } = getMonthRange(isArchivedPeriod ? (periodsByKey.get(month)?.sort ?? month) : month);
 
   const { data, error } = await auth.supabase
     .from("tournament_results")
@@ -165,6 +202,7 @@ export async function GET(request: Request) {
     me,
     month,
     months,
+    periods: periods.map((period) => ({ key: period.key, label: period.label })),
     players,
     pointsAvailable: true,
   });

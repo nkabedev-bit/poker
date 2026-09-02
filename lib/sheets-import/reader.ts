@@ -3,8 +3,8 @@ import {
   isMonthSheetName,
   parseGameSheetDate,
   parseGameStandings,
-  parseMonthSheetKey,
   parseMonthStandings,
+  parseSheetPeriod,
   type ParsedGameRow,
   type ParsedMonthRow,
 } from "@/lib/sheets-import/parse-sheets";
@@ -19,6 +19,8 @@ export type ImportedGame = {
 };
 
 export type ImportedMonth = {
+  coveredMonths: string[];
+  label: string;
   month: string;
   rows: ParsedMonthRow[];
   sheetName: string;
@@ -81,7 +83,12 @@ export async function readMonths(
 ): Promise<{ months: ImportedMonth[]; skipped: SkippedSheet[] }> {
   const names = await listSheetNames(RATING_SPREADSHEET_ID);
   const skipped: SkippedSheet[] = [];
-  const candidates: Array<{ month: string; sheetName: string }> = [];
+  const candidates: Array<{
+    coveredMonths: string[];
+    label: string;
+    month: string;
+    sheetName: string;
+  }> = [];
 
   for (const sheetName of names) {
     if (!isMonthSheetName(sheetName)) {
@@ -89,13 +96,18 @@ export async function readMonths(
       continue;
     }
 
-    const month = parseMonthSheetKey(sheetName, fallbackYear);
-    if (!month) {
-      skipped.push({ reason: "не удалось определить месяц", sheetName });
+    const period = parseSheetPeriod(sheetName, fallbackYear);
+    if (!period) {
+      skipped.push({ reason: "не удалось определить период", sheetName });
       continue;
     }
 
-    candidates.push({ month, sheetName });
+    candidates.push({
+      coveredMonths: period.coveredMonths,
+      label: period.label,
+      month: period.key,
+      sheetName,
+    });
   }
 
   const values = await batchGet(

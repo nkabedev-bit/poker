@@ -8,12 +8,15 @@ import { BackLink } from "../_components/back-link";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { formatMonthLabel } from "@/lib/results/tournament-results";
 
+type RatingPeriod = { key: string; label: string };
+
 type RatingResponse = {
   archived?: boolean;
   countedGames: number;
   me: RatingPlayer;
   month: string;
   months: string[];
+  periods?: RatingPeriod[];
   players: RatingPlayer[];
   pointsAvailable: boolean;
 };
@@ -64,6 +67,11 @@ export default function ClientRatingPage() {
 
   if (loading) return <LoadingScreen />;
 
+  // Older responses carried bare month keys; the labels come from the server now.
+  const periods =
+    data?.periods ??
+    (data?.months ?? []).map((key) => ({ key, label: formatMonthLabel(key) }));
+
   const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
   const meVisible = players.some((player) => player.isMe);
 
@@ -72,21 +80,21 @@ export default function ClientRatingPage() {
       <BackLink />
       <PageTitle>Рейтинг</PageTitle>
 
-      {data && (data.months?.length ?? 0) > 0 ? (
+      {periods.length > 0 ? (
         <div className="-mx-5 overflow-x-auto px-5">
           <div className="flex w-max gap-2">
-            {(data.months ?? []).map((item) => (
+            {periods.map((period) => (
               <button
-                key={item}
+                key={period.key}
                 className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold capitalize transition ${
-                  item === data.month
+                  period.key === data?.month
                     ? "bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] text-white"
                     : "border border-white/[0.07] bg-white/[0.04] text-white/55"
                 }`}
                 type="button"
-                onClick={() => setMonth(item)}
+                onClick={() => setMonth(period.key)}
               >
-                {formatMonthLabel(item)}
+                {period.label}
               </button>
             ))}
           </div>

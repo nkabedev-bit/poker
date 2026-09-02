@@ -35,6 +35,7 @@ export async function GET(request: Request) {
         sheetName: game.sheetName,
       })),
       months: months.map((month) => ({
+        label: month.label,
         month: month.month,
         players: month.rows.length,
         sample: month.rows.slice(0, 3),
@@ -100,10 +101,13 @@ export async function POST(request: Request) {
       .filter((month) => !skipped.has(month.sheetName))
       .flatMap((month) =>
       month.rows.map((row) => ({
+        covered_months: month.coveredMonths,
         knockouts: row.knockouts,
+        label: month.label,
         month: month.month,
         player_name: row.playerName,
         points: row.points,
+        sort_key: month.coveredMonths[0] ?? month.month,
         source_sheet: month.sheetName,
       })),
     );
