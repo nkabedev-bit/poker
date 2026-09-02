@@ -1,9 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getServerEnv } from "@/lib/env";
 import { validateClientInitData } from "./auth";
+import { shouldRefreshAvatar } from "@/lib/client-bot/avatar-policy";
 
 export type ClientTmaUser = {
+  avatar_synced_at: string | null;
   avatar_url: string | null;
   telegram_id: number;
   username: string | null;
@@ -50,7 +52,7 @@ export async function requireClientTmaAuth(request: Request) {
   const { data: user } = await supabase
     .from("client_bot_users")
     .select(
-      "telegram_id, username, display_name, avatar_url, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
+      "telegram_id, username, display_name, avatar_url, avatar_synced_at, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
     )
     .eq("telegram_id", userId)
     .maybeSingle();
@@ -59,5 +61,25 @@ export async function requireClientTmaAuth(request: Request) {
     return { error: NextResponse.json({ error: "Not registered in bot" }, { status: 403 }) };
   }
 
-  return { userId, user: user as ClientTmaUser, supabase };
+  const clientUser = user as ClientTmaUser;
+
+  // Photos used to be fetched only when a player wrote to the bot, so someone who opens
+  // the app but never messages it stayed faceless in the standings. Opening the app is
+  // just as good a moment — it runs after the response, at most once a week per player.
+  if (shouldRefreshAvatar(clientUser.avatar_synced_at ?? null, new Date())) {
+    after(async () => {
+      try {
+        const { syncClientBotAvatar } = await import("@/lib/client-bot/avatar");
+        await syncClientBotAvatar({
+          supabase,
+          telegramId: clientUser.telegram_id,
+          token: process.env.CLIENT_TELEGRAM_BOT_TOKEN || "",
+        });
+      } catch (error) {
+        console.error("Non-critical avatar sync error:", error);
+      }
+    });
+  }
+
+  return { userId, user: clientUser, supabase };
 }
