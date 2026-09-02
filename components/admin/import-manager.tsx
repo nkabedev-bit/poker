@@ -11,6 +11,7 @@ type GamePreview = {
 };
 
 type MonthPreview = {
+  countedGames?: number | null;
   headers?: string[];
   month: string;
   pointsHeading?: string | null;
@@ -40,10 +41,18 @@ export function ImportManager() {
   const [fun, setFun] = useState<string[]>([]);
   // Which column of a month sheet holds the score that counted, per sheet.
   const [points, setPoints] = useState<Record<string, string>>({});
+  // How many of a player's best nights a sheet counts; empty means every game.
+  const [counted, setCounted] = useState<Record<string, string>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState("");
   const [avatarsBusy, setAvatarsBusy] = useState(false);
+
+  function countedPayload() {
+    return Object.fromEntries(
+      Object.entries(counted).map(([sheet, value]) => [sheet, value === "" ? null : Number(value)]),
+    );
+  }
 
   async function loadPreview() {
     setBusy(true);
@@ -52,7 +61,7 @@ export function ImportManager() {
       const res = await fetch(
         `/api/admin/import-history?year=${encodeURIComponent(year)}&points=${encodeURIComponent(
           JSON.stringify(points),
-        )}`,
+        )}&counted=${encodeURIComponent(JSON.stringify(countedPayload()))}`,
       );
       const data = await res.json();
 
@@ -76,7 +85,7 @@ export function ImportManager() {
       const res = await fetch("/api/admin/import-history", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fun, points, skip, year: Number(year) }),
+        body: JSON.stringify({ counted: countedPayload(), fun, points, skip, year: Number(year) }),
       });
       const data = await res.json();
 
@@ -275,9 +284,11 @@ export function ImportManager() {
             <div>
               <h2>Месяцы рейтинга ({preview.months.length})</h2>
               <p className="muted">
-                Если в листе несколько колонок с суммами, выберите ту, что шла в зачёт,
-                и нажмите «Посмотреть» ещё раз — числа пересчитаются. Листы, которые не
-                удалось прочитать, перечислены ниже с причиной.
+                Поставьте «Игр в зачёт» — очки соберутся из колонок с игровыми вечерами:
+                возьмутся лучшие N игр каждого игрока. Пусто — сумма всех игр, и тогда
+                берётся колонка очков из списка. Нажмите «Посмотреть» ещё раз, чтобы
+                увидеть получившиеся числа. Листы, которые не удалось прочитать,
+                перечислены ниже с причиной.
               </p>
             </div>
           </div>
@@ -290,6 +301,7 @@ export function ImportManager() {
                   <th>Лист</th>
                   <th>Месяц</th>
                   <th>Колонка очков</th>
+                  <th>Игр в зачёт</th>
                   <th>Игроков</th>
                   <th>Первые строки</th>
                 </tr>
@@ -329,6 +341,20 @@ export function ImportManager() {
                       ) : (
                         <span className="muted">—</span>
                       )}
+                    </td>
+                    <td>
+                      <input
+                        className="results-input results-input-narrow"
+                        inputMode="numeric"
+                        placeholder="все"
+                        value={counted[month.sheetName] ?? (month.countedGames ?? "")}
+                        onChange={(event) =>
+                          setCounted((current) => ({
+                            ...current,
+                            [month.sheetName]: event.target.value,
+                          }))
+                        }
+                      />
                     </td>
                     <td>{month.players}</td>
                     <td className="muted">

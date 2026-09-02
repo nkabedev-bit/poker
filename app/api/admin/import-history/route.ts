@@ -24,11 +24,15 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const year = Number(url.searchParams.get("year")) || new Date().getFullYear();
   const pointsHeadings = JSON.parse(url.searchParams.get("points") ?? "{}") as Record<string, string>;
+  const countedGames = JSON.parse(url.searchParams.get("counted") ?? "{}") as Record<
+    string,
+    number | null
+  >;
 
   try {
     const [games, monthsResult] = await Promise.all([
       readGames(year),
-      readMonths(year, pointsHeadings),
+      readMonths(year, pointsHeadings, countedGames),
     ]);
     const months = monthsResult.months;
 
@@ -76,11 +80,13 @@ export async function POST(request: Request) {
   // Which column of a sheet holds the score that counted, when the automatic pick is
   // wrong: a club sheet often carries both a running total and the scoring figure.
   const pointsHeadings = (body.points ?? {}) as Record<string, string>;
+  // How many of a player's best game nights a sheet counts, per sheet.
+  const countedGames = (body.counted ?? {}) as Record<string, number | null>;
 
   try {
     const [games, monthsResult] = await Promise.all([
       readGames(year),
-      readMonths(year, pointsHeadings),
+      readMonths(year, pointsHeadings, countedGames),
     ]);
     const months = monthsResult.months;
 
@@ -130,11 +136,21 @@ export async function POST(request: Request) {
 
       let seasonId = (existing as { id: string } | null)?.id ?? null;
 
+      if (seasonId) {
+        // Keep the rule on record even for a season that already exists, so the admin
+        // screen shows what the imported table was scored by.
+        await supabase
+          .from("seasons")
+          .update({ counted_games: period.countedGames })
+          .eq("id", seasonId);
+      }
+
       if (!seasonId) {
         const { data: created, error } = await supabase
           .from("seasons")
           .insert({
             closed_at: new Date().toISOString(),
+            counted_games: period.countedGames,
             // Last day of the final month the period spans.
             ends_on: new Date(Date.UTC(lastYear, lastMonth, 0)).toISOString().slice(0, 10),
             starts_on: `${covered[0]}-01`,

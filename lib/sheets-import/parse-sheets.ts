@@ -6,6 +6,8 @@ export type ParsedGameRow = {
 };
 
 export type ParsedMonthRow = {
+  // What the player scored in each game night of the sheet, in column order.
+  gamePoints: number[];
   knockouts: number;
   playerName: string;
   points: number;
@@ -186,6 +188,11 @@ export function parseMonthSheetKey(sheetName: string, fallbackYear: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+/** "5.3.26", "22.03.26" — a game night; "Итоговая сумма", "БАУНТИ" — not. */
+function isGameDateHeading(heading: string) {
+  return /^\d{1,2}[.\-/]\d{1,2}([.\-/]\d{2,4})?$/.test(heading.trim());
+}
+
 function findColumn(header: string[], keywords: string[]) {
   return header.findIndex((cell) => {
     const text = cell.trim().toLocaleLowerCase("ru-RU");
@@ -198,6 +205,28 @@ function findColumn(header: string[], keywords: string[]) {
  * headings rather than by position: nickname, points and knockouts under whatever
  * names they were given.
  */
+/**
+ * Scores a sheet's rows under a season's rule.
+ *
+ * The club's sheets carry a column per game night and a running total of all of them,
+ * while a season is scored on a player's best few games — the two disagree, and only
+ * the per-night columns can produce the figure the club published.
+ */
+export function scoreMonthRows(rows: ParsedMonthRow[], countedGames: number | null) {
+  if (countedGames === null) return rows;
+
+  return rows.map((row) => ({
+    ...row,
+    points: Number(
+      [...row.gamePoints]
+        .sort((a, b) => b - a)
+        .slice(0, countedGames)
+        .reduce((total, points) => total + points, 0)
+        .toFixed(2),
+    ),
+  }));
+}
+
 export function findMonthSheetHeaders(values: unknown[][]): string[] {
   const headerIndex = values.findIndex((row) =>
     findColumn(row.map((cell) => String(cell ?? "")), ["ник", "игрок", "имя"]) !== -1,
@@ -245,9 +274,17 @@ export function parseMonthStandings(
 
   if (nameColumn === -1 || scoreColumn === -1) return [];
 
+  // The columns of individual game nights, kept so a season's own scoring rule — the
+  // best five games, say — can be applied instead of trusting a running total.
+  const gameColumns = header
+    .map((heading, index) => ({ heading, index }))
+    .filter((column) => isGameDateHeading(column.heading))
+    .map((column) => column.index);
+
   return values
     .slice(headerIndex + 1)
     .map((row) => ({
+      gamePoints: gameColumns.map((index) => toNumber(row[index])).filter((points) => points > 0),
       knockouts: knockoutsColumn === -1 ? 0 : toNumber(row[knockoutsColumn]),
       playerName: String(row[nameColumn] ?? "").trim(),
       points: toNumber(row[scoreColumn]),

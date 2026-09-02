@@ -6,6 +6,7 @@ import {
   findMonthSheetHeaders,
   parseMonthStandings,
   parseSheetPeriod,
+  scoreMonthRows,
   type ParsedGameRow,
   type ParsedMonthRow,
 } from "@/lib/sheets-import/parse-sheets";
@@ -20,6 +21,7 @@ export type ImportedGame = {
 };
 
 export type ImportedMonth = {
+  countedGames: number | null;
   coveredMonths: string[];
   headers: string[];
   pointsHeading: string | null;
@@ -84,6 +86,7 @@ export async function readGames(year: number): Promise<ImportedGame[]> {
 export async function readMonths(
   fallbackYear: number,
   pointsHeadings: Record<string, string> = {},
+  countedGamesBySheet: Record<string, number | null> = {},
 ): Promise<{ months: ImportedMonth[]; skipped: SkippedSheet[] }> {
   const names = await listSheetNames(RATING_SPREADSHEET_ID);
   const skipped: SkippedSheet[] = [];
@@ -123,7 +126,11 @@ export async function readMonths(
   candidates.forEach((candidate, index) => {
     const sheetValues = values[index] ?? [];
     const pointsHeading = pointsHeadings[candidate.sheetName] ?? null;
-    const rows = parseMonthStandings(sheetValues, pointsHeading ?? undefined);
+    const countedGames = countedGamesBySheet[candidate.sheetName] ?? null;
+    const rows = scoreMonthRows(
+      parseMonthStandings(sheetValues, pointsHeading ?? undefined),
+      countedGames,
+    );
 
     if (rows.length === 0) {
       const header = (sheetValues[0] ?? []).map((cell) => String(cell ?? "")).filter(Boolean);
@@ -138,6 +145,7 @@ export async function readMonths(
 
     months.push({
       ...candidate,
+      countedGames,
       headers: findMonthSheetHeaders(sheetValues),
       pointsHeading,
       rows,

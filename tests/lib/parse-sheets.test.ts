@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   findMonthSheetHeaders,
   isMonthSheetName,
+  scoreMonthRows,
   parseGameSheetDate,
   parseGameStandings,
   parseMonthSheetKey,
@@ -163,7 +164,7 @@ describe("parseMonthStandings", () => {
       [2, "Даниил", 73, "10 770"],
     ]);
 
-    expect(rows).toEqual([
+    expect(rows).toMatchObject([
       { knockouts: 139, playerName: "Подпольный", points: 17290 },
       { knockouts: 73, playerName: "Даниил", points: 10770 },
     ]);
@@ -178,7 +179,7 @@ describe("parseMonthStandings", () => {
         ["Ace", 500, 12],
       ]);
 
-      expect(rows).toEqual([{ knockouts: 12, playerName: "Ace", points: 500 }]);
+      expect(rows).toMatchObject([{ knockouts: 12, playerName: "Ace", points: 500 }]);
     }
   });
 
@@ -188,7 +189,7 @@ describe("parseMonthStandings", () => {
       ["Seller", 720, 8, 120, 90],
     ]);
 
-    expect(rows).toEqual([{ knockouts: 8, playerName: "Seller", points: 720 }]);
+    expect(rows).toMatchObject([{ knockouts: 8, playerName: "Seller", points: 720 }]);
   });
 
   it("works without a knockout column", () => {
@@ -197,7 +198,7 @@ describe("parseMonthStandings", () => {
       ["Ace", 500],
     ]);
 
-    expect(rows).toEqual([{ knockouts: 0, playerName: "Ace", points: 500 }]);
+    expect(rows).toMatchObject([{ knockouts: 0, playerName: "Ace", points: 500 }]);
   });
 
   it("returns nothing when the sheet has no player column at all", () => {
@@ -238,5 +239,51 @@ describe("choosing which column scores", () => {
       "Зачёт (топ-5)",
       "БАУНТИ",
     ]);
+  });
+});
+
+
+describe("scoring a sheet by the season's rule", () => {
+  // The real shape of a club season sheet: a column per game night, then a running
+  // total the club does not actually score by.
+  const sheet = [
+    ["Ник игрока", "5.3.26", "11.3.26", "19.3.26", "29.03.26", "01.04.26", "05.04.26", "9.4.26", "12.4.26", "16.04.26", "Итоговая сумма"],
+    ["inrikki", 50, 18, 85, 15, 405, 150, 520, 55, 50, 1348],
+  ];
+
+  it("collects what a player scored on each night", () => {
+    expect(parseMonthStandings(sheet)[0].gamePoints).toEqual([50, 18, 85, 15, 405, 150, 520, 55, 50]);
+  });
+
+  // 520 + 405 + 150 + 85 + 55 — the figure the club published, against a 1348 total.
+  it("scores the best five nights when the season counts five", () => {
+    const rows = scoreMonthRows(parseMonthStandings(sheet), 5);
+
+    expect(rows[0].points).toBe(1215);
+  });
+
+  it("leaves the sheet's own total alone when every game counts", () => {
+    expect(scoreMonthRows(parseMonthStandings(sheet), null)[0].points).toBe(1348);
+  });
+
+  it("counts what there is when a player played fewer nights than the rule", () => {
+    const rows = scoreMonthRows(
+      parseMonthStandings([
+        ["Ник игрока", "5.3.26", "11.3.26", "Итоговая сумма"],
+        ["Новичок", 100, 50, 150],
+      ]),
+      5,
+    );
+
+    expect(rows[0].points).toBe(150);
+  });
+
+  it("ignores columns that are not game nights", () => {
+    const rows = parseMonthStandings([
+      ["Ник игрока", "5.3.26", "Итоговая сумма", "МЕСТО ПО ТОП-5 ИГР"],
+      ["inrikki", 50, 1348, 3],
+    ]);
+
+    expect(rows[0].gamePoints).toEqual([50]);
   });
 });
