@@ -3,9 +3,16 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
-import { buildPlayerResultsFilter, computePlayerStats } from "@/lib/results/player-stats";
+import {
+  buildFieldSizes,
+  buildPlayerResultsFilter,
+  computePlayerStats,
+  countLastPlaces,
+} from "@/lib/results/player-stats";
 
 export const dynamic = "force-dynamic";
+
+const PLAYED_GAMES_LIMIT = 300;
 
 type AchievementStatsRow = {
   best_miss_streak: number | string | null;
@@ -64,15 +71,46 @@ export async function GET(request: Request) {
   // profile and its achievements with it, which separate counters could never do.
   const { data: playedRows } = await auth.supabase
     .from("tournament_results")
-    .select("place, knockouts")
-    .or(buildPlayerResultsFilter(auth.user.telegram_id, auth.user.display_name ?? ""));
+    .select("place, knockouts, started_at")
+    .or(buildPlayerResultsFilter(auth.user.telegram_id, auth.user.display_name ?? ""))
+    .order("started_at", { ascending: false })
+    .limit(PLAYED_GAMES_LIMIT);
 
-  const stats = computePlayerStats(
-    (playedRows ?? []).map((row) => {
-      const record = row as { knockouts: number | string | null; place: number | null };
-      return { knockouts: Number(record.knockouts ?? 0), place: record.place };
-    }),
-  );
+  const played = (playedRows ?? []).map((row) => {
+    const record = row as {
+      knockouts: number | string | null;
+      place: number | null;
+      started_at: string;
+    };
+
+    return {
+      knockouts: Number(record.knockouts ?? 0),
+      place: record.place,
+      startedAt: record.started_at,
+    };
+  });
+
+  const stats = computePlayerStats(played);
+
+  // "Last place" needs the size of each field, which only the other players' rows can
+  // tell — 27th is the bottom of one tournament and the middle of another.
+  let lastPlace = 0;
+  if (played.length > 0) {
+    const { data: fieldRows } = await auth.supabase
+      .from("tournament_results")
+      .select("place, started_at")
+      .in("started_at", [...new Set(played.map((row) => row.startedAt))]);
+
+    lastPlace = countLastPlaces(
+      played,
+      buildFieldSizes(
+        (fieldRows ?? []).map((row) => {
+          const record = row as { place: number | null; started_at: string };
+          return { place: record.place, startedAt: record.started_at };
+        }),
+      ),
+    );
+  }
 
   const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
@@ -104,20 +142,19 @@ export async function GET(request: Request) {
           name: player.name,
         }
       : null,
-    // Games, knockouts and top-9 finishes are counted from the stored results, so an
-    // admin correcting a game corrects the achievements with it. The counters below are
-    // still accumulated at finish time and only start filling from the tournament that
-    // follows their migration.
+    // Every counter here is derived from the stored results, so correcting a game in the
+    // admin corrects the achievements with it — and games played before any of this
+    // existed count too, because the club's old sheets were imported into the same table.
     stats: {
-      bestMissStreak: Number(achievementStats?.best_miss_streak ?? 0),
-      bestTop9Streak: Number(achievementStats?.best_top9_streak ?? 0),
-      bestTournamentBounty: Number(achievementStats?.best_tournament_bounty ?? 0),
+      bestMissStreak: stats.bestMissStreak,
+      bestTop9Streak: stats.bestTop9Streak,
+      bestTournamentBounty: stats.bestTournamentBounty,
       eliminations: stats.eliminations,
       games: stats.games,
-      lastPlace: Number(achievementStats?.last_place_count ?? 0),
+      lastPlace,
       top9: stats.top9,
-      top3: Number(achievementStats?.top3_count ?? 0),
-      wins: Number(achievementStats?.wins_count ?? 0),
+      top3: stats.top3,
+      wins: stats.wins,
     },
     // One counter per tournament type the player has won; the medals screen reads it.
     medals: achievementStats?.medals ?? {},
