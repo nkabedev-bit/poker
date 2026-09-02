@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 const UNCLAIMED_ROWS_LIMIT = 20000;
 
 export default async function SeasonsPage() {
-  if (!hasPublicEnv()) return <SeasonsManager gamesWithoutSeason={0} seasons={[]} />;
+  if (!hasPublicEnv())
+    return <SeasonsManager gamesBySeason={{}} gamesWithoutSeason={0} seasons={[]} />;
 
   const supabase = await createSupabaseServerClient();
   const seasons = await listSeasons(supabase);
@@ -26,5 +27,29 @@ export default async function SeasonsPage() {
     (unclaimed ?? []).map((row) => String((row as { started_at: string }).started_at)),
   ).size;
 
-  return <SeasonsManager gamesWithoutSeason={gamesWithoutSeason} seasons={seasons} />;
+  // How many evenings each season actually holds — the quickest way to see whether
+  // "Привязать игры" did anything.
+  const { data: attached } = await supabase
+    .from("tournament_results")
+    .select("season_id, started_at")
+    .not("season_id", "is", null)
+    .limit(UNCLAIMED_ROWS_LIMIT);
+
+  const gamesBySeason: Record<string, number> = {};
+  const seenGames = new Map<string, Set<string>>();
+  for (const row of attached ?? []) {
+    const record = row as { season_id: string; started_at: string };
+    const games = seenGames.get(record.season_id) ?? new Set<string>();
+    games.add(record.started_at);
+    seenGames.set(record.season_id, games);
+  }
+  for (const [seasonId, games] of seenGames) gamesBySeason[seasonId] = games.size;
+
+  return (
+    <SeasonsManager
+      gamesBySeason={gamesBySeason}
+      gamesWithoutSeason={gamesWithoutSeason}
+      seasons={seasons}
+    />
+  );
 }

@@ -62,6 +62,39 @@ export async function openSeason(formData: FormData) {
   redirect("/admin/seasons?opened=1");
 }
 
+/**
+ * Edits a season: its name, its dates and its scoring rule.
+ *
+ * The rule matters most. Imported seasons arrived with whatever total the club's sheet
+ * carried — often the sum of every game — while the club actually scored a player's
+ * five best. Setting the rule here and recomputing puts that right.
+ */
+export async function updateSeason(formData: FormData) {
+  const id = z.string().uuid().parse(formData.get("id"));
+  const parsed = seasonSchema.parse({
+    countedGames: optionalNumber(formData.get("countedGames")),
+    startsOn: formData.get("startsOn"),
+    title: formData.get("title"),
+  });
+  const endsOn = String(formData.get("endsOn") ?? "").trim() || null;
+
+  const supabase = await createSupabaseServerClient();
+  const { error } = await supabase
+    .from("seasons")
+    .update({
+      counted_games: parsed.countedGames,
+      ends_on: endsOn,
+      starts_on: parsed.startsOn,
+      title: parsed.title,
+    })
+    .eq("id", id);
+
+  if (error) throw error;
+
+  revalidatePath("/admin/seasons");
+  redirect("/admin/seasons?updated=1");
+}
+
 /** Closes a season and freezes its table as it stands. */
 export async function closeSeason(formData: FormData) {
   const id = z.string().uuid().parse(formData.get("id"));

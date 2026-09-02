@@ -1,11 +1,13 @@
 "use client";
 
-import { CalendarPlus, Link2, Lock, RefreshCw } from "lucide-react";
+import { CalendarPlus, Link2, Lock, Pencil, RefreshCw } from "lucide-react";
+import { useState } from "react";
 import {
   attachGamesByDate,
   closeSeason,
   openSeason,
   recomputeSeason,
+  updateSeason,
 } from "@/app/admin/seasons/actions";
 import { SubmitButton } from "@/components/admin/submit-button";
 import type { Season } from "@/lib/seasons/season";
@@ -17,12 +19,15 @@ function formatDate(value: string | null) {
 }
 
 export function SeasonsManager({
+  gamesBySeason,
   gamesWithoutSeason,
   seasons,
 }: {
+  gamesBySeason: Record<string, number>;
   gamesWithoutSeason: number;
   seasons: Season[];
 }) {
+  const [editing, setEditing] = useState<Season | null>(null);
   const open = seasons.find((season) => season.status === "open") ?? null;
   const today = new Date().toISOString().slice(0, 10);
 
@@ -69,6 +74,55 @@ export function SeasonsManager({
         </SubmitButton>
       </form>
 
+      {editing ? (
+        <form action={updateSeason} className="poker-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Правка сезона</h2>
+              <p className="muted">
+                Изменили зачёт — нажмите потом «Пересчитать», чтобы итоги пересобрались
+                из игр по новому правилу.
+              </p>
+            </div>
+            <button className="ghost-button" type="button" onClick={() => setEditing(null)}>
+              Отмена
+            </button>
+          </div>
+
+          <input name="id" type="hidden" value={editing.id} />
+
+          <label>
+            Название
+            <input defaultValue={editing.title} maxLength={80} name="title" required />
+          </label>
+
+          <div className="events-form-row">
+            <label>
+              Начало
+              <input defaultValue={editing.startsOn} name="startsOn" required type="date" />
+            </label>
+            <label>
+              Конец
+              <input defaultValue={editing.endsOn ?? ""} name="endsOn" type="date" />
+            </label>
+            <label>
+              Игр в зачёт
+              <input
+                defaultValue={editing.countedGames ?? ""}
+                inputMode="numeric"
+                name="countedGames"
+                placeholder="все"
+              />
+              <span className="field-help">Пусто — все игры сезона.</span>
+            </label>
+          </div>
+
+          <SubmitButton className="gold-button" pendingText="Сохраняем...">
+            Сохранить сезон
+          </SubmitButton>
+        </form>
+      ) : null}
+
       <section className="poker-panel">
         <div className="panel-heading">
           <div>
@@ -91,6 +145,7 @@ export function SeasonsManager({
                   <th>Сезон</th>
                   <th>Даты</th>
                   <th>Зачёт</th>
+                  <th>Игр</th>
                   <th>Статус</th>
                   <th></th>
                 </tr>
@@ -105,8 +160,17 @@ export function SeasonsManager({
                       {formatDate(season.startsOn)} — {formatDate(season.endsOn)}
                     </td>
                     <td>{season.countedGames ?? "все"}</td>
+                    <td>{gamesBySeason[season.id] ?? 0}</td>
                     <td>{season.status === "open" ? "идёт" : "закрыт"}</td>
                     <td className="events-row-actions">
+                      <button
+                        className="ghost-button"
+                        type="button"
+                        onClick={() => setEditing(season)}
+                      >
+                        <Pencil size={14} /> Правка
+                      </button>
+
                       <form action={attachGamesByDate}>
                         <input name="id" type="hidden" value={season.id} />
                         <SubmitButton className="ghost-button" pendingText="Привязываем...">
