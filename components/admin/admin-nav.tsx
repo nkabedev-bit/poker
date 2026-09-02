@@ -8,6 +8,7 @@ import { useCallback, useEffect } from "react";
 const items = [
   { href: "/admin/settings", label: "⚙️ Настройки" },
   { href: "/admin/events", label: "🗓️ Афиши" },
+  { href: "/admin/seasons", label: "🗓 Сезоны" },
   { href: "/admin/results", label: "🏁 Результаты" },
   { href: "/admin/qr-codes", label: "🔳 QR коды" },
   { href: "/admin/import", label: "⬇️ Импорт" },

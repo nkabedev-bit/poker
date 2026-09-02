@@ -6,20 +6,15 @@ import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
 import { BackLink } from "../_components/back-link";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
-import { formatMonthLabel } from "@/lib/results/tournament-results";
 
-type RatingPeriod = { key: string; label: string };
+type RatingSeason = { id: string; status: "open" | "closed"; title: string };
 
 type RatingResponse = {
-  archived?: boolean;
-  countedGames: number;
-  me: RatingPlayer;
-  month: string;
-  months: string[];
-  periodLabel?: string;
-  periods?: RatingPeriod[];
+  countedGames?: number | null;
+  me: RatingPlayer | null;
   players: RatingPlayer[];
-  pointsAvailable: boolean;
+  season: RatingSeason | null;
+  seasons: RatingSeason[];
 };
 
 type SortKey = "eliminations" | "points";
@@ -29,12 +24,12 @@ export default function ClientRatingPage() {
   const [data, setData] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [month, setMonth] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("eliminations");
 
   const load = useCallback(async () => {
     try {
-      const query = month ? `?month=${encodeURIComponent(month)}` : "";
+      const query = seasonId ? `?season=${encodeURIComponent(seasonId)}` : "";
       const res = await fetch(`/api/client-tma/rating${query}`, {
         headers: { "X-Telegram-Init-Data": initData },
       });
@@ -42,7 +37,7 @@ export default function ClientRatingPage() {
     } finally {
       setLoading(false);
     }
-  }, [initData, month]);
+  }, [initData, seasonId]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0);
@@ -68,12 +63,8 @@ export default function ClientRatingPage() {
 
   if (loading) return <LoadingScreen />;
 
-  // Older responses carried bare month keys; the labels come from the server now.
-  const periods =
-    data?.periods ??
-    (data?.months ?? []).map((key) => ({ key, label: formatMonthLabel(key) }));
-  const selectedLabel =
-    periods.find((period) => period.key === data?.month)?.label ?? data?.periodLabel ?? "";
+  const seasons = data?.seasons ?? [];
+  const selected = data?.season ?? null;
 
   const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
   const meVisible = players.some((player) => player.isMe);
@@ -83,26 +74,29 @@ export default function ClientRatingPage() {
       <BackLink />
       <div className="space-y-1">
         <PageTitle>Рейтинг</PageTitle>
-        {selectedLabel ? (
-          <p className="text-sm capitalize text-white/40">{selectedLabel}</p>
+        {selected ? (
+          <p className="text-sm text-white/40">
+            {selected.title}
+            {selected.status === "open" ? " · идёт сейчас" : ""}
+          </p>
         ) : null}
       </div>
 
-      {periods.length > 0 ? (
+      {seasons.length > 0 ? (
         <div className="-mx-5 overflow-x-auto px-5">
           <div className="flex w-max gap-2">
-            {periods.map((period) => (
+            {seasons.map((season) => (
               <button
-                key={period.key}
-                className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold capitalize transition ${
-                  period.key === data?.month
+                key={season.id}
+                className={`shrink-0 rounded-full px-4 py-2 text-[13px] font-semibold transition ${
+                  season.id === selected?.id
                     ? "bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] text-white"
                     : "border border-white/[0.07] bg-white/[0.04] text-white/55"
                 }`}
                 type="button"
-                onClick={() => setMonth(period.key)}
+                onClick={() => setSeasonId(season.id)}
               >
-                {period.label}
+                {season.title}
               </button>
             ))}
           </div>
@@ -142,7 +136,11 @@ export default function ClientRatingPage() {
         <GlassCard className="py-8 text-center">
           <Trophy className="mx-auto mb-3 text-white/25" size={28} />
           <p className="text-sm text-white/45">
-            {query ? "Никого не нашли по этому нику." : "Рейтинг наполнится после первых игр."}
+            {query
+              ? "Никого не нашли по этому нику."
+              : seasons.length === 0
+                ? "Сезон ещё не открыт."
+                : "Рейтинг наполнится после первых игр сезона."}
           </p>
         </GlassCard>
       ) : (
@@ -160,11 +158,13 @@ export default function ClientRatingPage() {
         </div>
       )}
 
-      {data ? (
+      {selected ? (
         <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-white/30">
-          {data.archived
-            ? "Итоги этого месяца перенесены из клубной таблицы."
-            : `В зачёт идут ${data.countedGames ?? 5} лучших игр месяца.`}
+          {selected.status === "closed"
+            ? "Сезон завершён — итоги окончательные."
+            : data?.countedGames
+              ? `В зачёт идут ${data.countedGames} лучших игр сезона.`
+              : "В зачёт идут все игры сезона."}
         </p>
       ) : null}
     </div>

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildTournamentResultRows } from "@/lib/results/tournament-results";
+import { getOpenSeason } from "@/lib/seasons/store";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 /**
@@ -65,6 +66,10 @@ export async function saveTournamentResults({
     .eq("id", tournamentId)
     .maybeSingle();
 
+  // Games belong to the season that was collecting them, not to whatever period a date
+  // could be read as later. With no season open the game is stored outside the rating.
+  const season = await getOpenSeason(supabase);
+
   const { eventId, title } = await resolveGameTitle(
     supabase,
     startedAt,
@@ -77,6 +82,7 @@ export async function saveTournamentResults({
       knockouts: row.knockouts,
       place: row.place,
       played_on: startedAt.toISOString().slice(0, 10),
+      season_id: season?.id ?? null,
       player_name: row.playerName,
       points: row.points,
       source: "app",
