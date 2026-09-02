@@ -97,49 +97,77 @@ export async function POST(request: Request) {
       if (error) throw error;
     }
 
-    const monthRows = months
-      .filter((month) => !skipped.has(month.sheetName))
-      .flatMap((month) =>
-      month.rows.map((row) => ({
-        covered_months: month.coveredMonths,
-        knockouts: row.knockouts,
-        label: month.label,
-        month: month.month,
-        player_name: row.playerName,
-        points: row.points,
-        sort_key: month.coveredMonths[0] ?? month.month,
-        source_sheet: month.sheetName,
-      })),
-    );
+    // Imported periods become closed seasons directly. Going through an intermediate
+    // archive table meant a sheet fixed after the migration never became a season at
+    // all — which is exactly how June went missing.
+    const importedPeriods = months.filter((month) => !skipped.has(month.sheetName));
+    let seasonRows = 0;
 
-    if (monthRows.length > 0) {
-      const { error } = await supabase
-        .from("monthly_rating_archive")
-        .upsert(monthRows, { onConflict: "month,player_name" });
+    for (const period of importedPeriods) {
+      const covered = period.coveredMonths.length
+        ? [...period.coveredMonths].sort()
+        : [period.month];
+      const [lastYear, lastMonth] = covered[covered.length - 1].split("-").map(Number);
 
-      if (error) throw error;
-    }
+      const { data: existing } = await supabase
+        .from("seasons")
+        .select("id")
+        .eq("title", period.label)
+        .maybeSingle();
 
-    // A season replaces the months it spans: an earlier import may have filed those
-    // months separately, and leaving them behind offers the same games twice.
-    const monthsInsideSeasons = months
-      .filter((month) => !/^\d{4}-\d{2}$/.test(month.month))
-      .flatMap((month) => month.coveredMonths);
+      let seasonId = (existing as { id: string } | null)?.id ?? null;
 
-    if (monthsInsideSeasons.length > 0) {
-      const { error } = await supabase
-        .from("monthly_rating_archive")
+      if (!seasonId) {
+        const { data: created, error } = await supabase
+          .from("seasons")
+          .insert({
+            closed_at: new Date().toISOString(),
+            // Last day of the final month the period spans.
+            ends_on: new Date(Date.UTC(lastYear, lastMonth, 0)).toISOString().slice(0, 10),
+            starts_on: `${covered[0]}-01`,
+            status: "closed",
+            title: period.label,
+          })
+          .select("id")
+          .single();
+
+        if (error) throw error;
+        seasonId = (created as { id: string }).id;
+      }
+
+      // The sheet is the source of truth for an imported season, so its table replaces
+      // whatever was there — a re-import corrects rather than duplicates.
+      const { error: clearError } = await supabase
+        .from("season_standings")
         .delete()
-        .in("month", monthsInsideSeasons);
+        .eq("season_id", seasonId);
 
-      if (error) throw error;
+      if (clearError) throw clearError;
+
+      const standings = [...period.rows]
+        .sort((a, b) => b.points - a.points)
+        .map((row, index) => ({
+          games: 0,
+          knockouts: row.knockouts,
+          place: index + 1,
+          player_name: row.playerName,
+          points: row.points,
+          season_id: seasonId,
+        }));
+
+      if (standings.length > 0) {
+        const { error } = await supabase.from("season_standings").insert(standings);
+        if (error) throw error;
+        seasonRows += standings.length;
+      }
     }
+
 
     return NextResponse.json({
       games: games.filter((game) => !skipped.has(game.sheetName)).length,
       gameRows: gameRows.length,
-      months: months.filter((month) => !skipped.has(month.sheetName)).length,
-      monthRows: monthRows.length,
+      months: importedPeriods.length,
+      monthRows: seasonRows,
     });
   } catch (error) {
     console.error("History import failed", error);
