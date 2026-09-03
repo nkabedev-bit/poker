@@ -231,7 +231,17 @@ export default function TMAEliminationsPage() {
         clientRequestIdRef.current = null;
         void fetchPlayers();
       } else {
-        notifyEliminationFailed(tg, `Ошибка сохранения (код ${res.status}). Вылет НЕ записан, повтори.`);
+        // The server says what went wrong; without it the admin only sees a number and
+        // nobody can tell a full table from a broken database.
+        const failure = await res.json().catch(() => null);
+        const reason = typeof failure?.error === "string" ? failure.error.slice(0, 300) : "";
+
+        notifyEliminationFailed(
+          tg,
+          `Ошибка сохранения (код ${res.status}). Вылет НЕ записан, повтори.${
+            reason ? `\n\n${reason}` : ""
+          }`,
+        );
       }
     } catch {
       // A rejected fetch (lost connection, request killed when the WebView is backgrounded)

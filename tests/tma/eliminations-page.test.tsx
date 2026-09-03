@@ -87,6 +87,49 @@ describe("TMAEliminationsPage", () => {
     expect(screen.queryByText(/использует ли игрок ре-энтри/i)).toBeNull();
   });
 
+  it("tells the admin what the server refused, not just a status code", async () => {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players") {
+        return Response.json({
+          isBounty: false,
+          reentryAvailable: false,
+          players: [{ id: "player-1", name: "Player 1", status: "active" }],
+        });
+      }
+
+      if (String(input) === "/api/tma/eliminations" && init?.method === "POST") {
+        return Response.json({ error: "Tournament extras not found" }, { status: 500 });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /player 1/i }));
+    await screen.findByText(/всё верно/i);
+
+    await waitFor(() => expect(mainButtonClick).toBeTypeOf("function"));
+    act(() => {
+      mainButtonClick?.();
+    });
+
+    await waitFor(() => {
+      expect(window.Telegram!.WebApp!.showAlert).toHaveBeenCalledWith(
+        expect.stringContaining("Tournament extras not found"),
+      );
+    });
+    expect(window.Telegram!.WebApp!.showAlert).toHaveBeenCalledWith(
+      expect.stringContaining("Вылет НЕ записан"),
+    );
+  });
+
   it("records no re-entry without asking when the player reached the re-entry limit", async () => {
     let mainButtonClick: (() => void) | null = null;
     vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
