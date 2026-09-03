@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Download, Eye, ImageDown, Loader2 } from "lucide-react";
+import { Copy, Download, Eye, ImageDown, Loader2 } from "lucide-react";
 
 type GamePreview = {
   playedOn: string;
@@ -21,6 +21,17 @@ type MonthPreview = {
 };
 
 type SkippedSheet = { reason: string; sheetName: string };
+
+type DuplicateReport = {
+  groups: number;
+  rows: number;
+  sample: Array<{
+    keptName: string;
+    place: number | null;
+    playedOn: string;
+    removedNames: string[];
+  }>;
+};
 
 type Preview = {
   games: GamePreview[];
@@ -46,6 +57,9 @@ export function ImportManager() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [avatarMessage, setAvatarMessage] = useState("");
+  const [duplicates, setDuplicates] = useState<DuplicateReport | null>(null);
+  const [duplicatesBusy, setDuplicatesBusy] = useState(false);
+  const [duplicatesMessage, setDuplicatesMessage] = useState("");
   const [avatarsBusy, setAvatarsBusy] = useState(false);
 
   function countedPayload() {
@@ -99,6 +113,58 @@ export function ImportManager() {
       );
     } finally {
       setBusy(false);
+    }
+  }
+
+  /**
+   * One evening can be stored twice when the club spelled the nickname differently in
+   * two sheets. The admin sees what would go before anything is deleted.
+   */
+  async function findDuplicates() {
+    setDuplicatesBusy(true);
+    setDuplicatesMessage("");
+    try {
+      const res = await fetch("/api/admin/duplicate-results");
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDuplicatesMessage(data.error ?? "Не удалось проверить дубли");
+        return;
+      }
+
+      setDuplicates(data as DuplicateReport);
+      setDuplicatesMessage(
+        data.rows === 0 ? "Дублей нет — каждая игра записана один раз." : "",
+      );
+    } finally {
+      setDuplicatesBusy(false);
+    }
+  }
+
+  async function removeDuplicates() {
+    if (!duplicates || duplicates.rows === 0) return;
+    if (
+      !window.confirm(
+        `Удалить ${duplicates.rows} лишних строк? Останется одна запись на игрока за вечер — та, где есть место и нокауты. Отменить будет нельзя.`,
+      )
+    ) {
+      return;
+    }
+
+    setDuplicatesBusy(true);
+    try {
+      const res = await fetch("/api/admin/duplicate-results", { method: "POST" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setDuplicatesMessage(data.error ?? "Не удалось убрать дубли");
+        return;
+      }
+
+      setDuplicates(null);
+      setDuplicatesMessage(`Убрано лишних строк: ${data.rows} в ${data.groups} играх.`);
+    } finally {
+      setDuplicatesBusy(false);
     }
   }
 
@@ -218,6 +284,64 @@ export function ImportManager() {
         </div>
 
         {avatarMessage ? <p className="admin-action-message">{avatarMessage}</p> : null}
+      </section>
+
+      <section className="poker-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Дубли игр</h2>
+            <p className="muted">
+              Один вечер мог записаться дважды, если в разных таблицах ник написан
+              по-разному — «Maks B» и «MaksB». Такие записи схлопываются в одну: остаётся
+              та, где есть место и нокауты.
+            </p>
+          </div>
+        </div>
+
+        <div className="qr-actions">
+          <button
+            className="gold-button"
+            disabled={duplicatesBusy}
+            type="button"
+            onClick={() => void findDuplicates()}
+          >
+            {duplicatesBusy ? <Loader2 className="animate-spin" size={16} /> : <Copy size={16} />}{" "}
+            Проверить дубли
+          </button>
+          {duplicates && duplicates.rows > 0 ? (
+            <button
+              className="ghost-button"
+              disabled={duplicatesBusy}
+              type="button"
+              onClick={() => void removeDuplicates()}
+            >
+              Убрать {duplicates.rows} лишних
+            </button>
+          ) : null}
+        </div>
+
+        {duplicates && duplicates.rows > 0 ? (
+          <>
+            <p className="admin-action-message">
+              Нашли {duplicates.groups} игр, записанных дважды — лишних строк{" "}
+              {duplicates.rows}.
+            </p>
+            <ul className="muted import-duplicate-list">
+              {duplicates.sample.map((item) => (
+                <li key={`${item.playedOn}-${item.keptName}`}>
+                  {item.playedOn}: оставим «{item.keptName}»
+                  {item.place ? ` (${item.place} место)` : " (без места)"}, уберём «
+                  {item.removedNames.join("», «")}»
+                </li>
+              ))}
+              {duplicates.groups > duplicates.sample.length ? (
+                <li>…и ещё {duplicates.groups - duplicates.sample.length}</li>
+              ) : null}
+            </ul>
+          </>
+        ) : null}
+
+        {duplicatesMessage ? <p className="admin-action-message">{duplicatesMessage}</p> : null}
       </section>
 
       {preview ? (

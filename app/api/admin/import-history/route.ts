@@ -10,6 +10,41 @@ export const maxDuration = 60;
 const NIGHT_BATCH_SIZE = 500;
 const NIGHT_DATE_BATCH_SIZE = 100;
 
+/**
+ * How the club already spells each player of these evenings, keyed by evening and
+ * nickname key — so an import writes over the row it means to.
+ */
+async function readStoredNames(
+  supabase: NonNullable<Awaited<ReturnType<typeof requireAdmin>>>,
+  startedAt: string[],
+) {
+  const names = new Map<string, string>();
+  const moments = [...new Set(startedAt)];
+
+  for (let offset = 0; offset < moments.length; offset += NIGHT_DATE_BATCH_SIZE) {
+    const { data, error } = await supabase
+      .from("tournament_results")
+      .select("started_at, player_name")
+      .in("started_at", moments.slice(offset, offset + NIGHT_DATE_BATCH_SIZE));
+
+    if (error) throw error;
+
+    for (const row of (data ?? []) as Array<{ player_name: string; started_at: string }>) {
+      names.set(storedNameKey(row.started_at, row.player_name), row.player_name);
+    }
+  }
+
+  return names;
+}
+
+/**
+ * Postgres hands a timestamp back as "+00:00" while the import writes "Z", so both
+ * sides of the key go through one format.
+ */
+function storedNameKey(startedAt: string, playerName: string) {
+  return `${new Date(startedAt).toISOString()}|${buildNicknameKey(playerName)}`;
+}
+
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
   const { data } = await supabase.auth.getUser();
@@ -113,10 +148,26 @@ export async function POST(request: Request) {
       })),
     );
 
-    if (gameRows.length > 0) {
+    // A re-import must correct the evening it already stored, not add a second copy of
+    // it: the club spells a nickname differently from sheet to sheet, and the table's
+    // unique constraint compares the text. Rows already stored for these evenings lend
+    // their spelling to whatever matches by key.
+    const storedNames = await readStoredNames(
+      supabase,
+      gameRows.map((row) => row.started_at),
+    );
+
+    const alignedGameRows = gameRows.map((row) => ({
+      ...row,
+      player_name: storedNames.get(storedNameKey(row.started_at, row.player_name)) ?? row.player_name,
+    }));
+
+    for (let offset = 0; offset < alignedGameRows.length; offset += NIGHT_BATCH_SIZE) {
       const { error } = await supabase
         .from("tournament_results")
-        .upsert(gameRows, { onConflict: "started_at,player_name" });
+        .upsert(alignedGameRows.slice(offset, offset + NIGHT_BATCH_SIZE), {
+          onConflict: "started_at,player_name",
+        });
 
       if (error) throw error;
     }
