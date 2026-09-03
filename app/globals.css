@@ -1395,6 +1395,7 @@ p {
 }
 
 .public-board {
+  position: relative;
   min-height: 100vh;
   height: 100vh;
   display: flex;
@@ -3091,4 +3092,60 @@ p {
   flex-wrap: wrap;
   gap: 10px;
   margin-top: 12px;
+}
+
+/* The break announcement covers the board: the chips that leave the tables must be
+   readable from every seat in the room, so nothing else competes for attention. */
+.public-break-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 3vh, 40px);
+  padding: 4vh 4vw;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(139 21 21 / 0.55), transparent 62%),
+    rgba(6 0 0 / 0.97);
+  animation: public-break-overlay-in 400ms ease-out;
+}
+
+.public-break-overlay__label {
+  color: #c9a84c;
+  font-size: clamp(20px, 4vh, 44px);
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+}
+
+.public-break-overlay__notice {
+  max-width: 92vw;
+  color: #fff;
+  font-size: clamp(40px, 11vh, 190px);
+  font-weight: 900;
+  line-height: 1.02;
+  letter-spacing: 0.01em;
+  text-shadow: 0 0 40px rgba(139 21 21 / 0.85);
+  text-wrap: balance;
+}
+
+.public-break-overlay__clock {
+  color: rgba(255 255 255 / 0.75);
+  font-size: clamp(36px, 9vh, 140px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+
+@keyframes public-break-overlay-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }

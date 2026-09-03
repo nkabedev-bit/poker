@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createSupabaseBrowserClient } from "@/lib/supabase/browser";
 import {
+  formatClock,
   getCurrentAndNextLevel,
   getEffectiveTimerState,
   getLevelDuration,
@@ -16,6 +17,7 @@ import {
 import { isDealerLabel } from "@/lib/player-labels";
 import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
+import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { TimerDisplay } from "@/components/public/timer-display";
 
@@ -594,6 +596,12 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       .slice(0, currentLevelIndex + 1)
       .filter((level) => !level.isBreak).length;
   }, [state.blindLevels, currentLevelIndex]);
+  // On a break the whole board turns into one announcement: the dealers have to see
+  // which chips leave the tables from anywhere in the room.
+  const breakChipNotice = useMemo(
+    () => getBreakChipRemovalNotice(state.blindLevels, currentLevelIndex),
+    [state.blindLevels, currentLevelIndex],
+  );
   const showReentryInfo = useMemo(
     () =>
       isReentryAvailable(state.timerState, state.blindLevels, now) &&
@@ -956,6 +964,13 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           ) : null}
         </aside>
       </div>
+      {breakChipNotice ? (
+        <div className="public-break-overlay" role="status">
+          <span className="public-break-overlay__label">Перерыв</span>
+          <strong className="public-break-overlay__notice">{breakChipNotice}</strong>
+          <span className="public-break-overlay__clock">{formatClock(remainingSeconds)}</span>
+        </div>
+      ) : null}
     </main>
   );
 }
