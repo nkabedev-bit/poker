@@ -1,3 +1,5 @@
+import { buildNicknameKey } from "@/lib/players/nickname-key";
+
 export type PlayerResultRow = {
   knockouts: number;
   place: number | null;
@@ -24,12 +26,15 @@ const PODIUM_PLACES = 3;
  * Games are matched by account and by the club nickname both: an evening where the
  * admin added someone by hand before the nickname was linked still belongs to them,
  * and so does everything imported from the club's old sheets, which knows names only.
+ *
+ * The nickname is matched by its key, so "Kabedev", "kabedev" and "KABE_DEV" all find
+ * the same player's games.
  */
 export function buildPlayerResultsFilter(telegramId: number, nickname: string) {
   const filters = [`telegram_id.eq.${telegramId}`];
-  const trimmed = nickname.trim();
+  const key = buildNicknameKey(nickname);
 
-  if (trimmed) filters.push(`player_name.ilike.${trimmed.replace(/[\\%_]/g, "\\$&")}`);
+  if (key) filters.push(`player_key.eq.${key}`);
 
   return filters.join(",");
 }

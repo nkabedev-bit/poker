@@ -123,7 +123,7 @@ function createSupabaseMock(
       if (table === "client_bot_users") {
         return {
           select: vi.fn(() => ({
-            ilike: vi.fn(() => ({
+            eq: vi.fn(() => ({
               limit: vi.fn(async () => ({ data: options.clientBotUsers ?? [], error: null })),
             })),
           })),

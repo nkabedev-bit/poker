@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeClientBotText } from "@/lib/client-bot/registration";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type MatchedClientBotUser = {
   displayName: string;
@@ -7,14 +7,9 @@ export type MatchedClientBotUser = {
   username: string | null;
 };
 
-/** Nicknames are compared with case and stray spacing ignored: "Ace High" is "ace  high". */
+/** Nicknames are compared by their key: "Ace High", "ace_high" and "ACEHIGH" are one. */
 export function normalizeNickname(value: string) {
-  return normalizeClientBotText(value).toLocaleLowerCase("ru-RU");
-}
-
-// PostgREST passes the pattern straight to ILIKE, where these are wildcards.
-function escapeLikePattern(value: string) {
-  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+  return buildNicknameKey(value);
 }
 
 /**
@@ -35,14 +30,14 @@ export async function findClientBotUserByNickname(
   const { data, error } = await supabase
     .from("client_bot_users")
     .select("telegram_id, display_name, username")
-    .ilike("display_name", escapeLikePattern(normalized))
+    .eq("nickname_key", normalized)
     .limit(5);
 
   if (error) throw error;
 
-  const matches = (data ?? [])
-    .map((row) => row as { display_name: string | null; telegram_id: number; username: string | null })
-    .filter((row) => normalizeNickname(row.display_name ?? "") === normalized);
+  const matches = (data ?? []).map(
+    (row) => row as { display_name: string | null; telegram_id: number; username: string | null },
+  );
 
   if (matches.length !== 1) {
     return { ambiguous: matches.length > 1, user: null };

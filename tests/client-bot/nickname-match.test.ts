@@ -4,20 +4,21 @@ import { findClientBotUserByNickname, normalizeNickname } from "@/lib/client-bot
 type Row = { display_name: string | null; telegram_id: number; username: string | null };
 
 function supabaseReturning(rows: Row[]) {
-  const ilike = vi.fn(() => ({ limit: vi.fn(async () => ({ data: rows, error: null })) }));
+  const eq = vi.fn(() => ({ limit: vi.fn(async () => ({ data: rows, error: null })) }));
 
   return {
-    client: { from: vi.fn(() => ({ select: vi.fn(() => ({ ilike })) })) },
-    ilike,
+    client: { from: vi.fn(() => ({ select: vi.fn(() => ({ eq })) })) },
+    eq,
   };
 }
 
 const ACE: Row = { display_name: "Ace High", telegram_id: 42, username: "ace" };
 
 describe("normalizeNickname", () => {
-  it("ignores case and stray spacing", () => {
-    expect(normalizeNickname("  Ace   High ")).toBe("ace high");
-    expect(normalizeNickname("СТАРЫЙ УЗБЕК")).toBe("старый узбек");
+  it("reads one player behind every way the club types their nickname", () => {
+    expect(normalizeNickname("  Ace   High ")).toBe("acehigh");
+    expect(normalizeNickname("ace_high")).toBe("acehigh");
+    expect(normalizeNickname("СТАРЫЙ УЗБЕК")).toBe("старыйузбек");
   });
 });
 
@@ -46,24 +47,18 @@ describe("findClientBotUserByNickname", () => {
     expect(result).toEqual({ ambiguous: true, user: null });
   });
 
-  it("drops rows the database matched loosely but that are not the same nickname", async () => {
-    const { client } = supabaseReturning([{ ...ACE, display_name: "Ace Highest" }]);
+  it("asks the database for the key, not the spelling", async () => {
+    const { client, eq } = supabaseReturning([]);
 
-    expect((await findClientBotUserByNickname(client as never, "Ace High")).user).toBeNull();
+    await findClientBotUserByNickname(client as never, "100%_Ace");
+
+    expect(eq).toHaveBeenCalledWith("nickname_key", "100ace");
   });
 
-  it("escapes wildcards so a nickname with % or _ cannot match everyone", async () => {
-    const { client, ilike } = supabaseReturning([]);
+  it("does not query at all for a nickname with nothing to match on", async () => {
+    const { client, eq } = supabaseReturning([ACE]);
 
-    await findClientBotUserByNickname(client as never, "100%_ace");
-
-    expect(ilike).toHaveBeenCalledWith("display_name", "100\\%\\_ace");
-  });
-
-  it("does not query at all for an empty nickname", async () => {
-    const { client, ilike } = supabaseReturning([ACE]);
-
-    expect((await findClientBotUserByNickname(client as never, "   ")).user).toBeNull();
-    expect(ilike).not.toHaveBeenCalled();
+    expect((await findClientBotUserByNickname(client as never, "  _- ")).user).toBeNull();
+    expect(eq).not.toHaveBeenCalled();
   });
 });

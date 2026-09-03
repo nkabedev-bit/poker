@@ -121,17 +121,23 @@ describe("last places", () => {
 
 describe("buildPlayerResultsFilter", () => {
   // Imported games and hand-added players carry a name, not an account.
-  it("matches by account and by nickname", () => {
+  it("matches by account and by the nickname's key", () => {
     expect(buildPlayerResultsFilter(42, "Ace High")).toBe(
-      "telegram_id.eq.42,player_name.ilike.Ace High",
+      "telegram_id.eq.42,player_key.eq.acehigh",
     );
+  });
+
+  it("finds the same games however the nickname was written", () => {
+    expect(buildPlayerResultsFilter(42, "ACE_HIGH")).toBe(buildPlayerResultsFilter(42, "ace high"));
   });
 
   it("matches by account alone when there is no nickname", () => {
     expect(buildPlayerResultsFilter(42, "   ")).toBe("telegram_id.eq.42");
   });
 
-  it("escapes the wildcards a nickname may contain", () => {
-    expect(buildPlayerResultsFilter(42, "100%_ace")).toContain("100\\%\\_ace");
+  // The key drops everything but letters and digits, so a nickname can carry no
+  // wildcard into the filter.
+  it("strips the punctuation a nickname may contain", () => {
+    expect(buildPlayerResultsFilter(42, "100%_ace")).toBe("telegram_id.eq.42,player_key.eq.100ace");
   });
 });

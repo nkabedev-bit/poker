@@ -1,3 +1,5 @@
+import { buildNicknameKey } from "@/lib/players/nickname-key";
+
 export type SeasonStatus = "open" | "closed";
 
 export type Season = {
@@ -58,7 +60,7 @@ export function buildSeasonStandings(
     // a renamed player keeps one line in the table.
     const key = row.telegramId
       ? `tg:${row.telegramId}`
-      : `name:${row.playerName.trim().toLocaleLowerCase("ru-RU")}`;
+      : `name:${buildNicknameKey(row.playerName)}`;
 
     byPlayer.set(key, [...(byPlayer.get(key) ?? []), row]);
   }

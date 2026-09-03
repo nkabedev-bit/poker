@@ -6,11 +6,12 @@ import {
   readSeasonSnapshot,
 } from "@/lib/seasons/store";
 import type { SeasonStanding } from "@/lib/seasons/season";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export const dynamic = "force-dynamic";
 
 function normalizeNickname(value: string | null | undefined) {
-  return (value ?? "").trim().toLocaleLowerCase("ru-RU");
+  return buildNicknameKey(value ?? "");
 }
 
 /**

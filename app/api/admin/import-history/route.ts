@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readGames, readMonths } from "@/lib/sheets-import/reader";
 import { resolveGameNightDate } from "@/lib/sheets-import/parse-sheets";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -231,11 +232,10 @@ export async function POST(request: Request) {
     );
 
     // A season sheet and a month sheet can both carry the same evening, so one row per
-    // player per evening survives. The club writes a nickname as it pleases — "kabedev"
-    // in a game sheet, "Kabedev" in the monthly table — so the key ignores case, which
-    // the table's own unique constraint does not.
+    // player per evening survives. The club writes a nickname as it pleases — "kabedev",
+    // "Kabedev", "adam_smasher", "ADAM SMASHER" — and all of those are one player.
     const nightKey = (playedOn: string, playerName: string) =>
-      `${playedOn}|${playerName.trim().toLocaleLowerCase("ru-RU")}`;
+      `${playedOn}|${buildNicknameKey(playerName)}`;
 
     const uniqueNights = [
       ...new Map(
