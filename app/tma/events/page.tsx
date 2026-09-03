@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import {
   CalendarPlus,
   ChevronLeft,
+  Copy,
   Eye,
   EyeOff,
   Image as ImageIcon,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { utcISOToMoscowLocal } from "@/lib/client-bot/schedule-time";
+import { addMinutesToMoscowLocal, type EventTemplate } from "@/lib/events/templates";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -78,16 +80,24 @@ export default function TMAEventsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [templates, setTemplates] = useState<EventTemplate[]>([]);
   const posterInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/tma/events", {
-        headers: { "X-Telegram-Init-Data": initData },
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const [eventsRes, templatesRes] = await Promise.all([
+        fetch("/api/tma/events", { headers: { "X-Telegram-Init-Data": initData } }),
+        fetch("/api/tma/event-templates", { headers: { "X-Telegram-Init-Data": initData } }),
+      ]);
+
+      if (eventsRes.ok) {
+        const data = await eventsRes.json();
         setEvents(data.events ?? []);
+      }
+
+      if (templatesRes.ok) {
+        const data = await templatesRes.json();
+        setTemplates(data.templates ?? []);
       }
     } finally {
       setLoading(false);
@@ -101,6 +111,95 @@ export default function TMAEventsPage() {
 
   const update = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
+
+  /**
+   * Fills the form from a saved poster, leaving the date alone: it is the one thing
+   * that changes from week to week.
+   */
+  const applyTemplate = (templateId: string) => {
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    setDraft((current) =>
+      current
+        ? {
+            ...current,
+            badge: template.badge ?? "",
+            buyIn: template.buyIn ? String(template.buyIn) : "",
+            featuresText: template.featuresText,
+            lateEntryUntil:
+              template.lateEntryMinutes && current.startsAt
+                ? addMinutesToMoscowLocal(current.startsAt, template.lateEntryMinutes)
+                : current.lateEntryUntil,
+            maxPlayers: template.maxPlayers ? String(template.maxPlayers) : "",
+            maxVipPlayers: template.maxVipPlayers ? String(template.maxVipPlayers) : "",
+            posterDataUrl: "",
+            posterUrl: template.posterUrl ?? "",
+            rulesText: template.rulesText,
+            startingStack: template.startingStack ? String(template.startingStack) : "",
+            title: template.title,
+            venueAddress: template.venueAddress,
+            vipBuyIn: template.vipBuyIn ? String(template.vipBuyIn) : "",
+          }
+        : current,
+    );
+  };
+
+  const saveTemplate = () => {
+    const tg = getTelegramWebApp();
+    if (!draft || saving) return;
+
+    const question = `Сохранить «${draft.title || "афишу"}» как шаблон? Дата и время в шаблон не попадут.`;
+
+    if (!tg?.showConfirm) {
+      void sendTemplate();
+      return;
+    }
+
+    tg.showConfirm(question, (confirmed: boolean) => {
+      if (confirmed) void sendTemplate();
+    });
+  };
+
+  const sendTemplate = async () => {
+    const tg = getTelegramWebApp();
+    if (!draft) return;
+
+    setSaving(true);
+    try {
+      const res = await fetch("/api/tma/event-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({
+          badge: draft.badge,
+          buyIn: draft.buyIn || 0,
+          featuresText: draft.featuresText,
+          lateEntryUntil: draft.lateEntryUntil,
+          maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
+          maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
+          name: draft.title,
+          posterUrl: draft.posterUrl,
+          rulesText: draft.rulesText,
+          startingStack: draft.startingStack ? Number(draft.startingStack) : null,
+          startsAt: draft.startsAt,
+          title: draft.title,
+          venueAddress: draft.venueAddress,
+          vipBuyIn: draft.vipBuyIn ? Number(draft.vipBuyIn) : null,
+        }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        tg?.showAlert(data?.error ?? "Не удалось сохранить шаблон");
+        return;
+      }
+
+      setTemplates(data.templates ?? []);
+      tg?.HapticFeedback.notificationOccurred("success");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const pickPoster = (file: File) => {
     const reader = new FileReader();
@@ -209,6 +308,27 @@ export default function TMAEventsPage() {
         </button>
 
         <h1 className="text-xl font-bold">{draft.id ? "Правка афиши" : "Новая афиша"}</h1>
+
+        {templates.length > 0 ? (
+          <div>
+            <FieldLabel title="Шаблон" />
+            <select
+              className={textFieldClass}
+              value=""
+              onChange={(event) => applyTemplate(event.target.value)}
+            >
+              <option value="">Выбрать сохранённый…</option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-[var(--tg-theme-hint-color)]">
+              Подставит всё, кроме даты и времени.
+            </p>
+          </div>
+        ) : null}
 
         <FieldLabel title="Название" />
         <input
@@ -370,6 +490,15 @@ export default function TMAEventsPage() {
         >
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
           {draft.id ? "Сохранить афишу" : "Создать афишу"}
+        </button>
+
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-4 py-3 text-sm font-semibold disabled:opacity-60"
+          disabled={saving || !draft.title.trim()}
+          type="button"
+          onClick={saveTemplate}
+        >
+          <Copy size={16} /> Сохранить как шаблон
         </button>
       </div>
     );

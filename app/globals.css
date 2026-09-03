@@ -3221,3 +3221,40 @@ p {
 .chip-bank--average strong {
   color: #e9c07a;
 }
+
+/* Saved posters: a row per template, with the poster it makes underneath its name. */
+.event-template-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.event-template-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.event-template-list li > button {
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 0.03);
+  padding: 10px 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.event-template-list strong {
+  font-size: 14px;
+}
+
+.event-template-list span {
+  font-size: 12px;
+}

@@ -9,6 +9,12 @@ import { prepareLogoImage } from "@/lib/admin/logo-upload";
 import { eventInputSchema, toEventDraft } from "@/lib/events/input";
 import { MAX_POSTER_BYTES, PosterUploadError } from "@/lib/events/poster-upload";
 import { deleteEvent, saveEvent } from "@/lib/events/store";
+import {
+  makeEventTemplate,
+  removeEventTemplate,
+  upsertEventTemplate,
+} from "@/lib/events/templates";
+import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 const POSTER_BUCKET = "tournament-logos";
@@ -49,6 +55,7 @@ export async function saveTournamentEvent(formData: FormData) {
     isPublished: formData.get("isPublished") === "yes",
     lateEntryUntil: formData.get("lateEntryUntil"),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
+    maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
     posterUrl: formData.get("posterUrl"),
     rulesText: formData.get("rulesText"),
     startingStack: optionalNumber(formData.get("startingStack")),
@@ -78,4 +85,65 @@ export async function deleteTournamentEvent(formData: FormData) {
 
   revalidatePath("/admin/events");
   redirect("/admin/events?deleted=1");
+}
+
+/**
+ * Saves the poster on screen as a template. The club runs the same seven tournaments,
+ * so what is worth keeping is everything except the evening — that is typed afresh.
+ */
+export async function saveTournamentEventTemplate(formData: FormData) {
+  const name = String(formData.get("templateName") ?? "").trim();
+  if (!name) redirect("/admin/events?templateError=name");
+
+  const parsed = eventInputSchema.parse({
+    badge: formData.get("badge"),
+    buyIn: formData.get("buyIn") || 0,
+    featuresText: formData.get("featuresText"),
+    isPublished: false,
+    lateEntryUntil: formData.get("lateEntryUntil"),
+    maxPlayers: optionalNumber(formData.get("maxPlayers")),
+    maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
+    posterUrl: formData.get("posterUrl"),
+    rulesText: formData.get("rulesText"),
+    startingStack: optionalNumber(formData.get("startingStack")),
+    startsAt: formData.get("startsAt"),
+    title: formData.get("title"),
+    venueAddress: formData.get("venueAddress"),
+    vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
+  });
+
+  const supabase = await createSupabaseServerClient();
+  const { data: tournament } = await supabase.from("tournaments").select("id").limit(1).single();
+  const extras = await loadTournamentExtras(tournament?.id as string | undefined, supabase);
+
+  await saveTournamentExtras(
+    {
+      eventTemplates: upsertEventTemplate(
+        extras.eventTemplates,
+        makeEventTemplate(name, toEventDraft(parsed)),
+      ),
+    },
+    "/admin/events",
+    supabase,
+  );
+
+  revalidatePath("/admin/events");
+  redirect("/admin/events?templateSaved=1");
+}
+
+export async function deleteTournamentEventTemplate(formData: FormData) {
+  const id = String(formData.get("templateId") ?? "").trim();
+
+  const supabase = await createSupabaseServerClient();
+  const { data: tournament } = await supabase.from("tournaments").select("id").limit(1).single();
+  const extras = await loadTournamentExtras(tournament?.id as string | undefined, supabase);
+
+  await saveTournamentExtras(
+    { eventTemplates: removeEventTemplate(extras.eventTemplates, id) },
+    "/admin/events",
+    supabase,
+  );
+
+  revalidatePath("/admin/events");
+  redirect("/admin/events?templateDeleted=1");
 }

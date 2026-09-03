@@ -3,10 +3,16 @@
 import Link from "next/link";
 import { useState } from "react";
 import { CalendarPlus, Pencil, Trash2, Users } from "lucide-react";
-import { deleteTournamentEvent, saveTournamentEvent } from "@/app/admin/events/actions";
+import {
+  deleteTournamentEvent,
+  deleteTournamentEventTemplate,
+  saveTournamentEvent,
+  saveTournamentEventTemplate,
+} from "@/app/admin/events/actions";
 import { SubmitButton } from "@/components/admin/submit-button";
 import type { EventSignupWithPlayer } from "@/lib/events/store";
 import { utcISOToMoscowLocal } from "@/lib/client-bot/schedule-time";
+import { addMinutesToMoscowLocal, type EventTemplate } from "@/lib/events/templates";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -62,15 +68,47 @@ export function EventsManager({
   selectedEventId,
   signupCounts,
   signups,
+  templates = [],
 }: {
   events: TournamentEvent[];
   selectedEventId: string | null;
   signupCounts: Record<string, number>;
   signups: EventSignupWithPlayer[];
+  templates?: EventTemplate[];
 }) {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
+  const [templateName, setTemplateName] = useState("");
 
   const update = (patch: Partial<Draft>) => setDraft((current) => ({ ...current, ...patch }));
+
+  /**
+   * Fills the form from a saved poster. The date is left alone — it is the one thing
+   * that changes from week to week, and it is what the admin came here to type.
+   */
+  const applyTemplate = (templateId: string) => {
+    const template = templates.find((item) => item.id === templateId);
+    if (!template) return;
+
+    setDraft((current) => ({
+      ...current,
+      badge: template.badge ?? "",
+      buyIn: template.buyIn ? String(template.buyIn) : "",
+      featuresText: template.featuresText,
+      lateEntryUntil:
+        template.lateEntryMinutes && current.startsAt
+          ? addMinutesToMoscowLocal(current.startsAt, template.lateEntryMinutes)
+          : current.lateEntryUntil,
+      maxPlayers: template.maxPlayers ? String(template.maxPlayers) : "",
+      maxVipPlayers: template.maxVipPlayers ? String(template.maxVipPlayers) : "",
+      posterUrl: template.posterUrl ?? "",
+      rulesText: template.rulesText,
+      startingStack: template.startingStack ? String(template.startingStack) : "",
+      title: template.title,
+      venueAddress: template.venueAddress,
+      vipBuyIn: template.vipBuyIn ? String(template.vipBuyIn) : "",
+    }));
+    setTemplateName(template.name);
+  };
 
   return (
     <div className="settings-stack">
@@ -91,6 +129,41 @@ export function EventsManager({
 
         <input name="id" type="hidden" value={draft.id} />
         <input name="posterUrl" type="hidden" value={draft.posterUrl} />
+
+        <div className="events-form-row">
+          <label>
+            Шаблон
+            <select
+              value=""
+              onChange={(event) => applyTemplate(event.target.value)}
+            >
+              <option value="">
+                {templates.length > 0 ? "Выбрать сохранённый…" : "Шаблонов пока нет"}
+              </option>
+              {templates.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name}
+                </option>
+              ))}
+            </select>
+            <span className="field-help">
+              Подставит всё, кроме даты и времени — их укажите ниже.
+            </span>
+          </label>
+          <label>
+            Сохранить как шаблон
+            <input
+              name="templateName"
+              maxLength={48}
+              placeholder="Четверговый"
+              value={templateName}
+              onChange={(event) => setTemplateName(event.target.value)}
+            />
+            <span className="field-help">
+              Имя уже сохранённого шаблона перезапишет его.
+            </span>
+          </label>
+        </div>
 
         <label>
           Название
@@ -244,10 +317,49 @@ export function EventsManager({
           Показывать игрокам
         </label>
 
-        <SubmitButton className="gold-button" pendingText="Сохраняем...">
-          {draft.id ? "Сохранить афишу" : "Создать афишу"}
-        </SubmitButton>
+        <div className="qr-actions">
+          <SubmitButton className="gold-button" pendingText="Сохраняем...">
+            {draft.id ? "Сохранить афишу" : "Создать афишу"}
+          </SubmitButton>
+          <SubmitButton
+            className="ghost-button"
+            formAction={saveTournamentEventTemplate}
+            pendingText="Сохраняем шаблон..."
+          >
+            Сохранить как шаблон
+          </SubmitButton>
+        </div>
       </form>
+
+      {templates.length > 0 ? (
+        <section className="poker-panel">
+          <div className="panel-heading">
+            <div>
+              <h2>Шаблоны афиш ({templates.length})</h2>
+              <p className="muted">
+                Выберите шаблон в форме выше — подставится всё, кроме даты и времени.
+              </p>
+            </div>
+          </div>
+
+          <ul className="event-template-list">
+            {templates.map((template) => (
+              <li key={template.id}>
+                <button type="button" onClick={() => applyTemplate(template.id)}>
+                  <strong>{template.name}</strong>
+                  <span className="muted">{template.title}</span>
+                </button>
+                <form action={deleteTournamentEventTemplate}>
+                  <input name="templateId" type="hidden" value={template.id} />
+                  <SubmitButton className="ghost-button" pendingText="...">
+                    <Trash2 size={15} />
+                  </SubmitButton>
+                </form>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="poker-panel">
         <div className="panel-heading">

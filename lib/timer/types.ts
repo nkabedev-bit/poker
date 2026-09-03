@@ -1,3 +1,5 @@
+import type { EventTemplate } from "@/lib/events/templates";
+
 export type TimerStatus =
   | "not_started"
   | "running"
@@ -95,6 +97,8 @@ export type ScheduleVersion = { effectiveFrom: string; text: string };
 
 export type TournamentExtras = {
   blindTemplates: BlindTemplate[];
+  /** Saved posters the club reuses week after week, dated afresh each time. */
+  eventTemplates: EventTemplate[];
   clientBot: {
     ratingUrl: string;
     scheduleText: string;
