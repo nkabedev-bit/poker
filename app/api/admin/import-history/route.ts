@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const NIGHT_BATCH_SIZE = 500;
+const NIGHT_DATE_BATCH_SIZE = 100;
 
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
@@ -230,15 +231,40 @@ export async function POST(request: Request) {
     );
 
     // A season sheet and a month sheet can both carry the same evening, so one row per
-    // player per evening survives.
-    const nightRows = [
+    // player per evening survives. The club writes a nickname as it pleases — "kabedev"
+    // in a game sheet, "Kabedev" in the monthly table — so the key ignores case, which
+    // the table's own unique constraint does not.
+    const nightKey = (playedOn: string, playerName: string) =>
+      `${playedOn}|${playerName.trim().toLocaleLowerCase("ru-RU")}`;
+
+    const uniqueNights = [
       ...new Map(
-        nights.map((night) => [
-          `${night.started_at}|${night.player_name.toLocaleLowerCase("ru-RU")}`,
-          night,
-        ]),
+        nights.map((night) => [nightKey(night.played_on, night.player_name), night]),
       ).values(),
     ];
+
+    // An evening the club already has — imported from its own game sheet, or played in
+    // the app — keeps its place and knockouts. Only the nights nothing knows about are
+    // restored from the monthly columns.
+    const known = new Set<string>();
+    const nightDates = [...new Set(uniqueNights.map((night) => night.played_on))];
+
+    for (let offset = 0; offset < nightDates.length; offset += NIGHT_DATE_BATCH_SIZE) {
+      const { data, error } = await supabase
+        .from("tournament_results")
+        .select("played_on, player_name")
+        .in("played_on", nightDates.slice(offset, offset + NIGHT_DATE_BATCH_SIZE));
+
+      if (error) throw error;
+
+      for (const row of (data ?? []) as Array<{ played_on: string; player_name: string }>) {
+        known.add(nightKey(row.played_on, row.player_name));
+      }
+    }
+
+    const nightRows = uniqueNights.filter(
+      (night) => !known.has(nightKey(night.played_on, night.player_name)),
+    );
 
     // Years of evenings across every player add up to thousands of rows, and one
     // request that large times out before it is written.
