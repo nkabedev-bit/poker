@@ -326,5 +326,5 @@ begin
 end;
 $$;
 
-revoke all on function public.cancel_player_elimination(uuid, text, integer, jsonb, numeric, boolean, jsonb, boolean, numeric) from public;
-grant execute on function public.cancel_player_elimination(uuid, text, integer, jsonb, numeric, boolean, jsonb, boolean, numeric) to authenticated, service_role;
+revoke all on function public.cancel_player_elimination(uuid, text, integer, jsonb, numeric, boolean, jsonb, boolean, boolean, numeric) from public;
+grant execute on function public.cancel_player_elimination(uuid, text, integer, jsonb, numeric, boolean, jsonb, boolean, boolean, numeric) to authenticated, service_role;
