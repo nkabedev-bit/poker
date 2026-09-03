@@ -287,8 +287,11 @@ export default function TMABotPage() {
         <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 text-black">
           <div className="flex items-center gap-2 text-black">
             <Clock size={18} />
-            <h2 className="text-base font-bold">Запланированные рассылки</h2>
+            <h2 className="text-base font-bold">Рассылки</h2>
           </div>
+          <p className="text-xs text-neutral-600">
+            Запланированные и две последние отправленные — остальные удаляются.
+          </p>
           {scheduled.map((item) => (
             <div key={item.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-black">
               <div className="flex items-center justify-between gap-2">
