@@ -15,6 +15,7 @@ import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import type { CardSession, TicketType } from "@/lib/cards/card-code";
+import type { ChargeLine } from "@/lib/finance/player-charge";
 
 type Signup = {
   id: string;
@@ -416,6 +417,25 @@ export default function TMACardsPage() {
             <Counter label="Аддонов" value={session.addons} />
           </div>
 
+          {/* The bill the admin reads out at the desk: every line the player bought,
+              then what they hand over. */}
+          <div className="space-y-1.5 rounded-lg bg-[var(--tg-theme-bg-color)] p-3">
+            <ChargeRow
+              label={session.charge.ticket.free ? "Вход (проходка)" : "Вход"}
+              line={session.charge.ticket}
+            />
+            <ChargeRow label="Ре-энтри" line={session.charge.reentries} />
+            <ChargeRow label="Двойные" line={session.charge.doubleReentries} />
+            <ChargeRow label="Аддоны" line={session.charge.addons} />
+
+            <div className="mt-2 flex items-baseline justify-between border-t border-[var(--tg-theme-hint-color)]/25 pt-2">
+              <span className="font-semibold">К оплате</span>
+              <span className="text-2xl font-bold">
+                {session.charge.total.toLocaleString("ru-RU")} ₽
+              </span>
+            </div>
+          </div>
+
           <button
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold disabled:opacity-60"
             disabled={busy}
@@ -534,6 +554,22 @@ export default function TMACardsPage() {
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/** One line of the bill: how many, at what price, for how much. */
+function ChargeRow({ label, line }: { label: string; line: ChargeLine & { free?: boolean } }) {
+  // A line nobody bought is left out, but a free entry is worth saying out loud.
+  if (line.count === 0 && !line.free) return null;
+
+  return (
+    <div className="flex items-baseline justify-between gap-2 text-sm">
+      <span className="text-[var(--tg-theme-hint-color)]">
+        {label}
+        {line.count > 1 ? ` × ${line.count}` : ""}
+      </span>
+      <span className="font-semibold">{line.sum.toLocaleString("ru-RU")} ₽</span>
     </div>
   );
 }

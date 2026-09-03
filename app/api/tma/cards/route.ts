@@ -6,6 +6,7 @@ import {
   isTicketType,
   normalizeCardCode,
 } from "@/lib/cards/card-code";
+import { getFinancePrices } from "@/lib/finance/player-charge";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ cardCode, session: null });
   }
 
-  return NextResponse.json({ cardCode, session: buildCardSession(player, cardCode) });
+  return NextResponse.json({
+    cardCode,
+    session: buildCardSession(player, cardCode, getFinancePrices(extras.settings), {
+      freeroll: extras.settings.tournamentFormat === "freeroll",
+    }),
+  });
 }
 
 /** Hands a card to a player for the evening. */
@@ -38,6 +44,7 @@ export async function POST(request: Request) {
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
+  const extras = await loadTournamentExtras(t.id, auth.supabase);
   const body = await request.json().catch(() => ({}));
   const cardCode = normalizeCardCode(body.cardCode);
   const playerId = String(body.playerId ?? "");
@@ -69,7 +76,11 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  return NextResponse.json({ session: buildCardSession(data, cardCode) });
+  return NextResponse.json({
+    session: buildCardSession(data, cardCode, getFinancePrices(extras.settings), {
+      freeroll: extras.settings.tournamentFormat === "freeroll",
+    }),
+  });
 }
 
 /** Takes the card back at the end of the evening and frees it for the next player. */

@@ -1,6 +1,11 @@
 import { google, type sheets_v4 } from "googleapis";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  buildPlayerCharge,
+  getFinancePrices,
+  type FinancePrices,
+} from "@/lib/finance/player-charge";
+import {
   buildClientBotProfileSheetRow,
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
   formatClientBotBirthDateForSheet,
@@ -869,36 +874,8 @@ const FINANCE_SHEET_HEADERS = [
 
 const FINANCE_TOTALS_LABEL = "ИТОГО";
 
-export type FinancePrices = {
-  addonPrice: number;
-  buyIn: number;
-  doubleRebuyPrice: number;
-  rebuyPrice: number;
-  vipBuyIn: number;
-};
-
-function getPrice(value: unknown) {
-  const price = Number(value);
-  return Number.isFinite(price) && price > 0 ? price : 0;
-}
-
-export function getFinancePrices(settings: Partial<TournamentExtras["settings"]>): FinancePrices {
-  return {
-    addonPrice: getPrice(settings.addonPrice),
-    buyIn: getPrice(settings.buyIn),
-    doubleRebuyPrice: getPrice(settings.doubleRebuyPrice),
-    rebuyPrice: getPrice(settings.rebuyPrice),
-    vipBuyIn: getPrice(settings.vipBuyIn),
-  };
-}
-
-// The ticket a player was sold at the door: the VIP price only when the VIP ticket was
-// actually picked on the card scan. FREEROLL charges no entry at all, so the ticket
-// column is left empty rather than written as a zero.
-function getPlayerTicketPrice(player: TournamentPlayer, prices: FinancePrices, freeEntry: boolean) {
-  if (freeEntry) return 0;
-  return player.ticketType === "vip" ? prices.vipBuyIn : prices.buyIn;
-}
+export { getFinancePrices };
+export type { FinancePrices };
 
 export function buildFinanceSheetRows(
   players: TournamentPlayer[],
@@ -913,27 +890,22 @@ export function buildFinanceSheetRows(
       return left - right;
     })
     .map((player) => {
-      const doubleRebuys = Math.max(0, Number(player.doubleRebuys) || 0);
-      // `rebuys` counts every re-entry including the double ones, which are priced apart.
-      const singleRebuys = Math.max(0, (Number(player.rebuys) || 0) - doubleRebuys);
-      const addons = Math.max(0, Number(player.addons) || 0);
-      const ticket = getPlayerTicketPrice(player, prices, freeEntry);
-      const rebuysSum = singleRebuys * prices.rebuyPrice;
-      const doubleSum = doubleRebuys * prices.doubleRebuyPrice;
-      const addonsSum = addons * prices.addonPrice;
+      // The same sum the admin reads off the card at the door — one calculation, so the
+      // sheet and the desk can never disagree.
+      const charge = buildPlayerCharge(player, prices, { freeroll: freeEntry });
       const registrationNumber = Number(player.registrationNumber);
 
       return [
         Number.isInteger(registrationNumber) && registrationNumber > 0 ? registrationNumber : "",
         player.name || "",
-        freeEntry ? "" : ticket,
-        blankIfZero(singleRebuys),
-        blankIfZero(rebuysSum),
-        blankIfZero(doubleRebuys),
-        blankIfZero(doubleSum),
-        blankIfZero(addons),
-        blankIfZero(addonsSum),
-        ticket + rebuysSum + doubleSum + addonsSum,
+        charge.ticket.free ? "" : charge.ticket.sum,
+        blankIfZero(charge.reentries.count),
+        blankIfZero(charge.reentries.sum),
+        blankIfZero(charge.doubleReentries.count),
+        blankIfZero(charge.doubleReentries.sum),
+        blankIfZero(charge.addons.count),
+        blankIfZero(charge.addons.sum),
+        charge.total,
       ];
     });
 

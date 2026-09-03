@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
 import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
+import { getFinancePrices } from "@/lib/finance/player-charge";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
@@ -176,7 +177,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
     }
 
-    session = buildCardSession(carded, cardCode);
+    session = buildCardSession(carded, cardCode, getFinancePrices(extras.settings), {
+      freeroll: extras.settings.tournamentFormat === "freeroll",
+    });
   }
 
   await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);

@@ -43,6 +43,17 @@ describe("finance sheet", () => {
     expect(rows[0]).toEqual([1, "Иван", 1250, 2, 2500, 1, 2000, 1, 1250, 7000]);
   });
 
+  // A pass covers the seat, so the sheet must not ask for the ticket a second time.
+  it("writes no entry money for a player who came in on a free pass", () => {
+    const rows = buildFinanceSheetRows(
+      [player(3, "Проходка", { addons: 1, freePass: "regular", rebuys: 1 })],
+      prices,
+    );
+
+    expect(rows[0]?.[2]).toBe("");
+    expect(rows[0]?.[9]).toBe(2500);
+  });
+
   it("charges the VIP price only for a VIP ticket sold at the door", () => {
     const rows = buildFinanceSheetRows(
       [player(21, "ВИП", { ticketType: "vip" }), player(2, "Обычный", { ticketType: "regular" })],

@@ -1,3 +1,4 @@
+import { buildPlayerCharge, type FinancePrices, type PlayerCharge } from "@/lib/finance/player-charge";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export type TicketType = "regular" | "vip";
@@ -9,6 +10,8 @@ export type TicketType = "regular" | "vip";
 export type CardSession = {
   addons: number;
   cardCode: string;
+  /** What the player owes for the evening, line by line. */
+  charge: PlayerCharge;
   doubleReentries: number;
   /** The entry was covered by a free pass — nothing to take for the ticket. */
   freePass: boolean;
@@ -28,13 +31,19 @@ export function isTicketType(value: unknown): value is TicketType {
   return value === "regular" || value === "vip";
 }
 
-export function buildCardSession(player: TournamentPlayer, cardCode: string): CardSession {
+export function buildCardSession(
+  player: TournamentPlayer,
+  cardCode: string,
+  prices: FinancePrices,
+  options: { freeroll?: boolean } = {},
+): CardSession {
   const rebuys = Math.max(0, Number(player.rebuys ?? 0));
   const doubleRebuys = Math.max(0, Number(player.doubleRebuys ?? 0));
 
   return {
     addons: Math.max(0, Number(player.addons ?? 0)),
     cardCode,
+    charge: buildPlayerCharge(player, prices, options),
     // `rebuys` counts every re-entry including the doubles, and the two are reported
     // apart so the desk can tell one from the other.
     doubleReentries: doubleRebuys,
