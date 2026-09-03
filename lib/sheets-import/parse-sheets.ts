@@ -5,9 +5,15 @@ export type ParsedGameRow = {
   points: number;
 };
 
+export type ParsedGameNight = {
+  // The column heading the night was scored under: "14.06", "5.3.26".
+  heading: string;
+  points: number;
+};
+
 export type ParsedMonthRow = {
-  // What the player scored in each game night of the sheet, in column order.
-  gamePoints: number[];
+  // Every game night of the sheet the player actually played, in column order.
+  gameNights: ParsedGameNight[];
   knockouts: number;
   playerName: string;
   points: number;
@@ -188,6 +194,41 @@ export function parseMonthSheetKey(sheetName: string, fallbackYear: number) {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
+/**
+ * The day a night column stands for, as an ISO date.
+ *
+ * The club writes these headings as "14.06" or "5.3.26" — the year is often missing,
+ * so it comes from the months the sheet covers: a "14.06" column on a sheet spanning
+ * May and June 2025 is the fourteenth of June 2025.
+ */
+export function resolveGameNightDate(
+  heading: string,
+  coveredMonths: string[],
+  fallbackYear: number,
+) {
+  const parts = heading.trim().split(/[.\-/]/);
+  if (parts.length < 2) return null;
+
+  const day = Number(parts[0]);
+  const month = Number(parts[1]);
+  if (!Number.isInteger(day) || !Number.isInteger(month)) return null;
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+
+  const writtenYear = parts[2] ? Number(parts[2]) : null;
+  const monthKey = String(month).padStart(2, "0");
+  const coveredYear = coveredMonths
+    .find((covered) => covered.endsWith(`-${monthKey}`))
+    ?.slice(0, 4);
+
+  const year = writtenYear === null
+    ? Number(coveredYear ?? fallbackYear)
+    : writtenYear < 100
+      ? 2000 + writtenYear
+      : writtenYear;
+
+  return `${year}-${monthKey}-${String(day).padStart(2, "0")}`;
+}
+
 /** "5.3.26", "22.03.26" — a game night; "Итоговая сумма", "БАУНТИ" — not. */
 function isGameDateHeading(heading: string) {
   return /^\d{1,2}[.\-/]\d{1,2}([.\-/]\d{2,4})?$/.test(heading.trim());
@@ -218,7 +259,8 @@ export function scoreMonthRows(rows: ParsedMonthRow[], countedGames: number | nu
   return rows.map((row) => ({
     ...row,
     points: Number(
-      [...row.gamePoints]
+      row.gameNights
+        .map((night) => night.points)
         .sort((a, b) => b - a)
         .slice(0, countedGames)
         .reduce((total, points) => total + points, 0)
@@ -277,14 +319,17 @@ export function parseMonthStandings(
   // The columns of individual game nights, kept so a season's own scoring rule — the
   // best five games, say — can be applied instead of trusting a running total.
   const gameColumns = header
-    .map((heading, index) => ({ heading, index }))
-    .filter((column) => isGameDateHeading(column.heading))
-    .map((column) => column.index);
+    .map((heading, index) => ({ heading: heading.trim(), index }))
+    .filter((column) => isGameDateHeading(column.heading));
 
   return values
     .slice(headerIndex + 1)
     .map((row) => ({
-      gamePoints: gameColumns.map((index) => toNumber(row[index])).filter((points) => points > 0),
+      // A player who missed a night has an empty cell there, so only the scored
+      // columns say they were in the room that evening.
+      gameNights: gameColumns
+        .map((column) => ({ heading: column.heading, points: toNumber(row[column.index]) }))
+        .filter((night) => night.points > 0),
       knockouts: knockoutsColumn === -1 ? 0 : toNumber(row[knockoutsColumn]),
       playerName: String(row[nameColumn] ?? "").trim(),
       points: toNumber(row[scoreColumn]),

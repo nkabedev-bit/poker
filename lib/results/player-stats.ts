@@ -58,6 +58,11 @@ export function computePlayerStats(rows: PlayerResultRow[]): ComputedPlayerStats
   let missStreak = 0;
 
   for (const row of played) {
+    // Nights restored from the club's old monthly tables have a score but no finishing
+    // place. They count as games played, and they break no streak: nobody knows whether
+    // that evening was a deep run or an early exit.
+    if (row.place === null) continue;
+
     if (isTop9(row.place)) {
       top9Streak += 1;
       missStreak = 0;

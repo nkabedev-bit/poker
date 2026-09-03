@@ -95,7 +95,7 @@ export function ImportManager() {
       }
 
       setMessage(
-        `Перенесено: игр ${data.games} (${data.gameRows} строк), месяцев ${data.months} (${data.monthRows} строк).`,
+        `Перенесено: игр ${data.games} (${data.gameRows} строк), месяцев ${data.months} (${data.monthRows} строк), вечеров из месячных таблиц ${data.nightRows} строк.`,
       );
     } finally {
       setBusy(false);

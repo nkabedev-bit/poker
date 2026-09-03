@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readGames, readMonths } from "@/lib/sheets-import/reader";
+import { resolveGameNightDate } from "@/lib/sheets-import/parse-sheets";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+const NIGHT_BATCH_SIZE = 500;
 
 async function requireAdmin() {
   const supabase = await createSupabaseServerClient();
@@ -120,6 +123,7 @@ export async function POST(request: Request) {
     // archive table meant a sheet fixed after the migration never became a season at
     // all — which is exactly how June went missing.
     const importedPeriods = months.filter((month) => !skipped.has(month.sheetName));
+    const seasonIdBySheet = new Map<string, string>();
     let seasonRows = 0;
 
     for (const period of importedPeriods) {
@@ -164,6 +168,8 @@ export async function POST(request: Request) {
         seasonId = (created as { id: string }).id;
       }
 
+      seasonIdBySheet.set(period.sheetName, seasonId);
+
       // The sheet is the source of truth for an imported season, so its table replaces
       // whatever was there — a re-import corrects rather than duplicates.
       const { error: clearError } = await supabase
@@ -192,11 +198,67 @@ export async function POST(request: Request) {
     }
 
 
+    // The club's oldest seasons were never kept as game sheets — only as a monthly
+    // table with a column per evening. Those columns are the only record that a player
+    // was in the room that night, so each scored cell becomes a game of its own and the
+    // profile counts it. Nights already imported from a game sheet win: `ignoreDuplicates`
+    // leaves their place and knockouts untouched.
+    const nights = importedPeriods.flatMap((month) =>
+      month.rows.flatMap((row) =>
+        row.gameNights.flatMap((night) => {
+          const playedOn = resolveGameNightDate(night.heading, month.coveredMonths, year);
+          if (!playedOn) return [];
+
+          return [{
+            // The season's table was frozen from the sheet itself, so these games must
+            // not be scored a second time — they are here to be counted and listed.
+            counts_for_rating: false,
+            // The monthly table knows the score of the evening and nothing else: no
+            // finishing place, no knockouts. Those stay empty rather than invented.
+            knockouts: 0,
+            place: null,
+            played_on: playedOn,
+            player_name: row.playerName,
+            points: night.points,
+            season_id: seasonIdBySheet.get(month.sheetName) ?? null,
+            source: "import",
+            started_at: `${playedOn}T12:00:00.000Z`,
+            title: `Игра ${playedOn.split("-").reverse().join(".")}`,
+          }];
+        }),
+      ),
+    );
+
+    // A season sheet and a month sheet can both carry the same evening, so one row per
+    // player per evening survives.
+    const nightRows = [
+      ...new Map(
+        nights.map((night) => [
+          `${night.started_at}|${night.player_name.toLocaleLowerCase("ru-RU")}`,
+          night,
+        ]),
+      ).values(),
+    ];
+
+    // Years of evenings across every player add up to thousands of rows, and one
+    // request that large times out before it is written.
+    for (let offset = 0; offset < nightRows.length; offset += NIGHT_BATCH_SIZE) {
+      const { error } = await supabase
+        .from("tournament_results")
+        .upsert(nightRows.slice(offset, offset + NIGHT_BATCH_SIZE), {
+          ignoreDuplicates: true,
+          onConflict: "started_at,player_name",
+        });
+
+      if (error) throw error;
+    }
+
     return NextResponse.json({
       games: games.filter((game) => !skipped.has(game.sheetName)).length,
       gameRows: gameRows.length,
       months: importedPeriods.length,
       monthRows: seasonRows,
+      nightRows: nightRows.length,
     });
   } catch (error) {
     console.error("History import failed", error);

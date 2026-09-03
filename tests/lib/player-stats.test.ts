@@ -45,6 +45,18 @@ describe("computePlayerStats", () => {
     expect(stats.bestMissStreak).toBe(2);
   });
 
+  it("counts a night restored without a place, and lets it break no streak", () => {
+    // The club's old monthly tables record the score of an evening but not the finish,
+    // so those games count as played and stay out of the streaks.
+    const stats = computePlayerStats([
+      game(2, 0, 1),
+      game(null, 0, 2),
+      game(5, 0, 3),
+    ]);
+
+    expect(stats).toMatchObject({ bestMissStreak: 0, bestTop9Streak: 2, games: 3, top9: 2 });
+  });
+
   it("ignores a negative knockout count from a broken row", () => {
     expect(computePlayerStats([game(1, -5)]).eliminations).toBe(0);
   });

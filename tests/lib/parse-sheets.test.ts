@@ -8,6 +8,7 @@ import {
   parseMonthSheetKey,
   parseMonthStandings,
   parseSheetPeriod,
+  resolveGameNightDate,
 } from "@/lib/sheets-import/parse-sheets";
 
 describe("parseGameSheetDate", () => {
@@ -251,8 +252,18 @@ describe("scoring a sheet by the season's rule", () => {
     ["inrikki", 50, 18, 85, 15, 405, 150, 520, 55, 50, 1348],
   ];
 
-  it("collects what a player scored on each night", () => {
-    expect(parseMonthStandings(sheet)[0].gamePoints).toEqual([50, 18, 85, 15, 405, 150, 520, 55, 50]);
+  it("collects what a player scored on each night, and when it was played", () => {
+    expect(parseMonthStandings(sheet)[0].gameNights).toEqual([
+      { heading: "5.3.26", points: 50 },
+      { heading: "11.3.26", points: 18 },
+      { heading: "19.3.26", points: 85 },
+      { heading: "29.03.26", points: 15 },
+      { heading: "01.04.26", points: 405 },
+      { heading: "05.04.26", points: 150 },
+      { heading: "9.4.26", points: 520 },
+      { heading: "12.4.26", points: 55 },
+      { heading: "16.04.26", points: 50 },
+    ]);
   });
 
   // 520 + 405 + 150 + 85 + 55 — the figure the club published, against a 1348 total.
@@ -284,6 +295,28 @@ describe("scoring a sheet by the season's rule", () => {
       ["inrikki", 50, 1348, 3],
     ]);
 
-    expect(rows[0].gamePoints).toEqual([50]);
+    expect(rows[0].gameNights).toEqual([{ heading: "5.3.26", points: 50 }]);
+  });
+});
+
+describe("resolveGameNightDate", () => {
+  it("takes the year the heading spells out", () => {
+    expect(resolveGameNightDate("5.3.26", [], 2025)).toBe("2026-03-05");
+    expect(resolveGameNightDate("22.03.2025", [], 2026)).toBe("2025-03-22");
+  });
+
+  it("takes the year from the months the sheet covers when the heading omits it", () => {
+    // A season spanning two years: the June column belongs to the year that has June.
+    expect(resolveGameNightDate("14.06", ["2025-05", "2025-06"], 2026)).toBe("2025-06-14");
+    expect(resolveGameNightDate("03.01", ["2025-12", "2026-01"], 2025)).toBe("2026-01-03");
+  });
+
+  it("falls back to the import year when the sheet covers no matching month", () => {
+    expect(resolveGameNightDate("7.9", ["2025-05"], 2025)).toBe("2025-09-07");
+  });
+
+  it("refuses a heading that is not a date", () => {
+    expect(resolveGameNightDate("Итог", [], 2025)).toBeNull();
+    expect(resolveGameNightDate("40.13", [], 2025)).toBeNull();
   });
 });
