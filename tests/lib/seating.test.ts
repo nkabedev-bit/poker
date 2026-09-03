@@ -3,6 +3,8 @@ import {
   buildSeatingTables,
   getSeatPosition,
   isVipTable,
+  listFreeSeats,
+  pickRandomSeat,
   SEATS_PER_TABLE,
 } from "@/lib/tables/seating";
 
@@ -78,5 +80,57 @@ describe("getSeatPosition", () => {
       expect(top).toBeGreaterThanOrEqual(0);
       expect(top).toBeLessThanOrEqual(100);
     }
+  });
+});
+
+describe("picking a seat at random", () => {
+  const tables = buildSeatingTables(
+    [
+      player({ id: "a", seat: 1, table: 1 }),
+      player({ id: "b", seat: 2, table: 1 }),
+      player({ id: "c", seat: 1, table: 2 }),
+    ],
+    2,
+  );
+
+  it("offers a VIP ticket only the VIP table", () => {
+    const free = listFreeSeats(tables, "vip");
+
+    expect(free.every((item) => item.table === 2)).toBe(true);
+    expect(free).toHaveLength(9);
+  });
+
+  it("keeps a regular ticket off the VIP table", () => {
+    const free = listFreeSeats(tables, "regular");
+
+    expect(free.every((item) => item.table === 1)).toBe(true);
+    expect(free).toHaveLength(8);
+  });
+
+  it("draws one of the free seats", () => {
+    const picked = pickRandomSeat(tables, "vip", () => 0);
+
+    expect(picked).toEqual({ seat: 2, table: 2 });
+  });
+
+  it("stays inside the list when the draw lands on its very end", () => {
+    const picked = pickRandomSeat(tables, "regular", () => 0.999999999);
+
+    expect(picked).toEqual({ seat: 10, table: 1 });
+  });
+
+  it("reports nothing when the tables of that kind are full", () => {
+    const full = buildSeatingTables(
+      Array.from({ length: 10 }, (_, index) =>
+        player({ id: `p${index}`, seat: index + 1, table: 2 }),
+      ),
+      2,
+    );
+
+    expect(pickRandomSeat(full, "vip")).toBeNull();
+  });
+
+  it("reports nothing when the club opened no VIP table at all", () => {
+    expect(pickRandomSeat(buildSeatingTables([], 1), "vip")).toBeNull();
   });
 });

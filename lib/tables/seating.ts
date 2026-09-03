@@ -61,6 +61,35 @@ export function buildSeatingTables(
   });
 }
 
+/**
+ * The free seats a ticket may be given: a VIP ticket belongs at the VIP table, a
+ * regular one at the regular tables, and the two are never mixed.
+ */
+export function listFreeSeats(tables: SeatingTable[], ticket: "regular" | "vip") {
+  return tables
+    .filter((table) => table.isVip === (ticket === "vip"))
+    .flatMap((table) =>
+      table.seats
+        .filter((seat) => seat.player === null)
+        .map((seat) => ({ seat: seat.seat, table: table.number })),
+    );
+}
+
+/**
+ * A seat drawn at random from the ones this ticket may take, so the admin can send a
+ * player to the table without choosing for them.
+ */
+export function pickRandomSeat(
+  tables: SeatingTable[],
+  ticket: "regular" | "vip",
+  random: () => number = Math.random,
+) {
+  const free = listFreeSeats(tables, ticket);
+  if (free.length === 0) return null;
+
+  return free[Math.min(free.length - 1, Math.floor(random() * free.length))];
+}
+
 /** Where a seat sits on the oval, as percentages of the table's box. */
 export function getSeatPosition(seatIndex: number, seatsCount: number) {
   // Seat 1 starts at the bottom of the table and the rest run clockwise, the way a

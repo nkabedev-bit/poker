@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Armchair,
   CreditCard,
+  Dices,
   Keyboard,
   QrCode,
   RotateCcw,
@@ -14,6 +15,7 @@ import {
 import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
+import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
 import type { CardSession, TicketType } from "@/lib/cards/card-code";
 import type { ChargeLine } from "@/lib/finance/player-charge";
 
@@ -191,6 +193,29 @@ export default function TMACardsPage() {
     );
   };
 
+  /**
+   * Sends the player to a free seat the club drew for them. The ticket decides the
+   * room: a VIP ticket — bought or covered by a VIP pass — belongs at the VIP table,
+   * a regular one at the regular tables.
+   */
+  const seatAtRandom = (signup: Signup) => {
+    const tg = getTelegramWebApp();
+    const picked = pickRandomSeat(buildSeatingTables(players, tablesCount), ticketType);
+
+    if (!picked) {
+      tg?.HapticFeedback.notificationOccurred("error");
+      tg?.showAlert(
+        ticketType === "vip"
+          ? "Свободных мест за VIP-столом нет"
+          : "Свободных мест за обычными столами нет",
+      );
+      return;
+    }
+
+    setSeatChoice(picked);
+    void seatAndAssign(signup, picked);
+  };
+
   const seatAndAssign = async (signup: Signup, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
     if (!scannedCode || busy) return;
@@ -288,6 +313,15 @@ export default function TMACardsPage() {
             {TICKET_LABELS[ticketType]} · карта {scannedCode}
           </p>
         </div>
+
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold disabled:opacity-60"
+          disabled={busy}
+          type="button"
+          onClick={() => seatAtRandom(seating)}
+        >
+          <Dices size={18} /> Посадить на случайное место
+        </button>
 
         <SeatingPicker
           players={players}
@@ -398,6 +432,7 @@ export default function TMACardsPage() {
             <p className="text-sm text-[var(--tg-theme-hint-color)]">
               {session.registrationNumber ? `#${session.registrationNumber}` : "без номера"}
               {session.table ? ` · стол ${session.table}` : ""}
+              {session.seat ? ` · место ${session.seat}` : ""}
             </p>
           </div>
 
@@ -540,6 +575,7 @@ export default function TMACardsPage() {
                   <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                     {player.registrationNumber ? `#${player.registrationNumber}` : "без номера"}
                     {player.table ? ` · стол ${player.table}` : ""}
+                    {player.seat ? ` · место ${player.seat}` : ""}
                   </span>
                 </span>
                 <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />

@@ -18,6 +18,8 @@ export type CardSession = {
   name: string;
   registrationNumber: number | null;
   reentries: number;
+  /** The chair the player was given, so the desk can point at it. */
+  seat: number | null;
   table: number | null;
   ticketType: TicketType;
 };
@@ -52,6 +54,7 @@ export function buildCardSession(
     name: player.name,
     reentries: Math.max(0, rebuys - doubleRebuys),
     registrationNumber: player.registrationNumber ?? null,
+    seat: player.seat ?? null,
     table: player.table ?? null,
     ticketType: player.ticketType === "vip" ? "vip" : "regular",
   };

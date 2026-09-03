@@ -68,7 +68,7 @@ describe("buildCardSession", () => {
 
   it("carries the identity the admin needs at the desk", () => {
     const session = buildCardSession(
-      player({ addons: 2, registrationNumber: 21, table: 3 }),
+      player({ addons: 2, registrationNumber: 21, seat: 6, table: 3 }),
       "MJ-014",
       prices,
     );
@@ -78,6 +78,7 @@ describe("buildCardSession", () => {
       cardCode: "MJ-014",
       name: "Ace High",
       registrationNumber: 21,
+      seat: 6,
       table: 3,
     });
   });
