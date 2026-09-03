@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent } from "@/lib/events/store";
-import { isUpcomingEvent } from "@/lib/events/types";
+import { countFreeSeats, hasFreeSeat, offersVipTicket } from "@/lib/events/seats";
+import { isEventTicketType, isUpcomingEvent, passMatchesTicket } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   const body = await request.json().catch(() => ({}));
+  const requestedTicket = isEventTicketType(body.ticketType) ? body.ticketType : "regular";
   // What the player chose to pay with. Nothing is spent here: a pass is only used when
   // they turn up and are seated, so an intention costs nothing if they never come.
   const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
@@ -28,7 +30,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       : requestedPass === "regular"
         ? Number(auth.user.free_entries ?? 0)
         : 0;
-  const usePass = requestedPass !== "none" && held > 0 ? requestedPass : "none";
+  // A pass opens the seat of its own kind only, and one the player still holds.
+  const usePass =
+    requestedPass !== "none" && held > 0 && passMatchesTicket(requestedPass, requestedTicket)
+      ? requestedPass
+      : "none";
 
   const id = (await params).id;
   const event = await getEvent(auth.supabase, id);
@@ -44,15 +50,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  if (event.maxPlayers) {
-    const counts = await countActiveSignups(auth.supabase, [event.id]);
-    const taken = counts.get(event.id) ?? 0;
-    if (taken >= event.maxPlayers) {
-      return NextResponse.json(
-        { error: "full", message: "Все места разобрали. Напишите в поддержку." },
-        { status: 409 },
-      );
-    }
+  const ticketType = requestedTicket === "vip" && offersVipTicket(event) ? "vip" : "regular";
+
+  const counts = await countActiveSignups(auth.supabase, [event.id]);
+  // A player already holding a seat of this kind keeps it: re-sending the same choice
+  // must not be refused because their own sign-up filled the last place.
+  if (!hasFreeSeat(countFreeSeats(event, counts.get(event.id)), ticketType)) {
+    return NextResponse.json(
+      {
+        error: "full",
+        message:
+          ticketType === "vip"
+            ? "VIP-места разобрали. Выберите обычный билет или напишите в поддержку."
+            : "Все места разобрали. Напишите в поддержку.",
+      },
+      { status: 409 },
+    );
   }
 
   // A cancelled request is reused rather than duplicated: the unique (event, player)
@@ -62,6 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       event_id: event.id,
       status: "signed_up",
       telegram_id: auth.user.telegram_id,
+      ticket_type: ticketType,
       use_pass: usePass,
     },
     { onConflict: "event_id,telegram_id" },
@@ -69,7 +83,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (error) throw error;
 
-  return NextResponse.json({ signedUp: true, usePass });
+  return NextResponse.json({ signedUp: true, ticketType, usePass });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {

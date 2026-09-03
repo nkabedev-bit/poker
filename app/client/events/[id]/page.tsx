@@ -22,18 +22,33 @@ import {
 
 type FreePassChoice = "none" | "regular" | "vip";
 
+type TicketType = "regular" | "vip";
+
 type EventDetails = TournamentEvent & {
   signedUp: boolean;
   signupsCount: number;
+  ticketType: TicketType;
   usePass: FreePassChoice;
 };
 
 type FreeEntries = { regular: number; vip: number };
 
+type FreeSeats = { regular: number | null; vip: number | null };
+
 const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
   regular: "Обычная проходка",
   vip: "VIP проходка",
 };
+
+const TICKET_TITLES: Record<TicketType, string> = {
+  regular: "Обычный",
+  vip: "VIP",
+};
+
+function seatsLabel(left: number | null) {
+  if (left === null) return "Места есть";
+  return left > 0 ? `Осталось ${left}` : "Мест нет";
+}
 
 export default function ClientEventPage() {
   const { initData } = useClientTMA();
@@ -43,9 +58,18 @@ export default function ClientEventPage() {
 
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [freeEntries, setFreeEntries] = useState<FreeEntries>({ regular: 0, vip: 0 });
+  const [freeSeats, setFreeSeats] = useState<FreeSeats>({ regular: null, vip: null });
+  const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [usePass, setUsePass] = useState<FreePassChoice>("none");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+
+  // A pass belongs to its own kind of ticket, so switching the ticket lets go of a
+  // choice that no longer applies.
+  const selectTicket = (ticket: TicketType) => {
+    setTicketType(ticket);
+    setUsePass((chosen) => (chosen === ticket ? chosen : "none"));
+  };
 
   const load = useCallback(async () => {
     if (!eventId) return;
@@ -59,6 +83,10 @@ export default function ClientEventPage() {
         setFreeEntries({
           regular: Number(data.freeEntries?.regular ?? 0),
           vip: Number(data.freeEntries?.vip ?? 0),
+        });
+        setFreeSeats({
+          regular: data.freeSeats?.regular ?? null,
+          vip: data.freeSeats?.vip ?? null,
         });
       }
     } finally {
@@ -80,7 +108,7 @@ export default function ClientEventPage() {
       const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
         method: signUp ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: signUp ? JSON.stringify({ usePass }) : undefined,
+        body: signUp ? JSON.stringify({ ticketType, usePass }) : undefined,
       });
 
       if (res.ok) {
@@ -124,21 +152,24 @@ export default function ClientEventPage() {
     );
   }
 
-  const seatsLeft = event.maxPlayers ? Math.max(0, event.maxPlayers - event.signupsCount) : null;
-  const hasPasses = freeEntries.regular > 0 || freeEntries.vip > 0;
-  const passOptions: Array<{ note: string | null; title: string; value: FreePassChoice }> = [
-    ...(freeEntries.regular > 0
-      ? [{
-          note: `Осталось: ${freeEntries.regular}`,
-          title: PASS_TITLES.regular,
-          value: "regular" as const,
-        }]
-      : []),
-    ...(freeEntries.vip > 0
-      ? [{ note: `Осталось: ${freeEntries.vip}`, title: PASS_TITLES.vip, value: "vip" as const }]
-      : []),
-    { note: "Оплачу вход на месте", title: "Без проходки", value: "none" as const },
-  ];
+  // The poster offers VIP when the club priced it or opened seats for it.
+  const offersVip = event.vipBuyIn !== null || event.maxVipPlayers !== null;
+  const seatsLeft = ticketType === "vip" ? freeSeats.vip : freeSeats.regular;
+  const soldOut = seatsLeft !== null && seatsLeft <= 0;
+
+  // A pass buys the ticket of its own kind, so only the matching one is offered.
+  const heldPasses = ticketType === "vip" ? freeEntries.vip : freeEntries.regular;
+  const passOptions: Array<{ note: string | null; title: string; value: FreePassChoice }> =
+    heldPasses > 0
+      ? [
+          {
+            note: `Осталось: ${heldPasses}`,
+            title: PASS_TITLES[ticketType],
+            value: ticketType,
+          },
+          { note: "Оплачу вход на месте", title: "Без проходки", value: "none" as const },
+        ]
+      : [];
   const featureLines = event.featuresText
     .split("\n")
     .map((line) => line.trim())
@@ -223,31 +254,55 @@ export default function ClientEventPage() {
         </section>
       ) : null}
 
-      {event.buyIn > 0 || event.vipBuyIn ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
+      <section className="space-y-2">
+        <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
+        {event.signedUp ? (
           <div className="grid grid-cols-2 gap-3">
-            {event.buyIn > 0 ? (
-              <GlassCard className="!p-[18px]">
-                <p className="text-[11px] uppercase tracking-wider text-white/40">Обычный</p>
-                <p className="mt-2 text-[24px] font-extrabold leading-none">
-                  {event.buyIn.toLocaleString("ru-RU")} ₽
-                </p>
-              </GlassCard>
-            ) : null}
-            {event.vipBuyIn ? (
-              <GlassCard className="border-[#e9c07a]/40 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] !p-[18px]">
-                <p className="text-[11px] uppercase tracking-wider text-[#e9c07a]">VIP</p>
-                <p className="mt-2 text-[24px] font-extrabold leading-none text-[#e9c07a]">
-                  {event.vipBuyIn.toLocaleString("ru-RU")} ₽
-                </p>
-              </GlassCard>
+            <TicketCard
+              kind="regular"
+              price={event.buyIn}
+              seats={freeSeats.regular}
+              state={event.ticketType === "regular" ? "chosen" : "muted"}
+            />
+            {offersVip ? (
+              <TicketCard
+                kind="vip"
+                price={event.vipBuyIn}
+                seats={freeSeats.vip}
+                state={event.ticketType === "vip" ? "chosen" : "muted"}
+              />
             ) : null}
           </div>
-        </section>
-      ) : null}
+        ) : (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <TicketCard
+                kind="regular"
+                onSelect={() => selectTicket("regular")}
+                price={event.buyIn}
+                seats={freeSeats.regular}
+                state={ticketType === "regular" ? "chosen" : "idle"}
+              />
+              {offersVip ? (
+                <TicketCard
+                  kind="vip"
+                  onSelect={() => selectTicket("vip")}
+                  price={event.vipBuyIn}
+                  seats={freeSeats.vip}
+                  state={ticketType === "vip" ? "chosen" : "idle"}
+                />
+              ) : null}
+            </div>
+            {offersVip ? (
+              <p className="px-1 text-xs text-white/40">
+                Место за столом выдаёт администратор в день игры.
+              </p>
+            ) : null}
+          </>
+        )}
+      </section>
 
-      {hasPasses && !event.signedUp ? (
+      {passOptions.length > 0 && !event.signedUp ? (
         <section className="space-y-2">
           <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
           <GlassCard className="space-y-2 !p-3">
@@ -294,28 +349,29 @@ export default function ClientEventPage() {
         </div>
       ) : null}
 
-      {seatsLeft !== null ? (
-        <p className="px-1 text-center text-xs text-white/45">
-          {seatsLeft > 0 ? `Свободных мест: ${seatsLeft}` : "Мест не осталось"}
-        </p>
-      ) : null}
-
       {event.signedUp ? (
         <div className="space-y-3">
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
-            Вы записаны на турнир
+            Вы записаны · {TICKET_TITLES[event.ticketType]} билет
           </div>
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
             Отменить запись
           </GhostButton>
+          <p className="px-2 text-center text-xs text-white/40">
+            Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
+          </p>
         </div>
       ) : (
         <PrimaryButton
-          disabled={seatsLeft === 0}
+          disabled={soldOut}
           loading={submitting}
           onClick={() => void toggleSignup(true)}
         >
-          {seatsLeft === 0 ? "Мест нет" : "Записаться"}
+          {soldOut
+            ? ticketType === "vip"
+              ? "VIP-мест нет"
+              : "Мест нет"
+            : `Записаться · ${TICKET_TITLES[ticketType]}`}
         </PrimaryButton>
       )}
 
@@ -323,5 +379,48 @@ export default function ClientEventPage() {
         Номер участника и стол выдаст администратор в день игры.
       </p>
     </div>
+  );
+}
+
+/** One ticket the poster sells: its price, what is left of it, and whether it is picked. */
+function TicketCard({
+  kind,
+  onSelect,
+  price,
+  seats,
+  state,
+}: {
+  kind: TicketType;
+  onSelect?: () => void;
+  price: number | null;
+  seats: number | null;
+  state: "chosen" | "idle" | "muted";
+}) {
+  const isVip = kind === "vip";
+  const soldOut = seats !== null && seats <= 0;
+  const accent = isVip ? "#e9c07a" : "#f05a7e";
+
+  return (
+    <button
+      className={`rounded-[20px] border p-[18px] text-left transition ${
+        state === "chosen"
+          ? "border-white/25 bg-white/[0.09]"
+          : "border-white/[0.07] bg-white/[0.03]"
+      } ${soldOut && state !== "chosen" ? "opacity-45" : ""}`}
+      disabled={!onSelect || (soldOut && state !== "chosen")}
+      type="button"
+      onClick={onSelect}
+    >
+      <p
+        className="text-[11px] uppercase tracking-wider"
+        style={{ color: state === "muted" ? "rgba(255,255,255,0.35)" : accent }}
+      >
+        {TICKET_TITLES[kind]}
+      </p>
+      <p className="mt-2 text-[24px] font-extrabold leading-none">
+        {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
+      </p>
+      <p className="mt-2 text-[12px] text-white/45">{seatsLabel(seats)}</p>
+    </button>
   );
 }

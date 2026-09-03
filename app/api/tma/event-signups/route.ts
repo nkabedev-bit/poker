@@ -34,6 +34,8 @@ export async function GET(request: Request) {
       name: signup.displayName ?? `id ${signup.telegramId}`,
       seated: signup.status === "seated" || seatedTelegramIds.has(signup.telegramId),
       telegramId: signup.telegramId,
+      // The ticket the player asked for, so the desk starts from their choice.
+      ticketType: signup.ticketType,
       // What the player chose to pay with, so the desk knows before handing the card.
       usePass: signup.usePass,
       username: signup.username,

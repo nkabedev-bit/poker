@@ -19,7 +19,7 @@ export async function GET(request: Request) {
   return NextResponse.json({
     events: events.map((event) => ({
       ...event,
-      signupsCount: signupCounts.get(event.id) ?? 0,
+      signupsCount: signupCounts.get(event.id)?.total ?? 0,
     })),
   });
 }

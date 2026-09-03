@@ -47,6 +47,7 @@ describe("mapEventRow", () => {
     const mapped = mapEventRow({ ...row, max_players: 0, starting_stack: -5 });
 
     expect(mapped.maxPlayers).toBeNull();
+    expect(mapped.maxVipPlayers).toBeNull();
     expect(mapped.startingStack).toBeNull();
   });
 
@@ -100,6 +101,12 @@ describe("mapSignupRow", () => {
     status: "signed_up",
     telegram_id: 42,
   };
+
+  it("reads the ticket the player asked for", () => {
+    expect(mapSignupRow({ ...signupRow, ticket_type: "vip" }).ticketType).toBe("vip");
+    // A sign-up written before VIP tickets existed is a regular seat.
+    expect(mapSignupRow(signupRow).ticketType).toBe("regular");
+  });
 
   it("reads the free entry the player asked to pay with", () => {
     expect(mapSignupRow({ ...signupRow, use_pass: "vip" }).usePass).toBe("vip");

@@ -32,7 +32,9 @@ export default async function EventsPage({
     <EventsManager
       events={events}
       selectedEventId={selectedEventId}
-      signupCounts={Object.fromEntries(signupCounts)}
+      signupCounts={Object.fromEntries(
+        [...signupCounts].map(([eventId, taken]) => [eventId, taken.total]),
+      )}
       signups={signups}
     />
   );

@@ -21,6 +21,7 @@ describe("event input", () => {
     const draft = toEventDraft(parse());
 
     expect(draft.maxPlayers).toBeNull();
+    expect(draft.maxVipPlayers).toBeNull();
     expect(draft.startingStack).toBeNull();
     expect(draft.badge).toBeNull();
     expect(draft.posterUrl).toBeNull();
@@ -28,9 +29,16 @@ describe("event input", () => {
   });
 
   it("accepts the counts the admin did fill in", () => {
-    const draft = toEventDraft(parse({ buyIn: "1250", maxPlayers: "90", startingStack: "120000" }));
+    const draft = toEventDraft(
+      parse({ buyIn: "1250", maxPlayers: "20", maxVipPlayers: "10", startingStack: "120000" }),
+    );
 
-    expect(draft).toMatchObject({ buyIn: 1250, maxPlayers: 90, startingStack: 120000 });
+    expect(draft).toMatchObject({
+      buyIn: 1250,
+      maxPlayers: 20,
+      maxVipPlayers: 10,
+      startingStack: 120000,
+    });
   });
 
   // Two tickets are sold: a regular seat and a VIP one.

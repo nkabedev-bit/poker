@@ -20,6 +20,7 @@ type Signup = {
   id: string;
   name: string;
   seated: boolean;
+  ticketType: TicketType;
   usePass: "none" | "regular" | "vip";
   username: string | null;
 };
@@ -170,6 +171,8 @@ export default function TMACardsPage() {
   const startSeating = (signup: Signup) => {
     const tg = getTelegramWebApp();
     const openPlan = () => {
+      // The player already said which ticket they wanted; the admin can still change it.
+      setTicketType(signup.ticketType);
       setSeatChoice(null);
       setSeating(signup);
     };
@@ -476,11 +479,18 @@ export default function TMACardsPage() {
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                       {signup.username ? `@${signup.username}` : "записался в приложении"}
                     </span>
-                    {signup.usePass !== "none" ? (
-                      <span className="mt-1 inline-block rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
-                        {PASS_LABELS[signup.usePass]}
-                      </span>
-                    ) : null}
+                    <span className="mt-1 flex flex-wrap gap-1.5">
+                      {signup.ticketType === "vip" ? (
+                        <span className="inline-block rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
+                          VIP билет
+                        </span>
+                      ) : null}
+                      {signup.usePass !== "none" ? (
+                        <span className="inline-block rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
+                          {PASS_LABELS[signup.usePass]}
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
                   <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />
                 </button>

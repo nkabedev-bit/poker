@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
+import { countFreeSeats } from "@/lib/events/seats";
 
 export const dynamic = "force-dynamic";
 
@@ -21,14 +22,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   ]);
 
   const mySignup = mySignups.find((signup) => signup.eventId === event.id) ?? null;
+  const taken = signupCounts.get(event.id);
 
   return NextResponse.json({
     event: {
       ...event,
+      // What the player already asked for, so the page can say it back to them.
       signedUp: Boolean(mySignup),
-      signupsCount: signupCounts.get(event.id) ?? 0,
+      signupsCount: taken?.total ?? 0,
+      ticketType: mySignup?.ticketType ?? "regular",
       usePass: mySignup?.usePass ?? "none",
     },
+    freeSeats: countFreeSeats(event, taken),
     freeEntries: {
       regular: Number(auth.user.free_entries ?? 0),
       vip: Number(auth.user.vip_free_entries ?? 0),

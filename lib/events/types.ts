@@ -7,7 +7,10 @@ export type TournamentEvent = {
   id: string;
   isPublished: boolean;
   lateEntryUntil: string | null;
+  /** Seats at the regular tables. */
   maxPlayers: number | null;
+  /** Seats at the VIP table, counted apart from the regular ones. */
+  maxVipPlayers: number | null;
   posterUrl: string | null;
   rulesText: string;
   startingStack: number | null;
@@ -25,14 +28,30 @@ export type EventSignup = {
   id: string;
   status: EventSignupStatus;
   telegramId: number;
+  /** The ticket the player asked for; it decides which seat they are counted against. */
+  ticketType: EventTicketType;
   /** Which free entry the player asked to pay with; spent only when they are seated. */
   usePass: FreePassChoice;
 };
 
+export type EventTicketType = "regular" | "vip";
+
 export type FreePassChoice = "none" | "regular" | "vip";
+
+export function isEventTicketType(value: unknown): value is EventTicketType {
+  return value === "regular" || value === "vip";
+}
 
 export function isFreePassChoice(value: unknown): value is FreePassChoice {
   return value === "none" || value === "regular" || value === "vip";
+}
+
+/**
+ * A free entry covers the ticket of its own kind and nothing else: a regular pass never
+ * opens a VIP seat, and a VIP pass is not spent on a regular one.
+ */
+export function passMatchesTicket(pass: FreePassChoice, ticket: EventTicketType) {
+  return pass === "none" || pass === ticket;
 }
 
 function optionalText(value: unknown) {
@@ -54,6 +73,7 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
     isPublished: Boolean(row.is_published),
     lateEntryUntil: optionalText(row.late_entry_until),
     maxPlayers: optionalPositiveInt(row.max_players),
+    maxVipPlayers: optionalPositiveInt(row.max_vip_players),
     posterUrl: optionalText(row.poster_url),
     rulesText: String(row.rules_text ?? ""),
     startingStack: optionalPositiveInt(row.starting_stack),
@@ -73,6 +93,7 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
     id: String(row.id),
     status: (row.status as EventSignupStatus) ?? "signed_up",
     telegramId: Number(row.telegram_id),
+    ticketType: isEventTicketType(row.ticket_type) ? row.ticket_type : "regular",
     usePass: isFreePassChoice(row.use_pass) ? row.use_pass : "none",
   };
 }
@@ -85,6 +106,7 @@ export function toEventRow(event: Omit<TournamentEvent, "id">) {
     is_published: event.isPublished,
     late_entry_until: event.lateEntryUntil,
     max_players: event.maxPlayers,
+    max_vip_players: event.maxVipPlayers,
     poster_url: event.posterUrl,
     rules_text: event.rulesText,
     starting_stack: event.startingStack,

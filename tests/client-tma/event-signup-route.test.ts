@@ -28,9 +28,15 @@ const FUTURE_EVENT = mapEventRow({
   is_published: true,
   late_entry_until: "2999-01-01T19:00:00.000Z",
   max_players: 2,
+  max_vip_players: 1,
   starts_at: "2999-01-01T16:00:00.000Z",
   title: "ONE SHOT KNOCKOUT",
+  vip_buy_in: 2500,
 });
+
+function taken({ regular = 0, vip = 0 }: { regular?: number; vip?: number } = {}) {
+  return new Map([["event-1", { regular, total: regular + vip, vip }]]);
+}
 
 function upsertSpy() {
   const upsert = vi.fn(async () => ({ error: null }));
@@ -80,7 +86,7 @@ describe("client sign-up route", () => {
     vi.clearAllMocks();
     vi.resetModules();
     mocks.getEvent.mockResolvedValue(FUTURE_EVENT);
-    mocks.countActiveSignups.mockResolvedValue(new Map([["event-1", 0]]));
+    mocks.countActiveSignups.mockResolvedValue(taken());
   });
 
   it("records a sign-up for a player who filled in the questionnaire", async () => {
@@ -91,7 +97,13 @@ describe("client sign-up route", () => {
 
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
-      { event_id: "event-1", status: "signed_up", telegram_id: 555, use_pass: "none" },
+      {
+        event_id: "event-1",
+        status: "signed_up",
+        telegram_id: 555,
+        ticket_type: "regular",
+        use_pass: "none",
+      },
       { onConflict: "event_id,telegram_id" },
     );
   });
@@ -100,12 +112,63 @@ describe("client sign-up route", () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase, vipFreeEntries: 2 }));
 
-    const response = await postSignup({ usePass: "vip" });
+    const response = await postSignup({ ticketType: "vip", usePass: "vip" });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ usePass: "vip" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ use_pass: "vip" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("records the ticket the player asked for", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ ticketType: "vip" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ ticket_type: "vip" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("refuses a VIP seat once the VIP table is spoken for", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ vip: 1 }));
+
+    const response = await postSignup({ ticketType: "vip" });
+
+    expect(response.status).toBe(409);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("keeps the regular seats open when only the VIP table is full", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ vip: 1 }));
+
+    const response = await postSignup({ ticketType: "regular" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ ticket_type: "regular" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  // A pass buys the ticket of its own kind and nothing else.
+  it("does not spend a regular pass on a VIP ticket", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 3, supabase }));
+
+    await postSignup({ ticketType: "vip", usePass: "regular" });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ ticket_type: "vip", use_pass: "none" }),
       { onConflict: "event_id,telegram_id" },
     );
   });
@@ -140,7 +203,7 @@ describe("client sign-up route", () => {
   it("refuses a sign-up once every seat is taken", async () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
-    mocks.countActiveSignups.mockResolvedValue(new Map([["event-1", 2]]));
+    mocks.countActiveSignups.mockResolvedValue(taken({ regular: 2 }));
 
     const response = await postSignup();
 

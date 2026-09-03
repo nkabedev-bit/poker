@@ -25,6 +25,7 @@ const EMPTY_DRAFT = {
   isPublished: false,
   lateEntryUntil: "",
   maxPlayers: "",
+  maxVipPlayers: "",
   posterUrl: "",
   rulesText: "",
   startingStack: "",
@@ -45,6 +46,7 @@ function toDraft(event: TournamentEvent): Draft {
     isPublished: event.isPublished,
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
+    maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterUrl: event.posterUrl ?? "",
     rulesText: event.rulesText,
     startingStack: event.startingStack ? String(event.startingStack) : "",
@@ -138,13 +140,23 @@ export function EventsManager({
 
         <div className="events-form-row">
           <label>
-            Мест
+            Обычных мест
             <input
               name="maxPlayers"
               inputMode="numeric"
-              placeholder="90"
+              placeholder="20"
               value={draft.maxPlayers}
               onChange={(event) => update({ maxPlayers: event.target.value })}
+            />
+          </label>
+          <label>
+            VIP-мест
+            <input
+              name="maxVipPlayers"
+              inputMode="numeric"
+              placeholder="10"
+              value={draft.maxVipPlayers}
+              onChange={(event) => update({ maxVipPlayers: event.target.value })}
             />
           </label>
           <label>

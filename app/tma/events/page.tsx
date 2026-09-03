@@ -38,6 +38,7 @@ const EMPTY_DRAFT = {
   isPublished: false,
   lateEntryUntil: "",
   maxPlayers: "",
+  maxVipPlayers: "",
   posterDataUrl: "",
   posterUrl: "",
   rulesText: "",
@@ -59,6 +60,7 @@ function toDraft(event: EventRow): Draft {
     isPublished: event.isPublished,
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
+    maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterDataUrl: "",
     posterUrl: event.posterUrl ?? "",
     rulesText: event.rulesText,
@@ -124,6 +126,7 @@ export default function TMAEventsPage() {
         isPublished: draft.isPublished,
         lateEntryUntil: draft.lateEntryUntil,
         maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
+        maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
         posterDataUrl: draft.posterDataUrl || undefined,
         posterUrl: draft.posterUrl,
         rulesText: draft.rulesText,
@@ -241,12 +244,21 @@ export default function TMAEventsPage() {
 
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <FieldLabel title="Мест" />
+            <FieldLabel title="Обычных мест" />
             <input
               className={textFieldClass}
               inputMode="numeric"
               value={draft.maxPlayers}
               onChange={(event) => update({ maxPlayers: event.target.value })}
+            />
+          </div>
+          <div>
+            <FieldLabel title="VIP-мест" />
+            <input
+              className={textFieldClass}
+              inputMode="numeric"
+              value={draft.maxVipPlayers}
+              onChange={(event) => update({ maxVipPlayers: event.target.value })}
             />
           </div>
           <div>

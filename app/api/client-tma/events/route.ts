@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     events: upcoming.map((event) => ({
       ...event,
       signedUp: mySignupEventIds.has(event.id),
-      signupsCount: signupCounts.get(event.id) ?? 0,
+      signupsCount: signupCounts.get(event.id)?.total ?? 0,
     })),
     player: {
       displayName: auth.user.display_name,

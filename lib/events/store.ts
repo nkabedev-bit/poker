@@ -10,7 +10,7 @@ import {
 } from "@/lib/events/types";
 
 const EVENT_COLUMNS =
-  "id, title, badge, starts_at, late_entry_until, max_players, buy_in, vip_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
+  "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, buy_in, vip_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;
@@ -65,24 +65,39 @@ export async function deleteEvent(supabase: SupabaseClient, id: string) {
 }
 
 /** Live sign-up counts per event id — cancelled requests do not take a seat. */
+export type EventSignupCount = { regular: number; total: number; vip: number };
+
+/**
+ * How many seats of each kind an event has spoken for. The two are counted apart: the
+ * club opens a different number of regular and VIP seats, so a full VIP table must not
+ * close the regular ones.
+ */
 export async function countActiveSignups(
   supabase: SupabaseClient,
   eventIds: string[],
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
+): Promise<Map<string, EventSignupCount>> {
+  const counts = new Map<string, EventSignupCount>();
   if (eventIds.length === 0) return counts;
 
   const { data, error } = await supabase
     .from("event_signups")
-    .select("event_id")
+    .select("event_id, ticket_type")
     .in("event_id", eventIds)
     .neq("status", "cancelled");
 
   if (error) throw error;
 
   for (const row of data ?? []) {
-    const eventId = String((row as { event_id: unknown }).event_id);
-    counts.set(eventId, (counts.get(eventId) ?? 0) + 1);
+    const record = row as { event_id: unknown; ticket_type: unknown };
+    const eventId = String(record.event_id);
+    const taken = counts.get(eventId) ?? { regular: 0, total: 0, vip: 0 };
+    const isVip = record.ticket_type === "vip";
+
+    counts.set(eventId, {
+      regular: taken.regular + (isVip ? 0 : 1),
+      total: taken.total + 1,
+      vip: taken.vip + (isVip ? 1 : 0),
+    });
   }
 
   return counts;
@@ -94,7 +109,7 @@ export async function listEventSignups(
 ): Promise<EventSignupWithPlayer[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, use_pass, created_at, client_bot_users(display_name, username)")
+    .select("id, event_id, telegram_id, status, ticket_type, use_pass, created_at, client_bot_users(display_name, username)")
     .eq("event_id", eventId)
     .neq("status", "cancelled")
     .order("created_at");
@@ -153,7 +168,7 @@ export async function getUserSignups(
 ): Promise<EventSignup[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, use_pass, created_at")
+    .select("id, event_id, telegram_id, status, ticket_type, use_pass, created_at")
     .eq("telegram_id", telegramId)
     .neq("status", "cancelled");
 
