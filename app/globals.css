@@ -3215,3 +3215,9 @@ p {
   color: var(--tg-theme-button-text-color);
   box-shadow: 0 0 0 3px rgba(255 255 255 / 0.25);
 }
+
+/* The average stack sits beside the bank: same shape, its own colour so the two
+   numbers are never read as one. */
+.chip-bank--average strong {
+  color: #e9c07a;
+}

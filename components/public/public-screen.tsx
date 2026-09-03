@@ -214,6 +214,21 @@ export function getPublicChipBankTotal(state: PublicTournamentState) {
     : state.tournament.startingStack;
 }
 
+/**
+ * The average stack in play: every chip on the tables shared between the players still
+ * in the tournament.
+ *
+ * It is derived from the bank rather than from the players' own stacks, which the club
+ * never updates hand by hand — the bank knows every chip that entered the game
+ * (starting stacks, re-entries, doubles, add-ons and knockout rewards), and the chips of
+ * a player who is out have simply moved to whoever knocked them out.
+ */
+export function getPublicAverageStack(totalChips: number, activePlayers: number) {
+  if (activePlayers <= 0) return 0;
+
+  return Math.round(totalChips / activePlayers);
+}
+
 function PublicPlayerName({ name }: { name: string }) {
   const label = name || "Без имени";
   const nameRef = useRef<HTMLElement>(null);
@@ -663,6 +678,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
     ? "🏆 ФИНАЛЬНЫЙ СТОЛ"
     : `НОМЕР СТОЛА ${displayedTableNumber}`;
   const totalChips = getPublicChipBankTotal(state);
+  const averageStack = getPublicAverageStack(totalChips, activePlayers.length);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -817,6 +833,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <div className="chip-bank">
             <span>Банк фишек</span>
             <strong>{totalChips.toLocaleString("ru-RU")}</strong>
+          </div>
+          <div className="chip-bank chip-bank--average">
+            <span>Средний стек</span>
+            <strong>{averageStack.toLocaleString("ru-RU")}</strong>
           </div>
           <div className="sound-volume-group">
             <button
