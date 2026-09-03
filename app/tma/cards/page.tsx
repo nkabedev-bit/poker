@@ -1,9 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CreditCard, Keyboard, QrCode, RotateCcw, Search, Ticket, UserPlus } from "lucide-react";
+import {
+  Armchair,
+  CreditCard,
+  Keyboard,
+  QrCode,
+  RotateCcw,
+  Search,
+  Ticket,
+  UserPlus,
+} from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { SeatingPicker } from "@/components/tma/seating-picker";
 import type { CardSession, TicketType } from "@/lib/cards/card-code";
 
 type Signup = {
@@ -19,9 +29,12 @@ type Player = {
   id: string;
   name: string;
   registrationNumber?: number | null;
+  seat?: number | null;
   status: "active" | "eliminated";
   table?: number | null;
 };
+
+type SeatChoice = { seat: number; table: number };
 
 const TICKET_LABELS: Record<TicketType, string> = {
   regular: "Обычный билет",
@@ -38,7 +51,9 @@ export default function TMACardsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [tablesCount, setTablesCount] = useState(1);
-  const [table, setTable] = useState("1");
+  // The player the admin picked from the sign-ups, waiting for a chair.
+  const [seating, setSeating] = useState<Signup | null>(null);
+  const [seatChoice, setSeatChoice] = useState<SeatChoice | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualCode, setManualCode] = useState("");
   const [loading, setLoading] = useState(true);
@@ -148,7 +163,31 @@ export default function TMACardsPage() {
     }
   };
 
-  const seatAndAssign = async (signup: Signup) => {
+  /**
+   * A free entry is club money, so the desk is told about it before anything else —
+   * the admin acknowledges the pass, and only then picks the chair.
+   */
+  const startSeating = (signup: Signup) => {
+    const tg = getTelegramWebApp();
+    const openPlan = () => {
+      setSeatChoice(null);
+      setSeating(signup);
+    };
+
+    if (signup.usePass === "none" || !tg?.showAlert) {
+      openPlan();
+      return;
+    }
+
+    tg.showAlert(
+      signup.usePass === "vip"
+        ? "Игрок использовал бесплатную VIP проходку"
+        : "Игрок использовал бесплатную проходку",
+      openPlan,
+    );
+  };
+
+  const seatAndAssign = async (signup: Signup, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
     if (!scannedCode || busy) return;
 
@@ -157,7 +196,12 @@ export default function TMACardsPage() {
       const res = await fetch(`/api/tma/event-signups/${signup.id}/seat`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ cardCode: scannedCode, table: Number(table), ticketType }),
+        body: JSON.stringify({
+          cardCode: scannedCode,
+          seat: choice.seat,
+          table: choice.table,
+          ticketType,
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -167,15 +211,12 @@ export default function TMACardsPage() {
         return;
       }
 
-      // The pass is spent at this moment, so the desk is told plainly that this entry
-      // is already paid for and nothing is due for the ticket.
-      const announcePass = () => {
-        if (data?.passUsed === "vip") {
-          tg?.showAlert("Игрок использовал бесплатную VIP проходку");
-        } else if (data?.passUsed === "regular") {
-          tg?.showAlert("Игрок использовал бесплатную проходку");
-        }
-      };
+      // The pass was announced before the seat was picked, so the only thing left to
+      // say is when the club could not actually take one — it was spent elsewhere, or
+      // an admin removed it between the sign-up and the door.
+      if (signup.usePass !== "none" && !data?.passUsed) {
+        tg?.showAlert("Проходку списать не удалось — у игрока её больше нет. Возьмите оплату.");
+      }
 
       // The seat is saved even when the card clashed, so the two outcomes are told apart.
       if (data?.cardError) {
@@ -185,9 +226,10 @@ export default function TMACardsPage() {
       } else {
         tg?.HapticFeedback.notificationOccurred("success");
         setSession(data.session);
-        announcePass();
       }
 
+      setSeating(null);
+      setSeatChoice(null);
       setSearch("");
       await loadPlayers();
     } finally {
@@ -226,6 +268,61 @@ export default function TMACardsPage() {
   };
 
   if (loading) return <div>Загрузка...</div>;
+
+  // Seating takes over the screen: the admin is picking one chair, and everything else
+  // would only be in the way.
+  if (seating) {
+    return (
+      <div className="space-y-4">
+        <h1 className="text-xl font-bold flex items-center gap-2">
+          <Armchair size={20} /> Куда сажаем
+        </h1>
+
+        <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
+          <p className="text-lg font-bold">{seating.name}</p>
+          <p className="text-sm text-[var(--tg-theme-hint-color)]">
+            {TICKET_LABELS[ticketType]} · карта {scannedCode}
+          </p>
+        </div>
+
+        <SeatingPicker
+          players={players}
+          selected={seatChoice}
+          tablesCount={tablesCount}
+          onSelect={(choice) => {
+            getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+            setSeatChoice(choice);
+          }}
+          onTakenSeat={(name) =>
+            getTelegramWebApp()?.showAlert(`Место занято: ${name}`)
+          }
+        />
+
+        <button
+          className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+          disabled={busy || !seatChoice}
+          type="button"
+          onClick={() => seatChoice && void seatAndAssign(seating, seatChoice)}
+        >
+          {seatChoice
+            ? `Посадить за стол ${seatChoice.table}, место ${seatChoice.seat}`
+            : "Выберите место"}
+        </button>
+
+        <button
+          className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm"
+          disabled={busy}
+          type="button"
+          onClick={() => {
+            setSeating(null);
+            setSeatChoice(null);
+          }}
+        >
+          Отмена
+        </button>
+      </div>
+    );
+  }
 
   const waitingSignups = signups
     .filter((signup) => !signup.seated)
@@ -348,21 +445,6 @@ export default function TMACardsPage() {
             ))}
           </div>
 
-          <label className="block text-xs text-[var(--tg-theme-hint-color)]">
-            Сажать за стол
-            <select
-              className="mt-1 w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
-              value={table}
-              onChange={(event) => setTable(event.target.value)}
-            >
-              {Array.from({ length: tablesCount }, (_, index) => index + 1).map((tableNumber) => (
-                <option key={tableNumber} value={tableNumber}>
-                  Стол {tableNumber}
-                </option>
-              ))}
-            </select>
-          </label>
-
           <div className="relative">
             <Search
               className="absolute left-3 top-3 text-[var(--tg-theme-hint-color)]"
@@ -387,7 +469,7 @@ export default function TMACardsPage() {
                   className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left disabled:opacity-60"
                   disabled={busy}
                   type="button"
-                  onClick={() => void seatAndAssign(signup)}
+                  onClick={() => startSeating(signup)}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">{signup.name}</span>

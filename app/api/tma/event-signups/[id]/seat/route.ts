@@ -9,6 +9,7 @@ import {
   isTournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import type { TournamentPlayer } from "@/lib/timer/types";
+import { SEATS_PER_TABLE } from "@/lib/tables/seating";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const id = (await params).id;
   const body = await request.json().catch(() => ({}));
   const tableNumber = Number(body.table);
+  const seatNumber = Number(body.seat);
   // Seating and handing over a card are one movement at the door, so the card travels
   // with this request instead of costing a second round trip.
   const cardCode = normalizeCardCode(body.cardCode);
@@ -50,6 +52,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
   }
 
+  if (!Number.isInteger(seatNumber) || seatNumber < 1 || seatNumber > SEATS_PER_TABLE) {
+    return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
+  }
+
   const telegramId = Number((signup as { telegram_id: unknown }).telegram_id);
   const embedded = (signup as Record<string, unknown>).client_bot_users;
   const player = (Array.isArray(embedded) ? embedded[0] : embedded) as
@@ -65,6 +71,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (alreadySeated) {
     await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
     return NextResponse.json({ alreadySeated: true, player: alreadySeated });
+  }
+
+  // Two people cannot be given one chair: the admin seats players one at a time, and
+  // between opening the plan and tapping it someone else may have taken the seat.
+  const seatTaken = extras.players.find(
+    (item) =>
+      item.status === "active" && item.table === tableNumber && item.seat === seatNumber,
+  );
+
+  if (seatTaken) {
+    return NextResponse.json(
+      { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${seatTaken.name}` },
+      { status: 409 },
+    );
   }
 
   // The player picked a free entry when signing up; it is spent here, at the door, and
@@ -91,7 +111,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     name,
     rebuys: 0,
     registeredVia: "client_bot",
-    seat: null,
+    seat: seatNumber,
     stack: t.starting_stack,
     status: "active",
     table: tableNumber,

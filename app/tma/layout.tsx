@@ -10,7 +10,9 @@ export type TelegramWebApp = {
   initData?: string;
   ready: () => void;
   expand: () => void;
-  showAlert: (message: string) => void;
+  // Telegram calls back once the admin closes the alert, which is how one message can
+  // be made to come before the next screen.
+  showAlert: (message: string, callback?: () => void) => void;
   showConfirm: (message: string, callback: (confirmed: boolean) => void) => void;
   // Telegram's own QR reader: the only camera a mini-app can open, and the reason the
   // venue cards carry a QR code rather than an NFC chip.

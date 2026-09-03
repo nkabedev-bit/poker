@@ -3158,3 +3158,60 @@ p {
   font-size: 13px;
   line-height: 1.45;
 }
+
+/* Seating plan on the admin's phone: a table per oval, ten chairs around it. */
+.seating-picker {
+  display: grid;
+  gap: 22px;
+}
+
+.seating-table {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1.55 / 1;
+}
+
+.seating-table__felt {
+  position: absolute;
+  inset: 13% 15%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid rgba(255 255 255 / 0.18);
+  border-radius: 999px;
+  background: #14532d;
+}
+
+.seating-table__vip {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 2px;
+  color: #e9c07a;
+}
+
+.seating-seat {
+  position: absolute;
+  width: 38px;
+  height: 38px;
+  transform: translate(-50%, -50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 50%;
+  background: var(--tg-theme-secondary-bg-color);
+  color: var(--tg-theme-text-color);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.seating-seat--taken {
+  background: #3f1620;
+  color: rgba(255 255 255 / 0.45);
+}
+
+.seating-seat--selected {
+  background: var(--tg-theme-button-color);
+  color: var(--tg-theme-button-text-color);
+  box-shadow: 0 0 0 3px rgba(255 255 255 / 0.25);
+}
