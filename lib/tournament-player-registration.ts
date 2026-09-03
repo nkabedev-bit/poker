@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
 import {
   getPlayerCategory,
+  shouldTakeVipNumber,
   VIP_REGISTRATION_NUMBER_MAX,
   VIP_REGISTRATION_NUMBER_MIN,
 } from "@/lib/player-registration-number";
@@ -67,17 +68,13 @@ function assignRegistrationNumber(
       .filter((value) => Number.isInteger(value) && value > 0),
   );
 
+  const takesVipNumber = shouldTakeVipNumber(player.ticketType, tableNumber);
+
   for (let candidate = 1; candidate <= maxNumber; candidate += 1) {
-    if (tableNumber === 3) {
-      if (candidate < VIP_REGISTRATION_NUMBER_MIN || candidate > VIP_REGISTRATION_NUMBER_MAX) {
-        continue;
-      }
-    } else if (
-      candidate >= VIP_REGISTRATION_NUMBER_MIN &&
-      candidate <= VIP_REGISTRATION_NUMBER_MAX
-    ) {
-      continue;
-    }
+    const isVipNumber =
+      candidate >= VIP_REGISTRATION_NUMBER_MIN && candidate <= VIP_REGISTRATION_NUMBER_MAX;
+
+    if (isVipNumber !== takesVipNumber) continue;
 
     if (!usedNumbers.has(candidate)) {
       return {

@@ -117,6 +117,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     status: "active",
     table: tableNumber,
     telegramId,
+    // The registration number is drawn from the VIP range by ticket, so the ticket has
+    // to be on the player before the number is handed out.
+    ticketType: seatTicketType,
   };
 
   let seatedPlayer;
