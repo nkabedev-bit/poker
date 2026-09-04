@@ -1498,6 +1498,7 @@ p {
 }
 
 .chip-bank {
+  min-width: 84px;
   text-align: right;
 }
 
@@ -1512,6 +1513,9 @@ p {
   color: #4ade80;
   font-size: 16px;
   font-weight: 900;
+  /* Tabular figures so the bank and the average read as one pair: proportional digits
+     made "2 000" look larger than "10 000". */
+  font-variant-numeric: tabular-nums;
 }
 
 .public-icon-button {
