@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
+import { pickPlayerPhoto } from "@/lib/players/photo";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
@@ -153,10 +154,11 @@ export default function ClientProfilePage() {
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
   const earned = countEarnedAchievements(achievements);
-  // A photo the player uploaded wins over the one Telegram hands us.
-  const photoUrl = me?.avatarIsCustom
-    ? (me.avatarUrl ?? undefined)
-    : (telegramUser?.photo_url ?? me?.avatarUrl ?? undefined);
+  const photoUrl = pickPlayerPhoto({
+    avatarIsCustom: me?.avatarIsCustom,
+    avatarUrl: me?.avatarUrl,
+    telegramPhotoUrl: telegramUser?.photo_url,
+  });
   const ownPhoto = photoUrl;
   const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], ownPhoto);
   const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;

@@ -8,10 +8,17 @@ import { GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_compo
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
+import { pickPlayerPhoto } from "@/lib/players/photo";
 
 type EventsResponse = {
   events: EventCardData[];
-  player: { displayName: string | null; profileSubmitted: boolean; username: string | null };
+  player: {
+    avatarIsCustom?: boolean;
+    avatarUrl?: string | null;
+    displayName: string | null;
+    profileSubmitted: boolean;
+    username: string | null;
+  };
 };
 
 type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
@@ -63,16 +70,19 @@ export default function ClientHomePage() {
   const [nextEvent, ...laterEvents] = events;
   const playerName = data?.player.displayName?.trim() || telegramUser?.first_name || "Гость";
   const address = events.find((event) => event.venueAddress)?.venueAddress ?? "";
-  const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], telegramUser?.photo_url);
-  const me = rating?.me
-    ? withOwnPhoto([rating.me], telegramUser?.photo_url)[0]
-    : undefined;
+  const photoUrl = pickPlayerPhoto({
+    avatarIsCustom: data?.player.avatarIsCustom,
+    avatarUrl: data?.player.avatarUrl,
+    telegramPhotoUrl: telegramUser?.photo_url,
+  });
+  const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], photoUrl);
+  const me = rating?.me ? withOwnPhoto([rating.me], photoUrl)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
 
   return (
     <div className="space-y-7 pt-1">
       <div className="flex items-center gap-3">
-        <PlayerAvatar name={playerName} photoUrl={telegramUser?.photo_url} size={52} />
+        <PlayerAvatar name={playerName} photoUrl={photoUrl} size={52} />
         <div className="min-w-0">
           <p className="truncate text-[19px] font-bold tracking-tight">{playerName}</p>
           <p className="text-[13px] text-white/40">

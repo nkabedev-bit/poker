@@ -27,6 +27,9 @@ export async function GET(request: Request) {
       signupsCount: signupCounts.get(event.id)?.total ?? 0,
     })),
     player: {
+      // The home screen shows the player their own photo, uploaded or from Telegram.
+      avatarIsCustom: Boolean(auth.user.avatar_is_custom),
+      avatarUrl: auth.user.avatar_url,
       displayName: auth.user.display_name,
       freeEntries: {
         regular: Number(auth.user.free_entries ?? 0),
