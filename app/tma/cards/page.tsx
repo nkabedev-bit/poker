@@ -185,7 +185,8 @@ export default function TMACardsPage() {
       }
 
       tg?.HapticFeedback.notificationOccurred("success");
-      setSession(data.session);
+      setSession(null);
+      setScannedCode(null);
       setSeating(null);
       setSeatChoice(null);
       setSearch("");
@@ -310,7 +311,8 @@ export default function TMACardsPage() {
         setScannedCode(null);
       } else {
         tg?.HapticFeedback.notificationOccurred("success");
-        setSession(data.session);
+        setSession(null);
+        setScannedCode(null);
       }
 
       setSeating(null);
