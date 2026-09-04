@@ -530,7 +530,9 @@ export default function TMACardsPage() {
         </div>
       ) : null}
 
-      {issued.length > 0 && !session ? (
+      {/* Only when no card is in hand: while one is scanned the screen is about that
+          card, and the evening's list underneath it only confuses the desk. */}
+      {issued.length > 0 && !scannedCode ? (
         <section className="space-y-2">
           <p className="text-sm font-semibold">Выданные карты ({issued.length})</p>
           {issued.map((card) => (
