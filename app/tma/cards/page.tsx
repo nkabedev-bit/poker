@@ -651,7 +651,7 @@ export default function TMACardsPage() {
 
           <div className="relative">
             <Search
-              className="absolute left-3 top-3 text-[var(--tg-theme-hint-color)]"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
               size={18}
             />
             <input

@@ -102,7 +102,12 @@ export default function ClientRatingPage() {
       ) : null}
 
       <div className="relative">
-        <Search className="absolute left-4 top-4 text-white/30" size={17} />
+        {/* Centred against the field rather than measured from its top: the icon sat
+            low as soon as the padding changed. */}
+        <Search
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-white/30"
+          size={17}
+        />
         <input
           className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.04] py-3.5 pl-11 pr-4 text-[15px] outline-none placeholder:text-white/25 focus:border-[#c8163f]"
           placeholder="Поиск по никнейму"

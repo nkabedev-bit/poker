@@ -442,7 +442,10 @@ export default function TMAEliminationsPage() {
         <h2 className="text-lg font-bold">Кто выбил: <span className="text-red-400">{eliminatedPlayer?.name}</span>?</h2>
         
         <div className="relative">
-          <Search className="absolute left-3 top-3 text-[var(--tg-theme-hint-color)]" size={18} />
+          <Search
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
+            size={18}
+          />
           <input 
             type="text" 
             placeholder="Поиск..." 
