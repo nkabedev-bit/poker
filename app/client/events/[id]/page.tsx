@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "../../layout";
+import { PlayerAvatar } from "../../_components/player-avatar";
 import {
   Badge,
   Chip,
@@ -24,12 +25,19 @@ type FreePassChoice = "none" | "regular" | "vip";
 
 type TicketType = "regular" | "vip" | "duo";
 
+/** What a sign-up can say; the +1's half is given out by accepting, never chosen. */
+type HeldTicket = TicketType | "duo_plus_one";
+
 type EventDetails = TournamentEvent & {
+  /** Set once the invited member said they are coming. */
+  partnerConfirmed: boolean;
+  /** Whether the +1 is a member of the club, who answers, or a guest, who does not. */
+  partnerIsMember: boolean;
   /** Who the player is bringing on a "1+1", as they wrote the name down. */
   partnerName: string | null;
   signedUp: boolean;
   signupsCount: number;
-  ticketType: TicketType;
+  ticketType: HeldTicket;
   usePass: FreePassChoice;
 };
 
@@ -38,6 +46,9 @@ type FreeEntries = { regular: number; vip: number };
 type FreeSeats = { duo: number; regular: number | null; vip: number | null };
 
 const MAX_PARTNER_NAME_LENGTH = 40;
+
+/** A member of the club, offered as the +1 of a pair. */
+type PartnerMatch = { avatarUrl: string | null; key: string; name: string };
 
 const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
   regular: "Обычная проходка",
@@ -52,8 +63,9 @@ const TICKET_GRID: Record<number, string> = {
   3: "grid grid-cols-3 gap-2",
 };
 
-const TICKET_TITLES: Record<TicketType, string> = {
+const TICKET_TITLES: Record<HeldTicket, string> = {
   duo: "1+1",
+  duo_plus_one: "1+1 · второй игрок",
   regular: "Обычный",
   vip: "VIP",
 };
@@ -81,8 +93,14 @@ export default function ClientEventPage() {
   const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [usePass, setUsePass] = useState<FreePassChoice>("none");
   const [partnerName, setPartnerName] = useState("");
+  // The +1 is either picked from the club, and answers for themselves, or written down
+  // as a guest, who is expected by name alone.
+  const [partnerKey, setPartnerKey] = useState("");
+  const [partnerMatches, setPartnerMatches] = useState<PartnerMatch[]>([]);
+  const [invite, setInvite] = useState<{ hostName: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [answering, setAnswering] = useState(false);
 
   // A pass belongs to its own kind of ticket, so switching the ticket lets go of a
   // choice that no longer applies — and a "1+1" is bought at its own price, never with
@@ -106,7 +124,14 @@ export default function ClientEventPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setEvent(data.event as EventDetails);
+        const details = data.event as EventDetails;
+        setEvent(details);
+        // A sign-up that already stands is what the screen edits from now on: the pair
+        // can lose its partner and have to name another without cancelling the ticket.
+        if (details.signedUp && details.ticketType !== "duo_plus_one") {
+          setTicketType(details.ticketType);
+          setPartnerName(details.partnerName ?? "");
+        }
         setFreeEntries({
           regular: Number(data.freeEntries?.regular ?? 0),
           vip: Number(data.freeEntries?.vip ?? 0),
@@ -116,6 +141,7 @@ export default function ClientEventPage() {
           regular: data.freeSeats?.regular ?? null,
           vip: data.freeSeats?.vip ?? null,
         });
+        setInvite(data.duoInvite ?? null);
       }
     } finally {
       setLoading(false);
@@ -127,6 +153,72 @@ export default function ClientEventPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  // Members are looked up by nickname as the buyer types; anything typed that matches
+  // nobody is taken as a guest's name, so a friend from outside the club still gets in.
+  const searchPartners = useCallback(
+    async (query: string) => {
+      if (query.trim().length < 2) {
+        setPartnerMatches([]);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/client-tma/players?q=${encodeURIComponent(query)}`, {
+          headers: { "X-Telegram-Init-Data": initData },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setPartnerMatches((data.players ?? []) as PartnerMatch[]);
+        }
+      } catch {
+        setPartnerMatches([]);
+      }
+    },
+    [initData],
+  );
+
+  const typePartner = (value: string) => {
+    setPartnerName(value);
+    // Editing the name lets go of the member it used to point at: the text is the
+    // choice again until another one is picked from the list.
+    setPartnerKey("");
+    void searchPartners(value);
+  };
+
+  const pickPartner = (match: PartnerMatch) => {
+    setPartnerName(match.name);
+    setPartnerKey(match.key);
+    setPartnerMatches([]);
+  };
+
+  const answerInvite = async (accept: boolean) => {
+    if (!eventId || answering) return;
+
+    setAnswering(true);
+    const tg = getClientTelegramWebApp();
+    try {
+      const res = await fetch(`/api/client-tma/events/${eventId}/duo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ accept }),
+      });
+
+      if (res.ok) {
+        tg?.HapticFeedback?.notificationOccurred("success");
+        await load();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      tg?.HapticFeedback?.notificationOccurred("error");
+      tg?.showAlert(data?.message ?? "Не удалось ответить на приглашение.");
+    } catch {
+      tg?.showAlert("Нет связи с сервером. Попробуйте ещё раз.");
+    } finally {
+      setAnswering(false);
+    }
+  };
+
   const toggleSignup = async (signUp: boolean) => {
     if (!eventId || submitting) return;
 
@@ -136,7 +228,9 @@ export default function ClientEventPage() {
       const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
         method: signUp ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: signUp ? JSON.stringify({ partnerName, ticketType, usePass }) : undefined,
+        body: signUp
+          ? JSON.stringify({ partnerKey, partnerName, ticketType, usePass })
+          : undefined,
       });
 
       if (res.ok) {
@@ -192,6 +286,9 @@ export default function ClientEventPage() {
   // The club takes a "1+1" to mean an expected pair, so the second name is required.
   const partnerMissing = ticketType === "duo" && !partnerName.trim();
   const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
+  // The buyer keeps the ticket when their partner backs out, so the screen has to let
+  // them name somebody else without cancelling and starting over.
+  const needsPartner = event.signedUp && event.ticketType === "duo" && !event.partnerName;
 
   // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
   // ticket of its own kind, so choosing one switches the ticket to match.
@@ -235,6 +332,26 @@ export default function ClientEventPage() {
 
   return (
     <div className="space-y-5 pt-1">
+
+      {invite ? (
+        <GlassCard className="space-y-3 !p-4">
+          <p className="text-[15px] font-bold">
+            {invite.hostName} зовёт вас по билету 1+1
+          </p>
+          <p className="text-[13px] leading-relaxed text-white/60">
+            Место уже оплачено на двоих. Подтвердите, что придёте — администратор будет
+            ждать вас обоих.
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            <PrimaryButton loading={answering} onClick={() => void answerInvite(true)}>
+              Приду
+            </PrimaryButton>
+            <GhostButton disabled={answering} onClick={() => void answerInvite(false)}>
+              Не смогу
+            </GhostButton>
+          </div>
+        </GlassCard>
+      ) : null}
 
       <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
         {event.posterUrl ? (
@@ -329,7 +446,11 @@ export default function ClientEventPage() {
                 kind="duo"
                 price={event.duoBuyIn}
                 seats={freeSeats.duo}
-                state={event.ticketType === "duo" ? "chosen" : "muted"}
+                state={
+                  event.ticketType === "duo" || event.ticketType === "duo_plus_one"
+                    ? "chosen"
+                    : "muted"
+                }
               />
             ) : null}
             {offersVip ? (
@@ -387,7 +508,7 @@ export default function ClientEventPage() {
           </>
         )}
 
-        {ticketType === "duo" && !event.signedUp ? (
+        {ticketType === "duo" && (!event.signedUp || needsPartner) ? (
           <GlassCard className="space-y-2 !p-4">
             <label className="block text-sm font-bold" htmlFor="duo-partner">
               Кто придёт с вами?
@@ -397,12 +518,36 @@ export default function ClientEventPage() {
               className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-[15px] outline-none placeholder:text-white/30 focus:border-[#f05a7e]/60"
               id="duo-partner"
               maxLength={MAX_PARTNER_NAME_LENGTH}
-              onChange={(item) => setPartnerName(item.target.value)}
-              placeholder="Имя или ник напарника"
+              onChange={(item) => typePartner(item.target.value)}
+              placeholder="Ник в клубе или имя гостя"
               value={partnerName}
             />
+
+            {partnerMatches.length > 0 ? (
+              <div className="space-y-1.5">
+                {partnerMatches.map((match) => (
+                  <button
+                    key={match.key}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
+                    type="button"
+                    onClick={() => pickPartner(match)}
+                  >
+                    <PlayerAvatar
+                      name={match.name}
+                      photoUrl={match.avatarUrl ?? undefined}
+                      size={30}
+                    />
+                    <span className="truncate text-sm font-semibold">{match.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <p className="text-[11px] leading-relaxed text-white/45">
-              Администратор ждёт вас вдвоём: по билету 1+1 вход для обоих, а платит один.
+              {partnerKey
+                ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
+                : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
+              Вход для обоих, цена делится пополам.
             </p>
           </GlassCard>
         ) : null}
@@ -457,6 +602,16 @@ export default function ClientEventPage() {
         </div>
       ) : null}
 
+      {needsPartner ? (
+        <PrimaryButton
+          disabled={partnerMissing}
+          loading={submitting}
+          onClick={() => void toggleSignup(true)}
+        >
+          {partnerMissing ? "Укажите напарника" : "Позвать напарника"}
+        </PrimaryButton>
+      ) : null}
+
       {event.signedUp ? (
         <div className="space-y-3">
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
@@ -464,15 +619,26 @@ export default function ClientEventPage() {
             {event.partnerName ? (
               <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
                 С вами: {event.partnerName}
+                {event.partnerIsMember
+                  ? event.partnerConfirmed
+                    ? " · подтвердил"
+                    : " · ждём ответа"
+                  : " · гость"}
               </span>
             ) : null}
           </div>
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
             Отменить запись
           </GhostButton>
-          <p className="px-2 text-center text-xs text-white/40">
-            Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
-          </p>
+          {needsPartner ? (
+            <p className="px-2 text-center text-xs text-white/40">
+              Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
+            </p>
+          ) : (
+            <p className="px-2 text-center text-xs text-white/40">
+              Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
+            </p>
+          )}
         </div>
       ) : (
         <PrimaryButton

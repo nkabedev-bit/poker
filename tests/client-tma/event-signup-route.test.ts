@@ -4,6 +4,8 @@ import { mapEventRow } from "@/lib/events/types";
 const mocks = vi.hoisted(() => ({
   countActiveSignups: vi.fn(),
   getEvent: vi.fn(),
+  getUserSignups: vi.fn(),
+  notifyClientUser: vi.fn(),
   requireClientTmaAuth: vi.fn(),
 }));
 
@@ -14,9 +16,16 @@ vi.mock("@/lib/client-tma/require-auth", () => ({
 vi.mock("@/lib/events/store", () => ({
   countActiveSignups: mocks.countActiveSignups,
   getEvent: mocks.getEvent,
+  getUserSignups: mocks.getUserSignups,
+}));
+
+vi.mock("@/lib/client-bot/notify", () => ({
+  notifyClientUser: mocks.notifyClientUser,
 }));
 
 vi.mock("next/server", () => ({
+  // The bot is told after the sign-up stands; the tests want to see what it was told.
+  after: (task: () => Promise<void>) => task(),
   NextResponse: {
     json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
   },
@@ -56,10 +65,34 @@ function taken({
   return new Map([["event-1", { duo, regular, total: regular + vip + duo * 2, vip }]]);
 }
 
-function upsertSpy() {
+/**
+ * A stand-in for the tables this route writes to: sign-ups are upserted, and looking a
+ * partner up by nickname reads the accounts.
+ */
+function upsertSpy({ members = [] as Array<{ display_name: string; telegram_id: number }> } = {}) {
   const upsert = vi.fn(async () => ({ error: null }));
+  const update = vi.fn(() => {
+    const chain = {
+      eq: vi.fn(() => chain),
+      neq: vi.fn(async () => ({ error: null })),
+      then: undefined,
+    };
+    return chain;
+  });
+
+  const accounts = {
+    eq: vi.fn(() => accounts),
+    limit: vi.fn(async () => ({ data: members, error: null })),
+    select: vi.fn(() => accounts),
+  };
+
   return {
-    supabase: { from: vi.fn(() => ({ upsert })) },
+    supabase: {
+      from: vi.fn((table: string) =>
+        table === "client_bot_users" ? accounts : { update, upsert },
+      ),
+    },
+    update,
     upsert,
   };
 }
@@ -105,6 +138,8 @@ describe("client sign-up route", () => {
     vi.resetModules();
     mocks.getEvent.mockResolvedValue(FUTURE_EVENT);
     mocks.countActiveSignups.mockResolvedValue(taken());
+    mocks.getUserSignups.mockResolvedValue([]);
+    mocks.notifyClientUser.mockResolvedValue(true);
   });
 
   it("records a sign-up for a player who filled in the questionnaire", async () => {
@@ -116,7 +151,9 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       {
+        duo_confirmed_at: null,
         duo_partner_name: null,
+        duo_partner_telegram_id: null,
         event_id: "event-1",
         status: "signed_up",
         telegram_id: 555,
@@ -265,6 +302,8 @@ describe("the 1+1 ticket", () => {
     vi.resetModules();
     mocks.getEvent.mockResolvedValue(DUO_EVENT);
     mocks.countActiveSignups.mockResolvedValue(taken());
+    mocks.getUserSignups.mockResolvedValue([]);
+    mocks.notifyClientUser.mockResolvedValue(true);
   });
 
   it("records who the buyer is bringing", async () => {
@@ -331,6 +370,89 @@ describe("the 1+1 ticket", () => {
 
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("invites a member of the club by nickname and tells them in the bot", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "TitAn", telegram_id: 777 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerKey: "titan", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duo_partner_name: "TitAn",
+        duo_partner_telegram_id: 777,
+        ticket_type: "duo",
+      }),
+      { onConflict: "event_id,telegram_id" },
+    );
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
+      supabase,
+      777,
+      expect.stringContaining("Ace High"),
+    );
+  });
+
+  // Two accounts under one nickname: guessing between them would invite the wrong player.
+  it("refuses a nickname shared by several accounts", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [
+        { display_name: "TitAn", telegram_id: 777 },
+        { display_name: "titan", telegram_id: 888 },
+      ],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerKey: "titan", ticketType: "duo" });
+
+    expect(response.status).toBe(400);
+    expect(upsert).not.toHaveBeenCalled();
+    expect(mocks.notifyClientUser).not.toHaveBeenCalled();
+  });
+
+  it("lets nobody bring themselves", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "Ace High", telegram_id: 555 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerKey: "acehigh", ticketType: "duo" });
+
+    expect(response.status).toBe(400);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // The buyer keeps the only pair ticket of the evening while naming somebody else.
+  it("lets the buyer swap the partner without losing their own ticket", async () => {
+    const { supabase, update, upsert } = upsertSpy({
+      members: [{ display_name: "Secret", telegram_id: 999 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
+    mocks.getUserSignups.mockResolvedValue([
+      {
+        duoConfirmedAt: null,
+        duoHostTelegramId: null,
+        duoPartnerName: "TitAn",
+        duoPartnerTelegramId: 777,
+        eventId: "event-1",
+        ticketType: "duo",
+      },
+    ]);
+
+    const response = await postSignup({ partnerKey: "secret", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    // The player who was asked before is withdrawn, and told the pair is off.
+    expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 777, expect.any(String));
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_partner_telegram_id: 999 }),
       { onConflict: "event_id,telegram_id" },
     );
   });

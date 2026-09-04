@@ -90,18 +90,26 @@ export async function countActiveSignups(
 
   const { data, error } = await supabase
     .from("event_signups")
-    .select("event_id, ticket_type, duo_partner_name")
+    .select("event_id, ticket_type, duo_partner_name, duo_partner_telegram_id")
     .in("event_id", eventIds)
     .neq("status", "cancelled");
 
   if (error) throw error;
 
   for (const row of data ?? []) {
-    const record = row as { duo_partner_name: unknown; event_id: unknown; ticket_type: unknown };
+    const record = row as {
+      duo_partner_name: unknown;
+      duo_partner_telegram_id: unknown;
+      event_id: unknown;
+      ticket_type: unknown;
+    };
     const eventId = String(record.event_id);
     const taken = counts.get(eventId) ?? { duo: 0, regular: 0, total: 0, vip: 0 };
     const ticket = record.ticket_type;
-    const bringsGuest = ticket === "duo" && Boolean(record.duo_partner_name);
+    // A member brought as a +1 counts on their own row once they accept; a guest from
+    // outside the club has no row of their own and is counted here, on the buyer's.
+    const bringsGuest =
+      ticket === "duo" && !record.duo_partner_telegram_id && Boolean(record.duo_partner_name);
 
     counts.set(eventId, {
       duo: taken.duo + (ticket === "duo" ? 1 : 0),
