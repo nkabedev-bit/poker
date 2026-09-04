@@ -17,7 +17,9 @@ export const TIER_COLORS: Record<PlayerTier, string> = {
   champion: "#e9c07a",
   core: "#e0384f",
   legend: "#a855f7",
-  member: "#c9ced6",
+  // Cool silver rather than a light grey: on the board a plain name is white, and the
+  // two were telling each other apart only by a shade.
+  member: "#9fb6cd",
 };
 
 const TIER_LABELS = new Map<string, PlayerTier>([

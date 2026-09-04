@@ -1,6 +1,6 @@
 import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
-import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
+import { TIER_COLORS, type PlayerTier } from "@/lib/players/tier";
 
 export type RatingPlayer = {
   avatarUrl: string | null;
@@ -60,21 +60,14 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
 
       <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={34} />
 
+      {/* The tier is worn as the colour of the name — a badge beside it was too much
+          on a list this dense. */}
       <span
-        className={`min-w-0 flex-1 truncate text-[15px] font-semibold ${
-          player.tier === "champion" ? "text-[#e9c07a]" : ""
-        }`}
+        className="min-w-0 flex-1 truncate text-[15px] font-semibold"
+        style={{ color: player.tier ? TIER_COLORS[player.tier] : undefined }}
       >
         {player.tier === "champion" ? <span className="mr-1">♛</span> : null}
         {player.name || "Без никнейма"}
-        {player.tier && player.tier !== "champion" ? (
-          <span
-            className="ml-2 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase"
-            style={{ borderColor: TIER_COLORS[player.tier], color: TIER_COLORS[player.tier] }}
-          >
-            {TIER_TITLES[player.tier]}
-          </span>
-        ) : null}
         {player.isMe ? (
           <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
             вы

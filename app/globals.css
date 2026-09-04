@@ -3401,19 +3401,7 @@ p {
   }
 }
 
-/* Club tiers beside a player's name: earned by turning up, or given by the club. */
-.public-player-tier {
-  flex-shrink: 0;
-  border: 1px solid;
-  border-radius: 5px;
-  padding: 0 5px;
-  font-size: 0.72em;
-  font-weight: 800;
-  letter-spacing: 0.5px;
-  line-height: 1.5;
-  background: rgb(0 0 0 / 0.35);
-}
-
+/* Club tiers are worn as the colour of the name; only the champion gets a mark. */
 .public-player-crown {
   flex-shrink: 0;
   font-size: 1.15em;
@@ -3422,8 +3410,3 @@ p {
   text-shadow: 0 0 12px rgb(233 192 122 / 0.55);
 }
 
-/* The champion's own name carries the colour, so the row reads as theirs at a glance. */
-.public-player-name--champion {
-  color: #e9c07a;
-  text-shadow: 0 0 18px rgb(233 192 122 / 0.3);
-}

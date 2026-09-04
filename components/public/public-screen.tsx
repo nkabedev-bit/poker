@@ -15,7 +15,7 @@ import {
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
-import { readTierLabel, resolvePlayerTier, TIER_COLORS, TIER_TITLES } from "@/lib/players/tier";
+import { readTierLabel, resolvePlayerTier, TIER_COLORS } from "@/lib/players/tier";
 import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
@@ -234,7 +234,7 @@ export function getPublicAverageStack(totalChips: number, activePlayers: number)
   return Math.round(totalChips / activePlayers);
 }
 
-function PublicPlayerName({ className, name }: { className?: string; name: string }) {
+function PublicPlayerName({ color, name }: { color?: string; name: string }) {
   const label = name || "Без имени";
   const nameRef = useRef<HTMLElement>(null);
 
@@ -288,11 +288,7 @@ function PublicPlayerName({ className, name }: { className?: string; name: strin
 
   return (
     <span className="public-player-name-frame">
-      <strong
-        className={className ? `public-player-name ${className}` : "public-player-name"}
-        ref={nameRef}
-        title={label}
-      >
+      <strong className="public-player-name" ref={nameRef} style={{ color }} title={label}>
         {label}
       </strong>
     </span>
@@ -937,7 +933,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                 games: player.gamesPlayed,
                 label: player.label,
               });
-              const hasLeading = labelKind !== null || badges.length > 0 || tier !== null;
+              const hasLeading = labelKind !== null || badges.length > 0 || tier === "champion";
 
               return (
                 <div
@@ -956,13 +952,6 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                         <span className="public-player-crown" title="Чемпион">
                           ♛
                         </span>
-                      ) : tier ? (
-                        <span
-                          className="public-player-tier"
-                          style={{ color: TIER_COLORS[tier], borderColor: TIER_COLORS[tier] }}
-                        >
-                          {TIER_TITLES[tier]}
-                        </span>
                       ) : null}
                       {labelKind === "text" ? (
                         <span
@@ -976,7 +965,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                     </span>
                   ) : null}
                   <PublicPlayerName
-                    className={tier === "champion" ? "public-player-name--champion" : undefined}
+                    color={tier ? TIER_COLORS[tier] : undefined}
                     name={player.name}
                   />
                 </div>
