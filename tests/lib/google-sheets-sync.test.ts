@@ -340,32 +340,41 @@ describe("syncVipSheet write budget", () => {
 describe("free entry ledger", () => {
   it("writes the date, the player, the prize and the kind of pass", () => {
     const row = buildFreeEntryGrantRow(
-      { nickname: "Старый узбек", source: "mystery", vip: true },
+      { count: 1, nickname: "Старый узбек", source: "mystery", vip: true },
       new Date("2026-09-04T18:00:00.000Z"),
     );
 
-    expect(row).toEqual(["04.09.2026", "Старый узбек", "Мистери баунти", "VIP"]);
+    expect(row).toEqual(["04.09.2026", "Старый узбек", "Мистери баунти", "VIP", 1]);
   });
 
   it("names the raffle as the reason for a pass won on the wheel", () => {
     const row = buildFreeEntryGrantRow(
-      { nickname: "Ace", source: "raffle", vip: false },
+      { count: 1, nickname: "Ace", source: "raffle", vip: false },
       new Date("2026-09-04T18:00:00.000Z"),
     );
 
-    expect(row.slice(1)).toEqual(["Ace", "Розыгрыш", "Обычная"]);
+    expect(row.slice(1)).toEqual(["Ace", "Розыгрыш", "Обычная", 1]);
+  });
+
+  it("writes a pass taken back by an undone knockout as a minus line", () => {
+    const row = buildFreeEntryGrantRow(
+      { count: -1, nickname: "Ace", source: "mystery", vip: true },
+      new Date("2026-09-04T18:00:00.000Z"),
+    );
+
+    expect(row.slice(2)).toEqual(["Мистери баунти", "VIP", -1]);
   });
 
   it("appends to the Проходки tab of the finance spreadsheet", async () => {
     process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
 
-    await appendFreeEntryGrant({ nickname: "Ace", source: "raffle", vip: false });
+    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
 
     expect(calls.find((call) => call.method === "values.append")?.range).toContain("Проходки");
   });
 
   it("stays quiet when the finance spreadsheet is not configured", async () => {
-    await appendFreeEntryGrant({ nickname: "Ace", source: "raffle", vip: false });
+    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
 
     expect(writeCalls()).toHaveLength(0);
   });

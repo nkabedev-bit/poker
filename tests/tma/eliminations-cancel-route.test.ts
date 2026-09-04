@@ -5,6 +5,7 @@ import { getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rol
 
 
 const mocks = vi.hoisted(() => ({
+  appendFreeEntryGrant: vi.fn(),
   syncTournamentToSheets: vi.fn(),
   loadTournamentExtras: vi.fn(),
   requireTmaAuth: vi.fn(),
@@ -16,6 +17,7 @@ vi.mock("@/lib/tma/require-auth", () => ({
 }));
 
 vi.mock("@/lib/google-sheets", () => ({
+  appendFreeEntryGrant: mocks.appendFreeEntryGrant,
   syncTournamentToSheets: mocks.syncTournamentToSheets,
 }));
 
@@ -50,15 +52,17 @@ function player(id: string, overrides: Partial<TournamentPlayer> = {}): Tourname
   };
 }
 
-function createSupabaseMock(log: Record<string, unknown>) {
+function createSupabaseMock(log: Record<string, unknown>, account: Record<string, number> | null = null) {
   const bountyLogDelete = vi.fn(() => ({
     eq: vi.fn(() => ({
       eq: vi.fn(async () => ({ data: null, error: null })),
     })),
   }));
+  const passUpdates: unknown[] = [];
 
   return {
     bountyLogDelete,
+    passUpdates,
     from: vi.fn((table: string) => {
       if (table === "tournaments") {
         return {
@@ -80,6 +84,20 @@ function createSupabaseMock(log: Record<string, unknown>) {
               })),
             })),
           })),
+        };
+      }
+
+      if (table === "client_bot_users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({ data: account, error: null })),
+            })),
+          })),
+          update: vi.fn((payload: unknown) => {
+            passUpdates.push(payload);
+            return { eq: vi.fn(async () => ({ data: payload, error: null })) };
+          }),
         };
       }
 
@@ -139,6 +157,68 @@ describe("TMA elimination cancellation route", () => {
     expect(supabase.bountyLogDelete).toHaveBeenCalled();
     expect(mocks.syncTournamentToSheets).toHaveBeenCalled();
   });
+
+  // A misclick takes the mystery pass back; a knockout undone for a re-entry leaves it.
+  it("takes the mystery pass back when the admin says it was a misclick", async () => {
+    const killer = player("killer", { telegramId: 777 });
+    const supabase = createSupabaseMock(
+      {
+        id: "elim-1",
+        eliminated_id: "out",
+        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass", pass: "vip" } }],
+        tournament_id: "tournament-1",
+      },
+      { vip_free_entries: 2 },
+    );
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [killer] }));
+
+    const { POST } = await import("@/app/api/tma/eliminations/[id]/cancel/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations/elim-1/cancel", {
+        method: "POST",
+        body: JSON.stringify({ revoke_passes: true }),
+      }),
+      { params: Promise.resolve({ id: "elim-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.passUpdates).toEqual([{ vip_free_entries: 1 }]);
+    expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
+      count: -1,
+      nickname: "Killer",
+      source: "mystery",
+      vip: true,
+    });
+  });
+
+  it("leaves the pass alone when the knockout is undone for a re-entry", async () => {
+    const killer = player("killer", { telegramId: 777 });
+    const supabase = createSupabaseMock(
+      {
+        id: "elim-1",
+        eliminated_id: "out",
+        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass", pass: "vip" } }],
+        tournament_id: "tournament-1",
+      },
+      { vip_free_entries: 2 },
+    );
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [killer] }));
+
+    const { POST } = await import("@/app/api/tma/eliminations/[id]/cancel/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations/elim-1/cancel", {
+        method: "POST",
+        body: JSON.stringify({ revoke_passes: false }),
+      }),
+      { params: Promise.resolve({ id: "elim-1" }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.passUpdates).toEqual([]);
+    expect(mocks.appendFreeEntryGrant).not.toHaveBeenCalled();
+  });
 });
 
 describe("getTargetedEliminationRollbackPlayers helper", () => {
@@ -162,6 +242,32 @@ describe("getTargetedEliminationRollbackPlayers helper", () => {
     expect(killer?.stack).toBe(1000);
     expect(out?.status).toBe("active");
     expect(out?.finishPlace).toBeNull();
+  });
+
+  // Mystery Bounty pays each killer their own card, so the rollback cannot split one
+  // total by share — it takes back exactly what the log says each of them got.
+  it("takes back each killer's own mystery card", () => {
+    const players = [
+      player("a", { bountyChipsTotal: 0, bountyCount: 0.5, mysteryBountyPoints: 60, stack: 1000 }),
+      player("b", { bountyChipsTotal: 100, bountyCount: 0.5, mysteryBountyPoints: 0, stack: 1100 }),
+      player("out", { finishPlace: 4, status: "eliminated" }),
+    ];
+    const log = {
+      eliminated_id: "out",
+      finish_place: 4,
+      killers: [
+        { bountyChips: 0, id: "a", mysteryPoints: 60, share: 0.5 },
+        { bountyChips: 100, id: "b", mysteryPoints: 0, share: 0.5 },
+      ],
+      mystery_bounty_points: 60,
+      uses_reentry: false,
+    };
+
+    const result = getTargetedEliminationRollbackPlayers(log, players);
+
+    expect(result.find((item) => item.id === "a")?.mysteryBountyPoints).toBe(0);
+    expect(result.find((item) => item.id === "b")?.mysteryBountyPoints).toBe(0);
+    expect(result.find((item) => item.id === "b")?.stack).toBe(1000);
   });
 
   it("decrements rebuys for re-entry elimination without changing status or finishPlace", () => {

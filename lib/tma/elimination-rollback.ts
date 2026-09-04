@@ -31,19 +31,33 @@ export function getTargetedEliminationRollbackPlayers(
   const bountyEntries: Array<[string, number]> = [];
   const bountyChipEntries: Array<[string, number]> = [];
   const mysteryPointsEntries: Array<[string, number]> = [];
+  // Mystery Bounty writes each killer's own card into the log, so the rollback takes
+  // back what that killer actually got rather than a share of one total.
+  const killersCarryOwnPoints = (Array.isArray(log.killers) ? log.killers : []).some(
+    (killer) => (killer as { mysteryPoints?: unknown } | null)?.mysteryPoints !== undefined,
+  );
   for (const killer of Array.isArray(log.killers) ? log.killers : []) {
-    const item = killer as { bountyChips?: unknown; id?: unknown; share?: unknown };
+    const item = killer as {
+      bountyChips?: unknown;
+      id?: unknown;
+      mysteryPoints?: unknown;
+      share?: unknown;
+    };
     const id = String(item.id ?? "");
     const share = Number(item.share ?? 0);
     const bountyChips = Number(item.bountyChips ?? 0);
+    const mysteryPoints = Number(item.mysteryPoints ?? 0);
     if (id && share > 0) bountyEntries.push([id, share]);
     if (id && bountyChips > 0) bountyChipEntries.push([id, bountyChips]);
+    if (id && killersCarryOwnPoints && mysteryPoints > 0) {
+      mysteryPointsEntries.push([id, mysteryPoints]);
+    }
   }
 
-  // Estimate mystery points from log's mystery_bounty_points field
+  // Older logs kept one total for everyone, split by share.
   const logRecord = log as EliminationRollbackLog & { mystery_bounty_points?: number };
   const totalMysteryPoints = Number(logRecord.mystery_bounty_points ?? 0);
-  if (totalMysteryPoints > 0) {
+  if (!killersCarryOwnPoints && totalMysteryPoints > 0) {
     for (const [id, share] of bountyEntries) {
       mysteryPointsEntries.push([id, share * totalMysteryPoints]);
     }

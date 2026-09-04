@@ -90,7 +90,7 @@ export function getCurrentAndNextLevel(
 
 // The current level's big blind, falling back to the nearest non-break level when the
 // timer sits on a break (or on a level without blinds configured).
-function resolveEffectiveBigBlind(levels: BlindLevel[], currentIndex: number): number {
+export function resolveEffectiveBigBlind(levels: BlindLevel[], currentIndex: number): number {
   const currentLevel = levels[currentIndex];
   const currentBigBlind = currentLevel && !currentLevel.isBreak ? currentLevel.bigBlind : null;
 

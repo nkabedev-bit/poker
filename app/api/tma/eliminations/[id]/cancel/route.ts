@@ -1,6 +1,8 @@
 import { after, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { syncTournamentToSheets } from "@/lib/google-sheets";
+import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
+import { getMysteryPrizePass, parseMysteryPrize } from "@/lib/mystery/prizes";
 import { getProgressiveKnockoutsBefore, getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -35,6 +37,59 @@ function getFallbackRollbackPlayers(log: BountyLog, players: TournamentPlayer[])
   return getTargetedEliminationRollbackPlayers(log, players);
 }
 
+/**
+ * Takes back the free entries a Mystery card paid out.
+ *
+ * Only asked for when the knockout itself was a misclick: a player who is re-entering
+ * keeps what they won, so the caller decides and this runs on request.
+ */
+async function revokeMysteryPasses(
+  supabase: SupabaseClient,
+  log: BountyLog,
+  players: TournamentPlayer[],
+) {
+  for (const killer of Array.isArray(log.killers) ? log.killers : []) {
+    const item = killer as { id?: unknown; name?: unknown; prize?: unknown };
+    const prize = parseMysteryPrize(item.prize);
+    const pass = prize ? getMysteryPrizePass(prize) : null;
+    if (!pass) continue;
+
+    const killerId = String(item.id ?? "");
+    const nickname = String(item.name ?? "");
+    const telegramId = players.find((player) => player.id === killerId)?.telegramId ?? null;
+    const column = pass === "vip" ? "vip_free_entries" : "free_entries";
+
+    if (telegramId) {
+      const { data: account } = await supabase
+        .from("client_bot_users")
+        .select(column)
+        .eq("telegram_id", telegramId)
+        .maybeSingle();
+
+      if (account) {
+        const held = Math.max(0, Number((account as Record<string, number>)[column] ?? 0));
+        const { error } = await supabase
+          .from("client_bot_users")
+          .update({ [column]: Math.max(0, held - 1) })
+          .eq("telegram_id", telegramId);
+
+        if (error) console.error("Failed to take the mystery bounty pass back", error);
+      }
+    }
+
+    try {
+      await appendFreeEntryGrant({
+        count: -1,
+        nickname,
+        source: "mystery",
+        vip: pass === "vip",
+      });
+    } catch (sheetError) {
+      console.error("Failed to log the cancelled mystery bounty pass", sheetError);
+    }
+  }
+}
+
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireTmaAuth(request);
   if (auth.error) return auth.error;
@@ -57,6 +112,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const typedLog = log as BountyLog;
     const extras = await loadTournamentExtras(t.id, auth.supabase);
     const isProgressiveBounty = extras.settings.bountyType === "progressive";
+    const body = await request.json().catch(() => ({}));
+
+    // A misclick takes the prize back; a knockout undone because the player is
+    // re-entering leaves it with them.
+    if (body?.revoke_passes === true) {
+      await revokeMysteryPasses(auth.supabase, typedLog, extras.players);
+    }
 
     const { data: updatedPlayersResult, error: rpcError } = await auth.supabase.rpc("cancel_player_elimination", {
       p_tournament_id: t.id,

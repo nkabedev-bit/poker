@@ -984,7 +984,7 @@ export async function syncFinanceSheet(
 // ---------------------------------------------------------------------------
 
 const FREE_ENTRY_SHEET_NAME = "Проходки";
-const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка"];
+const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка", "Сколько"];
 
 /** The two ways a player wins a pass; passes the owner hands out by name are not events. */
 export type FreeEntrySource = "mystery" | "raffle";
@@ -995,6 +995,8 @@ const FREE_ENTRY_SOURCE_LABELS: Record<FreeEntrySource, string> = {
 };
 
 export type FreeEntryGrant = {
+  /** -1 when a knockout is undone and the pass it paid goes back. */
+  count: number;
   nickname: string;
   source: FreeEntrySource;
   vip: boolean;
@@ -1011,6 +1013,7 @@ export function buildFreeEntryGrantRow(
     grant.nickname,
     FREE_ENTRY_SOURCE_LABELS[grant.source],
     grant.vip ? "VIP" : "Обычная",
+    grant.count,
   ];
 }
 

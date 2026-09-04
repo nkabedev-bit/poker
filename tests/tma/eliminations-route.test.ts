@@ -3,6 +3,7 @@ import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TimerState, TournamentPlayer } from "@/lib/timer/types";
 
 const mocks = vi.hoisted(() => ({
+  appendFreeEntryGrant: vi.fn(),
   syncTournamentToSheets: vi.fn(),
   broadcastPublicState: vi.fn(),
   loadTournamentExtras: vi.fn(),
@@ -15,6 +16,7 @@ vi.mock("@/lib/tma/require-auth", () => ({
 }));
 
 vi.mock("@/lib/google-sheets", () => ({
+  appendFreeEntryGrant: mocks.appendFreeEntryGrant,
   syncTournamentToSheets: mocks.syncTournamentToSheets,
 }));
 
@@ -54,7 +56,7 @@ type RecordPlayerEliminationArgs = {
   p_uses_reentry: boolean;
 };
 
-function player(id: string, name: string): TournamentPlayer {
+function player(id: string, name: string, overrides: Partial<TournamentPlayer> = {}): TournamentPlayer {
   return {
     id,
     name,
@@ -66,15 +68,18 @@ function player(id: string, name: string): TournamentPlayer {
     stack: 1000,
     status: "active",
     table: null,
+    ...overrides,
   };
 }
 
 function createSupabaseMock(options: {
   blindLevelRows?: Array<Record<string, unknown>>;
+  clientBotAccount?: Record<string, number> | null;
   existingBountyLog?: unknown;
   insertErrors?: Array<{ message: string }>;
   recentBountyLog?: unknown;
 } = {}) {
+  const passUpdates: unknown[] = [];
   const timerUpdate = vi.fn((payload: unknown) => ({
     eq: vi.fn(async () => ({ data: payload, error: null })),
   }));
@@ -167,10 +172,28 @@ function createSupabaseMock(options: {
         };
       }
 
+      if (table === "client_bot_users") {
+        return {
+          select: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn(async () => ({
+                data: options.clientBotAccount ?? { free_entries: 0, vip_free_entries: 0 },
+                error: null,
+              })),
+            })),
+          })),
+          update: vi.fn((payload: unknown) => {
+            passUpdates.push(payload);
+            return { eq: vi.fn(async () => ({ data: payload, error: null })) };
+          }),
+        };
+      }
+
       throw new Error(`Unexpected table: ${table}`);
     }),
     bountyLogUpdate,
     insertPayloads,
+    passUpdates,
     timerUpdate,
     rpc: vi.fn(async (fnName: string, args: RecordPlayerEliminationArgs) => {
       if (fnName === "record_player_elimination") {
@@ -203,6 +226,7 @@ describe("TMA eliminations route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.syncTournamentToSheets.mockResolvedValue(undefined);
+    mocks.appendFreeEntryGrant.mockResolvedValue(null);
   });
 
   it("clears players when the final elimination finishes the tournament", async () => {
@@ -512,7 +536,7 @@ describe("TMA eliminations route", () => {
     );
   });
 
-  it("mystery mode still passes the admin-entered mystery points through", async () => {
+  it("mystery mode: a points card pays exactly what the dealer tapped", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
@@ -529,7 +553,7 @@ describe("TMA eliminations route", () => {
         body: JSON.stringify({
           eliminated_id: "out",
           killers: [{ id: "killer", name: "Killer", share: 1 }],
-          mystery_bounty_points: 120,
+          mystery_prizes: [{ killerId: "killer", prize: { amount: 40, kind: "points" } }],
         }),
       }),
     );
@@ -537,7 +561,39 @@ describe("TMA eliminations route", () => {
     expect(response.status).toBe(200);
     expect(supabase.rpc).toHaveBeenCalledWith(
       "record_player_elimination",
-      expect.objectContaining({ p_mystery_points: 120 }),
+      expect.objectContaining({
+        p_mystery_points: 40,
+        p_killers: [expect.objectContaining({ id: "killer", mysteryPoints: 40 })],
+      }),
+    );
+  });
+
+  it("mystery mode: a card nobody can audit pays nothing", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_prizes: [{ killerId: "killer", prize: { amount: 999, kind: "points" } }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({ p_mystery_points: 0 }),
     );
   });
 
@@ -555,6 +611,176 @@ describe("TMA eliminations route", () => {
       break_duration_seconds: 0,
     },
   ];
+
+  it("mystery mode: a big-blind card is counted at the level in play", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_prizes: [{ killerId: "killer", prize: { amount: 2, kind: "bigBlinds" } }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // 2 cards × the 100 big blind in play = 200 chips on the killer's stack.
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_killers: [expect.objectContaining({ bountyChips: 200, mysteryPoints: 0 })],
+      }),
+    );
+  });
+
+  it("mystery mode: every killer draws their own card in a split knockout", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [
+            { id: "a", name: "A", share: 0.5 },
+            { id: "b", name: "B", share: 0.5 },
+          ],
+          mystery_prizes: [
+            { killerId: "a", prize: { amount: 60, kind: "points" } },
+            { killerId: "b", prize: { amount: 1, kind: "bigBlinds" } },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_killers: [
+          expect.objectContaining({ id: "a", bountyChips: 0, mysteryPoints: 60 }),
+          expect.objectContaining({ id: "b", bountyChips: 100, mysteryPoints: 0 }),
+        ],
+      }),
+    );
+  });
+
+  it("mystery mode: says so when the database never applied the big blinds", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_prizes: [{ killerId: "killer", prize: { amount: 1, kind: "bigBlinds" } }],
+        }),
+      }),
+    );
+
+    // The mock runs the pre-migration maths, where a mystery knockout adds no chips.
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      prizeWarning: expect.stringContaining("202609040005"),
+    });
+  });
+
+  it("mystery mode: a pass card credits the profile and reaches the ledger", async () => {
+    const supabase = createSupabaseMock({ clientBotAccount: { vip_free_entries: 2 } });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer", { telegramId: 777 }),
+          player("other", "Other"),
+          player("out", "Out"),
+        ],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass", pass: "vip" } }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.passUpdates).toEqual([{ vip_free_entries: 3 }]);
+    expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
+      count: 1,
+      nickname: "Killer",
+      source: "mystery",
+      vip: true,
+    });
+    await expect(response.json()).resolves.toMatchObject({
+      mysteryPasses: [{ granted: true, nickname: "Killer", vip: true }],
+    });
+  });
+
+  it("mystery mode: a pass for a player without Telegram still reaches the ledger", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("killer", "Killer"), player("other", "Other"), player("out", "Out")],
+        settings: { isBounty: true, bountyType: "mystery" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          killers: [{ id: "killer", name: "Killer", share: 1 }],
+          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass", pass: "regular" } }],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(supabase.passUpdates).toEqual([]);
+    expect(mocks.appendFreeEntryGrant).toHaveBeenCalledTimes(1);
+    await expect(response.json()).resolves.toMatchObject({
+      mysteryPasses: [{ granted: false, nickname: "Killer" }],
+    });
+  });
 
   it("standard bounty: awards the 2-big-blind stack reward to the killer", async () => {
     const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });

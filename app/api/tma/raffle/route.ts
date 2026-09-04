@@ -130,6 +130,7 @@ export async function POST(request: Request) {
         try {
           const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
           await appendFreeEntryGrant({
+            count: 1,
             nickname: winner.name,
             source: "raffle",
             vip: false,

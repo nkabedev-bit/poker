@@ -1,10 +1,19 @@
 import { after, NextResponse } from "next/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
-import { syncTournamentToSheets } from "@/lib/google-sheets";
+import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
-import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward } from "@/lib/timer/calculate";
+import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward, resolveEffectiveBigBlind } from "@/lib/timer/calculate";
+import {
+  describeMysteryPrize,
+  getMysteryPrizeChips,
+  getMysteryPrizePass,
+  getMysteryPrizePoints,
+  parseMysteryPrizes,
+  type MysteryPrize,
+} from "@/lib/mystery/prizes";
 import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
 import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
@@ -19,7 +28,66 @@ type Killer = {
   share: number;
 };
 
+/** A killer with what this knockout paid them — the shared award, or their own card. */
+type KillerAward = Killer & {
+  bountyChips: number;
+  mysteryPoints: number;
+  prize?: MysteryPrize;
+  prizeLabel?: string;
+};
+
 const SAME_PLAYER_DUPLICATE_WINDOW_SECONDS = 30;
+
+export type MysteryPassResult = {
+  /** False when the player has no Telegram account to credit — the admin hands it over. */
+  granted: boolean;
+  nickname: string;
+  vip: boolean;
+};
+
+/**
+ * A Mystery card can pay a free entry.
+ *
+ * The prize is real either way, so it always reaches the "Проходки" ledger; the profile
+ * counter only moves for a player whose nickname is linked to a Telegram account.
+ */
+async function grantMysteryBountyPass(
+  supabase: SupabaseClient,
+  killer: { id: string; name: string },
+  players: TournamentPlayer[],
+  vip: boolean,
+): Promise<MysteryPassResult> {
+  const telegramId = players.find((player) => player.id === killer.id)?.telegramId ?? null;
+  const column = vip ? "vip_free_entries" : "free_entries";
+  let granted = false;
+
+  if (telegramId) {
+    const { data: account } = await supabase
+      .from("client_bot_users")
+      .select(column)
+      .eq("telegram_id", telegramId)
+      .maybeSingle();
+
+    if (account) {
+      const held = Math.max(0, Number((account as Record<string, number>)[column] ?? 0));
+      const { error } = await supabase
+        .from("client_bot_users")
+        .update({ [column]: held + 1 })
+        .eq("telegram_id", telegramId);
+
+      if (error) console.error("Failed to grant the mystery bounty pass", error);
+      else granted = true;
+    }
+  }
+
+  try {
+    await appendFreeEntryGrant({ count: 1, nickname: killer.name, source: "mystery", vip });
+  } catch (sheetError) {
+    console.error("Failed to log the mystery bounty pass", sheetError);
+  }
+
+  return { granted, nickname: killer.name, vip };
+}
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
@@ -34,8 +102,7 @@ export async function POST(request: Request) {
     if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
     const body = await request.json();
-    const { eliminated_id, bounty_split, client_request_id, killers, mystery_bounty_points, uses_reentry, reentry_double } = body;
-    const clientMysteryPoints = Number(mystery_bounty_points) || 0;
+    const { eliminated_id, bounty_split, client_request_id, killers, mystery_prizes, uses_reentry, reentry_double } = body;
     const clientRequestId = typeof client_request_id === "string" ? client_request_id.trim() : "";
 
     if (clientRequestId) {
@@ -101,9 +168,7 @@ export async function POST(request: Request) {
         ? (eliminatedIsWanted ? WANTED_KNOCKOUT_POINTS : regularKnockoutPoints)
         : isProgressiveBounty
           ? getProgressiveHeadPoints(eliminatedPlayer.progressiveKnockouts)
-          : extras.settings.bountyType === "mystery"
-            ? clientMysteryPoints
-            : 0;
+          : 0;
     const sanitizedKillers: Killer[] = isBounty && Array.isArray(killers)
       ? killers
         .map((killer: Partial<Killer>) => ({
@@ -141,17 +206,41 @@ export async function POST(request: Request) {
               ? getDealerKnockoutChipAward(blindLevels, currentTimerState.currentLevelIndex)
               : 0
         : 0;
-    const killersWithBountyChips = sanitizedKillers.map((killer) => ({
-      ...killer,
-      bountyChips: Number((killer.share * bountyChipAward).toFixed(6)),
-    }));
+    // Mystery Bounty: each killer draws their own card, so the award is per killer
+    // instead of one number split by shares. Every other mode keeps the shared award,
+    // written out per killer so the database never has to guess.
+    const mysteryPrizeByKillerId = new Map(
+      (extras.settings.bountyType === "mystery"
+        ? parseMysteryPrizes(mystery_prizes, sanitizedKillers.map((killer) => killer.id))
+        : []
+      ).map((entry) => [entry.killerId, entry.prize]),
+    );
+    const mysteryBigBlind = resolveEffectiveBigBlind(blindLevels, currentTimerState.currentLevelIndex);
+    const killersWithBountyChips: KillerAward[] = sanitizedKillers.map((killer) => {
+      const prize = mysteryPrizeByKillerId.get(killer.id);
+
+      return {
+        ...killer,
+        bountyChips: prize
+          ? getMysteryPrizeChips(prize, mysteryBigBlind)
+          : Number((killer.share * bountyChipAward).toFixed(6)),
+        mysteryPoints: prize
+          ? getMysteryPrizePoints(prize)
+          : Number((killer.share * mysteryBountyPoints).toFixed(2)),
+        ...(prize ? { prize, prizeLabel: describeMysteryPrize(prize) } : {}),
+      };
+    });
+    // What the evening's knockout paid in points, for the log and for the rollback.
+    const recordedMysteryPoints = mysteryPrizeByKillerId.size > 0
+      ? Number(killersWithBountyChips.reduce((total, killer) => total + killer.mysteryPoints, 0).toFixed(2))
+      : mysteryBountyPoints;
 
     const { data: rpcResult, error: rpcError } = await auth.supabase.rpc("record_player_elimination", {
       p_tournament_id: t.id,
       p_eliminated_id: eliminated_id,
-      p_killers: sanitizedKillers,
+      p_killers: killersWithBountyChips,
       p_bounty_chip_award: bountyChipAward,
-      p_mystery_points: mysteryBountyPoints,
+      p_mystery_points: recordedMysteryPoints,
       p_uses_reentry: usesReentry,
       p_is_bounty: isBounty,
       p_reentry_double: reentryDouble,
@@ -200,6 +289,29 @@ export async function POST(request: Request) {
       await broadcastPublicState(t.public_token);
     }
 
+    // Migration 202609040005 taught the database to read each killer's own card. Until
+    // it is applied the chips silently stay put, so the admin is told rather than left
+    // to notice a stack that never grew.
+    const prizeChipsMissing = killersWithBountyChips.some((killer) => {
+      if (!killer.prize || killer.bountyChips <= 0) return false;
+
+      const before = Number(extras.players.find((item) => item.id === killer.id)?.stack ?? 0);
+      const after = Number(updatedPlayers.find((item) => item.id === killer.id)?.stack ?? 0);
+
+      return Math.abs(after - (before + killer.bountyChips)) > 0.5;
+    });
+
+    // The passes are credited once the knockout itself is safely recorded.
+    const mysteryPasses: MysteryPassResult[] = [];
+    for (const killer of killersWithBountyChips) {
+      const pass = killer.prize ? getMysteryPrizePass(killer.prize) : null;
+      if (!pass) continue;
+
+      mysteryPasses.push(
+        await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers, pass === "vip"),
+      );
+    }
+
     // Insert to bounty_log
     const bountyRecord = await insertBountyLogRecord(auth.supabase, {
       tournament_id: t.id,
@@ -209,7 +321,7 @@ export async function POST(request: Request) {
       bounty_split: isBounty ? bounty_split || false : false,
       client_request_id: clientRequestId || null,
       killers: killersWithBountyChips,
-      mystery_bounty_points: mysteryBountyPoints,
+      mystery_bounty_points: recordedMysteryPoints,
       players_after: updatedPlayers,
       players_before: extras.players,
       recorded_by: auth.userId,
@@ -226,7 +338,13 @@ export async function POST(request: Request) {
       }
     });
 
-    return NextResponse.json({ elimination: bountyRecord });
+    return NextResponse.json({
+      elimination: bountyRecord,
+      mysteryPasses,
+      prizeWarning: prizeChipsMissing
+        ? "Фишки за большой блайнд не начислились — миграция 202609040005 не применена"
+        : null,
+    });
   } catch (err: unknown) {
     console.error("Error in POST /api/tma/eliminations:", err);
     return NextResponse.json({ error: getErrorMessage(err) }, { status: 500 });
