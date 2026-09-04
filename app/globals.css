@@ -3411,11 +3411,9 @@ p {
   font-size: 1em;
   line-height: 1;
 }
-
-/* A player's plate: the club's own card art, cut into three.
-   The left corner and the decorated right edge keep their shape at any width, and a
-   slice of the middle is stretched between them — a row on the board is far wider and
-   much shorter than the artwork, and stretching the whole of it flattened the crown. */
+/* A player's plate: the club's own card art, one image per tier, stretched to the row.
+   The card is wider and taller in proportion than a row, so the art is squeezed rather
+   than cropped — the club chose this over cutting the plate into pieces. */
 .tier-plate {
   position: relative;
   border-color: transparent !important;
@@ -3423,36 +3421,21 @@ p {
 }
 
 .tier-plate--plain {
-  background:
-    url("/tiers/plain-right.webp") right center / auto 100% no-repeat,
-    url("/tiers/plain-left.webp") left center / auto 100% no-repeat,
-    url("/tiers/plain-mid.webp") center center / 100% 100% no-repeat !important;
+  background: url("/tiers/plain.webp") center center / 100% 100% no-repeat !important;
 }
 
 .tier-plate--member {
-  background:
-    url("/tiers/member-right.webp") right center / auto 100% no-repeat,
-    url("/tiers/member-left.webp") left center / auto 100% no-repeat,
-    url("/tiers/member-mid.webp") center center / 100% 100% no-repeat !important;
+  background: url("/tiers/member.webp") center center / 100% 100% no-repeat !important;
 }
 
 .tier-plate--core {
-  background:
-    url("/tiers/core-right.webp") right center / auto 100% no-repeat,
-    url("/tiers/core-left.webp") left center / auto 100% no-repeat,
-    url("/tiers/core-mid.webp") center center / 100% 100% no-repeat !important;
+  background: url("/tiers/core.webp") center center / 100% 100% no-repeat !important;
 }
 
 .tier-plate--legend {
-  background:
-    url("/tiers/legend-right.webp") right center / auto 100% no-repeat,
-    url("/tiers/legend-left.webp") left center / auto 100% no-repeat,
-    url("/tiers/legend-mid.webp") center center / 100% 100% no-repeat !important;
+  background: url("/tiers/legend.webp") center center / 100% 100% no-repeat !important;
 }
 
 .tier-plate--champion {
-  background:
-    url("/tiers/champion-right.webp") right center / auto 100% no-repeat,
-    url("/tiers/champion-left.webp") left center / auto 100% no-repeat,
-    url("/tiers/champion-mid.webp") center center / 100% 100% no-repeat !important;
+  background: url("/tiers/champion.webp") center center / 100% 100% no-repeat !important;
 }
