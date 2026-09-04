@@ -60,9 +60,36 @@ export async function POST(request: Request) {
   const cardCode = normalizeCardCode(body.cardCode);
   const playerId = String(body.playerId ?? "");
   const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
+  const tableNumber = Number(body.table);
+  const seatNumber = Number(body.seat);
 
   if (!cardCode) return NextResponse.json({ error: "Пустой код карты" }, { status: 400 });
   if (!playerId) return NextResponse.json({ error: "Не выбран игрок" }, { status: 400 });
+
+  // Handing over a card is also when the player is told where to sit, so the chair
+  // travels with it — a walk-in added by hand has a table but no seat of their own.
+  if (Number.isInteger(tableNumber) && Number.isInteger(seatNumber)) {
+    const { error: seatError } = await auth.supabase.rpc("seat_tournament_player", {
+      p_tournament_id: t.id,
+      p_player_id: playerId,
+      p_table: tableNumber,
+      p_seat: seatNumber,
+    });
+
+    if (seatError) {
+      const message = String(seatError.message ?? "");
+      if (message.includes("Seat already taken")) {
+        return NextResponse.json(
+          { error: `Место ${seatNumber} за столом ${tableNumber} уже занято` },
+          { status: 409 },
+        );
+      }
+      if (message.includes("Player not found")) {
+        return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+      }
+      throw seatError;
+    }
+  }
 
   const { data, error } = await auth.supabase.rpc("assign_player_card", {
     p_tournament_id: t.id,

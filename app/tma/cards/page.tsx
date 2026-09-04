@@ -42,6 +42,15 @@ type Player = {
 
 type SeatChoice = { seat: number; table: number };
 
+/** A card is handed either to a sign-up or to a player already at a table. */
+type SeatingTarget =
+  | { kind: "signup"; signup: Signup }
+  | { kind: "player"; player: Player };
+
+function targetName(target: SeatingTarget) {
+  return target.kind === "signup" ? target.signup.name : target.player.name;
+}
+
 const TICKET_LABELS: Record<TicketType, string> = {
   regular: "Обычный билет",
   vip: "VIP билет",
@@ -57,8 +66,9 @@ export default function TMACardsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [tablesCount, setTablesCount] = useState(1);
-  // The player the admin picked from the sign-ups, waiting for a chair.
-  const [seating, setSeating] = useState<Signup | null>(null);
+  // Who the card is being handed to, waiting for a chair: someone who signed up in the
+  // app, or a walk-in already in the roster.
+  const [seating, setSeating] = useState<SeatingTarget | null>(null);
   const [seatChoice, setSeatChoice] = useState<SeatChoice | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
   const [manualCode, setManualCode] = useState("");
@@ -149,7 +159,7 @@ export default function TMACardsPage() {
     });
   };
 
-  const assign = async (player: Player) => {
+  const assign = async (player: Player, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
     if (!scannedCode || busy) return;
 
@@ -158,7 +168,13 @@ export default function TMACardsPage() {
       const res = await fetch("/api/tma/cards", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ cardCode: scannedCode, playerId: player.id, ticketType }),
+        body: JSON.stringify({
+          cardCode: scannedCode,
+          playerId: player.id,
+          seat: choice.seat,
+          table: choice.table,
+          ticketType,
+        }),
       });
       const data = await res.json().catch(() => null);
 
@@ -170,6 +186,8 @@ export default function TMACardsPage() {
 
       tg?.HapticFeedback.notificationOccurred("success");
       setSession(data.session);
+      setSeating(null);
+      setSeatChoice(null);
       setSearch("");
       await loadPlayers();
     } finally {
@@ -187,7 +205,7 @@ export default function TMACardsPage() {
       // The player already said which ticket they wanted; the admin can still change it.
       setTicketType(signup.ticketType);
       setSeatChoice(null);
-      setSeating(signup);
+      setSeating({ kind: "signup", signup });
     };
 
     if (signup.usePass === "none" || !tg?.showAlert) {
@@ -204,13 +222,31 @@ export default function TMACardsPage() {
   };
 
   /**
+   * A walk-in already in the roster: the card is handed over on the same screen, so the
+   * chair is chosen rather than left at whatever the roster defaulted to.
+   */
+  const startSeatingPlayer = (player: Player) => {
+    // A VIP registration number means a VIP seat, so the ticket is pre-picked to match
+    // and the admin only overrides the exception.
+    setTicketType(isVipRegistrationNumber(player.registrationNumber) ? "vip" : "regular");
+    setSeatChoice(
+      player.table && player.seat ? { seat: player.seat, table: player.table } : null,
+    );
+    setSeating({ kind: "player", player });
+  };
+
+  /**
    * Sends the player to a free seat the club drew for them. The ticket decides the
    * room: a VIP ticket — bought or covered by a VIP pass — belongs at the VIP table,
    * a regular one at the regular tables.
    */
-  const seatAtRandom = (signup: Signup) => {
+  const seatAtRandom = (target: SeatingTarget) => {
     const tg = getTelegramWebApp();
-    const picked = pickRandomSeat(buildSeatingTables(players, tablesCount), ticketType);
+    const seated =
+      target.kind === "player"
+        ? players.filter((item) => item.id !== target.player.id)
+        : players;
+    const picked = pickRandomSeat(buildSeatingTables(seated, tablesCount), ticketType);
 
     if (!picked) {
       tg?.HapticFeedback.notificationOccurred("error");
@@ -223,7 +259,17 @@ export default function TMACardsPage() {
     }
 
     setSeatChoice(picked);
-    void seatAndAssign(signup, picked);
+    void handOverCard(target, picked);
+  };
+
+  /** Hands the card over, whichever kind of player is on the other side of the desk. */
+  const handOverCard = async (target: SeatingTarget, choice: SeatChoice) => {
+    if (target.kind === "signup") {
+      await seatAndAssign(target.signup, choice);
+      return;
+    }
+
+    await assign(target.player, choice);
   };
 
   const seatAndAssign = async (signup: Signup, choice: SeatChoice) => {
@@ -350,7 +396,7 @@ export default function TMACardsPage() {
         </h1>
 
         <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-          <p className="text-lg font-bold">{seating.name}</p>
+          <p className="text-lg font-bold">{targetName(seating)}</p>
           <p className="text-sm text-[var(--tg-theme-hint-color)]">
             {TICKET_LABELS[ticketType]} · карта {scannedCode}
           </p>
@@ -366,6 +412,7 @@ export default function TMACardsPage() {
         </button>
 
         <SeatingPicker
+          ignorePlayerId={seating.kind === "player" ? seating.player.id : undefined}
           players={players}
           selected={seatChoice}
           tablesCount={tablesCount}
@@ -382,7 +429,7 @@ export default function TMACardsPage() {
           className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
           disabled={busy || !seatChoice}
           type="button"
-          onClick={() => seatChoice && void seatAndAssign(seating, seatChoice)}
+          onClick={() => seatChoice && void handOverCard(seating, seatChoice)}
         >
           {seatChoice
             ? `Посадить за стол ${seatChoice.table}, место ${seatChoice.seat}`
@@ -647,12 +694,7 @@ export default function TMACardsPage() {
                 className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left disabled:opacity-60"
                 disabled={busy}
                 type="button"
-                onClick={() => {
-                  // A VIP registration number means a VIP seat, so the ticket is
-                  // pre-picked to match and the admin only overrides the exception.
-                  setTicketType(isVipRegistrationNumber(player.registrationNumber) ? "vip" : "regular");
-                  void assign(player);
-                }}
+                onClick={() => startSeatingPlayer(player)}
               >
                 <span className="min-w-0">
                   <span className="block truncate font-semibold">{player.name}</span>

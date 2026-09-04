@@ -10,6 +10,8 @@ type SeatingPlayer = Pick<TournamentPlayer, "id" | "name" | "status"> & {
 };
 
 type SeatingPickerProps = {
+  /** The player being seated: their own chair reads as free, not as taken by them. */
+  ignorePlayerId?: string;
   onSelect: (seat: { seat: number; table: number }) => void;
   onTakenSeat: (playerName: string) => void;
   players: SeatingPlayer[];
@@ -22,13 +24,17 @@ type SeatingPickerProps = {
  * marked in the middle. The admin taps the chair the player is going to.
  */
 export function SeatingPicker({
+  ignorePlayerId,
   onSelect,
   onTakenSeat,
   players,
   selected,
   tablesCount,
 }: SeatingPickerProps) {
-  const tables = buildSeatingTables(players, tablesCount);
+  const tables = buildSeatingTables(
+    ignorePlayerId ? players.filter((player) => player.id !== ignorePlayerId) : players,
+    tablesCount,
+  );
 
   return (
     <div className="seating-picker">
