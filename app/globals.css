@@ -3404,9 +3404,7 @@ p {
 /* Club tiers are worn as the colour of the name; only the champion gets a mark. */
 .public-player-crown {
   flex-shrink: 0;
-  font-size: 1.15em;
+  font-size: 1em;
   line-height: 1;
-  color: #e9c07a;
-  text-shadow: 0 0 12px rgb(233 192 122 / 0.55);
 }
 

@@ -113,7 +113,7 @@ export default function ClientProfilePage() {
               me?.tier === "champion" ? "text-[#e9c07a]" : ""
             }`}
           >
-            {me?.tier === "champion" ? <span className="mr-1.5">♛</span> : null}
+            {me?.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
             {name}
           </p>
           <p className="flex items-center gap-2 text-sm text-white/40">

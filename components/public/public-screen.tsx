@@ -950,7 +950,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                       ) : null}
                       {tier === "champion" ? (
                         <span className="public-player-crown" title="Чемпион">
-                          ♛
+                          👑
                         </span>
                       ) : null}
                       {labelKind === "text" ? (

@@ -66,7 +66,7 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
         className="min-w-0 flex-1 truncate text-[15px] font-semibold"
         style={{ color: player.tier ? TIER_COLORS[player.tier] : undefined }}
       >
-        {player.tier === "champion" ? <span className="mr-1">♛</span> : null}
+        {player.tier === "champion" ? <span className="mr-1">👑</span> : null}
         {player.name || "Без никнейма"}
         {player.isMe ? (
           <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
