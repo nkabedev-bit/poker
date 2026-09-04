@@ -13,7 +13,6 @@ import {
 } from "@/lib/client-bot/registration";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
-import type { FreeEntrySource } from "@/lib/free-entries/command";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
@@ -980,22 +979,22 @@ export async function syncFinanceSheet(
 }
 
 // ---------------------------------------------------------------------------
-// "Проходки": the club's ledger of free entries — one tab in the finance spreadsheet,
-// appended to as passes are handed out, so the owner can see who got what and why.
+// "Проходки": the club's ledger of the passes players win — one tab in the finance
+// spreadsheet, a line per prize, so the owner can see who won a pass and where.
 // ---------------------------------------------------------------------------
 
 const FREE_ENTRY_SHEET_NAME = "Проходки";
-const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка", "Сколько"];
+const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка"];
+
+/** The two ways a player wins a pass; passes the owner hands out by name are not events. */
+export type FreeEntrySource = "mystery" | "raffle";
 
 const FREE_ENTRY_SOURCE_LABELS: Record<FreeEntrySource, string> = {
-  manual: "Выдал админ",
   mystery: "Мистери баунти",
   raffle: "Розыгрыш",
 };
 
 export type FreeEntryGrant = {
-  /** Negative when the admin takes a pass back with /delete free. */
-  count: number;
   nickname: string;
   source: FreeEntrySource;
   vip: boolean;
@@ -1012,7 +1011,6 @@ export function buildFreeEntryGrantRow(
     grant.nickname,
     FREE_ENTRY_SOURCE_LABELS[grant.source],
     grant.vip ? "VIP" : "Обычная",
-    grant.count,
   ];
 }
 

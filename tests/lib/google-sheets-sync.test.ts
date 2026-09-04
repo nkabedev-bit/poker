@@ -338,34 +338,34 @@ describe("syncVipSheet write budget", () => {
 });
 
 describe("free entry ledger", () => {
-  it("writes the date, the player, the reason and the kind of pass", () => {
+  it("writes the date, the player, the prize and the kind of pass", () => {
     const row = buildFreeEntryGrantRow(
-      { count: 1, nickname: "Старый узбек", source: "mystery", vip: true },
+      { nickname: "Старый узбек", source: "mystery", vip: true },
       new Date("2026-09-04T18:00:00.000Z"),
     );
 
-    expect(row).toEqual(["04.09.2026", "Старый узбек", "Мистери баунти", "VIP", 1]);
+    expect(row).toEqual(["04.09.2026", "Старый узбек", "Мистери баунти", "VIP"]);
   });
 
-  it("shows a pass taken back as a negative line, so the ledger balances", () => {
+  it("names the raffle as the reason for a pass won on the wheel", () => {
     const row = buildFreeEntryGrantRow(
-      { count: -2, nickname: "Ace", source: "manual", vip: false },
+      { nickname: "Ace", source: "raffle", vip: false },
       new Date("2026-09-04T18:00:00.000Z"),
     );
 
-    expect(row.slice(1)).toEqual(["Ace", "Выдал админ", "Обычная", -2]);
+    expect(row.slice(1)).toEqual(["Ace", "Розыгрыш", "Обычная"]);
   });
 
   it("appends to the Проходки tab of the finance spreadsheet", async () => {
     process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
 
-    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
+    await appendFreeEntryGrant({ nickname: "Ace", source: "raffle", vip: false });
 
     expect(calls.find((call) => call.method === "values.append")?.range).toContain("Проходки");
   });
 
   it("stays quiet when the finance spreadsheet is not configured", async () => {
-    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
+    await appendFreeEntryGrant({ nickname: "Ace", source: "raffle", vip: false });
 
     expect(writeCalls()).toHaveLength(0);
   });
