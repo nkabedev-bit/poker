@@ -51,9 +51,11 @@ export async function saveTournamentEvent(formData: FormData) {
   const parsed = eventInputSchema.parse({
     badge: formData.get("badge"),
     buyIn: formData.get("buyIn") || 0,
+    duoBuyIn: optionalNumber(formData.get("duoBuyIn")),
     featuresText: formData.get("featuresText"),
     isPublished: formData.get("isPublished") === "yes",
     lateEntryUntil: formData.get("lateEntryUntil"),
+    maxDuoTickets: optionalNumber(formData.get("maxDuoTickets")),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
     maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
     posterUrl: formData.get("posterUrl"),
@@ -98,9 +100,11 @@ export async function saveTournamentEventTemplate(formData: FormData) {
   const parsed = eventInputSchema.parse({
     badge: formData.get("badge"),
     buyIn: formData.get("buyIn") || 0,
+    duoBuyIn: optionalNumber(formData.get("duoBuyIn")),
     featuresText: formData.get("featuresText"),
     isPublished: false,
     lateEntryUntil: formData.get("lateEntryUntil"),
+    maxDuoTickets: optionalNumber(formData.get("maxDuoTickets")),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
     maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
     posterUrl: formData.get("posterUrl"),

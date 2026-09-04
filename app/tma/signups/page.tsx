@@ -13,9 +13,11 @@ import type { TournamentPlayer } from "@/lib/timer/types";
 type Signup = {
   id: string;
   name: string;
+  /** The guest coming in on this player's "1+1", when they bought one. */
+  partnerName: string | null;
   seated: boolean;
   telegramId: number;
-  ticketType: "regular" | "vip";
+  ticketType: "regular" | "vip" | "duo" | "duo_plus_one";
   usePass: "none" | "regular" | "vip";
   username: string | null;
 };
@@ -36,7 +38,17 @@ type Profile = {
 
 type SeatChoice = { seat: number; table: number };
 
-const TICKET_LABELS = { regular: "Обычный билет", vip: "VIP билет" } as const;
+const TICKET_LABELS = {
+  duo: "Билет 1+1",
+  duo_plus_one: "Билет 1+1 · второй игрок",
+  regular: "Обычный билет",
+  vip: "VIP билет",
+} as const;
+
+/** A pair plays at the ordinary tables, so seating asks for a regular seat. */
+function seatingTicket(ticket: Signup["ticketType"]) {
+  return ticket === "vip" ? "vip" : "regular";
+}
 
 const PASS_LABELS = { regular: "по проходке", vip: "по VIP проходке" } as const;
 
@@ -115,7 +127,7 @@ export default function TMASignupsPage() {
     const tg = getTelegramWebApp();
     const picked = pickRandomSeat(
       buildSeatingTables(players, data?.tablesCount ?? 1),
-      signup.ticketType,
+      seatingTicket(signup.ticketType),
     );
 
     if (!picked) {
@@ -144,7 +156,7 @@ export default function TMASignupsPage() {
         body: JSON.stringify({
           seat: choice.seat,
           table: choice.table,
-          ticketType: signup.ticketType,
+          ticketType: seatingTicket(signup.ticketType),
         }),
       });
 
@@ -240,6 +252,12 @@ export default function TMASignupsPage() {
           <p className="font-semibold">{TICKET_LABELS[opened.ticketType]}</p>
           {opened.usePass !== "none" ? (
             <p className="mt-1 text-emerald-500">Вход {PASS_LABELS[opened.usePass]}</p>
+          ) : null}
+          {opened.partnerName ? (
+            <p className="mt-1 text-[#7ad0f0]">
+              С ним придёт {opened.partnerName} — добавьте вторым игроком вручную, оба
+              платят половину билета.
+            </p>
           ) : null}
         </div>
 
@@ -340,10 +358,20 @@ export default function TMASignupsPage() {
               <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                 {signup.username ? `@${signup.username}` : "записался в приложении"}
               </span>
+              {signup.partnerName ? (
+                <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                  +1: {signup.partnerName}
+                </span>
+              ) : null}
               <span className="mt-1 flex flex-wrap gap-1.5">
                 {signup.ticketType === "vip" ? (
                   <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
                     VIP
+                  </span>
+                ) : null}
+                {signup.ticketType === "duo" || signup.ticketType === "duo_plus_one" ? (
+                  <span className="rounded-full bg-[#7ad0f0]/15 px-2 py-0.5 text-[11px] font-bold text-[#7ad0f0]">
+                    1+1
                   </span>
                 ) : null}
                 {signup.usePass !== "none" ? (

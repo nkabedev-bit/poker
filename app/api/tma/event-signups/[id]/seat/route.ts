@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
     .select(
-      "id, telegram_id, status, use_pass, client_bot_users(display_name, free_entries, vip_free_entries)",
+      "id, telegram_id, status, use_pass, ticket_type, client_bot_users(display_name, free_entries, vip_free_entries)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -101,9 +101,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const passUsed = heldPasses > 0 ? (requestedPass as "regular" | "vip") : null;
   // A pass decides the ticket: what the admin picked on screen cannot contradict it.
   const seatTicketType = passUsed ?? ticketType;
+  // Half a "1+1" is charged half its price, and only the sign-up may say so — the desk
+  // cannot hand out the discount by picking it on screen. The seat itself stays regular:
+  // the pair plays at the ordinary tables and draws ordinary registration numbers.
+  const signupTicket = (signup as { ticket_type?: unknown }).ticket_type;
+  const duoTicket = signupTicket === "duo" || signupTicket === "duo_plus_one";
 
   const playerDraft: TournamentPlayer = {
     addons: 0,
+    duoTicket,
     freePass: passUsed,
     bountyChipsTotal: 0,
     bountyCount: 0,

@@ -22,9 +22,11 @@ import {
 
 type FreePassChoice = "none" | "regular" | "vip";
 
-type TicketType = "regular" | "vip";
+type TicketType = "regular" | "vip" | "duo";
 
 type EventDetails = TournamentEvent & {
+  /** Who the player is bringing on a "1+1", as they wrote the name down. */
+  partnerName: string | null;
   signedUp: boolean;
   signupsCount: number;
   ticketType: TicketType;
@@ -33,14 +35,25 @@ type EventDetails = TournamentEvent & {
 
 type FreeEntries = { regular: number; vip: number };
 
-type FreeSeats = { regular: number | null; vip: number | null };
+type FreeSeats = { duo: number; regular: number | null; vip: number | null };
+
+const MAX_PARTNER_NAME_LENGTH = 40;
 
 const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
   regular: "Обычная проходка",
   vip: "VIP проходка",
 };
 
+// Three tickets still have to fit a phone, so the row gets tighter as the poster adds
+// kinds rather than wrapping one of them onto a line of its own.
+const TICKET_GRID: Record<number, string> = {
+  1: "grid grid-cols-1 gap-3",
+  2: "grid grid-cols-2 gap-3",
+  3: "grid grid-cols-3 gap-2",
+};
+
 const TICKET_TITLES: Record<TicketType, string> = {
+  duo: "1+1",
   regular: "Обычный",
   vip: "VIP",
 };
@@ -48,6 +61,12 @@ const TICKET_TITLES: Record<TicketType, string> = {
 function seatsLabel(left: number | null) {
   if (left === null) return "Места есть";
   return left > 0 ? `Осталось ${left}` : "Мест нет";
+}
+
+/** A "1+1" runs out by tickets, not by seats: one ticket already carries two of them. */
+function duoSeatsLabel(left: number | null) {
+  if (left === null || left <= 0) return "Разобрали";
+  return left === 1 ? "Остался 1" : `Осталось ${left}`;
 }
 
 export default function ClientEventPage() {
@@ -58,14 +77,16 @@ export default function ClientEventPage() {
 
   const [event, setEvent] = useState<EventDetails | null>(null);
   const [freeEntries, setFreeEntries] = useState<FreeEntries>({ regular: 0, vip: 0 });
-  const [freeSeats, setFreeSeats] = useState<FreeSeats>({ regular: null, vip: null });
+  const [freeSeats, setFreeSeats] = useState<FreeSeats>({ duo: 0, regular: null, vip: null });
   const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [usePass, setUsePass] = useState<FreePassChoice>("none");
+  const [partnerName, setPartnerName] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   // A pass belongs to its own kind of ticket, so switching the ticket lets go of a
-  // choice that no longer applies.
+  // choice that no longer applies — and a "1+1" is bought at its own price, never with
+  // a pass.
   const selectTicket = (ticket: TicketType) => {
     setTicketType(ticket);
     setUsePass((chosen) => (chosen === ticket ? chosen : "none"));
@@ -91,6 +112,7 @@ export default function ClientEventPage() {
           vip: Number(data.freeEntries?.vip ?? 0),
         });
         setFreeSeats({
+          duo: Number(data.freeSeats?.duo ?? 0),
           regular: data.freeSeats?.regular ?? null,
           vip: data.freeSeats?.vip ?? null,
         });
@@ -114,7 +136,7 @@ export default function ClientEventPage() {
       const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
         method: signUp ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: signUp ? JSON.stringify({ ticketType, usePass }) : undefined,
+        body: signUp ? JSON.stringify({ partnerName, ticketType, usePass }) : undefined,
       });
 
       if (res.ok) {
@@ -162,8 +184,14 @@ export default function ClientEventPage() {
   // seats means there is no VIP table tonight, whatever the price says.
   const offersVip =
     event.maxVipPlayers !== 0 && (event.vipBuyIn !== null || event.maxVipPlayers !== null);
-  const seatsLeft = ticketType === "vip" ? freeSeats.vip : freeSeats.regular;
+  // A "1+1" needs both halves: tickets to sell and a price to charge for the pair.
+  const offersDuo = (event.maxDuoTickets ?? 0) > 0 && event.duoBuyIn !== null;
+  const seatsLeft =
+    ticketType === "vip" ? freeSeats.vip : ticketType === "duo" ? freeSeats.duo : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
+  // The club takes a "1+1" to mean an expected pair, so the second name is required.
+  const partnerMissing = ticketType === "duo" && !partnerName.trim();
+  const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
 
   // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
   // ticket of its own kind, so choosing one switches the ticket to match.
@@ -287,15 +315,26 @@ export default function ClientEventPage() {
       <section className="space-y-2">
         <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
         {event.signedUp ? (
-          <div className="grid grid-cols-2 gap-3">
+          <div className={TICKET_GRID[ticketsInRow]}>
             <TicketCard
+              compact={ticketsInRow > 2}
               kind="regular"
               price={event.buyIn}
               seats={freeSeats.regular}
               state={event.ticketType === "regular" ? "chosen" : "muted"}
             />
+            {offersDuo ? (
+              <TicketCard
+                compact={ticketsInRow > 2}
+                kind="duo"
+                price={event.duoBuyIn}
+                seats={freeSeats.duo}
+                state={event.ticketType === "duo" ? "chosen" : "muted"}
+              />
+            ) : null}
             {offersVip ? (
               <TicketCard
+                compact={ticketsInRow > 2}
                 kind="vip"
                 price={event.vipBuyIn}
                 seats={freeSeats.vip}
@@ -305,16 +344,28 @@ export default function ClientEventPage() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3">
+            <div className={TICKET_GRID[ticketsInRow]}>
               <TicketCard
+                compact={ticketsInRow > 2}
                 kind="regular"
                 onSelect={() => selectTicket("regular")}
                 price={event.buyIn}
                 seats={freeSeats.regular}
                 state={ticketType === "regular" ? "chosen" : "idle"}
               />
+              {offersDuo ? (
+                <TicketCard
+                  compact={ticketsInRow > 2}
+                  kind="duo"
+                  onSelect={() => selectTicket("duo")}
+                  price={event.duoBuyIn}
+                  seats={freeSeats.duo}
+                  state={ticketType === "duo" ? "chosen" : "idle"}
+                />
+              ) : null}
               {offersVip ? (
                 <TicketCard
+                  compact={ticketsInRow > 2}
                   kind="vip"
                   onSelect={() => selectTicket("vip")}
                   price={event.vipBuyIn}
@@ -323,6 +374,11 @@ export default function ClientEventPage() {
                 />
               ) : null}
             </div>
+            {offersDuo ? (
+              <p className="px-1 text-xs text-white/40">
+                Билет 1+1 — вход для двоих по одной цене.
+              </p>
+            ) : null}
             {offersVip ? (
               <p className="px-1 text-xs text-white/40">
                 Место за столом выдаёт администратор в день игры.
@@ -330,9 +386,29 @@ export default function ClientEventPage() {
             ) : null}
           </>
         )}
+
+        {ticketType === "duo" && !event.signedUp ? (
+          <GlassCard className="space-y-2 !p-4">
+            <label className="block text-sm font-bold" htmlFor="duo-partner">
+              Кто придёт с вами?
+            </label>
+            <input
+              autoComplete="off"
+              className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-[15px] outline-none placeholder:text-white/30 focus:border-[#f05a7e]/60"
+              id="duo-partner"
+              maxLength={MAX_PARTNER_NAME_LENGTH}
+              onChange={(item) => setPartnerName(item.target.value)}
+              placeholder="Имя или ник напарника"
+              value={partnerName}
+            />
+            <p className="text-[11px] leading-relaxed text-white/45">
+              Администратор ждёт вас вдвоём: по билету 1+1 вход для обоих, а платит один.
+            </p>
+          </GlassCard>
+        ) : null}
       </section>
 
-      {passOptions.length > 0 && !event.signedUp ? (
+      {passOptions.length > 0 && !event.signedUp && ticketType !== "duo" ? (
         <section className="space-y-2">
           <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
           <GlassCard className="space-y-2 !p-3">
@@ -385,6 +461,11 @@ export default function ClientEventPage() {
         <div className="space-y-3">
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
             Вы записаны · {TICKET_TITLES[event.ticketType]} билет
+            {event.partnerName ? (
+              <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
+                С вами: {event.partnerName}
+              </span>
+            ) : null}
           </div>
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
             Отменить запись
@@ -395,15 +476,19 @@ export default function ClientEventPage() {
         </div>
       ) : (
         <PrimaryButton
-          disabled={soldOut}
+          disabled={soldOut || partnerMissing}
           loading={submitting}
           onClick={() => void toggleSignup(true)}
         >
           {soldOut
             ? ticketType === "vip"
               ? "VIP-мест нет"
-              : "Мест нет"
-            : `Записаться · ${TICKET_TITLES[ticketType]}`}
+              : ticketType === "duo"
+                ? "Билетов 1+1 нет"
+                : "Мест нет"
+            : partnerMissing
+              ? "Укажите напарника"
+              : `Записаться · ${TICKET_TITLES[ticketType]}`}
         </PrimaryButton>
       )}
 
@@ -414,27 +499,35 @@ export default function ClientEventPage() {
   );
 }
 
+const TICKET_ACCENTS: Record<TicketType, string> = {
+  duo: "#7ad0f0",
+  regular: "#f05a7e",
+  vip: "#e9c07a",
+};
+
 /** One ticket the poster sells: its price, what is left of it, and whether it is picked. */
 function TicketCard({
+  compact,
   kind,
   onSelect,
   price,
   seats,
   state,
 }: {
+  /** Set when three kinds share the row and the card has to give up some width. */
+  compact?: boolean;
   kind: TicketType;
   onSelect?: () => void;
   price: number | null;
   seats: number | null;
   state: "chosen" | "idle" | "muted";
 }) {
-  const isVip = kind === "vip";
   const soldOut = seats !== null && seats <= 0;
-  const accent = isVip ? "#e9c07a" : "#f05a7e";
+  const accent = TICKET_ACCENTS[kind];
 
   return (
     <button
-      className={`rounded-[20px] border p-[18px] text-left transition ${
+      className={`rounded-[20px] border text-left transition ${compact ? "p-3" : "p-[18px]"} ${
         state === "chosen"
           ? "border-white/25 bg-white/[0.09]"
           : "border-white/[0.07] bg-white/[0.03]"
@@ -449,10 +542,14 @@ function TicketCard({
       >
         {TICKET_TITLES[kind]}
       </p>
-      <p className="mt-2 text-[24px] font-extrabold leading-none">
+      <p
+        className={`mt-2 font-extrabold leading-none ${compact ? "text-[19px]" : "text-[24px]"}`}
+      >
         {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
       </p>
-      <p className="mt-2 text-[12px] text-white/45">{seatsLabel(seats)}</p>
+      <p className={`mt-2 text-white/45 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+        {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
+      </p>
     </button>
   );
 }

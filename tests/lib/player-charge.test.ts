@@ -5,6 +5,7 @@ const prices = {
   addonPrice: 1250,
   buyIn: 1250,
   doubleRebuyPrice: 2000,
+  duoBuyIn: 2000,
   rebuyPrice: 1250,
   vipBuyIn: 2000,
 };
@@ -12,6 +13,31 @@ const prices = {
 function player(overrides: Record<string, unknown> = {}) {
   return { addons: 0, doubleRebuys: 0, rebuys: 0, ticketType: "regular" as const, ...overrides };
 }
+
+describe("the 1+1 ticket", () => {
+  // 2000 ₽ for the two of them, so the till sees two receipts of 1000 rather than one
+  // paid entry and one free rider.
+  it("charges each half of the pair half the price", () => {
+    expect(buildPlayerCharge(player({ duoTicket: true }), prices).ticket).toEqual({
+      count: 1,
+      free: false,
+      price: 1000,
+      sum: 1000,
+    });
+  });
+
+  it("still charges re-entries and add-ons in full", () => {
+    const charge = buildPlayerCharge(player({ addons: 1, duoTicket: true, rebuys: 1 }), prices);
+
+    expect(charge.total).toBe(1000 + 1250 + 1250);
+  });
+
+  it("gives way to a freeroll, where nobody pays for the entry", () => {
+    const charge = buildPlayerCharge(player({ duoTicket: true }), prices, { freeroll: true });
+
+    expect(charge.ticket).toMatchObject({ free: true, sum: 0 });
+  });
+});
 
 describe("buildPlayerCharge", () => {
   it("charges the ticket alone for a player who bought nothing else", () => {

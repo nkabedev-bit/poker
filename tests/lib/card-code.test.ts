@@ -10,6 +10,7 @@ const prices = {
   addonPrice: 1250,
   buyIn: 1250,
   doubleRebuyPrice: 2000,
+  duoBuyIn: 2000,
   rebuyPrice: 1250,
   vipBuyIn: 2000,
 };

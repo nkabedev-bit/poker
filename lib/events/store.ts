@@ -10,7 +10,10 @@ import {
 } from "@/lib/events/types";
 
 const EVENT_COLUMNS =
-  "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, buy_in, vip_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
+  "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
+
+const SIGNUP_COLUMNS =
+  "id, event_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_telegram_id, duo_partner_name, duo_host_telegram_id, duo_confirmed_at";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;
@@ -65,12 +68,18 @@ export async function deleteEvent(supabase: SupabaseClient, id: string) {
 }
 
 /** Live sign-up counts per event id — cancelled requests do not take a seat. */
-export type EventSignupCount = { regular: number; total: number; vip: number };
+export type EventSignupCount = { duo: number; regular: number; total: number; vip: number };
 
 /**
- * How many seats of each kind an event has spoken for. The two are counted apart: the
- * club opens a different number of regular and VIP seats, so a full VIP table must not
- * close the regular ones.
+ * How many seats of each kind an event has spoken for. The three are counted apart: the
+ * club opens a different number of regular seats, VIP seats and "1+1" tickets, so a full
+ * VIP table must not close the regular ones.
+ *
+ * A "1+1" is one ticket held by two people: the buyer spends it, and the +1 who joins
+ * them takes nothing more — their seat was sold with it. `total` counts heads instead of
+ * rows, because that is how many players the club expects through the door: a member
+ * brought as a +1 has a row of their own, while a guest from outside is only a name on
+ * the buyer's.
  */
 export async function countActiveSignups(
   supabase: SupabaseClient,
@@ -81,22 +90,24 @@ export async function countActiveSignups(
 
   const { data, error } = await supabase
     .from("event_signups")
-    .select("event_id, ticket_type")
+    .select("event_id, ticket_type, duo_partner_name")
     .in("event_id", eventIds)
     .neq("status", "cancelled");
 
   if (error) throw error;
 
   for (const row of data ?? []) {
-    const record = row as { event_id: unknown; ticket_type: unknown };
+    const record = row as { duo_partner_name: unknown; event_id: unknown; ticket_type: unknown };
     const eventId = String(record.event_id);
-    const taken = counts.get(eventId) ?? { regular: 0, total: 0, vip: 0 };
-    const isVip = record.ticket_type === "vip";
+    const taken = counts.get(eventId) ?? { duo: 0, regular: 0, total: 0, vip: 0 };
+    const ticket = record.ticket_type;
+    const bringsGuest = ticket === "duo" && Boolean(record.duo_partner_name);
 
     counts.set(eventId, {
-      regular: taken.regular + (isVip ? 0 : 1),
-      total: taken.total + 1,
-      vip: taken.vip + (isVip ? 1 : 0),
+      duo: taken.duo + (ticket === "duo" ? 1 : 0),
+      regular: taken.regular + (ticket === "regular" ? 1 : 0),
+      total: taken.total + (bringsGuest ? 2 : 1),
+      vip: taken.vip + (ticket === "vip" ? 1 : 0),
     });
   }
 
@@ -109,7 +120,7 @@ export async function listEventSignups(
 ): Promise<EventSignupWithPlayer[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, ticket_type, use_pass, created_at, client_bot_users(display_name, username)")
+    .select(`${SIGNUP_COLUMNS}, client_bot_users(display_name, username)`)
     .eq("event_id", eventId)
     .neq("status", "cancelled")
     .order("created_at");
@@ -168,7 +179,7 @@ export async function getUserSignups(
 ): Promise<EventSignup[]> {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("id, event_id, telegram_id, status, ticket_type, use_pass, created_at")
+    .select(SIGNUP_COLUMNS)
     .eq("telegram_id", telegramId)
     .neq("status", "cancelled");
 

@@ -34,8 +34,26 @@ const FUTURE_EVENT = mapEventRow({
   vip_buy_in: 2500,
 });
 
-function taken({ regular = 0, vip = 0 }: { regular?: number; vip?: number } = {}) {
-  return new Map([["event-1", { regular, total: regular + vip, vip }]]);
+const DUO_EVENT = mapEventRow({
+  buy_in: 1250,
+  duo_buy_in: 2000,
+  id: "event-1",
+  is_published: true,
+  late_entry_until: "2999-01-01T19:00:00.000Z",
+  max_duo_tickets: 1,
+  max_players: 16,
+  max_vip_players: 9,
+  starts_at: "2999-01-01T16:00:00.000Z",
+  title: "ЧЕТВЕРГОВЫЙ",
+  vip_buy_in: 2000,
+});
+
+function taken({
+  duo = 0,
+  regular = 0,
+  vip = 0,
+}: { duo?: number; regular?: number; vip?: number } = {}) {
+  return new Map([["event-1", { duo, regular, total: regular + vip + duo * 2, vip }]]);
 }
 
 function upsertSpy() {
@@ -98,6 +116,7 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       {
+        duo_partner_name: null,
         event_id: "event-1",
         status: "signed_up",
         telegram_id: 555,
@@ -237,5 +256,97 @@ describe("client sign-up route", () => {
     const response = await postSignup();
 
     expect(response.status).toBe(404);
+  });
+});
+
+describe("the 1+1 ticket", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    mocks.getEvent.mockResolvedValue(DUO_EVENT);
+    mocks.countActiveSignups.mockResolvedValue(taken());
+  });
+
+  it("records who the buyer is bringing", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerName: "  Дима   Б ", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_partner_name: "Дима Б", ticket_type: "duo" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  // The whole point of the ticket is that the club expects two people by name.
+  it("refuses a pair without a second player", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ ticketType: "duo" });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: "partner_required" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("refuses once the evening's pairs are sold, with regular seats still open", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
+
+    const response = await postSignup({ partnerName: "Дима", ticketType: "duo" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "full" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // A pass buys one ticket; the pair already has a price of its own for the two of them.
+  it("never spends a free pass on a pair", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 3, supabase }));
+
+    const response = await postSignup({
+      partnerName: "Дима",
+      ticketType: "duo",
+      usePass: "regular",
+    });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ usePass: "none" });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ ticket_type: "duo", use_pass: "none" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("forgets the partner when the player switches back to a single ticket", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    await postSignup({ partnerName: "Дима", ticketType: "regular" });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
+      { onConflict: "event_id,telegram_id" },
+    );
+  });
+
+  it("sells no pair when the poster prices none", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.getEvent.mockResolvedValue(FUTURE_EVENT);
+
+    const response = await postSignup({ partnerName: "Дима", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ticketType: "regular" });
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
+      { onConflict: "event_id,telegram_id" },
+    );
   });
 });

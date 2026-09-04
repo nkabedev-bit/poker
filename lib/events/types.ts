@@ -3,10 +3,14 @@ const MOSCOW_TIME_ZONE = "Europe/Moscow";
 export type TournamentEvent = {
   badge: string | null;
   buyIn: number;
+  /** What a "1+1" ticket costs for the two of them together. */
+  duoBuyIn: number | null;
   featuresText: string;
   id: string;
   isPublished: boolean;
   lateEntryUntil: string | null;
+  /** How many "1+1" tickets the club sells tonight; null means it sells none. */
+  maxDuoTickets: number | null;
   /** Seats at the regular tables. */
   maxPlayers: number | null;
   /** Seats at the VIP table, counted apart from the regular ones. */
@@ -24,6 +28,14 @@ export type EventSignupStatus = "signed_up" | "cancelled" | "seated";
 
 export type EventSignup = {
   createdAt: string;
+  /** When the invited member said yes; a guest's pair is settled the moment it is made. */
+  duoConfirmedAt: string | null;
+  /** On the +1's row: the player who bought the ticket for the two of them. */
+  duoHostTelegramId: number | null;
+  /** On the buyer's row: the guest they are bringing, when the +1 has no account. */
+  duoPartnerName: string | null;
+  /** On the buyer's row: the member they invited, when the +1 plays at the club. */
+  duoPartnerTelegramId: number | null;
   eventId: string;
   id: string;
   status: EventSignupStatus;
@@ -34,12 +46,24 @@ export type EventSignup = {
   usePass: FreePassChoice;
 };
 
-export type EventTicketType = "regular" | "vip";
+/**
+ * A "1+1" is two rows of one ticket: `duo` is the player who paid for both, and
+ * `duo_plus_one` is the member who came on their invitation. Only the first is counted
+ * against the poster's allotment — the seat of the second is inside the same ticket.
+ */
+export type EventTicketType = "regular" | "vip" | "duo" | "duo_plus_one";
 
 export type FreePassChoice = "none" | "regular" | "vip";
 
 export function isEventTicketType(value: unknown): value is EventTicketType {
-  return value === "regular" || value === "vip";
+  return (
+    value === "regular" || value === "vip" || value === "duo" || value === "duo_plus_one"
+  );
+}
+
+/** Both halves of a "1+1", as against a ticket bought for one player. */
+export function isDuoTicket(ticket: EventTicketType) {
+  return ticket === "duo" || ticket === "duo_plus_one";
 }
 
 export function isFreePassChoice(value: unknown): value is FreePassChoice {
@@ -67,6 +91,19 @@ function optionalSeatCount(value: unknown) {
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
 }
 
+function optionalTelegramId(value: unknown) {
+  const id = Number(value);
+  return Number.isInteger(id) && id > 0 ? id : null;
+}
+
+/** A price the poster may leave unset — zero is a freeroll, not "no such ticket". */
+function optionalPrice(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const price = Number(value);
+  return Number.isFinite(price) ? Math.max(0, price) : null;
+}
+
 function optionalPositiveInt(value: unknown) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -76,10 +113,13 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
   return {
     badge: optionalText(row.badge),
     buyIn: Math.max(0, Number(row.buy_in) || 0),
+    duoBuyIn: optionalPrice(row.duo_buy_in),
     featuresText: String(row.features_text ?? ""),
     id: String(row.id),
     isPublished: Boolean(row.is_published),
     lateEntryUntil: optionalText(row.late_entry_until),
+    // Zero is a real answer: the poster keeps the price but sells no pair tonight.
+    maxDuoTickets: optionalSeatCount(row.max_duo_tickets),
     maxPlayers: optionalPositiveInt(row.max_players),
     maxVipPlayers: optionalSeatCount(row.max_vip_players),
     posterUrl: optionalText(row.poster_url),
@@ -88,15 +128,17 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
     startsAt: String(row.starts_at),
     title: String(row.title ?? ""),
     venueAddress: String(row.venue_address ?? ""),
-    vipBuyIn: Number.isFinite(Number(row.vip_buy_in)) && row.vip_buy_in !== null
-      ? Math.max(0, Number(row.vip_buy_in))
-      : null,
+    vipBuyIn: optionalPrice(row.vip_buy_in),
   };
 }
 
 export function mapSignupRow(row: Record<string, unknown>): EventSignup {
   return {
     createdAt: String(row.created_at),
+    duoConfirmedAt: optionalText(row.duo_confirmed_at),
+    duoHostTelegramId: optionalTelegramId(row.duo_host_telegram_id),
+    duoPartnerName: optionalText(row.duo_partner_name),
+    duoPartnerTelegramId: optionalTelegramId(row.duo_partner_telegram_id),
     eventId: String(row.event_id),
     id: String(row.id),
     status: (row.status as EventSignupStatus) ?? "signed_up",
@@ -110,9 +152,11 @@ export function toEventRow(event: Omit<TournamentEvent, "id">) {
   return {
     badge: event.badge,
     buy_in: event.buyIn,
+    duo_buy_in: event.duoBuyIn,
     features_text: event.featuresText,
     is_published: event.isPublished,
     late_entry_until: event.lateEntryUntil,
+    max_duo_tickets: event.maxDuoTickets,
     max_players: event.maxPlayers,
     max_vip_players: event.maxVipPlayers,
     poster_url: event.posterUrl,

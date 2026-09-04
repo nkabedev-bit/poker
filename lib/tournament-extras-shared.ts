@@ -65,6 +65,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     bountyType: "standard",
     buyIn: 1250,
     vipBuyIn: 2000,
+    duoBuyIn: 2000,
     doubleRebuyPrice: 2000,
     isBounty: false,
     maxPlayersPerTable: 10,

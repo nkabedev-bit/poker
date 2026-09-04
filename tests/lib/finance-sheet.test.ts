@@ -7,6 +7,7 @@ const prices = {
   addonPrice: 1250,
   buyIn: 1250,
   doubleRebuyPrice: 2000,
+  duoBuyIn: 2000,
   rebuyPrice: 1250,
   vipBuyIn: 2000,
 };
@@ -109,7 +110,14 @@ describe("finance sheet", () => {
 
   it("reads the prices from the tournament settings", () => {
     const extras = mergeTournamentExtras({
-      settings: { addonPrice: 1250, buyIn: 1250, doubleRebuyPrice: 2000, rebuyPrice: 1250, vipBuyIn: 2000 },
+      settings: {
+        addonPrice: 1250,
+        buyIn: 1250,
+        doubleRebuyPrice: 2000,
+        duoBuyIn: 2000,
+        rebuyPrice: 1250,
+        vipBuyIn: 2000,
+      },
     });
 
     expect(getFinancePrices(extras.settings)).toEqual(prices);
@@ -120,6 +128,7 @@ describe("finance sheet", () => {
       addonPrice: 0,
       buyIn: 0,
       doubleRebuyPrice: 0,
+      duoBuyIn: 0,
       rebuyPrice: 0,
       vipBuyIn: 0,
     });

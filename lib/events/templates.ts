@@ -14,10 +14,12 @@ const MAX_NAME_LENGTH = 48;
 export type EventTemplate = {
   badge: string | null;
   buyIn: number;
+  duoBuyIn: number | null;
   featuresText: string;
   id: string;
   /** How long after the start late registration stays open, in minutes. */
   lateEntryMinutes: number | null;
+  maxDuoTickets: number | null;
   maxPlayers: number | null;
   maxVipPlayers: number | null;
   name: string;
@@ -54,9 +56,11 @@ export function makeEventTemplate(
   return {
     badge: event.badge,
     buyIn: event.buyIn,
+    duoBuyIn: event.duoBuyIn,
     featuresText: event.featuresText,
     id,
     lateEntryMinutes: toLateEntryMinutes(event),
+    maxDuoTickets: event.maxDuoTickets,
     maxPlayers: event.maxPlayers,
     maxVipPlayers: event.maxVipPlayers,
     name: normalizeTemplateName(name),
@@ -96,9 +100,12 @@ export function applyEventTemplate(
   return {
     badge: template.badge,
     buyIn: template.buyIn,
+    // Templates saved before the "1+1" existed carry neither field.
+    duoBuyIn: template.duoBuyIn ?? null,
     featuresText: template.featuresText,
     isPublished: false,
     lateEntryUntil,
+    maxDuoTickets: template.maxDuoTickets ?? null,
     maxPlayers: template.maxPlayers,
     maxVipPlayers: template.maxVipPlayers,
     posterUrl: template.posterUrl,

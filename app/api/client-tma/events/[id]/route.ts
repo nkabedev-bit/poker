@@ -27,7 +27,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   return NextResponse.json({
     event: {
       ...event,
-      // What the player already asked for, so the page can say it back to them.
+      // What the player already asked for, so the page can say it back to them —
+      // including the guest they are bringing on a "1+1".
+      partnerName: mySignup?.duoPartnerName ?? null,
       signedUp: Boolean(mySignup),
       signupsCount: taken?.total ?? 0,
       ticketType: mySignup?.ticketType ?? "regular",

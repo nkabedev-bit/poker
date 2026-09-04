@@ -90,6 +90,12 @@ export type TournamentPlayer = {
   // and the card is reused by whoever comes next.
   cardCode?: string | null;
   ticketType?: "regular" | "vip";
+  /**
+   * Set when the player came in on a "1+1": one ticket for two, and the pair splits its
+   * price in half. Their seat and registration number are the regular kind, so the
+   * ticket above still says what they are — this only decides what they owe.
+   */
+  duoTicket?: boolean;
   /** Games this player has behind them, filled in for the screen rather than stored. */
   gamesPlayed?: number;
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
@@ -128,6 +134,8 @@ export type TournamentExtras = {
     buyIn: number;
     // Ticket price for a VIP seat; regular seats pay `buyIn`.
     vipBuyIn: number;
+    // What a "1+1" costs for the pair; each of the two pays half of it.
+    duoBuyIn: number;
     // Price of the double (x2) re-entry; a single re-entry costs `rebuyPrice`.
     doubleRebuyPrice: number;
     bountyType: BountyType;

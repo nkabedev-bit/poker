@@ -4,6 +4,8 @@ export type FinancePrices = {
   addonPrice: number;
   buyIn: number;
   doubleRebuyPrice: number;
+  /** What a "1+1" costs for the pair; each half of it is one player's ticket. */
+  duoBuyIn: number;
   rebuyPrice: number;
   vipBuyIn: number;
 };
@@ -21,6 +23,7 @@ export function getFinancePrices(
     addonPrice: toPrice(settings.addonPrice),
     buyIn: toPrice(settings.buyIn),
     doubleRebuyPrice: toPrice(settings.doubleRebuyPrice),
+    duoBuyIn: toPrice(settings.duoBuyIn),
     rebuyPrice: toPrice(settings.rebuyPrice),
     vipBuyIn: toPrice(settings.vipBuyIn),
   };
@@ -49,10 +52,14 @@ function line(count: number, price: number): ChargeLine {
  * What a player owes for the evening.
  *
  * The entry is free when the club gave them a pass or the tournament is a freeroll;
- * re-entries and add-ons are always paid for, since a pass covers the seat only.
+ * re-entries and add-ons are always paid for, since a pass covers the seat only, and a
+ * "1+1" halves the entry alone for the same reason.
  */
 export function buildPlayerCharge(
-  player: Pick<TournamentPlayer, "addons" | "doubleRebuys" | "freePass" | "rebuys" | "ticketType">,
+  player: Pick<
+    TournamentPlayer,
+    "addons" | "doubleRebuys" | "duoTicket" | "freePass" | "rebuys" | "ticketType"
+  >,
   prices: FinancePrices,
   options: { freeroll?: boolean } = {},
 ): PlayerCharge {
@@ -63,7 +70,13 @@ export function buildPlayerCharge(
 
   const paidWithPass = player.freePass === "regular" || player.freePass === "vip";
   const free = paidWithPass || Boolean(options.freeroll);
-  const ticketPrice = player.ticketType === "vip" ? prices.vipBuyIn : prices.buyIn;
+  // A "1+1" is one ticket for two, and the pair splits what it costs: each of them owes
+  // half, whichever of the two bought it.
+  const ticketPrice = player.duoTicket
+    ? Math.round(prices.duoBuyIn / 2)
+    : player.ticketType === "vip"
+      ? prices.vipBuyIn
+      : prices.buyIn;
   const ticket = { ...line(free ? 0 : 1, free ? 0 : ticketPrice), free };
 
   const charge = {

@@ -18,18 +18,22 @@ import {
   formatEventTimeLabel,
   type TournamentEvent,
 } from "@/lib/events/types";
+import { describeAnnouncedSeats } from "@/lib/events/seats";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
 const DEFAULT_VIP_BUY_IN = "2000";
+const DEFAULT_DUO_BUY_IN = "2000";
 
 const EMPTY_DRAFT = {
   badge: "",
   buyIn: DEFAULT_BUY_IN,
+  duoBuyIn: DEFAULT_DUO_BUY_IN,
   featuresText: "",
   id: "",
   isPublished: false,
   lateEntryUntil: "",
+  maxDuoTickets: "",
   maxPlayers: "",
   maxVipPlayers: "",
   posterUrl: "",
@@ -43,14 +47,17 @@ const EMPTY_DRAFT = {
 
 type Draft = typeof EMPTY_DRAFT;
 
+
 function toDraft(event: TournamentEvent): Draft {
   return {
     badge: event.badge ?? "",
     buyIn: event.buyIn ? String(event.buyIn) : "",
+    duoBuyIn: event.duoBuyIn ? String(event.duoBuyIn) : "",
     featuresText: event.featuresText,
     id: event.id,
     isPublished: event.isPublished,
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
+    maxDuoTickets: event.maxDuoTickets ? String(event.maxDuoTickets) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
     maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterUrl: event.posterUrl ?? "",
@@ -93,11 +100,13 @@ export function EventsManager({
       ...current,
       badge: template.badge ?? "",
       buyIn: template.buyIn ? String(template.buyIn) : "",
+      duoBuyIn: template.duoBuyIn ? String(template.duoBuyIn) : "",
       featuresText: template.featuresText,
       lateEntryUntil:
         template.lateEntryMinutes && current.startsAt
           ? addMinutesToMoscowLocal(current.startsAt, template.lateEntryMinutes)
           : current.lateEntryUntil,
+      maxDuoTickets: template.maxDuoTickets ? String(template.maxDuoTickets) : "",
       maxPlayers: template.maxPlayers ? String(template.maxPlayers) : "",
       maxVipPlayers: template.maxVipPlayers ? String(template.maxVipPlayers) : "",
       posterUrl: template.posterUrl ?? "",
@@ -233,6 +242,16 @@ export function EventsManager({
             />
           </label>
           <label>
+            Билетов 1+1
+            <input
+              name="maxDuoTickets"
+              inputMode="numeric"
+              placeholder="1"
+              value={draft.maxDuoTickets}
+              onChange={(event) => update({ maxDuoTickets: event.target.value })}
+            />
+          </label>
+          <label>
             Обычный билет, ₽
             <input
               name="buyIn"
@@ -251,6 +270,15 @@ export function EventsManager({
             />
           </label>
           <label>
+            Билет 1+1, ₽ за двоих
+            <input
+              name="duoBuyIn"
+              inputMode="numeric"
+              value={draft.duoBuyIn}
+              onChange={(event) => update({ duoBuyIn: event.target.value })}
+            />
+          </label>
+          <label>
             Стартовый стек
             <input
               name="startingStack"
@@ -261,6 +289,11 @@ export function EventsManager({
             />
           </label>
         </div>
+        <p className="muted">{describeAnnouncedSeats({
+            duoTickets: Number(draft.maxDuoTickets) || 0,
+            regular: Number(draft.maxPlayers) || 0,
+            vip: Number(draft.maxVipPlayers) || 0,
+          })}</p>
 
         <label>
           Адрес

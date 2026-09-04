@@ -22,6 +22,7 @@ import {
   formatEventTimeLabel,
   type TournamentEvent,
 } from "@/lib/events/types";
+import { describeAnnouncedSeats } from "@/lib/events/seats";
 
 type EventRow = TournamentEvent & { signupsCount: number };
 
@@ -31,14 +32,17 @@ const textFieldClass =
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
 const DEFAULT_VIP_BUY_IN = "2000";
+const DEFAULT_DUO_BUY_IN = "2000";
 
 const EMPTY_DRAFT = {
   badge: "",
   buyIn: DEFAULT_BUY_IN,
+  duoBuyIn: DEFAULT_DUO_BUY_IN,
   featuresText: "",
   id: "",
   isPublished: false,
   lateEntryUntil: "",
+  maxDuoTickets: "",
   maxPlayers: "",
   maxVipPlayers: "",
   posterDataUrl: "",
@@ -53,14 +57,17 @@ const EMPTY_DRAFT = {
 
 type Draft = typeof EMPTY_DRAFT;
 
+
 function toDraft(event: EventRow): Draft {
   return {
     badge: event.badge ?? "",
     buyIn: event.buyIn ? String(event.buyIn) : "",
+    duoBuyIn: event.duoBuyIn ? String(event.duoBuyIn) : "",
     featuresText: event.featuresText,
     id: event.id,
     isPublished: event.isPublished,
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
+    maxDuoTickets: event.maxDuoTickets ? String(event.maxDuoTickets) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
     maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterDataUrl: "",
@@ -173,8 +180,10 @@ export default function TMAEventsPage() {
         body: JSON.stringify({
           badge: draft.badge,
           buyIn: draft.buyIn || 0,
+          duoBuyIn: draft.duoBuyIn ? Number(draft.duoBuyIn) : null,
           featuresText: draft.featuresText,
           lateEntryUntil: draft.lateEntryUntil,
+          maxDuoTickets: draft.maxDuoTickets ? Number(draft.maxDuoTickets) : null,
           maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
           maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
           name: draft.title,
@@ -224,9 +233,11 @@ export default function TMAEventsPage() {
       const payload = {
         badge: draft.badge,
         buyIn: draft.buyIn || 0,
+        duoBuyIn: draft.duoBuyIn ? Number(draft.duoBuyIn) : null,
         featuresText: draft.featuresText,
         isPublished: draft.isPublished,
         lateEntryUntil: draft.lateEntryUntil,
+        maxDuoTickets: draft.maxDuoTickets ? Number(draft.maxDuoTickets) : null,
         maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
         maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
         posterDataUrl: draft.posterDataUrl || undefined,
@@ -414,7 +425,31 @@ export default function TMAEventsPage() {
               onChange={(event) => update({ vipBuyIn: event.target.value })}
             />
           </div>
+          <div>
+            <FieldLabel title="Билетов 1+1" />
+            <input
+              className={textFieldClass}
+              inputMode="numeric"
+              value={draft.maxDuoTickets}
+              onChange={(event) => update({ maxDuoTickets: event.target.value })}
+            />
+          </div>
+          <div>
+            <FieldLabel title="Билет 1+1 ₽ за двоих" />
+            <input
+              className={textFieldClass}
+              inputMode="numeric"
+              value={draft.duoBuyIn}
+              onChange={(event) => update({ duoBuyIn: event.target.value })}
+            />
+          </div>
         </div>
+
+        <p className="px-1 text-[11px] text-white/40">{describeAnnouncedSeats({
+            duoTickets: Number(draft.maxDuoTickets) || 0,
+            regular: Number(draft.maxPlayers) || 0,
+            vip: Number(draft.maxVipPlayers) || 0,
+          })}</p>
 
         <FieldLabel title="Адрес" />
         <input

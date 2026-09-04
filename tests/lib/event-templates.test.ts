@@ -9,9 +9,11 @@ import {
 const event = {
   badge: "ГАРАНТИЯ 100 000",
   buyIn: 1250,
+  duoBuyIn: 2000,
   featuresText: "Ре-энтри до 6 уровня",
   isPublished: true,
   lateEntryUntil: "2026-09-10T19:00:00.000Z",
+  maxDuoTickets: 1,
   maxPlayers: 20,
   maxVipPlayers: 10,
   posterUrl: "https://example.test/poster.png",

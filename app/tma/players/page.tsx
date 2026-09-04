@@ -40,6 +40,9 @@ export default function TMAPlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
+  // The guest half of a "1+1" is typed in by hand, and only the desk knows they came in
+  // on one: without this they would be charged a whole ticket instead of half.
+  const [duoTicket, setDuoTicket] = useState(false);
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [addonEnabled, setAddonEnabled] = useState(false);
   const [maxAddons, setMaxAddons] = useState(1);
@@ -100,13 +103,14 @@ export default function TMAPlayersPage() {
               "Content-Type": "application/json",
               "X-Telegram-Init-Data": initData,
             },
-            body: JSON.stringify({ name }),
+            body: JSON.stringify({ duoTicket, name }),
           });
           if (res.ok) {
             const data = await res.json().catch(() => null);
             tg.HapticFeedback.notificationOccurred("success");
             setShowAddForm(false);
             setName("");
+            setDuoTicket(false);
             await fetchPlayers();
 
             // Say out loud whether the nickname found its questionnaire: a walk-in who
@@ -136,7 +140,7 @@ export default function TMAPlayersPage() {
     } else {
       tg.MainButton.hide();
     }
-  }, [showAddForm, name, initData, fetchPlayers]);
+  }, [showAddForm, name, duoTicket, initData, fetchPlayers]);
 
   const selectedPlayer = useMemo(
     () => players.find((player) => player.id === selectedPlayerId) ?? null,
@@ -359,11 +363,28 @@ export default function TMAPlayersPage() {
             placeholder="Иван Иванов"
           />
         </div>
+        <label className="flex items-center gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3">
+          <input
+            checked={duoTicket}
+            className="h-5 w-5"
+            onChange={(event) => setDuoTicket(event.target.checked)}
+            type="checkbox"
+          />
+          <span className="text-sm">
+            Пришёл по билету 1+1
+            <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+              Платит половину цены билета — как и тот, кто его привёл.
+            </span>
+          </span>
+        </label>
         <p className="text-xs text-[var(--tg-theme-hint-color)]">
           Стол и место игрок получит, когда ему выдадут карту.
         </p>
         <button 
-          onClick={() => setShowAddForm(false)}
+          onClick={() => {
+            setDuoTicket(false);
+            setShowAddForm(false);
+          }}
           className="mt-4 w-full p-3 text-[var(--tg-theme-button-color)]"
         >
           Отмена

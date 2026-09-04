@@ -374,6 +374,17 @@ export function SettingsForm({
           />
         </label>
         <label>
+          Билет 1+1, ₽ за двоих
+          <input
+            aria-label="Цена билета 1+1"
+            defaultValue={settings.duoBuyIn}
+            inputMode="numeric"
+            min={0}
+            name="duoBuyIn"
+            type="number"
+          />
+        </label>
+        <label>
           Ре-энтри, ₽
           <input
             aria-label="Цена ре-энтри"
