@@ -3421,23 +3421,59 @@ p {
 }
 
 .tier-plate--member {
-  border-color: rgb(224 56 79 / 0.55) !important;
+  border-color: rgb(224 56 79 / 0.8) !important;
   background: linear-gradient(100deg, rgb(26 11 15 / 0.95), rgb(10 7 9 / 0.92)) !important;
 }
 
 .tier-plate--core {
-  border-color: rgb(224 56 79 / 0.85) !important;
-  background: linear-gradient(100deg, rgb(122 18 38 / 0.95), rgb(40 7 14 / 0.9)) !important;
+  border-color: rgb(224 56 79 / 0.9) !important;
+  background:
+    /* The diagonal slashes of the card, kept to the right so the name stays clear. */
+    linear-gradient(
+        102deg,
+        transparent 0 62%,
+        rgb(255 255 255 / 0.06) 62% 64%,
+        transparent 64% 68%,
+        rgb(255 255 255 / 0.06) 68% 70%,
+        transparent 70% 100%
+      ),
+    linear-gradient(100deg, rgb(138 20 42 / 0.95), rgb(46 8 16 / 0.92)) !important;
 }
 
 .tier-plate--legend {
-  border-color: rgb(196 181 253 / 0.75) !important;
-  background: linear-gradient(100deg, rgb(66 26 122 / 0.95), rgb(26 12 48 / 0.9)) !important;
+  border-color: rgb(196 181 253 / 0.8) !important;
+  background: linear-gradient(100deg, rgb(66 26 122 / 0.95), rgb(26 12 48 / 0.92)) !important;
 }
 
 .tier-plate--champion {
-  border-color: rgb(233 192 122 / 0.9) !important;
-  background: linear-gradient(100deg, rgb(186 134 46 / 0.95), rgb(74 50 12 / 0.92)) !important;
+  border-color: rgb(233 192 122 / 0.95) !important;
+  background:
+    linear-gradient(
+        102deg,
+        transparent 0 58%,
+        rgb(255 255 255 / 0.1) 58% 60%,
+        transparent 60% 64%,
+        rgb(255 255 255 / 0.1) 64% 66%,
+        transparent 66% 100%
+      ),
+    linear-gradient(100deg, rgb(196 143 52 / 0.95), rgb(92 62 16 / 0.92)) !important;
+}
+
+/* The suits printed across the core card, centred and faint enough to read the name
+   straight through them. */
+.tier-plate--core::before {
+  content: "♣ ♠ ♥ ♦";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: rgb(255 255 255 / 0.16);
+  font-size: 1.05em;
+  letter-spacing: 0.35em;
+  /* The run of suits is centred as a whole, and the trailing letter-space would push
+     it left by half a gap. */
+  text-indent: 0.35em;
+  pointer-events: none;
 }
 
 /* The bracketed corners of the higher cards, drawn rather than imported. */
@@ -3448,10 +3484,10 @@ p {
   inset: 2px 4px;
   border: 1px solid currentColor;
   border-radius: inherit;
-  opacity: 0.35;
+  opacity: 0.65;
   pointer-events: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 0 14%, transparent 14% 86%, #000 86% 100%);
-  mask-image: linear-gradient(90deg, #000 0 14%, transparent 14% 86%, #000 86% 100%);
+  -webkit-mask-image: linear-gradient(90deg, #000 0 16%, transparent 16% 84%, #000 84% 100%);
+  mask-image: linear-gradient(90deg, #000 0 16%, transparent 16% 84%, #000 84% 100%);
 }
 
 .tier-plate--legend::before {
@@ -3459,20 +3495,20 @@ p {
 }
 
 .tier-plate--champion::before {
-  color: #e9c07a;
+  color: #f3d07a;
 }
 
 /* The gem and the crown sit at the right edge, clear of the name. */
 .tier-mark {
   position: absolute;
   top: 50%;
-  right: 4px;
+  right: 6px;
   transform: translateY(-50%);
   line-height: 1;
   pointer-events: none;
 }
 
 .tier-plate--legend .tier-mark {
-  color: #c4b5fd;
-  text-shadow: 0 0 8px rgb(168 85 247 / 0.8);
+  color: #d8b4fe;
+  text-shadow: 0 0 10px rgb(168 85 247 / 0.9);
 }
