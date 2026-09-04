@@ -3412,3 +3412,67 @@ p {
   line-height: 1;
 }
 
+
+/* A player's plate, dressed in their tier — the same look the club prints on its cards.
+   Used by the board in the hall, the rating table and a game's own table. */
+.tier-plate {
+  position: relative;
+  overflow: hidden;
+}
+
+.tier-plate--member {
+  border-color: rgb(224 56 79 / 0.55) !important;
+  background: linear-gradient(100deg, rgb(26 11 15 / 0.95), rgb(10 7 9 / 0.92)) !important;
+}
+
+.tier-plate--core {
+  border-color: rgb(224 56 79 / 0.85) !important;
+  background: linear-gradient(100deg, rgb(122 18 38 / 0.95), rgb(40 7 14 / 0.9)) !important;
+}
+
+.tier-plate--legend {
+  border-color: rgb(196 181 253 / 0.75) !important;
+  background: linear-gradient(100deg, rgb(66 26 122 / 0.95), rgb(26 12 48 / 0.9)) !important;
+}
+
+.tier-plate--champion {
+  border-color: rgb(233 192 122 / 0.9) !important;
+  background: linear-gradient(100deg, rgb(186 134 46 / 0.95), rgb(74 50 12 / 0.92)) !important;
+}
+
+/* The bracketed corners of the higher cards, drawn rather than imported. */
+.tier-plate--legend::before,
+.tier-plate--champion::before {
+  content: "";
+  position: absolute;
+  inset: 2px 4px;
+  border: 1px solid currentColor;
+  border-radius: inherit;
+  opacity: 0.35;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 0 14%, transparent 14% 86%, #000 86% 100%);
+  mask-image: linear-gradient(90deg, #000 0 14%, transparent 14% 86%, #000 86% 100%);
+}
+
+.tier-plate--legend::before {
+  color: #c4b5fd;
+}
+
+.tier-plate--champion::before {
+  color: #e9c07a;
+}
+
+/* The gem and the crown sit at the right edge, clear of the name. */
+.tier-mark {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+  line-height: 1;
+  pointer-events: none;
+}
+
+.tier-plate--legend .tier-mark {
+  color: #c4b5fd;
+  text-shadow: 0 0 8px rgb(168 85 247 / 0.8);
+}

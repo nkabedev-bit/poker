@@ -29,16 +29,24 @@ describe("RatingRow", () => {
     expect(screen.getByRole("link").getAttribute("href")).toBe("/client/players/maksb");
   });
 
-  it("wears the tier as the colour of the name", () => {
+  // The plate carries the tier, the way the club's cards are printed.
+  it("wears the tier on the plate behind the name", () => {
     render(<RatingRow player={player({ tier: "legend" })} />);
 
-    expect(screen.getByText("Maks B").getAttribute("style")).toContain("rgb(168, 85, 247)");
+    expect(screen.getByRole("link").className).toContain("tier-plate--legend");
   });
 
   it("crowns a champion", () => {
     render(<RatingRow player={player({ tier: "champion" })} />);
 
+    expect(screen.getByRole("link").className).toContain("tier-plate--champion");
     expect(screen.getByText("👑")).toBeTruthy();
+  });
+
+  it("leaves a player without a tier on the plain plate", () => {
+    render(<RatingRow player={player()} />);
+
+    expect(screen.getByRole("link").className).not.toContain("tier-plate");
   });
 
   it("stays on the rating when a row has no nickname to open", () => {

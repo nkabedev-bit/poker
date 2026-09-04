@@ -15,7 +15,13 @@ import {
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
-import { readTierLabel, resolvePlayerTier, TIER_COLORS } from "@/lib/players/tier";
+import {
+  readTierLabel,
+  resolvePlayerTier,
+  TIER_MARK,
+  TIER_PLATE_CLASS,
+  type PlayerTier,
+} from "@/lib/players/tier";
 import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
@@ -162,13 +168,16 @@ function getPublicPlayersDensity(count: number) {
 function getPublicPlayerItemClassName({
   hasBadges,
   isEliminated,
+  tier,
 }: {
   hasBadges: boolean;
   isEliminated: boolean;
+  tier?: PlayerTier | null;
 }) {
   const classes = [];
   if (!hasBadges) classes.push("public-player-mini-list-item--name-only");
   if (isEliminated) classes.push("public-player-mini-list-item--eliminated");
+  if (tier) classes.push(TIER_PLATE_CLASS[tier]);
   return classes.length > 0 ? classes.join(" ") : undefined;
 }
 
@@ -234,7 +243,7 @@ export function getPublicAverageStack(totalChips: number, activePlayers: number)
   return Math.round(totalChips / activePlayers);
 }
 
-function PublicPlayerName({ color, name }: { color?: string; name: string }) {
+function PublicPlayerName({ name }: { name: string }) {
   const label = name || "Без имени";
   const nameRef = useRef<HTMLElement>(null);
 
@@ -288,7 +297,7 @@ function PublicPlayerName({ color, name }: { color?: string; name: string }) {
 
   return (
     <span className="public-player-name-frame">
-      <strong className="public-player-name" ref={nameRef} style={{ color }} title={label}>
+      <strong className="public-player-name" ref={nameRef} title={label}>
         {label}
       </strong>
     </span>
@@ -933,12 +942,15 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                 games: player.gamesPlayed,
                 label: player.label,
               });
-              const hasLeading = labelKind !== null || badges.length > 0 || tier === "champion";
+              const hasLeading = labelKind !== null || badges.length > 0;
 
               return (
                 <div
                   className={getPublicPlayerItemClassName({
                     hasBadges: hasLeading,
+                    // A player who is out keeps the grey plate: the tier is worn by
+                    // whoever is still at the table.
+                    tier: player.status === "active" ? tier : null,
                     isEliminated: player.status === "eliminated",
                   })}
                   key={player.id}
@@ -948,11 +960,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                       {labelKind === "dealer" ? (
                         <span className="public-player-dealer-button">D</span>
                       ) : null}
-                      {tier === "champion" ? (
-                        <span className="public-player-crown" title="Чемпион">
-                          👑
-                        </span>
-                      ) : null}
+
                       {labelKind === "text" ? (
                         <span
                           className="public-player-label"
@@ -964,10 +972,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                       {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
                     </span>
                   ) : null}
-                  <PublicPlayerName
-                    color={tier ? TIER_COLORS[tier] : undefined}
-                    name={player.name}
-                  />
+                  <PublicPlayerName name={player.name} />
+                  {player.status === "active" && tier && TIER_MARK[tier] ? (
+                    <span className="tier-mark">{TIER_MARK[tier]}</span>
+                  ) : null}
                 </div>
               );
             })}

@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
+import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
+import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { countGamesByNickname } from "@/lib/players/games-played";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { resolvePlayerTier } from "@/lib/players/tier";
 
 export const dynamic = "force-dynamic";
 
@@ -52,6 +57,21 @@ export async function GET(
     return NextResponse.json({ error: "Игра не найдена" }, { status: 404 });
   }
 
+  // The table wears the same tiers as the board and the rating, so a player is
+  // recognisable wherever their name appears.
+  const [games, labels] = await Promise.all([
+    countGamesByNickname(auth.supabase, rows.map((row) => row.playerName)),
+    loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
+  ]);
+
+  const withTiers = rows.map((row) => ({
+    ...row,
+    tier: resolvePlayerTier({
+      games: games.get(buildNicknameKey(row.playerName)) ?? 0,
+      label: getPersistedPlayerLabel(labels, row.playerName),
+    }),
+  }));
+
   return NextResponse.json({
     game: {
       countsForRating: rows[0].countsForRating,
@@ -59,12 +79,13 @@ export async function GET(
       startedAt,
       title: rows[0].title,
     },
-    rows: rows.map((row) => ({
+    rows: withTiers.map((row) => ({
       isMe: row.isMe,
       knockouts: row.knockouts,
       place: row.place,
       playerName: row.playerName,
       points: row.points,
+      tier: row.tier,
     })),
   });
 }

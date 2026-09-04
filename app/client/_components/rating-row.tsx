@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
-import { TIER_COLORS, type PlayerTier } from "@/lib/players/tier";
+import { TIER_MARK, TIER_PLATE_CLASS, type PlayerTier } from "@/lib/players/tier";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type RatingPlayer = {
@@ -47,10 +47,14 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
   const podium = player.place && player.place <= 3 ? PODIUM[player.place as 1 | 2 | 3] : null;
   const key = buildNicknameKey(player.name);
 
+  // The plate carries the tier, the way the club's cards are printed; the podium keeps
+  // its place on the number itself.
+  const plate = player.tier ? TIER_PLATE_CLASS[player.tier] : null;
+
   return (
     <Link
       className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 transition active:scale-[0.99] ${
-        podium?.row ?? "border-white/[0.07] bg-white/[0.04]"
+        plate ?? podium?.row ?? "border-white/[0.07] bg-white/[0.04]"
       } ${player.isMe ? "!border-[#e9c07a] shadow-[0_0_20px_rgba(233,192,122,0.18)]" : ""}`}
       href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
     >
@@ -66,11 +70,7 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
 
       {/* The tier is worn as the colour of the name — a badge beside it was too much
           on a list this dense. */}
-      <span
-        className="min-w-0 flex-1 truncate text-[15px] font-semibold"
-        style={{ color: player.tier ? TIER_COLORS[player.tier] : undefined }}
-      >
-        {player.tier === "champion" ? <span className="mr-1">👑</span> : null}
+      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
         {player.name || "Без никнейма"}
         {player.isMe ? (
           <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
@@ -93,6 +93,10 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
           </>
         )}
       </span>
+
+      {player.tier && TIER_MARK[player.tier] ? (
+        <span className="tier-mark text-[15px]">{TIER_MARK[player.tier]}</span>
+      ) : null}
     </Link>
   );
 }

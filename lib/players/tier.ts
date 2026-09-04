@@ -12,14 +12,33 @@ export const TIER_TITLES: Record<PlayerTier, string> = {
   member: "MEMBER",
 };
 
-/** The club's colours, the same ones printed on the cards. */
+/** The accent of each tier — the colour of its card, used for text and edges. */
 export const TIER_COLORS: Record<PlayerTier, string> = {
   champion: "#e9c07a",
   core: "#e0384f",
   legend: "#a855f7",
-  // Cool silver rather than a light grey: on the board a plain name is white, and the
-  // two were telling each other apart only by a shade.
-  member: "#9fb6cd",
+  member: "#e0384f",
+};
+
+/**
+ * The class that dresses a row in its tier, the way the club's cards are printed: the
+ * plate behind the name is coloured, not the name itself. Member is a black card with a
+ * red edge, core a red one, legend purple with a gem, champion gold with a crown.
+ *
+ * The look lives in globals.css (`.tier-plate`), so the board, the rating and a game's
+ * table all wear the same one.
+ */
+export const TIER_PLATE_CLASS: Record<PlayerTier, string> = {
+  champion: "tier-plate tier-plate--champion",
+  core: "tier-plate tier-plate--core",
+  legend: "tier-plate tier-plate--legend",
+  member: "tier-plate tier-plate--member",
+};
+
+/** The mark a tier carries at the right edge of its plate; the lesser tiers have none. */
+export const TIER_MARK: Partial<Record<PlayerTier, string>> = {
+  champion: "👑",
+  legend: "◆",
 };
 
 const TIER_LABELS = new Map<string, PlayerTier>([

@@ -8,6 +8,8 @@ import { useClientTMA } from "../../layout";
 import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { formatEventDayLabel } from "@/lib/events/types";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { TIER_MARK, TIER_PLATE_CLASS, type PlayerTier } from "@/lib/players/tier";
 
 type ResultRow = {
   isMe: boolean;
@@ -15,6 +17,7 @@ type ResultRow = {
   place: number | null;
   playerName: string;
   points: number;
+  tier: PlayerTier | null;
 };
 
 type GameResponse = {
@@ -89,13 +92,18 @@ export default function ClientGamePage() {
 
       <div className="space-y-2">
         {data.rows.map((row) => (
-          <div
+          <Link
             key={`${row.place}-${row.playerName}`}
             className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 ${
-              row.isMe
-                ? "border-[#e9c07a] bg-[#e9c07a]/[0.08]"
-                : "border-white/[0.07] bg-white/[0.04]"
+              // The plate wears the tier here too, so a player is recognisable wherever
+              // their name shows up.
+              row.tier
+                ? TIER_PLATE_CLASS[row.tier]
+                : row.isMe
+                  ? "border-[#e9c07a] bg-[#e9c07a]/[0.08]"
+                  : "border-white/[0.07] bg-white/[0.04]"
             }`}
+            href={`/client/players/${encodeURIComponent(buildNicknameKey(row.playerName))}`}
           >
             <span
               className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold ${
@@ -119,7 +127,11 @@ export default function ClientGamePage() {
               {row.points.toLocaleString("ru-RU")}
               <Zap className="text-[#e9c07a]" fill="currentColor" size={13} />
             </span>
-          </div>
+
+            {row.tier && TIER_MARK[row.tier] ? (
+              <span className="tier-mark text-[15px]">{TIER_MARK[row.tier]}</span>
+            ) : null}
+          </Link>
         ))}
       </div>
     </div>
