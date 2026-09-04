@@ -37,7 +37,24 @@ export async function POST(request: Request) {
     p_paid: paid,
   });
 
-  if (error) throw error;
+  // The admin is at the desk with a queue: say what went wrong instead of a blank
+  // failure they cannot act on.
+  if (error) {
+    console.error("Failed to mark a payment", error);
+
+    const missingFunction =
+      error.code === "PGRST202" ||
+      String(error.message ?? "").includes("set_player_paid");
+
+    return NextResponse.json(
+      {
+        error: missingFunction
+          ? "Миграция 202609040001 не применена — отметка оплаты не сохраняется"
+          : (error.message ?? "Не удалось отметить оплату"),
+      },
+      { status: 500 },
+    );
+  }
 
   return NextResponse.json({ session: buildCardSession(data, cardCode, prices, { freeroll }) });
 }
