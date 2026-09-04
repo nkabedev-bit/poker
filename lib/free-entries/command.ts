@@ -1,25 +1,17 @@
-export type FreeEntrySource = "raffle" | "mystery" | "manual";
-
 export type FreeEntryCommand = {
   count: number;
   nickname: string;
-  source: FreeEntrySource;
   vip: boolean;
 };
 
 const MAX_PASSES_PER_COMMAND = 50;
 
-const VIP_MARKERS = new Set(["vip"]);
-// Why the pass is being handed out, so the "Проходки" sheet says more than "выдал админ".
-const MYSTERY_MARKERS = new Set(["mystery", "мистери"]);
-
 /**
- * Reads "/free vip mystery Старый узбек 3" and its /delete free twin.
+ * Reads "/free vip Старый узбек 3" and its /delete free twin.
  *
  * Club nicknames contain spaces, so the parts are recognised by shape rather than by
- * position: the markers right after the command set the ticket type and the reason, a
- * trailing number is how many, and everything in between is the nickname. Without a
- * number it is one pass.
+ * position: "vip" right after the command marks the ticket type, a trailing number is
+ * how many, and everything in between is the nickname. Without a number it is one pass.
  */
 export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   const withoutCommand = text
@@ -31,19 +23,8 @@ export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   const parts = withoutCommand.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return null;
 
-  let vip = false;
-  let mystery = false;
-  let markers = 0;
-
-  while (markers < parts.length) {
-    const marker = parts[markers].toLocaleLowerCase("ru-RU");
-    if (VIP_MARKERS.has(marker)) vip = true;
-    else if (MYSTERY_MARKERS.has(marker)) mystery = true;
-    else break;
-    markers += 1;
-  }
-
-  const rest = parts.slice(markers);
+  const vip = parts[0].toLocaleLowerCase("ru-RU") === "vip";
+  const rest = vip ? parts.slice(1) : parts;
   if (rest.length === 0) return null;
 
   const last = rest[rest.length - 1];
@@ -59,7 +40,6 @@ export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   return {
     count: Math.min(MAX_PASSES_PER_COMMAND, Math.max(1, countIsGiven ? trailingNumber : 1)),
     nickname,
-    source: mystery ? "mystery" : "manual",
     vip,
   };
 }

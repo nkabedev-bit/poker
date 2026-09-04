@@ -3,7 +3,7 @@ import { describeFreeEntries, parseFreeEntryCommand } from "@/lib/free-entries/c
 
 describe("parseFreeEntryCommand", () => {
   it("gives one regular pass when only a nickname is named", () => {
-    expect(parseFreeEntryCommand("/free Ace")).toEqual({ count: 1, nickname: "Ace", source: "manual", vip: false });
+    expect(parseFreeEntryCommand("/free Ace")).toEqual({ count: 1, nickname: "Ace", vip: false });
   });
 
   it("reads how many passes to give", () => {
@@ -11,7 +11,7 @@ describe("parseFreeEntryCommand", () => {
   });
 
   it("marks a VIP pass, whatever the case", () => {
-    expect(parseFreeEntryCommand("/free VIP Ace 2")).toEqual({ count: 2, nickname: "Ace", source: "manual", vip: true });
+    expect(parseFreeEntryCommand("/free VIP Ace 2")).toEqual({ count: 2, nickname: "Ace", vip: true });
     expect(parseFreeEntryCommand("/free vip Ace")).toMatchObject({ vip: true });
   });
 
@@ -20,7 +20,6 @@ describe("parseFreeEntryCommand", () => {
     expect(parseFreeEntryCommand("/free Старый узбек 3")).toEqual({
       count: 3,
       nickname: "Старый узбек",
-      source: "manual",
       vip: false,
     });
   });
@@ -36,7 +35,6 @@ describe("parseFreeEntryCommand", () => {
     expect(parseFreeEntryCommand("/delete free vip Ace High 2")).toEqual({
       count: 2,
       nickname: "Ace High",
-      source: "manual",
       vip: true,
     });
     expect(parseFreeEntryCommand("/deletefree Ace")).toMatchObject({ nickname: "Ace" });
@@ -49,30 +47,10 @@ describe("parseFreeEntryCommand", () => {
     });
   });
 
-  // Why the pass was given is what the "Проходки" ledger records.
-  it("reads the mystery bounty reason, in either order", () => {
-    expect(parseFreeEntryCommand("/free mystery Ace")).toMatchObject({
-      nickname: "Ace",
-      source: "mystery",
-      vip: false,
-    });
-    expect(parseFreeEntryCommand("/free vip мистери Старый узбек 2")).toMatchObject({
-      count: 2,
-      nickname: "Старый узбек",
-      source: "mystery",
-      vip: true,
-    });
-    expect(parseFreeEntryCommand("/free mystery vip Ace")).toMatchObject({
-      source: "mystery",
-      vip: true,
-    });
-  });
-
   it("refuses a command with no nickname", () => {
     expect(parseFreeEntryCommand("/free")).toBeNull();
     expect(parseFreeEntryCommand("/free vip")).toBeNull();
     expect(parseFreeEntryCommand("/free   ")).toBeNull();
-    expect(parseFreeEntryCommand("/free mystery")).toBeNull();
   });
 
   it("treats a nickname that is only digits as a nickname, not a count", () => {
