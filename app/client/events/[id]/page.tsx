@@ -71,6 +71,12 @@ export default function ClientEventPage() {
     setUsePass((chosen) => (chosen === ticket ? chosen : "none"));
   };
 
+  /** A pass belongs to one kind of ticket, so picking it picks that ticket too. */
+  const selectPass = (pass: FreePassChoice) => {
+    setUsePass(pass);
+    if (pass !== "none") setTicketType(pass);
+  };
+
   const load = useCallback(async () => {
     if (!eventId) return;
     try {
@@ -159,19 +165,41 @@ export default function ClientEventPage() {
   const seatsLeft = ticketType === "vip" ? freeSeats.vip : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
 
-  // A pass buys the ticket of its own kind, so only the matching one is offered.
-  const heldPasses = ticketType === "vip" ? freeEntries.vip : freeEntries.regular;
-  const passOptions: Array<{ note: string | null; title: string; value: FreePassChoice }> =
-    heldPasses > 0
-      ? [
-          {
-            note: `Осталось: ${heldPasses}`,
-            title: PASS_TITLES[ticketType],
-            value: ticketType,
-          },
-          { note: "Оплачу вход на месте", title: "Без проходки", value: "none" as const },
-        ]
-      : [];
+  // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
+  // ticket of its own kind, so choosing one switches the ticket to match.
+  const vipSoldOut = freeSeats.vip !== null && freeSeats.vip <= 0;
+  const passOptions: Array<{
+    disabled?: boolean;
+    note: string | null;
+    title: string;
+    value: FreePassChoice;
+  }> = [
+    ...(freeEntries.regular > 0
+      ? [{
+          note: `Осталось: ${freeEntries.regular} · обычный билет`,
+          title: PASS_TITLES.regular,
+          value: "regular" as const,
+        }]
+      : []),
+    ...(freeEntries.vip > 0 && offersVip
+      ? [{
+          disabled: vipSoldOut,
+          note: vipSoldOut
+            ? "VIP-мест не осталось"
+            : `Осталось: ${freeEntries.vip} · VIP билет`,
+          title: PASS_TITLES.vip,
+          value: "vip" as const,
+        }]
+      : []),
+  ];
+
+  if (passOptions.length > 0) {
+    passOptions.push({
+      note: "Оплачу вход на месте",
+      title: "Без проходки",
+      value: "none" as const,
+    });
+  }
   const featureLines = event.featuresText
     .split("\n")
     .map((line) => line.trim())
@@ -315,9 +343,10 @@ export default function ClientEventPage() {
                   usePass === option.value
                     ? "border-[#f05a7e]/60 bg-[#f05a7e]/12"
                     : "border-white/[0.07] bg-white/[0.03]"
-                }`}
+                } ${option.disabled ? "opacity-45" : ""}`}
+                disabled={option.disabled}
                 type="button"
-                onClick={() => setUsePass(option.value)}
+                onClick={() => selectPass(option.value)}
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-bold">{option.title}</span>
@@ -335,8 +364,9 @@ export default function ClientEventPage() {
               </button>
             ))}
             <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/45">
-              Проходку можно использовать только на вход в турнир. Она не даёт права на
-              бесплатный ре-энтри или аддон.
+              Проходка закрывает билет своего типа: VIP-проходка — VIP билет, обычная —
+              обычный. Использовать её можно только на вход в турнир: права на бесплатный
+              ре-энтри или аддон она не даёт.
             </p>
           </GlassCard>
         </section>
