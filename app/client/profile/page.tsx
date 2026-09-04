@@ -108,11 +108,7 @@ export default function ClientProfilePage() {
       <div className="flex items-center gap-4">
         <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
-          <p
-            className={`truncate text-[22px] font-bold tracking-tight ${
-              me?.tier === "champion" ? "text-[#e9c07a]" : ""
-            }`}
-          >
+          <p className="truncate text-[22px] font-bold tracking-tight">
             {me?.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
             {name}
           </p>

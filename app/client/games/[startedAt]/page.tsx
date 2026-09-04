@@ -9,7 +9,7 @@ import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui"
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { formatEventDayLabel } from "@/lib/events/types";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { TIER_MARK, TIER_PLATE_CLASS, type PlayerTier } from "@/lib/players/tier";
+import { getPlateClass, type PlayerTier } from "@/lib/players/tier";
 
 type ResultRow = {
   isMe: boolean;
@@ -94,15 +94,11 @@ export default function ClientGamePage() {
         {data.rows.map((row) => (
           <Link
             key={`${row.place}-${row.playerName}`}
-            className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 ${
-              // The plate wears the tier here too, so a player is recognisable wherever
-              // their name shows up.
-              row.tier
-                ? TIER_PLATE_CLASS[row.tier]
-                : row.isMe
-                  ? "border-[#e9c07a] bg-[#e9c07a]/[0.08]"
-                  : "border-white/[0.07] bg-white/[0.04]"
-            }`}
+            // The plate wears the tier here too, so a player is recognisable wherever
+            // their name shows up.
+            className={`flex items-center gap-3 rounded-[18px] px-3 py-2.5 ${getPlateClass(
+              row.tier,
+            )} ${row.isMe ? "ring-1 ring-[#e9c07a]" : ""}`}
             href={`/client/players/${encodeURIComponent(buildNicknameKey(row.playerName))}`}
           >
             <span
@@ -128,9 +124,6 @@ export default function ClientGamePage() {
               <Zap className="text-[#e9c07a]" fill="currentColor" size={13} />
             </span>
 
-            {row.tier && TIER_MARK[row.tier] ? (
-              <span className="tier-mark text-[15px]">{TIER_MARK[row.tier]}</span>
-            ) : null}
           </Link>
         ))}
       </div>

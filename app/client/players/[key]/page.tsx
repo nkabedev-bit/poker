@@ -91,10 +91,7 @@ export default function ClientPlayerPage() {
       <div className="flex items-center gap-4">
         <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
-          <p
-            className="truncate text-[22px] font-bold tracking-tight"
-            style={{ color: player.tier ? TIER_COLORS[player.tier] : undefined }}
-          >
+          <p className="truncate text-[22px] font-bold tracking-tight">
             {player.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
             {player.name}
           </p>

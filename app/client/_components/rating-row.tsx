@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
-import { TIER_MARK, TIER_PLATE_CLASS, type PlayerTier } from "@/lib/players/tier";
+import { getPlateClass, type PlayerTier } from "@/lib/players/tier";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type RatingPlayer = {
@@ -49,13 +49,11 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
 
   // The plate carries the tier, the way the club's cards are printed; the podium keeps
   // its place on the number itself.
-  const plate = player.tier ? TIER_PLATE_CLASS[player.tier] : null;
-
   return (
     <Link
-      className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 transition active:scale-[0.99] ${
-        plate ?? podium?.row ?? "border-white/[0.07] bg-white/[0.04]"
-      } ${player.isMe ? "!border-[#e9c07a] shadow-[0_0_20px_rgba(233,192,122,0.18)]" : ""}`}
+      className={`flex items-center gap-3 rounded-[18px] px-3 py-2.5 transition active:scale-[0.99] ${getPlateClass(
+        player.tier,
+      )} ${player.isMe ? "ring-1 ring-[#e9c07a]" : ""}`}
       href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
     >
       <span
@@ -94,9 +92,6 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
         )}
       </span>
 
-      {player.tier && TIER_MARK[player.tier] ? (
-        <span className="tier-mark text-[15px]">{TIER_MARK[player.tier]}</span>
-      ) : null}
     </Link>
   );
 }

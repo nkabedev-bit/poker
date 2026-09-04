@@ -35,11 +35,13 @@ export const TIER_PLATE_CLASS: Record<PlayerTier, string> = {
   member: "tier-plate tier-plate--member",
 };
 
-/** The mark a tier carries at the right edge of its plate; the lesser tiers have none. */
-export const TIER_MARK: Partial<Record<PlayerTier, string>> = {
-  champion: "👑",
-  legend: "◆",
-};
+/** The plate a player without a tier stands on — the club's plain card. */
+export const PLAIN_PLATE_CLASS = "tier-plate tier-plate--plain";
+
+/** The plate for a player, whether or not they have earned a tier. */
+export function getPlateClass(tier: PlayerTier | null | undefined) {
+  return tier ? TIER_PLATE_CLASS[tier] : PLAIN_PLATE_CLASS;
+}
 
 const TIER_LABELS = new Map<string, PlayerTier>([
   ["member", "member"],

@@ -16,10 +16,9 @@ import {
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
 import {
+  getPlateClass,
   readTierLabel,
   resolvePlayerTier,
-  TIER_MARK,
-  TIER_PLATE_CLASS,
   type PlayerTier,
 } from "@/lib/players/tier";
 import { isSideBountyPoints } from "@/lib/pts-rating";
@@ -177,7 +176,8 @@ function getPublicPlayerItemClassName({
   const classes = [];
   if (!hasBadges) classes.push("public-player-mini-list-item--name-only");
   if (isEliminated) classes.push("public-player-mini-list-item--eliminated");
-  if (tier) classes.push(TIER_PLATE_CLASS[tier]);
+  // Everyone stands on a plate; the tier decides which one.
+  if (!isEliminated) classes.push(getPlateClass(tier));
   return classes.length > 0 ? classes.join(" ") : undefined;
 }
 
@@ -973,9 +973,6 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                     </span>
                   ) : null}
                   <PublicPlayerName name={player.name} />
-                  {player.status === "active" && tier && TIER_MARK[tier] ? (
-                    <span className="tier-mark">{TIER_MARK[tier]}</span>
-                  ) : null}
                 </div>
               );
             })}

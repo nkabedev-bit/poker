@@ -36,17 +36,23 @@ describe("RatingRow", () => {
     expect(screen.getByRole("link").className).toContain("tier-plate--legend");
   });
 
-  it("crowns a champion", () => {
+  // The crown is part of the champion's card art, not a character beside the name.
+  it("stands a champion on the champion plate", () => {
     render(<RatingRow player={player({ tier: "champion" })} />);
 
     expect(screen.getByRole("link").className).toContain("tier-plate--champion");
-    expect(screen.getByText("👑")).toBeTruthy();
   });
 
-  it("leaves a player without a tier on the plain plate", () => {
+  it("stands a player without a tier on the plain plate", () => {
     render(<RatingRow player={player()} />);
 
-    expect(screen.getByRole("link").className).not.toContain("tier-plate");
+    expect(screen.getByRole("link").className).toContain("tier-plate--plain");
+  });
+
+  it("keeps the nickname white whatever the tier", () => {
+    render(<RatingRow player={player({ tier: "legend" })} />);
+
+    expect(screen.getByText("Maks B").getAttribute("style")).toBeNull();
   });
 
   it("stays on the rating when a row has no nickname to open", () => {
