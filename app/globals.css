@@ -1993,7 +1993,9 @@ p {
   border-radius: 3px;
   background: rgb(255 255 255 / 0.04);
   height: clamp(13px, 2vh, 20px);
-  padding: 0 3px;
+  /* The plate art carries a frame of its own, so the name starts inside it rather than
+     against the edge. */
+  padding: 0 3px 0 8px;
 }
 
 .public-player-mini-list div.public-player-mini-list-item--name-only {
@@ -2082,7 +2084,7 @@ p {
 
 .public-player-mini-list--cozy div {
   height: clamp(20px, 2.6vh, 28px);
-  padding: 0 4px;
+  padding: 0 4px 0 10px;
 }
 
 .public-player-mini-list--cozy span {
@@ -2099,7 +2101,7 @@ p {
 
 .public-player-mini-list--roomy div {
   height: clamp(28px, 3.8vh, 42px);
-  padding: 0 5px;
+  padding: 0 5px 0 13px;
 }
 
 .public-player-mini-list--roomy span {
@@ -2116,7 +2118,7 @@ p {
 
 .public-player-mini-list--hero div {
   height: clamp(36px, 5.2vh, 60px);
-  padding: 0 6px;
+  padding: 0 6px 0 18px;
 }
 
 .public-player-mini-list--hero span {
