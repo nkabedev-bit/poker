@@ -1,4 +1,5 @@
 import type { EventTemplate } from "@/lib/events/templates";
+import type { Raffle } from "@/lib/raffle/raffle";
 
 export type TimerStatus =
   | "not_started"
@@ -104,6 +105,8 @@ export type TournamentExtras = {
   blindTemplates: BlindTemplate[];
   /** Saved posters the club reuses week after week, dated afresh each time. */
   eventTemplates: EventTemplate[];
+  /** The draw showing on the big screen right now, if one is running. */
+  raffle: Raffle | null;
   clientBot: {
     ratingUrl: string;
     scheduleText: string;

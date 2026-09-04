@@ -3258,3 +3258,145 @@ p {
 .event-template-list span {
   font-size: 12px;
 }
+
+/* The draw, over the whole board: the room looks at one thing while it runs. */
+.raffle-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle at 50% 20%, rgb(42 10 18 / 0.97), rgb(6 3 4 / 0.99));
+  animation: raffle-fade 0.4s ease;
+}
+
+@keyframes raffle-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.raffle-stage {
+  display: grid;
+  grid-template-columns: auto minmax(280px, 34vw);
+  align-items: center;
+  gap: clamp(24px, 5vw, 80px);
+  padding: 2vh 4vw;
+}
+
+.raffle-title {
+  grid-column: 1 / -1;
+  margin: 0 0 1vh;
+  text-align: center;
+  font-size: clamp(20px, 3.4vh, 44px);
+  font-weight: 800;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #e9c07a;
+}
+
+.raffle-wheel-wrap {
+  position: relative;
+  width: min(72vh, 46vw);
+  aspect-ratio: 1;
+}
+
+.raffle-wheel {
+  width: 100%;
+  height: 100%;
+  transition-property: transform;
+  transition-timing-function: cubic-bezier(0.12, 0.72, 0.06, 1);
+  filter: drop-shadow(0 18px 48px rgb(0 0 0 / 0.65));
+}
+
+.raffle-pointer {
+  position: absolute;
+  top: -1.4%;
+  left: 50%;
+  z-index: 2;
+  width: 0;
+  height: 0;
+  transform: translateX(-50%);
+  border-left: clamp(12px, 1.6vh, 22px) solid transparent;
+  border-right: clamp(12px, 1.6vh, 22px) solid transparent;
+  border-top: clamp(24px, 3.2vh, 44px) solid #e9c07a;
+  filter: drop-shadow(0 4px 10px rgb(0 0 0 / 0.7));
+}
+
+/* The club's logo sits on a black plate of its own, so the hub is round and dark and
+   the plate disappears into it — no cut-out file needed. */
+.raffle-hub {
+  position: absolute;
+  inset: 33%;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 3px solid rgb(233 192 122 / 0.85);
+  border-radius: 50%;
+  background: #0a0608;
+  box-shadow: 0 0 0 8px rgb(10 6 8 / 0.9), inset 0 0 30px rgb(0 0 0 / 0.8);
+  font-size: clamp(11px, 1.4vh, 18px);
+  font-weight: 800;
+  letter-spacing: 3px;
+  color: #e9c07a;
+}
+
+.raffle-hub img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.raffle-result {
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+.raffle-result--shown {
+  opacity: 1;
+  transform: none;
+}
+
+.raffle-result__label {
+  margin: 0;
+  font-size: clamp(14px, 2.2vh, 26px);
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.raffle-result__number {
+  margin: 0.2em 0 0;
+  font-size: clamp(64px, 18vh, 220px);
+  font-weight: 900;
+  line-height: 0.9;
+  color: #e9c07a;
+  text-shadow: 0 0 40px rgb(233 192 122 / 0.35);
+}
+
+.raffle-result__name {
+  margin: 0.15em 0 0;
+  font-size: clamp(26px, 5.4vh, 76px);
+  font-weight: 800;
+  line-height: 1.05;
+  color: #fff;
+  overflow-wrap: anywhere;
+}
+
+.raffle-result__prize {
+  margin: 0.6em 0 0;
+  font-size: clamp(13px, 2vh, 24px);
+  color: rgb(255 255 255 / 0.6);
+}
+
+@media (max-aspect-ratio: 1/1) {
+  .raffle-stage {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .raffle-wheel-wrap {
+    width: min(78vw, 52vh);
+  }
+}

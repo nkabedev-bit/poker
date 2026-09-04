@@ -19,6 +19,7 @@ import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { BlindsTable } from "@/components/public/blinds-table";
+import { RaffleWheel } from "@/components/public/raffle-wheel";
 import { TimerDisplay } from "@/components/public/timer-display";
 
 type PublicScreenProps = {
@@ -877,6 +878,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           </button>
         </div>
       </header>
+      {state.extras.raffle ? (
+        <RaffleWheel logoUrl={state.tournament.logoUrl} raffle={state.extras.raffle} />
+      ) : null}
+
       <div className="public-tv-body">
         <BlindsTable
           activePlayers={activePlayers.length}

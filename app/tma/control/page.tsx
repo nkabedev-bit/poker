@@ -3,14 +3,18 @@
 import { useCallback, useEffect, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { Pause, Play, SkipBack, SkipForward, Square } from "lucide-react";
+import { Crown, Gift, Pause, Play, SkipBack, SkipForward, Square, X } from "lucide-react";
 import type { TimerState } from "@/lib/timer/types";
+import type { Raffle } from "@/lib/raffle/raffle";
 
 const CONFIRM_MESSAGE = "Вы уверены?";
 
 export default function TMAControlPage() {
   const { initData } = useTMA();
-  const [state, setState] = useState<{ timerState: TimerState } | null>(null);
+  const [state, setState] = useState<{ raffle: Raffle | null; timerState: TimerState } | null>(
+    null,
+  );
+  const [raffleBusy, setRaffleBusy] = useState(false);
 
   const fetchState = useCallback(async () => {
     const res = await fetch("/api/tma/timer?scope=control", { headers: { "X-Telegram-Init-Data": initData } });
@@ -33,6 +37,73 @@ export default function TMAControlPage() {
     }
 
     return Promise.resolve(window.confirm(CONFIRM_MESSAGE));
+  };
+
+  /**
+   * Runs a draw on the big screen. The winner is decided on the server, so what comes
+   * back is only news: whether the prize reached the player's profile by itself.
+   */
+  const runRaffle = async (kind: "regular" | "vip") => {
+    const tg = getTelegramWebApp();
+    if (raffleBusy) return;
+
+    const question =
+      kind === "vip"
+        ? "Запустить VIP розыгрыш на экране?"
+        : "Запустить розыгрыш бесплатной проходки на экране?";
+
+    if (!(await new Promise<boolean>((resolve) =>
+      tg?.showConfirm ? tg.showConfirm(question, resolve) : resolve(window.confirm(question)),
+    ))) {
+      return;
+    }
+
+    setRaffleBusy(true);
+    try {
+      const res = await fetch("/api/tma/raffle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ kind }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        tg?.HapticFeedback.notificationOccurred("error");
+        tg?.showAlert(data?.error ?? "Не удалось запустить розыгрыш");
+        return;
+      }
+
+      tg?.HapticFeedback.notificationOccurred("success");
+      const raffle = data.raffle as Raffle;
+      const winner = `Победил номер ${raffle.winnerNumber} — ${raffle.winnerName}.`;
+
+      tg?.showAlert(
+        raffle.prize === "granted"
+          ? `${winner}\n\nПроходка начислена в профиль.`
+          : raffle.prize === "manual"
+            ? `${winner}\n\nИгрок не привязан к Telegram — начислите проходку вручную командой /free ${raffle.winnerName}`
+            : winner,
+      );
+
+      void fetchState();
+    } finally {
+      setRaffleBusy(false);
+    }
+  };
+
+  const closeRaffle = async () => {
+    const tg = getTelegramWebApp();
+    setRaffleBusy(true);
+    try {
+      await fetch("/api/tma/raffle", {
+        method: "DELETE",
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      tg?.HapticFeedback.impactOccurred("light");
+      void fetchState();
+    } finally {
+      setRaffleBusy(false);
+    }
   };
 
   const handleAction = async (action: string, confirm = false) => {
@@ -100,6 +171,47 @@ export default function TMAControlPage() {
             <SkipForward size={18} /> Следующий блайнд
           </button>
         </div>
+      </div>
+
+      <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-6 text-center">
+        <h2 className="mb-4 text-sm font-semibold tracking-wider text-[var(--tg-theme-hint-color)]">
+          РОЗЫГРЫШИ
+        </h2>
+
+        {state.raffle ? (
+          <div className="space-y-3">
+            <p className="text-sm">
+              На экране: номер {state.raffle.winnerNumber} — {state.raffle.winnerName}
+            </p>
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] py-3 font-medium text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+              disabled={raffleBusy}
+              type="button"
+              onClick={() => void closeRaffle()}
+            >
+              <X size={18} /> Закрыть розыгрыш
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              className="flex min-w-[calc(50%-0.375rem)] flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] py-3 font-medium text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+              disabled={raffleBusy}
+              type="button"
+              onClick={() => void runRaffle("regular")}
+            >
+              <Gift size={18} /> Провести розыгрыш
+            </button>
+            <button
+              className="flex min-w-[calc(50%-0.375rem)] flex-1 items-center justify-center gap-2 rounded-lg bg-[#e9c07a] py-3 font-medium text-black disabled:opacity-60"
+              disabled={raffleBusy}
+              type="button"
+              onClick={() => void runRaffle("vip")}
+            >
+              <Crown size={18} /> Провести VIP розыгрыш
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

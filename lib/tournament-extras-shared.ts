@@ -6,6 +6,7 @@ import {
   normalizePtsPlaceTemplates,
 } from "@/lib/pts-rating";
 import { isEventTemplate } from "@/lib/events/templates";
+import { isRaffle } from "@/lib/raffle/raffle";
 import type { ScheduleVersion, TournamentExtras } from "@/lib/timer/types";
 
 export function normalizeScheduleVersions(value: unknown): ScheduleVersion[] {
@@ -45,6 +46,7 @@ export type TournamentExtrasPatch = Partial<
 export const defaultTournamentExtras: TournamentExtras = {
   blindTemplates: [],
   eventTemplates: [],
+  raffle: null,
   clientBot: {
     ratingUrl: "",
     scheduleText: "",
@@ -112,6 +114,7 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
     eventTemplates: Array.isArray(input.eventTemplates)
       ? input.eventTemplates.filter(isEventTemplate)
       : [],
+    raffle: isRaffle(input.raffle) ? input.raffle : null,
     clientBot: {
       ...defaultTournamentExtras.clientBot,
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
+import { loadTournamentExtras } from "@/lib/tournament-extras";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,11 @@ export async function GET(request: Request) {
 
   const { searchParams } = new URL(request.url);
   if (searchParams.get("scope") === "control") {
-    return NextResponse.json({ timerState });
+    // The control screen also owns the draw, so it needs to know whether one is on the
+    // big screen right now.
+    const extras = await loadTournamentExtras(t.id, auth.supabase);
+
+    return NextResponse.json({ raffle: extras.raffle, timerState });
   }
 
   const { data: blindLevels } = await auth.supabase
