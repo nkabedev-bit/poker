@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
+import {
+  buildCardCodeFromDigits,
+  buildCardSession,
+  isTicketType,
+  normalizeCardCode,
+} from "@/lib/cards/card-code";
 
 const prices = {
   addonPrice: 1250,
@@ -134,5 +139,29 @@ describe("whether the player has settled up", () => {
 
   it("carries the payment the admin marked", () => {
     expect(buildCardSession(player({ paid: true }), "MJ-014", prices).paid).toBe(true);
+  });
+});
+
+describe("typing a card number by hand", () => {
+  it("builds the printed code from the digits alone", () => {
+    expect(buildCardCodeFromDigits("7")).toBe("MJ-07");
+    expect(buildCardCodeFromDigits("14")).toBe("MJ-14");
+  });
+
+  it("keeps a three-digit card whole", () => {
+    expect(buildCardCodeFromDigits("100")).toBe("MJ-100");
+  });
+
+  it("drops anything that is not a digit", () => {
+    expect(buildCardCodeFromDigits("mj-08 ")).toBe("MJ-08");
+  });
+
+  it("reads a leading zero as padding, not as part of the number", () => {
+    expect(buildCardCodeFromDigits("007")).toBe("MJ-07");
+  });
+
+  it("builds nothing from an empty field", () => {
+    expect(buildCardCodeFromDigits("")).toBe("");
+    expect(buildCardCodeFromDigits("--")).toBe("");
   });
 });

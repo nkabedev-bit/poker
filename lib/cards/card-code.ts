@@ -26,6 +26,20 @@ export type CardSession = {
   ticketType: TicketType;
 };
 
+/** Every card the club prints carries this prefix, so the admin only types the number. */
+export const CARD_CODE_PREFIX = "MJ";
+
+/**
+ * The code behind the digits an admin typed. Numbers are padded to two places, the way
+ * the batches are printed: card 2 is MJ-02, card 100 stays MJ-100.
+ */
+export function buildCardCodeFromDigits(digits: string, prefix = CARD_CODE_PREFIX) {
+  const number = digits.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  if (!number) return "";
+
+  return `${prefix}-${number.padStart(2, "0")}`;
+}
+
 /** Codes are printed on the cards; scanning brings back whatever the QR holds. */
 export function normalizeCardCode(value: unknown) {
   return String(value ?? "").trim().slice(0, 64);

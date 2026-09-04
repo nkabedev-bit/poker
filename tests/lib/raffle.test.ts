@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { isRaffle, listRaffleEntrants, pickRaffleWinner } from "@/lib/raffle/raffle";
+import {
+  isRaffle,
+  listRaffleEntrants,
+  pickRaffleWinner,
+  type Raffle,
+} from "@/lib/raffle/raffle";
 
 function player(registrationNumber: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -89,9 +94,11 @@ describe("a tournament gets one draw of each kind", () => {
   };
 
   it("recognises the draw already held", () => {
+    const history: Raffle[] = [held];
+
     expect(isRaffle(held)).toBe(true);
-    expect([held].find((item) => item.kind === "regular")).toBeTruthy();
-    expect([held].find((item) => item.kind === "vip")).toBeUndefined();
+    expect(history.find((item) => item.kind === "regular")).toBeTruthy();
+    expect(history.find((item) => item.kind === "vip")).toBeUndefined();
   });
 
   it("keeps rubbish out of the history", () => {

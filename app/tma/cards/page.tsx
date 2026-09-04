@@ -18,7 +18,12 @@ import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
-import type { CardSession, TicketType } from "@/lib/cards/card-code";
+import {
+  buildCardCodeFromDigits,
+  CARD_CODE_PREFIX,
+  type CardSession,
+  type TicketType,
+} from "@/lib/cards/card-code";
 import type { ChargeLine } from "@/lib/finance/player-charge";
 
 type Signup = {
@@ -486,18 +491,26 @@ export default function TMACardsPage() {
 
       {manualOpen ? (
         <div className="flex gap-2">
-          <input
-            className="flex-1 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 outline-none"
-            placeholder="MJ-01"
-            value={manualCode}
-            onChange={(event) => setManualCode(event.target.value)}
-          />
+          {/* Every card carries the same prefix, so it is printed on the field rather
+              than typed a hundred times a night. */}
+          <div className="flex flex-1 items-center gap-1 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-3">
+            <span className="font-semibold text-[var(--tg-theme-hint-color)]">
+              {CARD_CODE_PREFIX}-
+            </span>
+            <input
+              className="w-full bg-transparent py-3 font-semibold outline-none"
+              inputMode="numeric"
+              placeholder="01"
+              value={manualCode}
+              onChange={(event) => setManualCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
+            />
+          </div>
           <button
             className="shrink-0 rounded-lg bg-[var(--tg-theme-button-color)] px-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
             disabled={busy || !manualCode.trim()}
             type="button"
             onClick={() => {
-              void readCard(manualCode.trim());
+              void readCard(buildCardCodeFromDigits(manualCode));
               setManualCode("");
             }}
           >
