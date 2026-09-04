@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
-import { getPlateClass, type PlayerTier } from "@/lib/players/tier";
+import { type PlayerTier } from "@/lib/players/tier";
+import { TierBadge } from "./tier-badge";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type RatingPlayer = {
@@ -47,13 +48,11 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
   const podium = player.place && player.place <= 3 ? PODIUM[player.place as 1 | 2 | 3] : null;
   const key = buildNicknameKey(player.name);
 
-  // The plate carries the tier, the way the club's cards are printed; the podium keeps
-  // its place on the number itself.
   return (
     <Link
-      className={`flex items-center gap-3 rounded-[18px] px-3 py-2.5 transition active:scale-[0.99] ${getPlateClass(
-        player.tier,
-      )} ${player.isMe ? "ring-1 ring-[#e9c07a]" : ""}`}
+      className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 transition active:scale-[0.99] ${
+        podium?.row ?? "border-white/[0.07] bg-white/[0.04]"
+      } ${player.isMe ? "!border-[#e9c07a] shadow-[0_0_20px_rgba(233,192,122,0.18)]" : ""}`}
       href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
     >
       <span
@@ -68,13 +67,17 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
 
       {/* The tier is worn as the colour of the name — a badge beside it was too much
           on a list this dense. */}
-      <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-        {player.name || "Без никнейма"}
-        {player.isMe ? (
-          <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
-            вы
-          </span>
-        ) : null}
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-[15px] font-semibold">
+          {player.name || "Без никнейма"}
+          {player.isMe ? (
+            <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
+              вы
+            </span>
+          ) : null}
+        </span>
+        {/* The tier reads under the name here; the card art belongs on the big screen. */}
+        <TierBadge tier={player.tier} />
       </span>
 
       <span className="w-9 shrink-0 text-right text-[15px] font-bold text-white/75">

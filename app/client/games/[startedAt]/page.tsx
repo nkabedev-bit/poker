@@ -9,7 +9,8 @@ import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui"
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { formatEventDayLabel } from "@/lib/events/types";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { getPlateClass, type PlayerTier } from "@/lib/players/tier";
+import { type PlayerTier } from "@/lib/players/tier";
+import { TierBadge } from "../../_components/tier-badge";
 
 type ResultRow = {
   isMe: boolean;
@@ -94,11 +95,11 @@ export default function ClientGamePage() {
         {data.rows.map((row) => (
           <Link
             key={`${row.place}-${row.playerName}`}
-            // The plate wears the tier here too, so a player is recognisable wherever
-            // their name shows up.
-            className={`flex items-center gap-3 rounded-[18px] px-3 py-2.5 ${getPlateClass(
-              row.tier,
-            )} ${row.isMe ? "ring-1 ring-[#e9c07a]" : ""}`}
+            className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 ${
+              row.isMe
+                ? "border-[#e9c07a] bg-[#e9c07a]/[0.08]"
+                : "border-white/[0.07] bg-white/[0.04]"
+            }`}
             href={`/client/players/${encodeURIComponent(buildNicknameKey(row.playerName))}`}
           >
             <span
@@ -111,8 +112,9 @@ export default function ClientGamePage() {
 
             <PlayerAvatar name={row.playerName} size={34} />
 
-            <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
-              {row.playerName}
+            <span className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-[15px] font-semibold">{row.playerName}</span>
+              <TierBadge tier={row.tier} />
             </span>
 
             <span className="w-[52px] shrink-0 text-right text-[15px] font-bold text-white/75">

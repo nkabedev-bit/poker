@@ -17,7 +17,8 @@ export const TIER_COLORS: Record<PlayerTier, string> = {
   champion: "#e9c07a",
   core: "#e0384f",
   legend: "#a855f7",
-  member: "#e0384f",
+  // Silver keeps the first rung apart from core's red in a list of small badges.
+  member: "#9fb6cd",
 };
 
 /**

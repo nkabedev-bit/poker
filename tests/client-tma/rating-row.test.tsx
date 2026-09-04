@@ -29,24 +29,25 @@ describe("RatingRow", () => {
     expect(screen.getByRole("link").getAttribute("href")).toBe("/client/players/maksb");
   });
 
-  // The plate carries the tier, the way the club's cards are printed.
-  it("wears the tier on the plate behind the name", () => {
+  // The card art belongs on the board in the hall; a phone list gets the name and a
+  // small badge under it.
+  it("spells the tier out under the name", () => {
     render(<RatingRow player={player({ tier: "legend" })} />);
 
-    expect(screen.getByRole("link").className).toContain("tier-plate--legend");
+    expect(screen.getByText("LEGEND")).toBeTruthy();
   });
 
-  // The crown is part of the champion's card art, not a character beside the name.
-  it("stands a champion on the champion plate", () => {
+  it("crowns a champion", () => {
     render(<RatingRow player={player({ tier: "champion" })} />);
 
-    expect(screen.getByRole("link").className).toContain("tier-plate--champion");
+    expect(screen.getByText("CHAMPION")).toBeTruthy();
+    expect(screen.getByText("👑")).toBeTruthy();
   });
 
-  it("stands a player without a tier on the plain plate", () => {
+  it("says nothing under the name of a player without a tier", () => {
     render(<RatingRow player={player()} />);
 
-    expect(screen.getByRole("link").className).toContain("tier-plate--plain");
+    expect(screen.queryByText(/member|core|legend|champion/i)).toBeNull();
   });
 
   it("keeps the nickname white whatever the tier", () => {
