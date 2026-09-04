@@ -13,7 +13,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
 
   try {
-    const avatarUrl = await uploadPlayerAvatar(auth.supabase, {
+    const avatar = await uploadPlayerAvatar(auth.supabase, {
       dataUrl: String(body.dataUrl ?? ""),
       telegramId: auth.user.telegram_id,
     });
@@ -24,7 +24,8 @@ export async function POST(request: Request) {
       .update({
         avatar_is_custom: true,
         avatar_synced_at: new Date().toISOString(),
-        avatar_url: avatarUrl,
+        avatar_thumb_url: avatar.thumbUrl,
+        avatar_url: avatar.url,
       })
       .eq("telegram_id", auth.user.telegram_id);
 
@@ -41,7 +42,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ avatarUrl });
+    return NextResponse.json({ avatarUrl: avatar.url });
   } catch (error) {
     if (error instanceof AvatarUploadError) {
       return NextResponse.json({ error: error.message }, { status: 400 });
@@ -59,7 +60,12 @@ export async function DELETE(request: Request) {
 
   const { error } = await auth.supabase
     .from("client_bot_users")
-    .update({ avatar_is_custom: false, avatar_synced_at: null, avatar_url: null })
+    .update({
+      avatar_is_custom: false,
+      avatar_synced_at: null,
+      avatar_thumb_url: null,
+      avatar_url: null,
+    })
     .eq("telegram_id", auth.user.telegram_id);
 
   if (error) throw error;

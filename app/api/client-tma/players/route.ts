@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
   const { data, error } = await auth.supabase
     .from("client_bot_users")
-    .select("telegram_id, display_name, avatar_url, nickname_key")
+    .select("telegram_id, display_name, avatar_url, avatar_thumb_url, nickname_key")
     .not("display_name", "is", null)
     .not("profile_submitted_at", "is", null)
     .like("nickname_key", `%${key}%`)
@@ -35,6 +35,7 @@ export async function GET(request: Request) {
   const players = (data ?? [])
     .map((row) => {
       const record = row as {
+        avatar_thumb_url: string | null;
         avatar_url: string | null;
         display_name: string | null;
         nickname_key: string | null;
@@ -42,7 +43,8 @@ export async function GET(request: Request) {
       };
 
       return {
-        avatarUrl: record.avatar_url,
+        // The search draws a row of small circles, so it gets the small copies.
+        avatarUrl: record.avatar_thumb_url ?? record.avatar_url,
         isMe: record.telegram_id === auth.user.telegram_id,
         key: record.nickname_key ?? "",
         name: record.display_name ?? "",

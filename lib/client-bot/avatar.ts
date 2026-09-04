@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AVATAR_BUCKET,
   AVATAR_PIXEL_SIZE,
+  AVATAR_THUMB_PIXEL_SIZE,
   pickAvatarPhotoSize,
   type TelegramPhotoSize,
 } from "@/lib/client-bot/avatar-policy";
@@ -23,6 +24,9 @@ async function telegramApi<T>(token: string, method: string, params: Record<stri
  * Downloads the player's Telegram profile photo and stores it, returning the public
  * URL. Returns null when the player has no photo or hid it behind privacy settings —
  * that is an ordinary outcome, not a failure.
+ *
+ * Two copies are kept: the one the profile shows, and a thumbnail for the lists that
+ * draw a face the size of a fingernail and draw twenty of them at once.
  */
 export async function syncClientBotAvatar({
   supabase,
@@ -60,26 +64,45 @@ export async function syncClientBotAvatar({
   if (!download.ok) throw new Error(`Avatar download failed with ${download.status}`);
 
   const sharp = (await import("sharp")).default;
-  const bytes = await sharp(Buffer.from(await download.arrayBuffer()))
-    .resize(AVATAR_PIXEL_SIZE, AVATAR_PIXEL_SIZE, { fit: "cover" })
-    .jpeg({ quality: 82 })
-    .toBuffer();
+  const source = sharp(Buffer.from(await download.arrayBuffer()));
+  const [bytes, thumbBytes] = await Promise.all([
+    source.clone().resize(AVATAR_PIXEL_SIZE, AVATAR_PIXEL_SIZE, { fit: "cover" })
+      .jpeg({ quality: 82 })
+      .toBuffer(),
+    source.clone().resize(AVATAR_THUMB_PIXEL_SIZE, AVATAR_THUMB_PIXEL_SIZE, { fit: "cover" })
+      .webp({ quality: 78 })
+      .toBuffer(),
+  ]);
 
   const path = `${telegramId}.jpg`;
-  const { error: uploadError } = await supabase.storage
-    .from(AVATAR_BUCKET)
-    .upload(path, bytes, { contentType: "image/jpeg", upsert: true });
+  const thumbPath = `thumbs/${telegramId}.webp`;
+  const [{ error: uploadError }, { error: thumbError }] = await Promise.all([
+    supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(path, bytes, { contentType: "image/jpeg", upsert: true }),
+    supabase.storage
+      .from(AVATAR_BUCKET)
+      .upload(thumbPath, thumbBytes, { contentType: "image/webp", upsert: true }),
+  ]);
 
   if (uploadError) throw uploadError;
+  if (thumbError) throw thumbError;
 
   // The path stays the same across updates, so the URL carries the sync time to keep
   // a replaced photo from hiding behind a cached copy of the old one.
+  const version = Date.parse(syncedAt);
   const publicUrl = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path).data.publicUrl;
-  const avatarUrl = `${publicUrl}?v=${Date.parse(syncedAt)}`;
+  const thumbPublicUrl = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(thumbPath).data
+    .publicUrl;
+  const avatarUrl = `${publicUrl}?v=${version}`;
 
   const { error } = await supabase
     .from("client_bot_users")
-    .update({ avatar_synced_at: syncedAt, avatar_url: avatarUrl })
+    .update({
+      avatar_synced_at: syncedAt,
+      avatar_thumb_url: `${thumbPublicUrl}?v=${version}`,
+      avatar_url: avatarUrl,
+    })
     .eq("telegram_id", telegramId);
 
   if (error) throw error;

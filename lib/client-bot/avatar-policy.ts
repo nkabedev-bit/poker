@@ -4,6 +4,12 @@ const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 export const AVATAR_BUCKET = "player-avatars";
 export const AVATAR_PIXEL_SIZE = AVATAR_SIZE;
 
+/**
+ * The copy the lists use: a rating row or a finishing table draws the face 34 pixels
+ * across, and a screen of them costs more than everything else on it put together.
+ */
+export const AVATAR_THUMB_PIXEL_SIZE = 96;
+
 export type TelegramPhotoSize = { file_id: string; height: number; width: number };
 
 /**

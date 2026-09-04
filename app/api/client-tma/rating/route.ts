@@ -50,7 +50,8 @@ export async function GET(request: Request) {
       : await computeSeasonStandings(auth.supabase, season);
 
   // Faces come from the accounts: by id where a game recorded one, by nickname for the
-  // seasons imported from the club's sheets, which know names only.
+  // seasons imported from the club's sheets, which know names only. The table draws them
+  // 34 pixels across, so it is served thumbnails rather than whole profile pictures.
   const avatars = await loadPlayerAvatars(auth.supabase);
 
   // Tiers are earned over the club's whole history, not within one season, so the
@@ -70,8 +71,8 @@ export async function GET(request: Request) {
 
     return {
       avatarUrl: isMe
-        ? (auth.user.avatar_url ?? null)
-        : avatars.find({ name: standing.playerName, telegramId: standing.telegramId }),
+        ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null)
+        : avatars.find({ name: standing.playerName, telegramId: standing.telegramId }).thumbUrl,
       eliminations: Math.round(standing.knockouts),
       tier: resolvePlayerTier({
         games: gamesByNickname.get(buildNicknameKey(standing.playerName)) ?? 0,
@@ -90,7 +91,7 @@ export async function GET(request: Request) {
     countedGames: season.countedGames,
     me:
       players.find((player) => player.isMe) ?? {
-        avatarUrl: auth.user.avatar_url ?? null,
+        avatarUrl: auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null,
         eliminations: 0,
         games: 0,
         isMe: true,

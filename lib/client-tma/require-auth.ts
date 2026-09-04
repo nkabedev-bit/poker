@@ -10,6 +10,8 @@ export type ClientTmaUser = {
   free_entries: number;
   vip_free_entries: number;
   avatar_url: string | null;
+  /** The small copy the lists draw; null on an account photographed before them. */
+  avatar_thumb_url: string | null;
   telegram_id: number;
   username: string | null;
   display_name: string | null;
@@ -55,7 +57,7 @@ export async function requireClientTmaAuth(request: Request) {
   const { data: user } = await supabase
     .from("client_bot_users")
     .select(
-      "telegram_id, username, display_name, avatar_url, avatar_is_custom, avatar_synced_at, free_entries, vip_free_entries, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
+      "telegram_id, username, display_name, avatar_url, avatar_thumb_url, avatar_is_custom, avatar_synced_at, free_entries, vip_free_entries, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count",
     )
     .eq("telegram_id", userId)
     .maybeSingle();

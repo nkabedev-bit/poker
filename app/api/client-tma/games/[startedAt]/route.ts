@@ -69,9 +69,10 @@ export async function GET(
 
   const withTiers = rows.map((row) => ({
     ...row,
+    // The finishing table shows faces the size of a fingernail, so thumbnails do.
     avatarUrl: row.isMe
-      ? (auth.user.avatar_url ?? null)
-      : avatars.find({ name: row.playerName, telegramId: row.telegramId }),
+      ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null)
+      : avatars.find({ name: row.playerName, telegramId: row.telegramId }).thumbUrl,
     tier: resolvePlayerTier({
       games: games.get(buildNicknameKey(row.playerName)) ?? 0,
       label: getPersistedPlayerLabel(labels, row.playerName),
