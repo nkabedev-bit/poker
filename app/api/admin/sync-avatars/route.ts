@@ -24,9 +24,11 @@ export async function POST(request: Request) {
   // "force" also refreshes players who already have a photo, for when someone changed it.
   const force = Boolean(body.force);
 
+  // A photo the player uploaded themselves is never overwritten, force or not.
   const pending = supabase
     .from("client_bot_users")
     .select("telegram_id", { count: "exact" })
+    .eq("avatar_is_custom", false)
     .order("telegram_id");
 
   const { count, data, error } = await (force ? pending : pending.is("avatar_url", null)).limit(

@@ -52,11 +52,11 @@ async function upsertClientBotUser(ctx: Context) {
   // reply is sent: a slow download must never delay the bot.
   const { data } = await supabase
     .from("client_bot_users")
-    .select("avatar_synced_at")
+    .select("avatar_synced_at, avatar_is_custom")
     .eq("telegram_id", telegramId)
     .maybeSingle();
 
-  if (shouldRefreshAvatar(data?.avatar_synced_at ?? null, new Date())) {
+  if (!data?.avatar_is_custom && shouldRefreshAvatar(data?.avatar_synced_at ?? null, new Date())) {
     after(async () => {
       try {
         await syncClientBotAvatar({ supabase, telegramId, token: getBotToken() });

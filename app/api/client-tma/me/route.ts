@@ -89,6 +89,8 @@ export async function GET(request: Request) {
     new Date(a.event.startsAt).getTime() - new Date(b.event.startsAt).getTime();
 
   return NextResponse.json({
+    // A photo the player uploaded themselves, which the profile shows over Telegram's.
+    avatarIsCustom: Boolean(auth.user.avatar_is_custom),
     // Stored copy of the Telegram photo, used when the mini-app was opened without one.
     avatarUrl: auth.user.avatar_url,
     // Entries the club gave the player: one covers the ticket of a single tournament,

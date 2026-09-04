@@ -1,10 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ChevronRight, Crosshair, Medal, Spade, Ticket, Trophy } from "lucide-react";
+import {
+  CalendarDays,
+  Camera,
+  ChevronRight,
+  Crosshair,
+  Loader2,
+  Medal,
+  Spade,
+  Ticket,
+  Trophy,
+} from "lucide-react";
 import type { ReactNode } from "react";
-import { useClientTMA } from "../layout";
+import { getClientTelegramWebApp, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
@@ -25,6 +35,7 @@ import {
 type HistoryItem = { event: TournamentEvent; status: string };
 
 type Me = {
+  avatarIsCustom?: boolean;
   avatarUrl: string | null;
   displayName: string | null;
   tier?: PlayerTier | null;
@@ -55,6 +66,8 @@ export default function ClientProfilePage() {
   const [played, setPlayed] = useState<PlayedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyTab, setHistoryTab] = useState<"active" | "past">("active");
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +93,52 @@ export default function ClientProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  const uploadAvatar = async (file: File) => {
+    const tg = getClientTelegramWebApp();
+    setAvatarBusy(true);
+
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch("/api/client-tma/avatar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ dataUrl }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        tg?.showAlert(data?.error ?? "Не удалось сохранить фото");
+        return;
+      }
+
+      tg?.HapticFeedback?.notificationOccurred("success");
+      await load();
+    } catch {
+      tg?.showAlert("Не удалось прочитать файл");
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const resetAvatar = async () => {
+    setAvatarBusy(true);
+    try {
+      await fetch("/api/client-tma/avatar", {
+        method: "DELETE",
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      await load();
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
   // A player who has not played since the counters were added reads zero for the newer
   // ones, so the defaults fill in whatever the API does not send.
   const stats = useMemo(
@@ -94,7 +153,11 @@ export default function ClientProfilePage() {
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
   const earned = countEarnedAchievements(achievements);
-  const ownPhoto = telegramUser?.photo_url ?? me?.avatarUrl ?? undefined;
+  // A photo the player uploaded wins over the one Telegram hands us.
+  const photoUrl = me?.avatarIsCustom
+    ? (me.avatarUrl ?? undefined)
+    : (telegramUser?.photo_url ?? me?.avatarUrl ?? undefined);
+  const ownPhoto = photoUrl;
   const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], ownPhoto);
   const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
@@ -106,7 +169,31 @@ export default function ClientProfilePage() {
       <PageTitle>Профиль</PageTitle>
 
       <div className="flex items-center gap-4">
-        <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={72} />
+        {/* The player's own photo wins over the one Telegram hands us. */}
+        <button
+          aria-label="Изменить фото"
+          className="relative shrink-0 rounded-full active:scale-[0.98]"
+          disabled={avatarBusy}
+          type="button"
+          onClick={() => photoInputRef.current?.click()}
+        >
+          <PlayerAvatar name={name} photoUrl={photoUrl} size={72} />
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0a0608] bg-[#c8163f] text-white">
+            {avatarBusy ? <Loader2 className="animate-spin" size={14} /> : <Camera size={14} />}
+          </span>
+        </button>
+
+        <input
+          accept="image/*"
+          className="hidden"
+          ref={photoInputRef}
+          type="file"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void uploadAvatar(file);
+          }}
+        />
         <div className="min-w-0">
           <p className="truncate text-[22px] font-bold tracking-tight">
             {me?.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
@@ -123,6 +210,16 @@ export default function ClientProfilePage() {
               </span>
             ) : null}
           </p>
+          {me?.avatarIsCustom ? (
+            <button
+              className="mt-1 text-xs text-white/35 underline underline-offset-2"
+              disabled={avatarBusy}
+              type="button"
+              onClick={() => void resetAvatar()}
+            >
+              Вернуть фото из Telegram
+            </button>
+          ) : null}
         </div>
       </div>
 
