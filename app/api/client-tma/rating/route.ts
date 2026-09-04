@@ -7,6 +7,7 @@ import {
 } from "@/lib/seasons/store";
 import type { SeasonStanding } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { loadPlayerAvatars } from "@/lib/players/avatars";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
@@ -50,24 +51,7 @@ export async function GET(request: Request) {
 
   // Faces come from the accounts: by id where a game recorded one, by nickname for the
   // seasons imported from the club's sheets, which know names only.
-  const { data: users } = await auth.supabase
-    .from("client_bot_users")
-    .select("telegram_id, display_name, avatar_url")
-    .not("display_name", "is", null);
-
-  const avatarById = new Map<number, string | null>();
-  const avatarByNickname = new Map<string, string | null>();
-  for (const user of users ?? []) {
-    const record = user as {
-      avatar_url: string | null;
-      display_name: string | null;
-      telegram_id: number;
-    };
-
-    avatarById.set(record.telegram_id, record.avatar_url);
-    const nickname = normalizeNickname(record.display_name);
-    if (nickname) avatarByNickname.set(nickname, record.avatar_url);
-  }
+  const avatars = await loadPlayerAvatars(auth.supabase);
 
   // Tiers are earned over the club's whole history, not within one season, so the
   // count comes from every game a player has behind them.
@@ -87,9 +71,7 @@ export async function GET(request: Request) {
     return {
       avatarUrl: isMe
         ? (auth.user.avatar_url ?? null)
-        : (standing.telegramId ? avatarById.get(standing.telegramId) : undefined) ??
-          avatarByNickname.get(nickname) ??
-          null,
+        : avatars.find({ name: standing.playerName, telegramId: standing.telegramId }),
       eliminations: Math.round(standing.knockouts),
       tier: resolvePlayerTier({
         games: gamesByNickname.get(buildNicknameKey(standing.playerName)) ?? 0,

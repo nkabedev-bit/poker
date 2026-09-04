@@ -13,6 +13,7 @@ import { type PlayerTier } from "@/lib/players/tier";
 import { TierBadge } from "../../_components/tier-badge";
 
 type ResultRow = {
+  avatarUrl: string | null;
   isMe: boolean;
   knockouts: number;
   place: number | null;
@@ -110,7 +111,7 @@ export default function ClientGamePage() {
               {row.place ?? "—"}
             </span>
 
-            <PlayerAvatar name={row.playerName} size={34} />
+            <PlayerAvatar name={row.playerName} photoUrl={row.avatarUrl ?? undefined} size={34} />
 
             <span className="flex min-w-0 flex-1 flex-col">
               <span className="truncate text-[15px] font-semibold">{row.playerName}</span>
