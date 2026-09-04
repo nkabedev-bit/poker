@@ -7,6 +7,10 @@ import {
 } from "@/lib/seasons/store";
 import type { SeasonStanding } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { countGamesByNickname } from "@/lib/players/games-played";
+import { resolvePlayerTier } from "@/lib/players/tier";
+import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +69,14 @@ export async function GET(request: Request) {
     if (nickname) avatarByNickname.set(nickname, record.avatar_url);
   }
 
+  // Tiers are earned over the club's whole history, not within one season, so the
+  // count comes from every game a player has behind them.
+  const gamesByNickname = await countGamesByNickname(
+    auth.supabase,
+    standings.map((standing) => standing.playerName),
+  );
+  const labels = (await loadCurrentTournamentContext(auth.supabase))?.extras.playerLabels;
+
   const myNickname = normalizeNickname(auth.user.display_name);
   const players = standings.map((standing) => {
     const nickname = normalizeNickname(standing.playerName);
@@ -79,6 +91,10 @@ export async function GET(request: Request) {
           avatarByNickname.get(nickname) ??
           null,
       eliminations: Math.round(standing.knockouts),
+      tier: resolvePlayerTier({
+        games: gamesByNickname.get(buildNicknameKey(standing.playerName)) ?? 0,
+        label: getPersistedPlayerLabel(labels, standing.playerName),
+      }),
       games: standing.games,
       isMe,
       name: standing.playerName,

@@ -4,6 +4,8 @@ import { loadDemoPublicState } from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mergeTournamentExtras } from "@/lib/tournament-extras";
+import { countGamesByNickname } from "@/lib/players/games-played";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import type {
   BlindLevel,
   PublicTournamentState,
@@ -102,10 +104,33 @@ export async function loadPublicState(
     .eq("tournament_id", state.tournament.id)
     .maybeSingle();
 
+  const merged = mergeTournamentExtras(extras?.data);
+
+  // The board shows what each player has earned by turning up, so the count of their
+  // past evenings travels with them. Read here rather than stored on the roster: a
+  // corrected game should change the badge the same night.
+  let players = merged.players;
+  if (players.length > 0) {
+    try {
+      const games = await countGamesByNickname(
+        supabase,
+        players.map((player) => player.name),
+      );
+
+      players = players.map((player) => ({
+        ...player,
+        gamesPlayed: games.get(buildNicknameKey(player.name)) ?? 0,
+      }));
+    } catch (error) {
+      // A badge is not worth a blank screen in the middle of a tournament.
+      console.error("Failed to count games for the board", error);
+    }
+  }
+
   return {
     tournament: mapTournament(state.tournament),
     timerState: mapTimerState(state.timerState),
     blindLevels: state.blindLevels.map(mapBlindLevel),
-    extras: mergeTournamentExtras(extras?.data),
+    extras: { ...merged, players },
   };
 }

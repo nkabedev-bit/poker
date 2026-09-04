@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import { useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
+import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
 import {
@@ -26,6 +27,7 @@ type HistoryItem = { event: TournamentEvent; status: string };
 type Me = {
   avatarUrl: string | null;
   displayName: string | null;
+  tier?: PlayerTier | null;
   freeEntries: { regular: number; vip: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
   profileSubmitted: boolean;
@@ -106,9 +108,24 @@ export default function ClientProfilePage() {
       <div className="flex items-center gap-4">
         <PlayerAvatar name={name} photoUrl={telegramUser?.photo_url ?? me?.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
-          <p className="truncate text-[22px] font-bold tracking-tight">{name}</p>
-          <p className="text-sm text-white/40">
+          <p
+            className={`truncate text-[22px] font-bold tracking-tight ${
+              me?.tier === "champion" ? "text-[#e9c07a]" : ""
+            }`}
+          >
+            {me?.tier === "champion" ? <span className="mr-1.5">♛</span> : null}
+            {name}
+          </p>
+          <p className="flex items-center gap-2 text-sm text-white/40">
             {me?.username ? `@${me.username}` : "Игрок клуба"}
+            {me?.tier ? (
+              <span
+                className="rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase"
+                style={{ borderColor: TIER_COLORS[me.tier], color: TIER_COLORS[me.tier] }}
+              >
+                {TIER_TITLES[me.tier]}
+              </span>
+            ) : null}
           </p>
         </div>
       </div>

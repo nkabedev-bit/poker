@@ -3,6 +3,8 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
+import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { resolvePlayerTier } from "@/lib/players/tier";
 import {
   buildFieldSizes,
   buildPlayerResultsFilter,
@@ -112,6 +114,12 @@ export async function GET(request: Request) {
     );
   }
 
+  // The club's own label wins over the count, which is how a champion is crowned.
+  const tier = resolvePlayerTier({
+    games: stats.games,
+    label: getPersistedPlayerLabel(context?.extras.playerLabels, auth.user.display_name),
+  });
+
   const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
     (split, item) => {
@@ -164,6 +172,7 @@ export async function GET(request: Request) {
     },
     // One counter per tournament type the player has won; the medals screen reads it.
     medals: achievementStats?.medals ?? {},
+    tier,
     tablesCount,
     username: auth.user.username,
   });

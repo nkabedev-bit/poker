@@ -15,6 +15,7 @@ import {
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
+import { readTierLabel, resolvePlayerTier, TIER_COLORS, TIER_TITLES } from "@/lib/players/tier";
 import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
@@ -136,6 +137,9 @@ export function getPublicPlayerLabelKind(label?: string | null): "dealer" | "tex
   const normalized = (label ?? "").trim().toLowerCase();
   if (!normalized) return null;
   if (isDealerLabel(normalized)) return "dealer";
+  // A tier is drawn as its own badge, so it is not repeated as a plain text label.
+  if (readTierLabel(normalized)) return null;
+
   return "text";
 }
 
@@ -230,7 +234,7 @@ export function getPublicAverageStack(totalChips: number, activePlayers: number)
   return Math.round(totalChips / activePlayers);
 }
 
-function PublicPlayerName({ name }: { name: string }) {
+function PublicPlayerName({ className, name }: { className?: string; name: string }) {
   const label = name || "Без имени";
   const nameRef = useRef<HTMLElement>(null);
 
@@ -284,7 +288,11 @@ function PublicPlayerName({ name }: { name: string }) {
 
   return (
     <span className="public-player-name-frame">
-      <strong className="public-player-name" ref={nameRef} title={label}>
+      <strong
+        className={className ? `public-player-name ${className}` : "public-player-name"}
+        ref={nameRef}
+        title={label}
+      >
         {label}
       </strong>
     </span>
@@ -924,7 +932,12 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
               const badges = getPublicPlayerBadges(player, isBounty, bountyType);
               const labelKind = getPublicPlayerLabelKind(player.label);
               const labelText = (player.label ?? "").trim();
-              const hasLeading = labelKind !== null || badges.length > 0;
+              // What the player has earned by turning up, unless the club said otherwise.
+              const tier = resolvePlayerTier({
+                games: player.gamesPlayed,
+                label: player.label,
+              });
+              const hasLeading = labelKind !== null || badges.length > 0 || tier !== null;
 
               return (
                 <div
@@ -939,6 +952,18 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                       {labelKind === "dealer" ? (
                         <span className="public-player-dealer-button">D</span>
                       ) : null}
+                      {tier === "champion" ? (
+                        <span className="public-player-crown" title="Чемпион">
+                          ♛
+                        </span>
+                      ) : tier ? (
+                        <span
+                          className="public-player-tier"
+                          style={{ color: TIER_COLORS[tier], borderColor: TIER_COLORS[tier] }}
+                        >
+                          {TIER_TITLES[tier]}
+                        </span>
+                      ) : null}
                       {labelKind === "text" ? (
                         <span
                           className="public-player-label"
@@ -950,7 +975,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                       {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
                     </span>
                   ) : null}
-                  <PublicPlayerName name={player.name} />
+                  <PublicPlayerName
+                    className={tier === "champion" ? "public-player-name--champion" : undefined}
+                    name={player.name}
+                  />
                 </div>
               );
             })}

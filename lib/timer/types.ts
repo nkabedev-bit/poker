@@ -90,6 +90,8 @@ export type TournamentPlayer = {
   // and the card is reused by whoever comes next.
   cardCode?: string | null;
   ticketType?: "regular" | "vip";
+  /** Games this player has behind them, filled in for the screen rather than stored. */
+  gamesPlayed?: number;
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
   freePass?: "regular" | "vip" | null;
   /**
