@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  buildCardSession,
-  getCardDebt,
-  isTicketType,
-  normalizeCardCode,
-} from "@/lib/cards/card-code";
+import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
 
 const prices = {
   addonPrice: 1250,
@@ -132,21 +127,12 @@ describe("what the card says the player owes", () => {
   });
 });
 
-describe("what the desk still has to take", () => {
-  const session = (paidAmount: number) =>
-    buildCardSession(player({ addons: 1, paidAmount }), "MJ-014", prices);
-
-  it("owes the whole bill before anything is paid", () => {
-    expect(getCardDebt(session(0))).toBe(2500);
+describe("whether the player has settled up", () => {
+  it("starts unpaid", () => {
+    expect(buildCardSession(player(), "MJ-014", prices).paid).toBe(false);
   });
 
-  // Paying in the break and then buying an add-on leaves the player owing again.
-  it("owes the difference after a part payment", () => {
-    expect(getCardDebt(session(1250))).toBe(1250);
-  });
-
-  it("owes nothing once the bill is covered", () => {
-    expect(getCardDebt(session(2500))).toBe(0);
-    expect(getCardDebt(session(4000))).toBe(0);
+  it("carries the payment the admin marked", () => {
+    expect(buildCardSession(player({ paid: true }), "MJ-014", prices).paid).toBe(true);
   });
 });

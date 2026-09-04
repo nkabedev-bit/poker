@@ -18,7 +18,7 @@ import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
-import { getCardDebt, type CardSession, type TicketType } from "@/lib/cards/card-code";
+import type { CardSession, TicketType } from "@/lib/cards/card-code";
 import type { ChargeLine } from "@/lib/finance/player-charge";
 
 type Signup = {
@@ -308,11 +308,9 @@ export default function TMACardsPage() {
     const tg = getTelegramWebApp();
     if (!scannedCode || !session) return;
 
-    const debt = getCardDebt(session);
-    const question =
-      debt > 0
-        ? `${session.name} не расплатился: ${debt.toLocaleString("ru-RU")} ₽. Принять карту?`
-        : `${session.name} расплатился. Принять карту?`;
+    const question = session.paid
+      ? `${session.name} оплатил. Принять карту?`
+      : `${session.name} НЕ оплатил: ${session.charge.total.toLocaleString("ru-RU")} ₽. Принять карту?`;
 
     tg?.showConfirm(question, async (confirmed: boolean) => {
       if (!confirmed) return;
@@ -508,32 +506,15 @@ export default function TMACardsPage() {
             <ChargeRow label="Аддоны" line={session.charge.addons} />
 
             <div className="mt-2 flex items-baseline justify-between border-t border-[var(--tg-theme-hint-color)]/25 pt-2">
-              <span className="font-semibold">
-                {getCardDebt(session) > 0 ? "К оплате" : "Оплачено"}
-              </span>
-              <span
-                className={`text-2xl font-bold ${
-                  getCardDebt(session) > 0 ? "" : "text-green-500"
-                }`}
-              >
-                {(getCardDebt(session) > 0
-                  ? getCardDebt(session)
-                  : session.charge.total
-                ).toLocaleString("ru-RU")}{" "}
-                ₽
+              <span className="font-semibold">{session.paid ? "Оплачено" : "К оплате"}</span>
+              <span className={`text-2xl font-bold ${session.paid ? "text-green-500" : ""}`}>
+                {session.charge.total.toLocaleString("ru-RU")} ₽
               </span>
             </div>
 
-            {session.paidAmount > 0 && getCardDebt(session) > 0 ? (
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                Уже внесено {session.paidAmount.toLocaleString("ru-RU")} ₽ — остальное после
-                ре-энтри или аддона.
-              </p>
-            ) : null}
-
             <PaidToggle
               busy={busy}
-              paid={getCardDebt(session) === 0 && session.charge.total > 0}
+              paid={session.paid}
               onChange={(paid) => void setPaid(session, paid)}
             />
           </div>
@@ -552,10 +533,7 @@ export default function TMACardsPage() {
       {issued.length > 0 && !session ? (
         <section className="space-y-2">
           <p className="text-sm font-semibold">Выданные карты ({issued.length})</p>
-          {issued.map((card) => {
-            const debt = getCardDebt(card);
-
-            return (
+          {issued.map((card) => (
               <div
                 key={card.cardCode}
                 className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3"
@@ -570,20 +548,19 @@ export default function TMACardsPage() {
                     </span>
                   </span>
                   <span
-                    className={`shrink-0 text-lg font-bold ${debt > 0 ? "" : "text-green-500"}`}
+                    className={`shrink-0 text-lg font-bold ${card.paid ? "text-green-500" : ""}`}
                   >
-                    {(debt > 0 ? debt : card.charge.total).toLocaleString("ru-RU")} ₽
+                    {card.charge.total.toLocaleString("ru-RU")} ₽
                   </span>
                 </div>
 
                 <PaidToggle
                   busy={busy}
-                  paid={debt === 0 && card.charge.total > 0}
+                  paid={card.paid}
                   onChange={(paid) => void setPaid(card, paid)}
                 />
               </div>
-            );
-          })}
+          ))}
         </section>
       ) : null}
 

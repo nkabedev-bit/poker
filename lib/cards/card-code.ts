@@ -15,8 +15,8 @@ export type CardSession = {
   doubleReentries: number;
   /** The entry was covered by a free pass — nothing to take for the ticket. */
   freePass: boolean;
-  /** How much of the bill the player has already handed over. */
-  paidAmount: number;
+  /** The player has settled up for the evening. */
+  paid: boolean;
   name: string;
   registrationNumber: number | null;
   reentries: number;
@@ -53,7 +53,7 @@ export function buildCardSession(
     doubleReentries: doubleRebuys,
     // A pass covers the entry only: re-entries and add-ons are still paid for.
     freePass: player.freePass === "regular" || player.freePass === "vip",
-    paidAmount: Math.max(0, Number(player.paidAmount ?? 0)),
+    paid: player.paid === true,
     name: player.name,
     reentries: Math.max(0, rebuys - doubleRebuys),
     registrationNumber: player.registrationNumber ?? null,
@@ -61,9 +61,4 @@ export function buildCardSession(
     table: player.table ?? null,
     ticketType: player.ticketType === "vip" ? "vip" : "regular",
   };
-}
-
-/** What the desk still has to take: nothing when the player is square. */
-export function getCardDebt(session: Pick<CardSession, "charge" | "paidAmount">) {
-  return Math.max(0, Number((session.charge.total - session.paidAmount).toFixed(2)));
 }

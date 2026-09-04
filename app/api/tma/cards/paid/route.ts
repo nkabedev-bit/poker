@@ -7,8 +7,8 @@ import { getFinancePrices } from "@/lib/finance/player-charge";
 export const dynamic = "force-dynamic";
 
 /**
- * Marks what a player has handed over. Paying covers the bill as it stands right now,
- * so a re-entry bought afterwards shows up as owed again.
+ * Marks a player as paid, or takes the mark back. Payment happens at the break that
+ * closes re-entries and add-ons, so the bill cannot grow afterwards.
  */
 export async function POST(request: Request) {
   const auth = await requireTmaAuth(request);
@@ -30,12 +30,11 @@ export async function POST(request: Request) {
 
   const prices = getFinancePrices(extras.settings);
   const freeroll = extras.settings.tournamentFormat === "freeroll";
-  const session = buildCardSession(player, cardCode, prices, { freeroll });
 
-  const { data, error } = await auth.supabase.rpc("set_player_paid_amount", {
+  const { data, error } = await auth.supabase.rpc("set_player_paid", {
     p_tournament_id: t.id,
     p_player_id: player.id,
-    p_paid_amount: paid ? session.charge.total : 0,
+    p_paid: paid,
   });
 
   if (error) throw error;

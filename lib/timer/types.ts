@@ -92,10 +92,10 @@ export type TournamentPlayer = {
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
   freePass?: "regular" | "vip" | null;
   /**
-   * How much the player has handed over so far. Kept as an amount rather than a flag:
-   * settling up in the break and then taking a re-entry leaves them owing again.
+   * Set once the player has settled up. Payment happens at the break that closes
+   * re-entries and add-ons, so nothing is bought after it and the bill cannot change.
    */
-  paidAmount?: number;
+  paid?: boolean;
 };
 
 export type ScheduleVersion = { effectiveFrom: string; text: string };

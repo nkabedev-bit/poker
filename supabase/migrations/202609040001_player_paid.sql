@@ -1,16 +1,18 @@
--- What a player has already paid.
+-- Whether a player has paid for the evening.
 --
--- Part of the room settles up during the break, so the admin needs to see who has paid
--- and who has not while the game is still running. The amount is stored, not a flag:
--- a player who paid before taking a re-entry owes again, and "paid" alone would hide it.
+-- Part of the room settles up during the break — the last one before re-entries and
+-- add-ons close, so nothing is bought afterwards and the bill cannot change. A single
+-- flag is enough: paid, or not.
 --
 -- Written under the same row lock the rest of the roster uses, so marking a payment
 -- cannot race a knockout.
 
-create or replace function public.set_player_paid_amount(
+drop function if exists public.set_player_paid_amount(uuid, text, numeric);
+
+create or replace function public.set_player_paid(
   p_tournament_id uuid,
   p_player_id text,
-  p_paid_amount numeric
+  p_paid boolean
 )
 returns jsonb
 language plpgsql
@@ -37,7 +39,7 @@ begin
 
   for item in select * from jsonb_array_elements(players_list) loop
     if item->>'id' = p_player_id then
-      item := item || jsonb_build_object('paidAmount', greatest(0, coalesce(p_paid_amount, 0)));
+      item := item || jsonb_build_object('paid', coalesce(p_paid, false));
       updated := item;
     end if;
 
@@ -56,5 +58,5 @@ begin
 end;
 $$;
 
-revoke all on function public.set_player_paid_amount(uuid, text, numeric) from public;
-grant execute on function public.set_player_paid_amount(uuid, text, numeric) to authenticated, service_role;
+revoke all on function public.set_player_paid(uuid, text, boolean) from public;
+grant execute on function public.set_player_paid(uuid, text, boolean) to authenticated, service_role;
