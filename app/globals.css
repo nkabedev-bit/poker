@@ -3439,3 +3439,11 @@ p {
 .tier-plate--champion {
   background: url("/tiers/champion.webp") center center / 100% 100% no-repeat !important;
 }
+
+/* The shared `input` rule above sets padding on every field and sits outside Tailwind's
+   layers, so it beats utility classes however specific they are. Fields in the client
+   mini-app that carry an icon say their own padding here instead. */
+.client-field-with-icon {
+  padding-left: 44px !important;
+  padding-right: 16px !important;
+}

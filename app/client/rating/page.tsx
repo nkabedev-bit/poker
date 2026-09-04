@@ -109,7 +109,7 @@ export default function ClientRatingPage() {
           size={17}
         />
         <input
-          className="w-full rounded-2xl border border-white/[0.07] bg-white/[0.04] py-3.5 pl-11 pr-4 text-[15px] outline-none placeholder:text-white/25 focus:border-[#c8163f]"
+          className="client-field-with-icon w-full rounded-2xl border border-white/[0.07] bg-white/[0.04] py-3.5 text-[15px] outline-none placeholder:text-white/25 focus:border-[#c8163f]"
           placeholder="Поиск по никнейму"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
