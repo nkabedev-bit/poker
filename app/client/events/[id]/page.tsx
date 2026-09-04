@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
@@ -46,6 +46,9 @@ type FreeEntries = { regular: number; vip: number };
 type FreeSeats = { duo: number; regular: number | null; vip: number | null };
 
 const MAX_PARTNER_NAME_LENGTH = 40;
+
+/** How long the partner search waits after the last keystroke. */
+const SEARCH_DELAY_MS = 350;
 
 /** A member of the club, offered as the +1 of a pair. */
 type PartnerMatch = { avatarUrl: string | null; key: string; name: string };
@@ -101,6 +104,9 @@ export default function ClientEventPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [answering, setAnswering] = useState(false);
+  // Nicknames are looked up while the buyer types, so the search waits for them to stop
+  // rather than asking the server about every letter.
+  const searchTimer = useRef<number | null>(null);
 
   // A pass belongs to its own kind of ticket, so switching the ticket lets go of a
   // choice that no longer applies — and a "1+1" is bought at its own price, never with
@@ -153,6 +159,13 @@ export default function ClientEventPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  useEffect(
+    () => () => {
+      if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    },
+    [],
+  );
+
   // Members are looked up by nickname as the buyer types; anything typed that matches
   // nobody is taken as a guest's name, so a friend from outside the club still gets in.
   const searchPartners = useCallback(
@@ -182,10 +195,13 @@ export default function ClientEventPage() {
     // Editing the name lets go of the member it used to point at: the text is the
     // choice again until another one is picked from the list.
     setPartnerKey("");
-    void searchPartners(value);
+
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchTimer.current = window.setTimeout(() => void searchPartners(value), SEARCH_DELAY_MS);
   };
 
   const pickPartner = (match: PartnerMatch) => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
     setPartnerName(match.name);
     setPartnerKey(match.key);
     setPartnerMatches([]);
