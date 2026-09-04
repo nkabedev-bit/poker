@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
-import { normalizeClientBotText } from "@/lib/client-bot/registration";
+import { isValidBirthDate, normalizeClientBotText } from "@/lib/client-bot/registration";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,11 @@ const profileSchema = z.object({
   agreementAccepted: z.literal(true, {
     message: "Без принятия пользовательского соглашения записаться нельзя",
   }),
-  birthDate: z.string().trim().min(1, "Укажите дату рождения"),
+  birthDate: z
+    .string()
+    .trim()
+    .transform(formatBirthDate)
+    .refine(isValidBirthDate, "Укажите дату рождения в формате ДД.ММ.ГГГГ"),
   discoverySource: z.string().trim().min(1, "Расскажите, как вы о нас узнали").max(200),
   fullName: z.string().trim().min(2, "Укажите имя и фамилию").max(100),
   nickname: z.string().trim().min(2, "Укажите игровой никнейм").max(40),
@@ -19,8 +23,8 @@ const profileSchema = z.object({
   ratingConsent: z.boolean(),
 });
 
-// The birthday cron reads the "анкеты" sheet expecting a DD.MM date, so an ISO value
-// coming from <input type="date"> is converted before it ever reaches the sheet.
+// Анкета присылает ДД.ММ.ГГГГ, но кэшированная старая сборка мини-аппа могла отдать
+// ISO из <input type="date"> — приводим к одному формату до валидации.
 function formatBirthDate(value: string) {
   const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return isoMatch ? `${isoMatch[3]}.${isoMatch[2]}.${isoMatch[1]}` : value;
@@ -51,7 +55,7 @@ export async function POST(request: Request) {
 
   const answers = {
     agreementAccepted: true,
-    birthDate: formatBirthDate(parsed.data.birthDate),
+    birthDate: parsed.data.birthDate,
     discoverySource: normalizeClientBotText(parsed.data.discoverySource),
     fullName: normalizeClientBotText(parsed.data.fullName),
     nickname: normalizeClientBotText(parsed.data.nickname),

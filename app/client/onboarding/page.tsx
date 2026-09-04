@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
 import { GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
+import { isValidBirthDate, maskBirthDateInput } from "@/lib/client-bot/registration";
 
 const AGREEMENT_TEXT =
   "Я ознакомлен с положением и принимаю пользовательское соглашение и соблюдаю правила сообщества: фишки НЕ имеют денежного эквивалента, турнир проводится БЕЗ денежных призов, встреча НЕ является игорной деятельностью.";
@@ -25,6 +26,12 @@ export default function ClientOnboardingPage() {
 
   const submit = async () => {
     setError("");
+
+    if (!isValidBirthDate(birthDate)) {
+      setError("Дата рождения — цифрами в формате ДД.ММ.ГГГГ.");
+      return;
+    }
+
     setSubmitting(true);
     const tg = getClientTelegramWebApp();
 
@@ -104,9 +111,11 @@ export default function ClientOnboardingPage() {
         <Field label="Дата рождения">
           <input
             className={inputClass}
-            type="date"
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="ДД.ММ.ГГГГ"
             value={birthDate}
-            onChange={(event) => setBirthDate(event.target.value)}
+            onChange={(event) => setBirthDate(maskBirthDateInput(event.target.value))}
           />
         </Field>
 

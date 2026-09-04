@@ -100,6 +100,36 @@ function formatTelegramUsername(username: string | null) {
   return normalized.startsWith("@") ? normalized : `@${normalized}`;
 }
 
+/**
+ * Игрок набирает дату рождения цифрами на числовой клавиатуре — точки расставляются
+ * по мере ввода: 01021990 → 01.02.1990.
+ */
+export function maskBirthDateInput(value: string) {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  const parts = [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)];
+
+  return parts.filter((part) => part.length > 0).join(".");
+}
+
+export function isValidBirthDate(value: string) {
+  const match = normalizeClientBotText(value).match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+  if (!match) return false;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  const year = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+
+  // Date.UTC перекручивает лишние дни в следующий месяц — сверка полей ловит 31.02.
+  return (
+    year >= 1900 &&
+    date.getUTCDate() === day &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCFullYear() === year &&
+    date.getTime() <= Date.now()
+  );
+}
+
 export function formatClientBotBirthDateForSheet(value: string) {
   const normalized = normalizeClientBotText(value).toLocaleLowerCase("ru-RU");
   const numericMatch = normalized.match(/^(\d{1,2})[.\-/](\d{1,2})(?:[.\-/]\d{2,4})?$/);
