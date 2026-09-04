@@ -8,6 +8,7 @@ import {
   upsertEventTemplate,
 } from "@/lib/events/templates";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
+import { PosterUploadError, uploadEventPosterDataUrl } from "@/lib/events/poster-upload";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // The picture is uploaded here when it has not been already: a template without the
+  // club's artwork is half a template.
+  let posterUrl = parsed.data.posterUrl;
+  if (body.posterDataUrl) {
+    try {
+      posterUrl = await uploadEventPosterDataUrl(auth.supabase, String(body.posterDataUrl));
+    } catch (error) {
+      if (error instanceof PosterUploadError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
+  }
+
   const templates = upsertEventTemplate(
     await loadTemplates(auth.supabase),
-    makeEventTemplate(name, toEventDraft(parsed.data)),
+    makeEventTemplate(name, toEventDraft({ ...parsed.data, posterUrl })),
   );
 
   await saveTournamentExtras({ eventTemplates: templates }, "/tma/events", auth.supabase);

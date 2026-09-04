@@ -178,6 +178,9 @@ export default function TMAEventsPage() {
           maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
           maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
           name: draft.title,
+          // A picture chosen but not yet saved would otherwise be lost from the
+          // template, which is the one thing every poster of the club shares.
+          posterDataUrl: draft.posterDataUrl || undefined,
           posterUrl: draft.posterUrl,
           rulesText: draft.rulesText,
           startingStack: draft.startingStack ? Number(draft.startingStack) : null,

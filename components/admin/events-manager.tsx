@@ -304,6 +304,16 @@ export function EventsManager({
           <span className="field-help">
             {draft.posterUrl ? "Уже загружена — новый файл заменит её." : "PNG или JPG до 5 МБ."}
           </span>
+          {/* Applying a template brings its picture along, and without this the form
+              gave no sign of it. */}
+          {draft.posterUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              alt="Афиша турнира"
+              className="event-poster-preview"
+              src={draft.posterUrl}
+            />
+          ) : null}
         </label>
 
         <label className="checkbox-field">

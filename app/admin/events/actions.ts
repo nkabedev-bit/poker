@@ -113,6 +113,9 @@ export async function saveTournamentEventTemplate(formData: FormData) {
   });
 
   const supabase = await createSupabaseServerClient();
+  // A picture picked in the form but not yet saved is uploaded here, so the template
+  // keeps the artwork every poster of the club shares.
+  const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.posterUrl;
   const { data: tournament } = await supabase.from("tournaments").select("id").limit(1).single();
   const extras = await loadTournamentExtras(tournament?.id as string | undefined, supabase);
 
@@ -120,7 +123,7 @@ export async function saveTournamentEventTemplate(formData: FormData) {
     {
       eventTemplates: upsertEventTemplate(
         extras.eventTemplates,
-        makeEventTemplate(name, toEventDraft(parsed)),
+        makeEventTemplate(name, toEventDraft({ ...parsed, posterUrl })),
       ),
     },
     "/admin/events",
