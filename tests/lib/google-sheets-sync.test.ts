@@ -71,7 +71,13 @@ vi.mock("googleapis", () => ({
   },
 }));
 
-const { getEliminationSheetName, syncTournamentToSheets, syncVipSheet } = await import("@/lib/google-sheets");
+const {
+  appendFreeEntryGrant,
+  buildFreeEntryGrantRow,
+  getEliminationSheetName,
+  syncTournamentToSheets,
+  syncVipSheet,
+} = await import("@/lib/google-sheets");
 
 // The sync names the tab after the game date, so the expectations follow the clock instead
 // of a hardcoded label that would rot tomorrow.
@@ -201,7 +207,7 @@ describe("finance sheet sync", () => {
 
     expect(writeCalls()).toHaveLength(3);
     const financeWrite = calls.find((call) => call.method === "values.update");
-    expect(financeWrite?.range).toStrictEqual(expect.stringContaining(`'${SHEET}'!A1:J`));
+    expect(financeWrite?.range).toStrictEqual(expect.stringContaining(`'${SHEET}'!A1:K`));
   });
 
   it("stays out of the way when the finance spreadsheet is not configured", async () => {
@@ -328,5 +334,39 @@ describe("syncVipSheet write budget", () => {
 
     expect(header?.range).toContain("VIP");
     expect(header?.values[0].slice(0, 2)).toEqual(["Игрок", "Раз в VIP"]);
+  });
+});
+
+describe("free entry ledger", () => {
+  it("writes the date, the player, the reason and the kind of pass", () => {
+    const row = buildFreeEntryGrantRow(
+      { count: 1, nickname: "Старый узбек", source: "mystery", vip: true },
+      new Date("2026-09-04T18:00:00.000Z"),
+    );
+
+    expect(row).toEqual(["04.09.2026", "Старый узбек", "Мистери баунти", "VIP", 1]);
+  });
+
+  it("shows a pass taken back as a negative line, so the ledger balances", () => {
+    const row = buildFreeEntryGrantRow(
+      { count: -2, nickname: "Ace", source: "manual", vip: false },
+      new Date("2026-09-04T18:00:00.000Z"),
+    );
+
+    expect(row.slice(1)).toEqual(["Ace", "Выдал админ", "Обычная", -2]);
+  });
+
+  it("appends to the Проходки tab of the finance spreadsheet", async () => {
+    process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
+
+    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
+
+    expect(calls.find((call) => call.method === "values.append")?.range).toContain("Проходки");
+  });
+
+  it("stays quiet when the finance spreadsheet is not configured", async () => {
+    await appendFreeEntryGrant({ count: 1, nickname: "Ace", source: "raffle", vip: false });
+
+    expect(writeCalls()).toHaveLength(0);
   });
 });

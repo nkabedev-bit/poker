@@ -13,6 +13,7 @@ import {
 } from "@/lib/client-bot/registration";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import type { FreeEntrySource } from "@/lib/free-entries/command";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
@@ -870,6 +871,7 @@ const FINANCE_SHEET_HEADERS = [
   "Аддоны, шт",
   "Аддоны, ₽",
   "Итого, ₽",
+  "Оплатил",
 ];
 
 const FINANCE_TOTALS_LABEL = "ИТОГО";
@@ -906,6 +908,8 @@ export function buildFinanceSheetRows(
         blankIfZero(charge.addons.count),
         blankIfZero(charge.addons.sum),
         charge.total,
+        // What the admin ticked at the desk, so the sheet and the room agree.
+        player.paid ? "Да" : "Нет",
       ];
     });
 
@@ -927,6 +931,8 @@ export function buildFinanceSheetRows(
       sumColumn(7),
       sumColumn(8),
       sumColumn(9),
+      // How much of the evening is settled, so the total says what is still owed.
+      `${rows.filter((row) => row[10] === "Да").length} из ${rows.length}`,
     ],
   ];
 }
@@ -971,6 +977,70 @@ export async function syncFinanceSheet(
   );
 
   return { playerCount: players.length, sheetName };
+}
+
+// ---------------------------------------------------------------------------
+// "Проходки": the club's ledger of free entries — one tab in the finance spreadsheet,
+// appended to as passes are handed out, so the owner can see who got what and why.
+// ---------------------------------------------------------------------------
+
+const FREE_ENTRY_SHEET_NAME = "Проходки";
+const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка", "Сколько"];
+
+const FREE_ENTRY_SOURCE_LABELS: Record<FreeEntrySource, string> = {
+  manual: "Выдал админ",
+  mystery: "Мистери баунти",
+  raffle: "Розыгрыш",
+};
+
+export type FreeEntryGrant = {
+  /** Negative when the admin takes a pass back with /delete free. */
+  count: number;
+  nickname: string;
+  source: FreeEntrySource;
+  vip: boolean;
+};
+
+export function buildFreeEntryGrantRow(
+  grant: FreeEntryGrant,
+  date = new Date(),
+): (string | number)[] {
+  const { day, month, year } = getMoscowDateParts(date);
+
+  return [
+    `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`,
+    grant.nickname,
+    FREE_ENTRY_SOURCE_LABELS[grant.source],
+    grant.vip ? "VIP" : "Обычная",
+    grant.count,
+  ];
+}
+
+/**
+ * Writes one line of the ledger.
+ *
+ * The pass itself already lives in the player's profile, so a Sheets failure here must
+ * never undo a grant: the caller logs and carries on.
+ */
+export async function appendFreeEntryGrant(grant: FreeEntryGrant, date = new Date()) {
+  const spreadsheetId = process.env.GOOGLE_FINANCE_SHEET_ID;
+  if (!spreadsheetId || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  await getOrCreateSheet(sheets, spreadsheetId, FREE_ENTRY_SHEET_NAME, FREE_ENTRY_SHEET_HEADERS);
+
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: `'${FREE_ENTRY_SHEET_NAME}'!A:${getSheetColumnName(FREE_ENTRY_SHEET_HEADERS.length)}`,
+      valueInputOption: "RAW",
+      insertDataOption: "INSERT_ROWS",
+      requestBody: { values: [buildFreeEntryGrantRow(grant, date)] },
+    }),
+  );
+
+  return { sheetName: FREE_ENTRY_SHEET_NAME };
 }
 
 export type TournamentSheetSyncResult = {

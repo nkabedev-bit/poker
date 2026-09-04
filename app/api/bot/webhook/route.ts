@@ -582,6 +582,22 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   const action = direction === 1 ? "Выдано" : "Снято";
   const kindLeft = parsed.vip ? "VIP-проходок" : "проходок";
 
+  // The ledger is bookkeeping, so a Sheets outage must not swallow the confirmation the
+  // owner is waiting for — the pass is already in the profile either way.
+  if (changed > 0) {
+    try {
+      const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
+      await appendFreeEntryGrant({
+        count: direction * changed,
+        nickname: match.user.displayName,
+        source: parsed.source,
+        vip: parsed.vip,
+      });
+    } catch (sheetError) {
+      console.error("Failed to log the free entry", sheetError);
+    }
+  }
+
   return ctx.reply(
     `${action}: ${describeFreeEntries(changed, parsed.vip)} игроку «${match.user.displayName}».\n` +
       `Теперь у него ${next} ${kindLeft}.`,

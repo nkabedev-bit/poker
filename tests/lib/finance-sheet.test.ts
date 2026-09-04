@@ -40,7 +40,7 @@ describe("finance sheet", () => {
     );
 
     // Ticket 1250 + two single re-entries 2500 + one double 2000 + one addon 1250.
-    expect(rows[0]).toEqual([1, "Иван", 1250, 2, 2500, 1, 2000, 1, 1250, 7000]);
+    expect(rows[0]).toEqual([1, "Иван", 1250, 2, 2500, 1, 2000, 1, 1250, 7000, "Нет"]);
   });
 
   // A pass covers the seat, so the sheet must not ask for the ticket a second time.
@@ -71,7 +71,7 @@ describe("finance sheet", () => {
       { freeEntry: true },
     );
 
-    expect(rows[0]).toEqual([1, "Иван", "", 1, 1250, "", "", 1, 1250, 2500]);
+    expect(rows[0]).toEqual([1, "Иван", "", 1, 1250, "", "", 1, 1250, 2500, "Нет"]);
   });
 
   it("sums every category in the totals row", () => {
@@ -123,5 +123,26 @@ describe("finance sheet", () => {
       rebuyPrice: 0,
       vipBuyIn: 0,
     });
+  });
+});
+
+describe("who has settled up", () => {
+  it("marks the players the admin ticked at the desk", () => {
+    const rows = buildFinanceSheetRows(
+      [player(1, "Оплатил", { paid: true }), player(2, "Должник")],
+      prices,
+    );
+
+    expect(rows[0]?.[10]).toBe("Да");
+    expect(rows[1]?.[10]).toBe("Нет");
+  });
+
+  it("counts them in the totals row", () => {
+    const rows = buildFinanceSheetRows(
+      [player(1, "Оплатил", { paid: true }), player(2, "Должник"), player(3, "Ещё", { paid: true })],
+      prices,
+    );
+
+    expect(rows.at(-1)?.[10]).toBe("2 из 3");
   });
 });

@@ -125,6 +125,19 @@ export async function POST(request: Request) {
         console.error("Failed to grant the raffle pass", grantError);
       } else {
         raffle.prize = "granted";
+        // The ledger is bookkeeping: the pass is already in the profile, so a Sheets
+        // failure must not fail the draw.
+        try {
+          const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
+          await appendFreeEntryGrant({
+            count: 1,
+            nickname: winner.name,
+            source: "raffle",
+            vip: false,
+          });
+        } catch (sheetError) {
+          console.error("Failed to log the raffle pass", sheetError);
+        }
         // Writing the same draw again records the prize; the database allows it because
         // the id matches the one already in the history.
         await auth.supabase.rpc("set_tournament_raffle", {
