@@ -48,7 +48,7 @@ const STATUS_LABELS: Record<ScheduledBroadcast["status"], string> = {
 };
 
 const textFieldClass =
-  "w-full rounded-lg border border-neutral-300 bg-white p-3 text-black placeholder:text-neutral-500 outline-none";
+  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color)] p-3 text-[var(--tg-theme-text-color)] placeholder:text-[var(--tg-theme-hint-color)] outline-none";
 
 function formatMoscow(iso: string): string {
   // utcISOToMoscowLocal -> "2026-06-19T14:00" -> "19.06.2026 14:00"
@@ -226,8 +226,8 @@ export default function TMABotPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 text-black">
-        <div className="flex items-center gap-2 text-black">
+      <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-3 text-[var(--tg-theme-text-color)]">
+        <div className="flex items-center gap-2 text-[var(--tg-theme-text-color)]">
           <MessageSquare size={18} />
           <h1 className="text-lg font-bold">Рассылка</h1>
         </div>
@@ -239,7 +239,7 @@ export default function TMABotPage() {
         />
 
         {!scheduleEnabled ? (
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-neutral-300 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]">
             <Paperclip size={16} />
             <span>{files?.length ? `Вложений: ${files.length}` : "Добавить вложения"}</span>
             <input
@@ -251,7 +251,7 @@ export default function TMABotPage() {
           </label>
         ) : null}
 
-        <label className="flex items-center gap-2 text-sm font-semibold text-black">
+        <label className="flex items-center gap-2 text-sm font-semibold text-[var(--tg-theme-text-color)]">
           <input
             checked={scheduleEnabled}
             onChange={(event) => {
@@ -284,20 +284,20 @@ export default function TMABotPage() {
       </section>
 
       {scheduled.length > 0 ? (
-        <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-3 text-black">
-          <div className="flex items-center gap-2 text-black">
+        <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-3 text-[var(--tg-theme-text-color)]">
+          <div className="flex items-center gap-2 text-[var(--tg-theme-text-color)]">
             <Clock size={18} />
             <h2 className="text-base font-bold">Рассылки</h2>
           </div>
-          <p className="text-xs text-neutral-600">
+          <p className="text-xs text-[var(--tg-theme-hint-color)]">
             Запланированные и две последние отправленные — остальные удаляются.
           </p>
           {scheduled.map((item) => (
-            <div key={item.id} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 text-sm text-black">
+            <div key={item.id} className="rounded-lg border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-bg-color)] p-3 text-sm text-[var(--tg-theme-text-color)]">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold">{formatMoscow(item.send_at)}</span>
                 <span className="flex items-center gap-2">
-                  <span className="text-neutral-600">{STATUS_LABELS[item.status]}</span>
+                  <span className="text-[var(--tg-theme-hint-color)]">{STATUS_LABELS[item.status]}</span>
                   {item.status === "pending" ? (
                     <button
                       aria-label="Отменить"
@@ -309,13 +309,13 @@ export default function TMABotPage() {
                   ) : null}
                 </span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-neutral-700">{item.message}</p>
+              <p className="mt-1 whitespace-pre-wrap break-words text-[var(--tg-theme-text-color)]">{item.message}</p>
             </div>
           ))}
         </section>
       ) : null}
 
-      <section className="rounded-xl border border-neutral-200 bg-white p-4 space-y-4 text-black">
+      <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-4 text-[var(--tg-theme-text-color)]">
         <SettingLabel icon={<CalendarDays size={18} />} title="Расписание следующих турниров" />
         <textarea
           className={`min-h-32 ${textFieldClass}`}
@@ -325,11 +325,11 @@ export default function TMABotPage() {
         />
 
         <div className="space-y-3">
-          <p className="text-xs text-neutral-600">
+          <p className="text-xs text-[var(--tg-theme-hint-color)]">
             Запланированные версии: каждая показывается с указанной даты, заменяя предыдущую.
           </p>
           {settings.scheduleVersions.map((version, index) => (
-            <div key={index} className="rounded-lg border border-neutral-200 bg-neutral-50 p-3 space-y-2">
+            <div key={index} className="rounded-lg border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-bg-color)] p-3 space-y-2">
               <div className="flex items-center gap-2">
                 <input
                   className={textFieldClass}
@@ -360,7 +360,7 @@ export default function TMABotPage() {
             </div>
           ))}
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]"
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]"
             onClick={addVersion}
           >
             <CalendarPlus size={16} />
@@ -387,14 +387,14 @@ export default function TMABotPage() {
         </button>
       </section>
 
-      {status ? <p className="text-center text-sm text-neutral-600">{status}</p> : null}
+      {status ? <p className="text-center text-sm text-[var(--tg-theme-hint-color)]">{status}</p> : null}
     </div>
   );
 }
 
 function SettingLabel({ icon, title }: { icon: ReactNode; title: string }) {
   return (
-    <label className="flex items-center gap-2 text-sm font-semibold text-black">
+    <label className="flex items-center gap-2 text-sm font-semibold text-[var(--tg-theme-text-color)]">
       {icon}
       {title}
     </label>

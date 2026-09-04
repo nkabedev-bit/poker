@@ -711,7 +711,7 @@ export default function TMACardsPage() {
             ))}
 
             {withoutCard.length === 0 && waitingSignups.length === 0 ? (
-              <p className="py-6 text-center text-gray-500">
+              <p className="py-6 text-center text-[var(--tg-theme-hint-color)]">
                 {search ? "Никого не нашли" : "Все за столами и с картами"}
               </p>
             ) : null}

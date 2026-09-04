@@ -650,8 +650,8 @@ export default function TMAPlayersPage() {
       </Link>
 
       <div className="flex justify-between text-sm text-[var(--tg-theme-hint-color)] mb-4 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg">
-        <span>Активных: <strong className="text-white">{activeCount}</strong></span>
-        <span>Выбыло: <strong className="text-white">{elimCount}</strong></span>
+        <span>Активных: <strong className="text-[var(--tg-theme-text-color)]">{activeCount}</strong></span>
+        <span>Выбыло: <strong className="text-[var(--tg-theme-text-color)]">{elimCount}</strong></span>
       </div>
 
       <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-4">

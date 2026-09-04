@@ -26,7 +26,7 @@ import {
 type EventRow = TournamentEvent & { signupsCount: number };
 
 const textFieldClass =
-  "w-full rounded-lg border border-neutral-300 bg-white p-3 text-black placeholder:text-neutral-500 outline-none";
+  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color)] p-3 text-[var(--tg-theme-text-color)] placeholder:text-[var(--tg-theme-hint-color)] outline-none";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
@@ -452,7 +452,7 @@ export default function TMAEventsPage() {
           }}
         />
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-neutral-300 p-3 text-sm text-[var(--tg-theme-button-color)]"
+          className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color)]"
           type="button"
           onClick={() => posterInputRef.current?.click()}
         >
@@ -521,7 +521,7 @@ export default function TMAEventsPage() {
       </div>
 
       {events.length === 0 ? (
-        <div className="text-center text-gray-500 py-10">
+        <div className="py-10 text-center text-[var(--tg-theme-hint-color)]">
           Пока ни одной афиши. Создайте первую кнопкой сверху.
         </div>
       ) : null}

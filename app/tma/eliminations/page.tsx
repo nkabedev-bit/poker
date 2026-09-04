@@ -413,7 +413,7 @@ export default function TMAEliminationsPage() {
               🟢 {p.name}
             </button>
           ))}
-          {visibleActivePlayers.length === 0 && <div className="text-center text-gray-500 py-10">{selectedTableNumber ? "Нет активных игроков за этим столом" : "Все выбыли"}</div>}
+          {visibleActivePlayers.length === 0 && <div className="py-10 text-center text-[var(--tg-theme-hint-color)]">{selectedTableNumber ? "Нет активных игроков за этим столом" : "Все выбыли"}</div>}
         </div>
       </div>
     );
@@ -458,7 +458,7 @@ export default function TMAEliminationsPage() {
             onClick={() => {
               if (!isSubmitting) setIsMulti(!isMulti);
             }}
-            className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}${disabledClass}`}
+            className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}${disabledClass}`}
           >
             👥 Поделить баунти
           </button>
@@ -474,7 +474,7 @@ export default function TMAEliminationsPage() {
                 onClick={() => {
                   if (!isSubmitting) toggleKiller(p);
                 }}
-                className={`w-full text-left p-4 rounded-lg flex items-center justify-between ${isSelected ? "bg-[var(--tg-theme-button-color)] text-white" : "bg-[var(--tg-theme-secondary-bg-color)]"}${disabledClass}`}
+                className={`w-full text-left p-4 rounded-lg flex items-center justify-between ${isSelected ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]" : "bg-[var(--tg-theme-secondary-bg-color)]"}${disabledClass}`}
               >
                 <span>{p.name}</span>
                 {isMulti && (isSelected ? <CheckSquare size={18} /> : <Square size={18} />)}
@@ -568,7 +568,7 @@ export default function TMAEliminationsPage() {
           onClick={() => {
             if (!isSubmitting) void confirmElimination();
           }}
-          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
         >
           {isSubmitting ? "Сохраняем..." : "Подтвердить выбывание"}
         </button>
@@ -602,7 +602,7 @@ export default function TMAEliminationsPage() {
                 onClick={() => {
                   if (!isSubmitting) void submitElimination(true, false);
                 }}
-                className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+                className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
               >
                 {isSubmitting ? "Сохраняем..." : "Одинарный"}
               </button>
@@ -611,7 +611,7 @@ export default function TMAEliminationsPage() {
                 onClick={() => {
                   if (!isSubmitting) void submitElimination(true, true);
                 }}
-                className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+                className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
               >
                 {isSubmitting ? "Сохраняем..." : "Двойной (x2)"}
               </button>
@@ -633,7 +633,7 @@ export default function TMAEliminationsPage() {
               onClick={() => {
                 if (!isSubmitting) void submitElimination(true);
               }}
-              className={`p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+              className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
             >
               {isSubmitting ? "Сохраняем..." : "Да"}
             </button>
@@ -703,7 +703,7 @@ export default function TMAEliminationsPage() {
           onClick={() => {
             if (!isSubmitting) setStep(2);
           }}
-          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-white rounded-lg font-semibold${disabledClass}`}
+          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
         >
           Далее →
         </button>

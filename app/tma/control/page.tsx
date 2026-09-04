@@ -89,13 +89,13 @@ export default function TMAControlPage() {
           )}
           <button
             onClick={() => handleAction("previous", true)}
-            className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium"
+            className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] py-3 rounded-lg flex items-center justify-center gap-2 font-medium"
           >
             <SkipBack size={18} /> Предыдущий блайнд
           </button>
           <button
             onClick={() => handleAction("next", true)}
-            className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-white py-3 rounded-lg flex items-center justify-center gap-2 font-medium"
+            className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] py-3 rounded-lg flex items-center justify-center gap-2 font-medium"
           >
             <SkipForward size={18} /> Следующий блайнд
           </button>

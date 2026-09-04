@@ -358,7 +358,7 @@ export default function TMASignupsPage() {
         ))}
 
         {waiting.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">
+          <div className="py-8 text-center text-[var(--tg-theme-hint-color)]">
             {signups.length === 0 ? "Заявок пока нет" : "Все записавшиеся уже за столами"}
           </div>
         ) : null}

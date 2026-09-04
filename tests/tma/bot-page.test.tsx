@@ -10,7 +10,7 @@ describe("TMABotPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("uses readable dark labels and white inputs for bot settings", async () => {
+  it("paints its labels and inputs from the Telegram theme", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -26,12 +26,14 @@ describe("TMABotPage", () => {
     const scheduleLabel = (await screen.findByText("Расписание следующих турниров")).closest("label");
     const ratingLabel = screen.getByText("Ссылка на Google-таблицу с рейтингом").closest("label");
 
-    expect(scheduleLabel?.className).toContain("text-black");
-    expect(ratingLabel?.className).toContain("text-black");
+    // Colours come from Telegram's theme rather than a fixed light palette, so the
+    // screen reads in both the light and the dark one.
+    expect(scheduleLabel?.className).toContain("text-[var(--tg-theme-text-color)]");
+    expect(ratingLabel?.className).toContain("text-[var(--tg-theme-text-color)]");
 
     const ratingInput = screen.getByPlaceholderText("https://docs.google.com/spreadsheets/...");
 
-    expect(ratingInput.className).toContain("bg-white");
-    expect(ratingInput.className).toContain("text-black");
+    expect(ratingInput.className).toContain("bg-[var(--tg-theme-secondary-bg-color)]");
+    expect(ratingInput.className).toContain("text-[var(--tg-theme-text-color)]");
   });
 });
