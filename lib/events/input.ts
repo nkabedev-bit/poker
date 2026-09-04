@@ -11,7 +11,8 @@ export const eventInputSchema = z.object({
   isPublished: z.boolean().optional().default(false),
   lateEntryUntil: z.string().trim().optional().default(""),
   maxPlayers: z.coerce.number().int().positive().nullable().optional().default(null),
-  maxVipPlayers: z.coerce.number().int().positive().nullable().optional().default(null),
+  // Zero means the club opens no VIP table for this one, so it has to survive the form.
+  maxVipPlayers: z.coerce.number().int().min(0).nullable().optional().default(null),
   posterUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   rulesText: z.string().trim().max(2000).optional().default(""),
   startingStack: z.coerce.number().int().positive().nullable().optional().default(null),

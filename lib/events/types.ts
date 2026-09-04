@@ -59,6 +59,14 @@ function optionalText(value: unknown) {
   return text || null;
 }
 
+/** Zero is a real answer here: the club runs this one without a VIP table. */
+function optionalSeatCount(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : null;
+}
+
 function optionalPositiveInt(value: unknown) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
@@ -73,7 +81,7 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
     isPublished: Boolean(row.is_published),
     lateEntryUntil: optionalText(row.late_entry_until),
     maxPlayers: optionalPositiveInt(row.max_players),
-    maxVipPlayers: optionalPositiveInt(row.max_vip_players),
+    maxVipPlayers: optionalSeatCount(row.max_vip_players),
     posterUrl: optionalText(row.poster_url),
     rulesText: String(row.rules_text ?? ""),
     startingStack: optionalPositiveInt(row.starting_stack),

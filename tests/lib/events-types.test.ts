@@ -118,3 +118,13 @@ describe("mapSignupRow", () => {
     expect(mapSignupRow({ ...signupRow, use_pass: "gold" }).usePass).toBe("none");
   });
 });
+
+describe("a poster with no VIP table", () => {
+  it("keeps a zero VIP limit instead of reading it as 'not set'", () => {
+    expect(mapEventRow({ ...row, max_vip_players: 0 }).maxVipPlayers).toBe(0);
+  });
+
+  it("still treats a missing limit as unset", () => {
+    expect(mapEventRow({ ...row, max_vip_players: null }).maxVipPlayers).toBeNull();
+  });
+});

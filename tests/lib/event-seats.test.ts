@@ -58,3 +58,13 @@ describe("offersVipTicket", () => {
     expect(offersVipTicket({ maxVipPlayers: null, vipBuyIn: null })).toBe(false);
   });
 });
+
+describe("a tournament without a VIP table", () => {
+  it("offers no VIP ticket when the poster opens zero seats", () => {
+    expect(offersVipTicket({ maxVipPlayers: 0, vipBuyIn: 2000 })).toBe(false);
+  });
+
+  it("counts none free", () => {
+    expect(countFreeSeats({ maxPlayers: 20, maxVipPlayers: 0 }, undefined).vip).toBe(0);
+  });
+});

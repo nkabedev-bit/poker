@@ -152,8 +152,10 @@ export default function ClientEventPage() {
     );
   }
 
-  // The poster offers VIP when the club priced it or opened seats for it.
-  const offersVip = event.vipBuyIn !== null || event.maxVipPlayers !== null;
+  // The poster offers VIP when the club priced it or opened seats for it — and zero
+  // seats means there is no VIP table tonight, whatever the price says.
+  const offersVip =
+    event.maxVipPlayers !== 0 && (event.vipBuyIn !== null || event.maxVipPlayers !== null);
   const seatsLeft = ticketType === "vip" ? freeSeats.vip : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
 

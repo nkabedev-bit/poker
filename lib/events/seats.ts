@@ -45,5 +45,8 @@ export function hasFreeSeat(seats: FreeSeats, ticket: EventTicketType) {
 export function offersVipTicket(
   event: Pick<TournamentEvent, "maxVipPlayers" | "vipBuyIn">,
 ) {
+  // Zero VIP seats means there is no VIP table tonight, whatever the price says.
+  if (event.maxVipPlayers === 0) return false;
+
   return event.vipBuyIn !== null || event.maxVipPlayers !== null;
 }
