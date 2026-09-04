@@ -1,6 +1,8 @@
+import Link from "next/link";
 import { Zap } from "lucide-react";
 import { PlayerAvatar } from "./player-avatar";
 import { TIER_COLORS, type PlayerTier } from "@/lib/players/tier";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type RatingPlayer = {
   avatarUrl: string | null;
@@ -43,12 +45,14 @@ export function withOwnPhoto(players: RatingPlayer[], photoUrl?: string) {
 
 export function RatingRow({ player }: { player: RatingPlayer }) {
   const podium = player.place && player.place <= 3 ? PODIUM[player.place as 1 | 2 | 3] : null;
+  const key = buildNicknameKey(player.name);
 
   return (
-    <div
-      className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 ${
+    <Link
+      className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 transition active:scale-[0.99] ${
         podium?.row ?? "border-white/[0.07] bg-white/[0.04]"
       } ${player.isMe ? "!border-[#e9c07a] shadow-[0_0_20px_rgba(233,192,122,0.18)]" : ""}`}
+      href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
     >
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold ${
@@ -89,6 +93,6 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
           </>
         )}
       </span>
-    </div>
+    </Link>
   );
 }

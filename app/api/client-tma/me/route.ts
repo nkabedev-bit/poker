@@ -5,16 +5,9 @@ import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { resolvePlayerTier } from "@/lib/players/tier";
-import {
-  buildFieldSizes,
-  buildPlayerResultsFilter,
-  computePlayerStats,
-  countLastPlaces,
-} from "@/lib/results/player-stats";
+import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
 
 export const dynamic = "force-dynamic";
-
-const PLAYED_GAMES_LIMIT = 300;
 
 type AchievementStatsRow = {
   best_miss_streak: number | string | null;
@@ -71,48 +64,11 @@ export async function GET(request: Request) {
 
   // Counted from the games themselves: correcting a result in the admin corrects the
   // profile and its achievements with it, which separate counters could never do.
-  const { data: playedRows } = await auth.supabase
-    .from("tournament_results")
-    .select("place, knockouts, started_at")
-    .or(buildPlayerResultsFilter(auth.user.telegram_id, auth.user.display_name ?? ""))
-    .order("started_at", { ascending: false })
-    .limit(PLAYED_GAMES_LIMIT);
-
-  const played = (playedRows ?? []).map((row) => {
-    const record = row as {
-      knockouts: number | string | null;
-      place: number | null;
-      started_at: string;
-    };
-
-    return {
-      knockouts: Number(record.knockouts ?? 0),
-      place: record.place,
-      startedAt: record.started_at,
-    };
+  const played = await readPlayerGames(auth.supabase, {
+    nickname: auth.user.display_name ?? "",
+    telegramId: auth.user.telegram_id,
   });
-
-  const stats = computePlayerStats(played);
-
-  // "Last place" needs the size of each field, which only the other players' rows can
-  // tell — 27th is the bottom of one tournament and the middle of another.
-  let lastPlace = 0;
-  if (played.length > 0) {
-    const { data: fieldRows } = await auth.supabase
-      .from("tournament_results")
-      .select("place, started_at")
-      .in("started_at", [...new Set(played.map((row) => row.startedAt))]);
-
-    lastPlace = countLastPlaces(
-      played,
-      buildFieldSizes(
-        (fieldRows ?? []).map((row) => {
-          const record = row as { place: number | null; started_at: string };
-          return { place: record.place, startedAt: record.started_at };
-        }),
-      ),
-    );
-  }
+  const { lastPlace, ...stats } = await buildPlayerStats(auth.supabase, played);
 
   // The club's own label wins over the count, which is how a champion is crowned.
   const tier = resolvePlayerTier({
