@@ -4,55 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { LoadingScreen } from "../_components/ui";
-import { AchievementIcon } from "../_components/achievement-icon";
+import { AchievementCard } from "../_components/award-cards";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
   getAchievementSections,
-  type Achievement,
   type PlayerStats,
 } from "@/lib/client/achievements";
-
-// Knockout goals are counted in bounty shares, so a half knockout has to stay visible.
-function formatValue(value: number) {
-  return Number.isInteger(value) ? String(value) : value.toFixed(1);
-}
-
-function AchievementCard({ achievement }: { achievement: Achievement }) {
-  const shown = Math.min(achievement.value, achievement.goal);
-
-  return (
-    <div
-      className={`rounded-[22px] border p-[18px] ${
-        achievement.earned
-          ? "border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] shadow-[0_10px_28px_rgba(233,192,122,0.12)]"
-          : "border-white/[0.06] bg-white/[0.03]"
-      }`}
-    >
-      <AchievementIcon
-        className={achievement.earned ? "text-[#e9c07a]" : "text-white/30"}
-        name={achievement.icon}
-      />
-      <p
-        className={`mt-3 text-[15px] font-bold uppercase leading-tight ${
-          achievement.earned ? "text-white" : "text-white/55"
-        }`}
-      >
-        {achievement.title}
-      </p>
-      <p className="mt-1 text-[12px] leading-snug text-white/35">{achievement.description}</p>
-      <span
-        className={`mt-3 inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-semibold ${
-          achievement.earned
-            ? "border-[#e9c07a]/45 text-[#e9c07a]"
-            : "border-white/[0.09] text-white/45"
-        }`}
-      >
-        {formatValue(shown)} / {achievement.goal}
-      </span>
-    </div>
-  );
-}
 
 export default function ClientAchievementsPage() {
   const { initData } = useClientTMA();

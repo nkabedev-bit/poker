@@ -3,11 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { Crosshair, Medal, Spade, Trophy } from "lucide-react";
+import { ChevronRight, Crosshair, Medal, Spade, Trophy } from "lucide-react";
 import { useClientTMA } from "../../layout";
-import { GhostButton, GlassCard, LoadingScreen, ScreenMessage } from "../../_components/ui";
+import { GhostButton, GlassCard, LoadingScreen, PageTitle, ScreenMessage } from "../../_components/ui";
 import { PlayerAvatar } from "../../_components/player-avatar";
-import { AchievementIcon } from "../../_components/achievement-icon";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
@@ -16,7 +15,9 @@ import {
 } from "@/lib/client/achievements";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
 import { formatEventDayLabel } from "@/lib/events/types";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
+import type { RatingPlayer } from "../../_components/rating-row";
 
 type PlayerGame = { knockouts: number; place: number | null; startedAt: string };
 
@@ -30,24 +31,37 @@ type PublicPlayer = {
   tier: PlayerTier | null;
 };
 
+/**
+ * Another player's profile, laid out the way a player's own is — minus the free
+ * entries, which are nobody else's business.
+ */
 export default function ClientPlayerPage() {
   const { initData } = useClientTMA();
   const params = useParams<{ key: string }>();
   const playerKey = params?.key;
 
   const [player, setPlayer] = useState<PublicPlayer | null>(null);
+  const [rating, setRating] = useState<RatingPlayer[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!playerKey) return;
     try {
-      const res = await fetch(`/api/client-tma/players/${playerKey}`, {
-        headers: { "X-Telegram-Init-Data": initData },
-      });
+      const [playerRes, ratingRes] = await Promise.all([
+        fetch(`/api/client-tma/players/${playerKey}`, {
+          headers: { "X-Telegram-Init-Data": initData },
+        }),
+        fetch("/api/client-tma/rating", { headers: { "X-Telegram-Init-Data": initData } }),
+      ]);
 
-      if (res.ok) {
-        const data = await res.json();
+      if (playerRes.ok) {
+        const data = await playerRes.json();
         setPlayer(data.player as PublicPlayer);
+      }
+
+      if (ratingRes.ok) {
+        const data = await ratingRes.json();
+        setRating(data.players ?? []);
       }
     } finally {
       setLoading(false);
@@ -82,12 +96,17 @@ export default function ClientPlayerPage() {
     );
   }
 
-  const earned = achievements.filter((achievement) => achievement.earned);
-  const medals = getMedals(player.medals).filter((medal) => medal.count > 0);
+  const earned = countEarnedAchievements(achievements);
   const medalsEarned = countEarnedMedals(getMedals(player.medals));
+  // The rating knows the place; the profile itself counts only what a player has done.
+  const place = rating.find(
+    (row) => buildNicknameKey(row.name) === buildNicknameKey(player.name),
+  )?.place;
 
   return (
     <div className="space-y-6 pt-1">
+      <PageTitle>Профиль</PageTitle>
+
       <div className="flex items-center gap-4">
         <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={72} />
         <div className="min-w-0">
@@ -119,70 +138,71 @@ export default function ClientPlayerPage() {
         <StatTile icon={<Medal size={18} />} label="Топ-9" value={stats.top9} />
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile icon={<Trophy size={18} />} label="Побед" value={stats.wins} />
-        <StatTile icon={<Medal size={18} />} label="Топ-3" value={stats.top3} />
-        <StatTile icon={<Medal size={18} />} label="Медалей" value={medalsEarned} />
-      </div>
-
-      <section className="space-y-3">
-        <div className="flex items-baseline justify-between gap-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Достижения</h2>
-          <span className="text-sm text-white/45">
-            {countEarnedAchievements(achievements)} / {achievements.length}
-          </span>
-        </div>
-
-        {earned.length > 0 ? (
-          <div className="grid grid-cols-2 gap-3">
-            {earned.map((achievement) => (
-              <GlassCard
-                key={achievement.id}
-                className="border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] !p-[18px]"
-              >
-                <AchievementIcon className="text-[#e9c07a]" name={achievement.icon} />
-                <p className="mt-3 text-[15px] font-bold uppercase leading-tight">
-                  {achievement.title}
-                </p>
-                <p className="mt-1 text-[12px] leading-snug text-white/35">
-                  {achievement.description}
-                </p>
-              </GlassCard>
-            ))}
+      <Link
+        className="block transition-transform active:scale-[0.99]"
+        href={`/client/players/${playerKey}/medals`}
+      >
+        <GlassCard className="flex items-center justify-between gap-3 !p-[18px]">
+          <div className="flex items-center gap-3">
+            <Medal className="text-[#e9c07a]" size={22} />
+            <div>
+              <p className="text-[15px] font-bold">Медали</p>
+              <p className="mt-0.5 text-[12px] text-white/40">Кубки за победы в турнирах</p>
+            </div>
           </div>
-        ) : (
-          <GlassCard className="py-7 text-center">
-            <p className="text-sm text-white/45">Пока ни одного достижения.</p>
-          </GlassCard>
-        )}
-      </section>
-
-      {medals.length > 0 ? (
-        <section className="space-y-3">
-          <div className="flex items-baseline justify-between gap-2">
-            <h2 className="text-[19px] font-bold tracking-tight">Медали</h2>
+          <div className="flex items-center gap-1.5">
             <span className="text-sm text-white/45">
               {medalsEarned} / {MEDALS_TOTAL}
             </span>
+            <ChevronRight className="text-white/35" size={19} />
           </div>
+        </GlassCard>
+      </Link>
 
-          <div className="grid grid-cols-2 gap-3">
-            {medals.map((medal) => (
-              <GlassCard
-                key={medal.key}
-                className="border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] !p-[18px]"
-              >
-                <AchievementIcon className="text-[#e9c07a]" name={medal.icon} />
-                <p className="mt-3 text-[15px] font-bold uppercase leading-tight">{medal.title}</p>
-                <p className="mt-1 text-[12px] leading-snug text-white/35">{medal.description}</p>
-                <span className="mt-3 inline-flex items-center rounded-full border border-[#e9c07a]/45 px-3 py-1 text-[12px] font-semibold text-[#e9c07a]">
-                  {medal.count} ×
-                </span>
-              </GlassCard>
-            ))}
+      <Link
+        className="block transition-transform active:scale-[0.99]"
+        href={`/client/players/${playerKey}/achievements`}
+      >
+        <GlassCard className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <h2 className="text-lg font-bold">Достижения</h2>
+              <ChevronRight className="text-white/35" size={19} />
+            </div>
+            <span className="text-sm text-white/45">
+              {earned} / {achievements.length}
+            </span>
           </div>
-        </section>
-      ) : null}
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
+            <div
+              className="h-full rounded-full bg-[#e9c07a]"
+              style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
+            />
+          </div>
+          <p className="text-[12px] text-white/40">
+            {earned === achievements.length
+              ? "Собрана вся коллекция клуба"
+              : "Посмотреть все награды клуба и прогресс по ним"}
+          </p>
+        </GlassCard>
+      </Link>
+
+      <div className="grid grid-cols-2 gap-3">
+        <GlassCard className="!p-[18px]">
+          <Trophy className="text-[#e9c07a]" size={20} />
+          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
+            {place ?? "—"}
+          </p>
+          <p className="mt-2 text-[12px] text-white/50">Место в рейтинге</p>
+        </GlassCard>
+        <GlassCard className="!p-[18px]">
+          <Medal className="text-[#e9c07a]" size={20} />
+          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
+            {stats.wins}
+          </p>
+          <p className="mt-2 text-[12px] text-white/50">Побед</p>
+        </GlassCard>
+      </div>
 
       <section className="space-y-3">
         <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
