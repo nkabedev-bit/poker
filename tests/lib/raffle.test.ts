@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { listRaffleEntrants, pickRaffleWinner } from "@/lib/raffle/raffle";
+import { isRaffle, listRaffleEntrants, pickRaffleWinner } from "@/lib/raffle/raffle";
 
 function player(registrationNumber: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -73,5 +73,29 @@ describe("pickRaffleWinner", () => {
 
   it("draws nobody from an empty room", () => {
     expect(pickRaffleWinner([], Math.random)).toBeNull();
+  });
+});
+
+describe("a tournament gets one draw of each kind", () => {
+  const held = {
+    id: "raffle-1",
+    kind: "regular" as const,
+    numbers: [1, 2, 3],
+    prize: "granted" as const,
+    spinSeconds: 10,
+    startedAt: "2026-09-04T18:00:00.000Z",
+    winnerName: "kabedev",
+    winnerNumber: 2,
+  };
+
+  it("recognises the draw already held", () => {
+    expect(isRaffle(held)).toBe(true);
+    expect([held].find((item) => item.kind === "regular")).toBeTruthy();
+    expect([held].find((item) => item.kind === "vip")).toBeUndefined();
+  });
+
+  it("keeps rubbish out of the history", () => {
+    expect(isRaffle({ kind: "regular" })).toBe(false);
+    expect(isRaffle(null)).toBe(false);
   });
 });

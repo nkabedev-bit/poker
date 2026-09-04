@@ -107,6 +107,8 @@ export type TournamentExtras = {
   eventTemplates: EventTemplate[];
   /** The draw showing on the big screen right now, if one is running. */
   raffle: Raffle | null;
+  /** The draws already held tonight — one of each kind is all a tournament gets. */
+  raffleHistory: Raffle[];
   clientBot: {
     ratingUrl: string;
     scheduleText: string;

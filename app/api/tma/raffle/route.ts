@@ -8,7 +8,6 @@ import {
   pickRaffleWinner,
   RAFFLE_SPIN_SECONDS,
   type Raffle,
-  type RafflePrize,
 } from "@/lib/raffle/raffle";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +35,19 @@ export async function POST(request: Request) {
   const kind = body.kind === "vip" ? "vip" : "regular";
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+
+  // One of each kind per tournament. Checked here so the admin is told why, and again
+  // in the database so two taps at once cannot both get through.
+  const held = extras.raffleHistory.find((item) => item.kind === kind);
+  if (held) {
+    return NextResponse.json(
+      {
+        error: `${kind === "vip" ? "VIP розыгрыш" : "Розыгрыш"} уже проводился сегодня — победил номер ${held.winnerNumber} (${held.winnerName})`,
+      },
+      { status: 409 },
+    );
+  }
+
   const entrants = listRaffleEntrants(extras.players, kind);
 
   if (entrants.length === 0) {
@@ -53,38 +65,13 @@ export async function POST(request: Request) {
   const winner = pickRaffleWinner(entrants, () => randomInt(0, 2 ** 31) / 2 ** 31);
   if (!winner) return NextResponse.json({ error: "Не удалось выбрать победителя" }, { status: 500 });
 
-  // The regular draw pays a free entry into the winner's profile, which only exists for
-  // a player whose nickname is linked to their Telegram account. A VIP prize is a
-  // certificate handed over at the table, so nothing is credited.
-  let prize: RafflePrize = "none";
-
-  if (kind === "regular") {
-    prize = "manual";
-
-    if (winner.telegramId) {
-      const { data: account } = await auth.supabase
-        .from("client_bot_users")
-        .select("free_entries")
-        .eq("telegram_id", winner.telegramId)
-        .maybeSingle();
-
-      if (account) {
-        const { error } = await auth.supabase
-          .from("client_bot_users")
-          .update({ free_entries: Math.max(0, Number(account.free_entries ?? 0)) + 1 })
-          .eq("telegram_id", winner.telegramId);
-
-        if (error) console.error("Failed to grant the raffle pass", error);
-        else prize = "granted";
-      }
-    }
-  }
-
   const raffle: Raffle = {
     id: crypto.randomUUID(),
     kind,
     numbers: entrants.map((entrant) => entrant.number),
-    prize,
+    // A VIP prize is a certificate handed over at the table; a regular one is a free
+    // entry, credited below once the draw itself is safely written down.
+    prize: kind === "vip" ? "none" : "manual",
     spinSeconds: RAFFLE_SPIN_SECONDS,
     startedAt: new Date().toISOString(),
     winnerName: winner.name,
@@ -98,16 +85,54 @@ export async function POST(request: Request) {
 
   if (error) {
     console.error("Failed to store the raffle", error);
-    const missing = error.code === "PGRST202";
+
+    // The prize was already paid in by the time the database refused, so the admin is
+    // told exactly what happened rather than being invited to try again.
+    if (String(error.message ?? "").includes("Raffle already held")) {
+      return NextResponse.json(
+        { error: "Этот розыгрыш уже проводился сегодня" },
+        { status: 409 },
+      );
+    }
 
     return NextResponse.json(
       {
-        error: missing
-          ? "Миграция 202609040003 не применена — розыгрыш не запускается"
-          : (error.message ?? "Не удалось запустить розыгрыш"),
+        error:
+          error.code === "PGRST202"
+            ? "Миграция 202609040003 не применена — розыгрыш не запускается"
+            : (error.message ?? "Не удалось запустить розыгрыш"),
       },
       { status: 500 },
     );
+  }
+
+  // The free entry goes to the winner's profile, which only exists for a player whose
+  // nickname is linked to their Telegram account.
+  if (raffle.kind === "regular" && winner.telegramId) {
+    const { data: account } = await auth.supabase
+      .from("client_bot_users")
+      .select("free_entries")
+      .eq("telegram_id", winner.telegramId)
+      .maybeSingle();
+
+    if (account) {
+      const { error: grantError } = await auth.supabase
+        .from("client_bot_users")
+        .update({ free_entries: Math.max(0, Number(account.free_entries ?? 0)) + 1 })
+        .eq("telegram_id", winner.telegramId);
+
+      if (grantError) {
+        console.error("Failed to grant the raffle pass", grantError);
+      } else {
+        raffle.prize = "granted";
+        // Writing the same draw again records the prize; the database allows it because
+        // the id matches the one already in the history.
+        await auth.supabase.rpc("set_tournament_raffle", {
+          p_tournament_id: t.id,
+          p_raffle: raffle,
+        });
+      }
+    }
   }
 
   await broadcastPublicState(t.public_token);

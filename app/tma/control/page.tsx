@@ -11,9 +11,11 @@ const CONFIRM_MESSAGE = "Вы уверены?";
 
 export default function TMAControlPage() {
   const { initData } = useTMA();
-  const [state, setState] = useState<{ raffle: Raffle | null; timerState: TimerState } | null>(
-    null,
-  );
+  const [state, setState] = useState<{
+    raffle: Raffle | null;
+    raffleHistory?: Raffle[];
+    timerState: TimerState;
+  } | null>(null);
   const [raffleBusy, setRaffleBusy] = useState(false);
 
   const fetchState = useCallback(async () => {
@@ -120,6 +122,9 @@ export default function TMAControlPage() {
 
   if (!state) return <div>Загрузка...</div>;
 
+  // One draw of each kind per tournament, so a finished one is shown rather than offered.
+  const heldRegular = state.raffleHistory?.find((item) => item.kind === "regular");
+  const heldVip = state.raffleHistory?.find((item) => item.kind === "vip");
   const timerStatus = state.timerState.status;
   const tournamentActive = timerStatus === "running" || timerStatus === "paused" || timerStatus === "break";
 
@@ -178,6 +183,21 @@ export default function TMAControlPage() {
           РОЗЫГРЫШИ
         </h2>
 
+        {heldRegular || heldVip ? (
+          <div className="mb-4 space-y-1 text-sm text-[var(--tg-theme-hint-color)]">
+            {heldRegular ? (
+              <p>
+                Розыгрыш проходки: номер {heldRegular.winnerNumber} — {heldRegular.winnerName}
+              </p>
+            ) : null}
+            {heldVip ? (
+              <p>
+                VIP розыгрыш: номер {heldVip.winnerNumber} — {heldVip.winnerName}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         {state.raffle ? (
           <div className="space-y-3">
             <p className="text-sm">
@@ -196,19 +216,19 @@ export default function TMAControlPage() {
           <div className="flex flex-wrap justify-center gap-3">
             <button
               className="flex min-w-[calc(50%-0.375rem)] flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] py-3 font-medium text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-              disabled={raffleBusy}
+              disabled={raffleBusy || Boolean(heldRegular)}
               type="button"
               onClick={() => void runRaffle("regular")}
             >
-              <Gift size={18} /> Провести розыгрыш
+              <Gift size={18} /> {heldRegular ? "Розыгрыш проведён" : "Провести розыгрыш"}
             </button>
             <button
               className="flex min-w-[calc(50%-0.375rem)] flex-1 items-center justify-center gap-2 rounded-lg bg-[#e9c07a] py-3 font-medium text-black disabled:opacity-60"
-              disabled={raffleBusy}
+              disabled={raffleBusy || Boolean(heldVip)}
               type="button"
               onClick={() => void runRaffle("vip")}
             >
-              <Crown size={18} /> Провести VIP розыгрыш
+              <Crown size={18} /> {heldVip ? "VIP розыгрыш проведён" : "Провести VIP розыгрыш"}
             </button>
           </div>
         )}

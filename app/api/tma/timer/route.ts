@@ -28,7 +28,11 @@ export async function GET(request: Request) {
     // big screen right now.
     const extras = await loadTournamentExtras(t.id, auth.supabase);
 
-    return NextResponse.json({ raffle: extras.raffle, timerState });
+    return NextResponse.json({
+      raffle: extras.raffle,
+      raffleHistory: extras.raffleHistory,
+      timerState,
+    });
   }
 
   const { data: blindLevels } = await auth.supabase

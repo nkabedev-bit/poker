@@ -47,6 +47,7 @@ export const defaultTournamentExtras: TournamentExtras = {
   blindTemplates: [],
   eventTemplates: [],
   raffle: null,
+  raffleHistory: [],
   clientBot: {
     ratingUrl: "",
     scheduleText: "",
@@ -115,6 +116,9 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       ? input.eventTemplates.filter(isEventTemplate)
       : [],
     raffle: isRaffle(input.raffle) ? input.raffle : null,
+    raffleHistory: Array.isArray(input.raffleHistory)
+      ? input.raffleHistory.filter(isRaffle)
+      : [],
     clientBot: {
       ...defaultTournamentExtras.clientBot,
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),

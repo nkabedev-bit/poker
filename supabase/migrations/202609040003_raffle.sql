@@ -3,6 +3,10 @@
 -- The winner is decided on the server and stored here, so every screen in the room
 -- shows the same result and no browser can steer it. Written as its own key under one
 -- row lock: a draw during the game must not overwrite the roster it was read from.
+--
+-- Each kind of draw is run once per tournament, so a finished one is also recorded in
+-- `raffleHistory` — that is what the second press is refused against, and what the
+-- admin's screen reads to show the result after the window is closed.
 
 create or replace function public.set_tournament_raffle(
   p_tournament_id uuid,
@@ -16,6 +20,8 @@ as $$
 declare
   extras_row public.tournament_extras%rowtype;
   next_data jsonb;
+  history jsonb;
+  kind text;
 begin
   select * into extras_row
   from public.tournament_extras
@@ -27,9 +33,29 @@ begin
   end if;
 
   if p_raffle is null or p_raffle = 'null'::jsonb then
+    -- Closing the window leaves the history alone: the draw still happened.
     next_data := extras_row.data - 'raffle';
   else
-    next_data := extras_row.data || jsonb_build_object('raffle', p_raffle);
+    kind := p_raffle->>'kind';
+    history := coalesce(extras_row.data->'raffleHistory', '[]'::jsonb);
+
+    -- A different draw of the same kind is refused; the same one may be written again,
+    -- which is how the prize is recorded once it has actually been paid in.
+    if exists (
+      select 1
+      from jsonb_array_elements(history) as item
+      where item->>'kind' = kind and item->>'id' <> p_raffle->>'id'
+    ) then
+      raise exception 'Raffle already held: %', kind using errcode = 'P0001';
+    end if;
+
+    select coalesce(jsonb_agg(item), '[]'::jsonb)
+    into history
+    from jsonb_array_elements(history) as item
+    where item->>'id' <> p_raffle->>'id';
+
+    next_data := extras_row.data
+      || jsonb_build_object('raffle', p_raffle, 'raffleHistory', history || p_raffle);
   end if;
 
   update public.tournament_extras
