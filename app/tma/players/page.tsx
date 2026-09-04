@@ -56,8 +56,6 @@ export default function TMAPlayersPage() {
   
   // Form State
   const [name, setName] = useState("");
-  const [table, setTable] = useState("1");
-  const [seat] = useState("1");
 
   const fetchPlayers = useCallback(async () => {
     try {
@@ -102,7 +100,7 @@ export default function TMAPlayersPage() {
               "Content-Type": "application/json",
               "X-Telegram-Init-Data": initData,
             },
-            body: JSON.stringify({ name, table, seat }),
+            body: JSON.stringify({ name }),
           });
           if (res.ok) {
             const data = await res.json().catch(() => null);
@@ -138,7 +136,7 @@ export default function TMAPlayersPage() {
     } else {
       tg.MainButton.hide();
     }
-  }, [showAddForm, name, table, seat, initData, fetchPlayers]);
+  }, [showAddForm, name, initData, fetchPlayers]);
 
   const selectedPlayer = useMemo(
     () => players.find((player) => player.id === selectedPlayerId) ?? null,
@@ -361,16 +359,9 @@ export default function TMAPlayersPage() {
             placeholder="Иван Иванов"
           />
         </div>
-        <div>
-          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1" htmlFor="new-player-table">Стол</label>
-          <input
-            id="new-player-table"
-            type="number"
-            className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-black font-semibold border-none rounded p-3 outline-none"
-            value={table}
-            onChange={(e) => setTable(e.target.value)}
-          />
-        </div>
+        <p className="text-xs text-[var(--tg-theme-hint-color)]">
+          Стол и место игрок получит, когда ему выдадут карту.
+        </p>
         <button 
           onClick={() => setShowAddForm(false)}
           className="mt-4 w-full p-3 text-[var(--tg-theme-button-color)]"
@@ -441,7 +432,8 @@ export default function TMAPlayersPage() {
                     {formatPlayerNameWithRegistrationNumber(player)}
                   </span>
                   <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                    Ст. {player.table} · Аддоны {Math.max(0, Number(player.addons ?? 0))}/{maxAddons}
+                    {player.seat ? `Ст. ${player.table} · м. ${player.seat}` : "Ждёт посадки"} ·
+                    Аддоны {Math.max(0, Number(player.addons ?? 0))}/{maxAddons}
                     {available ? "" : " · лимит"}
                   </span>
                 </span>

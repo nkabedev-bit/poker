@@ -119,7 +119,9 @@ export async function POST(request: Request) {
     name,
     stack: Number(t.starting_stack) || 10000,
     table: Number(table) || 1,
-    seat: Number(seat) || 1,
+    // No chair until a card is handed over: the seating plan is where players are sat
+    // down, and a default seat would show four walk-ins sharing seat 1.
+    seat: Number.isInteger(Number(seat)) && Number(seat) > 0 ? Number(seat) : null,
     status: "active" as const,
     rebuys: 0,
     addons: 0,

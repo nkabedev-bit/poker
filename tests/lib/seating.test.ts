@@ -119,6 +119,31 @@ describe("picking a seat at random", () => {
     expect(picked).toEqual({ seat: 10, table: 1 });
   });
 
+  // Drawing from every free chair at once fills one table first: the emptiest table
+  // always offers the fewest chairs, so it is the least likely to come up.
+  it("sends the next player to the emptiest table of their kind", () => {
+    const room = buildSeatingTables(
+      [
+        player({ id: "a", seat: 1, table: 1 }),
+        player({ id: "b", seat: 2, table: 1 }),
+        player({ id: "c", seat: 3, table: 1 }),
+        player({ id: "d", seat: 1, table: 2 }),
+      ],
+      3,
+    );
+
+    expect(pickRandomSeat(room, "regular", () => 0)?.table).toBe(2);
+    expect(pickRandomSeat(room, "regular", () => 0.99)?.table).toBe(2);
+  });
+
+  it("spreads across tables that are equally empty", () => {
+    const room = buildSeatingTables([], 3);
+    const first = pickRandomSeat(room, "regular", () => 0);
+    const second = pickRandomSeat(room, "regular", () => 0.99);
+
+    expect([first?.table, second?.table].sort()).toEqual([1, 2]);
+  });
+
   it("reports nothing when the tables of that kind are full", () => {
     const full = buildSeatingTables(
       Array.from({ length: 10 }, (_, index) =>

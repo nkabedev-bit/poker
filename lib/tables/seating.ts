@@ -76,18 +76,34 @@ export function listFreeSeats(tables: SeatingTable[], ticket: "regular" | "vip")
 }
 
 /**
- * A seat drawn at random from the ones this ticket may take, so the admin can send a
- * player to the table without choosing for them.
+ * A seat drawn for a player who did not choose one.
+ *
+ * The draw is made among the emptiest tables this ticket may sit at, and only then
+ * among their free chairs: drawing from every free chair at once fills the first table
+ * to the brim before the second one is touched, because the emptiest table always has
+ * the fewest chairs to be drawn.
  */
 export function pickRandomSeat(
   tables: SeatingTable[],
   ticket: "regular" | "vip",
   random: () => number = Math.random,
 ) {
-  const free = listFreeSeats(tables, ticket);
-  if (free.length === 0) return null;
+  const allowed = tables.filter((table) => table.isVip === (ticket === "vip"));
+  const withRoom = allowed.filter((table) => table.seats.some((seat) => seat.player === null));
+  if (withRoom.length === 0) return null;
 
-  return free[Math.min(free.length - 1, Math.floor(random() * free.length))];
+  const fewestPlayers = Math.min(
+    ...withRoom.map((table) => table.seats.filter((seat) => seat.player !== null).length),
+  );
+  const emptiest = withRoom.filter(
+    (table) => table.seats.filter((seat) => seat.player !== null).length === fewestPlayers,
+  );
+
+  const table = emptiest[Math.min(emptiest.length - 1, Math.floor(random() * emptiest.length))];
+  const free = table.seats.filter((seat) => seat.player === null);
+  const seat = free[Math.min(free.length - 1, Math.floor(random() * free.length))];
+
+  return { seat: seat.seat, table: table.number };
 }
 
 /** Where a seat sits on the oval, as percentages of the table's box. */
