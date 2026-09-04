@@ -1,5 +1,6 @@
 import type { EventSignupCount } from "@/lib/events/store";
 import type { EventTicketType, TournamentEvent } from "@/lib/events/types";
+import { SEATS_PER_TABLE } from "@/lib/tables/seating";
 
 export type FreeSeats = {
   /** Seats left of each kind; null means the poster sets no limit. */
@@ -21,10 +22,13 @@ export function countFreeSeats(
   taken: EventSignupCount | undefined,
 ): FreeSeats {
   const counted = taken ?? NO_SIGNUPS;
+  // There is one VIP table and it seats ten, so a poster that leaves the field empty
+  // still has a number to show — and cannot sell more VIP seats than the room has.
+  const vipLimit = event.maxVipPlayers ?? SEATS_PER_TABLE;
 
   return {
     regular: event.maxPlayers === null ? null : Math.max(0, event.maxPlayers - counted.regular),
-    vip: event.maxVipPlayers === null ? null : Math.max(0, event.maxVipPlayers - counted.vip),
+    vip: Math.max(0, vipLimit - counted.vip),
   };
 }
 

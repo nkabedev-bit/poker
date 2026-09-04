@@ -22,12 +22,29 @@ describe("countFreeSeats", () => {
     expect(countFreeSeats(event, { regular: 25, total: 25, vip: 0 }).regular).toBe(0);
   });
 
-  it("treats a poster without a limit as never running out", () => {
-    const seats = countFreeSeats({ maxPlayers: null, maxVipPlayers: null }, undefined);
+  it("treats a poster without a regular limit as never running out", () => {
+    const seats = countFreeSeats({ maxPlayers: null, maxVipPlayers: 10 }, undefined);
 
-    expect(seats).toEqual({ regular: null, vip: null });
+    expect(seats.regular).toBeNull();
     expect(hasFreeSeat(seats, "regular")).toBe(true);
-    expect(hasFreeSeat(seats, "vip")).toBe(true);
+  });
+
+  // The club has one VIP table of ten, so the VIP count is always a number the player
+  // can read — even when the admin left the field empty.
+  it("falls back to the VIP table's own ten seats", () => {
+    expect(countFreeSeats({ maxPlayers: 20, maxVipPlayers: null }, undefined).vip).toBe(10);
+    expect(
+      countFreeSeats({ maxPlayers: 20, maxVipPlayers: null }, { regular: 0, total: 4, vip: 4 }).vip,
+    ).toBe(6);
+  });
+
+  it("closes the VIP seats once that table is full, limit or no limit", () => {
+    const seats = countFreeSeats(
+      { maxPlayers: 20, maxVipPlayers: null },
+      { regular: 0, total: 10, vip: 10 },
+    );
+
+    expect(hasFreeSeat(seats, "vip")).toBe(false);
   });
 });
 
