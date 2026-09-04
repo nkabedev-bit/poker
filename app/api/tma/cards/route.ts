@@ -18,10 +18,23 @@ export async function GET(request: Request) {
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
-  const cardCode = normalizeCardCode(new URL(request.url).searchParams.get("code"));
-  if (!cardCode) return NextResponse.json({ error: "Пустой код карты" }, { status: 400 });
-
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+  const prices = getFinancePrices(extras.settings);
+  const freeroll = extras.settings.tournamentFormat === "freeroll";
+
+  const cardCode = normalizeCardCode(new URL(request.url).searchParams.get("code"));
+
+  // Without a code the screen is asking for the evening as a whole: every card that is
+  // out, so the desk can see who still owes money.
+  if (!cardCode) {
+    return NextResponse.json({
+      issued: extras.players
+        .filter((item) => item.cardCode && item.status === "active")
+        .map((item) => buildCardSession(item, String(item.cardCode), prices, { freeroll }))
+        .sort((a, b) => (a.registrationNumber ?? 0) - (b.registrationNumber ?? 0)),
+    });
+  }
+
   const player = extras.players.find((item) => item.cardCode === cardCode);
 
   if (!player) {
@@ -30,9 +43,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     cardCode,
-    session: buildCardSession(player, cardCode, getFinancePrices(extras.settings), {
-      freeroll: extras.settings.tournamentFormat === "freeroll",
-    }),
+    session: buildCardSession(player, cardCode, prices, { freeroll }),
   });
 }
 

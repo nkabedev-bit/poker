@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Armchair,
+  Check,
   CreditCard,
   Dices,
   Keyboard,
@@ -11,12 +12,13 @@ import {
   Search,
   Ticket,
   UserPlus,
+  Wallet,
 } from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
-import type { CardSession, TicketType } from "@/lib/cards/card-code";
+import { getCardDebt, type CardSession, type TicketType } from "@/lib/cards/card-code";
 import type { ChargeLine } from "@/lib/finance/player-charge";
 
 type Signup = {
@@ -63,16 +65,24 @@ export default function TMACardsPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState<CardSession | null>(null);
+  // Every card that is out tonight, so the desk can see who still owes money.
+  const [issued, setIssued] = useState<CardSession[]>([]);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [ticketType, setTicketType] = useState<TicketType>("regular");
 
   const loadPlayers = useCallback(async () => {
     try {
-      const [playersRes, signupsRes] = await Promise.all([
+      const [playersRes, signupsRes, issuedRes] = await Promise.all([
         fetch("/api/tma/players", { headers: { "X-Telegram-Init-Data": initData } }),
         fetch("/api/tma/event-signups", { headers: { "X-Telegram-Init-Data": initData } }),
+        fetch("/api/tma/cards", { headers: { "X-Telegram-Init-Data": initData } }),
       ]);
+
+      if (issuedRes.ok) {
+        const data = await issuedRes.json();
+        setIssued(data.issued ?? []);
+      }
 
       if (playersRes.ok) {
         const data = await playersRes.json();
@@ -266,11 +276,45 @@ export default function TMACardsPage() {
     }
   };
 
+  /** Flips a player between "paid" and "owes", for the amount their bill stands at. */
+  const setPaid = async (card: CardSession, paid: boolean) => {
+    const tg = getTelegramWebApp();
+    if (busy) return;
+
+    setBusy(true);
+    try {
+      const res = await fetch("/api/tma/cards/paid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ cardCode: card.cardCode, paid }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        tg?.HapticFeedback.notificationOccurred("error");
+        tg?.showAlert(data?.error ?? "Не удалось отметить оплату");
+        return;
+      }
+
+      tg?.HapticFeedback.impactOccurred("light");
+      if (session?.cardCode === card.cardCode) setSession(data.session);
+      await loadPlayers();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const release = () => {
     const tg = getTelegramWebApp();
     if (!scannedCode || !session) return;
 
-    tg?.showConfirm(`Принять карту у игрока ${session.name}?`, async (confirmed: boolean) => {
+    const debt = getCardDebt(session);
+    const question =
+      debt > 0
+        ? `${session.name} не расплатился: ${debt.toLocaleString("ru-RU")} ₽. Принять карту?`
+        : `${session.name} расплатился. Принять карту?`;
+
+    tg?.showConfirm(question, async (confirmed: boolean) => {
       if (!confirmed) return;
 
       setBusy(true);
@@ -464,11 +508,34 @@ export default function TMACardsPage() {
             <ChargeRow label="Аддоны" line={session.charge.addons} />
 
             <div className="mt-2 flex items-baseline justify-between border-t border-[var(--tg-theme-hint-color)]/25 pt-2">
-              <span className="font-semibold">К оплате</span>
-              <span className="text-2xl font-bold">
-                {session.charge.total.toLocaleString("ru-RU")} ₽
+              <span className="font-semibold">
+                {getCardDebt(session) > 0 ? "К оплате" : "Оплачено"}
+              </span>
+              <span
+                className={`text-2xl font-bold ${
+                  getCardDebt(session) > 0 ? "" : "text-green-500"
+                }`}
+              >
+                {(getCardDebt(session) > 0
+                  ? getCardDebt(session)
+                  : session.charge.total
+                ).toLocaleString("ru-RU")}{" "}
+                ₽
               </span>
             </div>
+
+            {session.paidAmount > 0 && getCardDebt(session) > 0 ? (
+              <p className="text-xs text-[var(--tg-theme-hint-color)]">
+                Уже внесено {session.paidAmount.toLocaleString("ru-RU")} ₽ — остальное после
+                ре-энтри или аддона.
+              </p>
+            ) : null}
+
+            <PaidToggle
+              busy={busy}
+              paid={getCardDebt(session) === 0 && session.charge.total > 0}
+              onChange={(paid) => void setPaid(session, paid)}
+            />
           </div>
 
           <button
@@ -480,6 +547,44 @@ export default function TMACardsPage() {
             <RotateCcw size={16} /> Принять карту обратно
           </button>
         </div>
+      ) : null}
+
+      {issued.length > 0 && !session ? (
+        <section className="space-y-2">
+          <p className="text-sm font-semibold">Выданные карты ({issued.length})</p>
+          {issued.map((card) => {
+            const debt = getCardDebt(card);
+
+            return (
+              <div
+                key={card.cardCode}
+                className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3"
+              >
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="min-w-0">
+                    <span className="block truncate font-semibold">{card.name}</span>
+                    <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                      {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
+                      {card.table ? ` · стол ${card.table}` : ""}
+                      {card.seat ? ` · место ${card.seat}` : ""}
+                    </span>
+                  </span>
+                  <span
+                    className={`shrink-0 text-lg font-bold ${debt > 0 ? "" : "text-green-500"}`}
+                  >
+                    {(debt > 0 ? debt : card.charge.total).toLocaleString("ru-RU")} ₽
+                  </span>
+                </div>
+
+                <PaidToggle
+                  busy={busy}
+                  paid={debt === 0 && card.charge.total > 0}
+                  onChange={(paid) => void setPaid(card, paid)}
+                />
+              </div>
+            );
+          })}
+        </section>
       ) : null}
 
       {scannedCode && !session ? (
@@ -591,6 +696,44 @@ export default function TMACardsPage() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Whether this player has settled up, and the tap that changes it. */
+function PaidToggle({
+  busy,
+  onChange,
+  paid,
+}: {
+  busy: boolean;
+  onChange: (paid: boolean) => void;
+  paid: boolean;
+}) {
+  return (
+    <button
+      className={`flex w-full items-center justify-between gap-3 rounded-lg p-3 text-sm font-semibold disabled:opacity-60 ${
+        paid
+          ? "bg-green-500/15 text-green-500"
+          : "bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)]"
+      }`}
+      disabled={busy}
+      type="button"
+      onClick={() => onChange(!paid)}
+    >
+      <span className="flex items-center gap-2">
+        {paid ? <Check size={16} /> : <Wallet size={16} />}
+        {paid ? "Оплатил" : "Не оплатил"}
+      </span>
+      <span
+        className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${
+          paid ? "bg-green-500/70" : "bg-[var(--tg-theme-hint-color)]/35"
+        }`}
+      >
+        <span
+          className={`h-5 w-5 rounded-full bg-white transition ${paid ? "translate-x-5" : ""}`}
+        />
+      </span>
+    </button>
   );
 }
 

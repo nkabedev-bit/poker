@@ -91,6 +91,11 @@ export type TournamentPlayer = {
   ticketType?: "regular" | "vip";
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
   freePass?: "regular" | "vip" | null;
+  /**
+   * How much the player has handed over so far. Kept as an amount rather than a flag:
+   * settling up in the break and then taking a re-entry leaves them owing again.
+   */
+  paidAmount?: number;
 };
 
 export type ScheduleVersion = { effectiveFrom: string; text: string };
