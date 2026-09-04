@@ -353,7 +353,7 @@ export default function TMAPlayersPage() {
           <input
             id="new-player-name"
             type="text"
-            className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-black font-semibold border-none rounded p-3 outline-none"
+            className="w-full rounded border-none bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold text-[var(--tg-theme-text-color,#111)] outline-none"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Иван Иванов"
@@ -428,9 +428,9 @@ export default function TMAPlayersPage() {
                   onChange={() => toggleAddonSelection(player.id)}
                 />
                 <span className="min-w-0 flex-1">
-                  {/* The club runs this screen in the light theme, where the inherited
-                      text colour washes the nickname out against the grey row. */}
-                  <span className="block truncate font-semibold text-black">
+                  {/* Stated rather than inherited: the row's own colour left the
+                      nickname washed out against its grey background. */}
+                  <span className="block truncate font-semibold text-[var(--tg-theme-text-color,#111)]">
                     {formatPlayerNameWithRegistrationNumber(player)}
                   </span>
                   <span className="block text-xs text-[var(--tg-theme-hint-color)]">
