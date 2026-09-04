@@ -236,7 +236,7 @@ describe("TMA eliminations route", () => {
       }),
     );
     expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
-      { players: [] },
+      { players: [], raffle: null, raffleHistory: [] },
       "/admin/players",
       supabase,
     );
