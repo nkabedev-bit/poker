@@ -3,5 +3,8 @@
     "app/api/**/*": {
       "memory": 1024
     }
-  }
+  },
+  "regions": [
+    "fra1"
+  ]
 }

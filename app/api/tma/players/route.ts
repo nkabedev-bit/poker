@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { isDoubleReentryBannedByFormat } from "@/lib/tma/reentry-eligibility";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
@@ -141,11 +141,15 @@ export async function POST(request: Request) {
       tournamentId: t.id,
     });
 
-    try {
-      await syncVipSheet(auth.supabase, t.id);
-    } catch (sheetError) {
-      console.error("Failed to sync VIP sheet", sheetError);
-    }
+    // The sheet is the club's own copy, not something the admin waits for: writing it
+    // took a second of its own while a queue stood at the door.
+    after(async () => {
+      try {
+        await syncVipSheet(auth.supabase, t.id);
+      } catch (sheetError) {
+        console.error("Failed to sync VIP sheet", sheetError);
+      }
+    });
 
     return NextResponse.json({
       // The admin is told who the nickname was matched to, so a wrong match is caught

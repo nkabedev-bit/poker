@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
 import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
@@ -193,11 +193,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   await spendPass();
 
-  try {
-    await syncVipSheet(auth.supabase, t.id);
-  } catch (sheetError) {
-    console.error("Failed to sync VIP sheet", sheetError);
-  }
+  // Same reason as everywhere else: the admin is handing over a card, not waiting for
+  // Google to acknowledge a row.
+  after(async () => {
+    try {
+      await syncVipSheet(auth.supabase, t.id);
+    } catch (sheetError) {
+      console.error("Failed to sync VIP sheet", sheetError);
+    }
+  });
 
   return NextResponse.json({ passUsed, player: seatedPlayer, session });
 }
