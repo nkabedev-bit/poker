@@ -43,7 +43,9 @@ describe("TMALayout", () => {
     delete window.Telegram;
   });
 
-  it("raises bottom tabs above iPhone safe area and keeps content clear", async () => {
+  // The bar sits in the column instead of over the page: pinned to the viewport it
+  // covered whatever a screen put at its own bottom, and the keyboard made it drift.
+  it("keeps the bottom tabs out of the content", async () => {
     render(
       <TMALayout>
         <div>TMA content</div>
@@ -54,7 +56,22 @@ describe("TMALayout", () => {
     const main = content.closest("main");
     const nav = screen.getByRole("navigation");
 
-    expect(main?.className).toContain("pb-[calc(6rem+env(safe-area-inset-bottom)+8px)]");
-    expect(nav.className).toContain("bottom-[calc(env(safe-area-inset-bottom)+8px)]");
+    expect(main?.className).toContain("overflow-y-auto");
+    expect(nav.className).not.toContain("fixed");
+    expect(nav.className).toContain("shrink-0");
+  });
+
+  it("clears the iPhone home indicator under the tabs", async () => {
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await screen.findByText("TMA content");
+
+    expect(screen.getByRole("navigation").className).toContain(
+      "pb-[env(safe-area-inset-bottom)]",
+    );
   });
 });

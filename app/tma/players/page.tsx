@@ -453,7 +453,9 @@ export default function TMAPlayersPage() {
           )}
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 p-3 bg-[var(--tg-theme-bg-color)]">
+        {/* Sticky inside the scroller, not pinned to the window: pinned, it slid under
+            the navigation bar. */}
+        <div className="sticky bottom-0 -mx-4 border-t border-[var(--tg-theme-hint-color)]/15 bg-[var(--tg-theme-bg-color)] p-3">
           <button
             className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
             disabled={selectedCount === 0 || isBulkAddonSaving}

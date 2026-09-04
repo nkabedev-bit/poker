@@ -84,10 +84,13 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
       ) : (
         <TMAContext.Provider value={{ initData }}>
           <div className="flex flex-col h-[100dvh] bg-[var(--tg-theme-bg-color,#000)] text-[var(--tg-theme-text-color,#fff)]">
-            <main className="flex-1 overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom)+8px)] p-4">
+            {/* The bar is part of the column rather than pinned to the viewport: a
+                fixed bar has to be paid for with padding on every screen, and it drifts
+                over the content whenever the keyboard resizes the window. */}
+            <main className="flex-1 overflow-y-auto p-4 pb-6">
               {children}
             </main>
-            <nav className="fixed bottom-[calc(env(safe-area-inset-bottom)+8px)] left-0 right-0 h-16 bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)] border-t border-[var(--tg-theme-hint-color,rgba(255,255,255,0.1))] flex justify-around items-center">
+            <nav className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--tg-theme-hint-color,rgba(255,255,255,0.1))] bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)] pb-[env(safe-area-inset-bottom)] [height:calc(4rem+env(safe-area-inset-bottom))]">
               <NavItem href="/tma/players" icon={<Users />} label="Игроки" active={pathname.includes("/players")} />
               <NavItem href="/tma/control" icon={<Clock />} label="Управление" active={pathname.includes("/control")} />
               <NavItem href="/tma/eliminations" icon={<Skull />} label="Выбывания" active={pathname.includes("/eliminations")} />
