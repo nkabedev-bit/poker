@@ -81,19 +81,25 @@ export async function findDuoInvitation(
   supabase: SupabaseClient,
   { eventId, telegramId }: { eventId: string; telegramId: number },
 ): Promise<DuoInvitation | null> {
+  // One row is expected — the database keeps a player from being asked twice for the
+  // same evening — but this reads a list rather than insisting on it: an invitation
+  // written before that rule existed must still open the page, not break it.
   const { data, error } = await supabase
     .from("event_signups")
-    .select("telegram_id, duo_confirmed_at, client_bot_users(display_name)")
+    .select("telegram_id, duo_confirmed_at, created_at, client_bot_users(display_name)")
     .eq("event_id", eventId)
     .eq("ticket_type", "duo")
     .eq("duo_partner_telegram_id", telegramId)
     .neq("status", "cancelled")
-    .maybeSingle();
+    .order("created_at")
+    .limit(1);
 
   if (error) throw error;
-  if (!data) return null;
 
-  const record = data as {
+  const [first] = data ?? [];
+  if (!first) return null;
+
+  const record = first as {
     client_bot_users?: unknown;
     duo_confirmed_at: string | null;
     telegram_id: number;
@@ -108,6 +114,34 @@ export async function findDuoInvitation(
     hostTelegramId: record.telegram_id,
     joined: Boolean(record.duo_confirmed_at),
   };
+}
+
+/**
+ * Whether somebody else is already bringing this player to the evening.
+ *
+ * A member can be the +1 of one ticket only: two buyers naming the same person leaves
+ * one of them with a partner who cannot come. Asked before the sign-up is written so
+ * the buyer is told to pick somebody else, rather than meeting the database's refusal.
+ */
+export async function isPartnerTaken(
+  supabase: SupabaseClient,
+  {
+    eventId,
+    hostTelegramId,
+    partnerTelegramId,
+  }: { eventId: string; hostTelegramId: number; partnerTelegramId: number },
+) {
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select("telegram_id")
+    .eq("event_id", eventId)
+    .eq("duo_partner_telegram_id", partnerTelegramId)
+    .neq("telegram_id", hostTelegramId)
+    .neq("status", "cancelled")
+    .limit(1);
+
+  if (error) throw error;
+  return (data ?? []).length > 0;
 }
 
 /** Withdraws the +1 half of a pair — the buyer cancelled, or the partner said no. */

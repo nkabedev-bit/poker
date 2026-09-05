@@ -69,7 +69,10 @@ function taken({
  * A stand-in for the tables this route writes to: sign-ups are upserted, and looking a
  * partner up by nickname reads the accounts.
  */
-function upsertSpy({ members = [] as Array<{ display_name: string; telegram_id: number }> } = {}) {
+function upsertSpy({
+  members = [] as Array<{ display_name: string; telegram_id: number }>,
+  partnerTaken = false,
+} = {}) {
   const upsert = vi.fn(async () => ({ error: null }));
   const update = vi.fn(() => {
     const chain = {
@@ -86,11 +89,23 @@ function upsertSpy({ members = [] as Array<{ display_name: string; telegram_id: 
     select: vi.fn(() => accounts),
   };
 
+  // Reading the sign-ups back answers one question: is somebody else already bringing
+  // this player. Writing them is the upsert above.
+  const signups = {
+    eq: vi.fn(() => signups),
+    limit: vi.fn(async () => ({
+      data: partnerTaken ? [{ telegram_id: 111 }] : [],
+      error: null,
+    })),
+    neq: vi.fn(() => signups),
+    select: vi.fn(() => signups),
+    update,
+    upsert,
+  };
+
   return {
     supabase: {
-      from: vi.fn((table: string) =>
-        table === "client_bot_users" ? accounts : { update, upsert },
-      ),
+      from: vi.fn((table: string) => (table === "client_bot_users" ? accounts : signups)),
     },
     update,
     upsert,
@@ -470,5 +485,82 @@ describe("the 1+1 ticket", () => {
       expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
       { onConflict: "event_id,telegram_id" },
     );
+  });
+  // A member comes as the +1 of one ticket only: two buyers naming the same person
+  // leaves one of them with a partner who cannot come.
+  it("refuses a partner somebody else is already bringing", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "TitAn", telegram_id: 777 }],
+      partnerTaken: true,
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerKey: "titan", ticketType: "duo" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "partner_taken" });
+    expect(upsert).not.toHaveBeenCalled();
+    expect(mocks.notifyClientUser).not.toHaveBeenCalled();
+  });
+
+  // Naming the same partner again asks them nothing new: un-answering them would strand
+  // the pair, because the half of the ticket they already hold hides the question.
+  it("leaves the partner's answer standing when the buyer names them again", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "TitAn", telegram_id: 777 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
+    mocks.getUserSignups.mockResolvedValue([
+      {
+        duoConfirmedAt: "2026-08-02T00:00:00.000Z",
+        duoHostTelegramId: null,
+        duoPartnerName: "TitAn",
+        duoPartnerTelegramId: 777,
+        eventId: "event-1",
+        ticketType: "duo",
+      },
+    ]);
+
+    const response = await postSignup({ partnerKey: "titan", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duo_confirmed_at: "2026-08-02T00:00:00.000Z",
+        duo_partner_telegram_id: 777,
+      }),
+      { onConflict: "event_id,telegram_id" },
+    );
+    expect(mocks.notifyClientUser).not.toHaveBeenCalled();
+  });
+
+  // Until they answer, asking again is a nudge rather than a lie: the question is still
+  // on their screen, so the invitation is sent a second time.
+  it("asks a partner who has not answered yet again", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "TitAn", telegram_id: 777 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
+    mocks.getUserSignups.mockResolvedValue([
+      {
+        duoConfirmedAt: null,
+        duoHostTelegramId: null,
+        duoPartnerName: "TitAn",
+        duoPartnerTelegramId: 777,
+        eventId: "event-1",
+        ticketType: "duo",
+      },
+    ]);
+
+    const response = await postSignup({ partnerKey: "titan", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_confirmed_at: null }),
+      { onConflict: "event_id,telegram_id" },
+    );
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 777, expect.any(String));
   });
 });

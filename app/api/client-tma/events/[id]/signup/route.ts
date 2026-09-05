@@ -7,6 +7,7 @@ import {
   cancelDuoPlusOne,
   duoCancelledMessage,
   duoInviteMessage,
+  isPartnerTaken,
   readPartnerName,
   resolveDuoPartner,
 } from "@/lib/events/duo";
@@ -90,6 +91,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
+  // A member comes as the +1 of one ticket only. Checked here so the buyer is told to
+  // pick somebody else, rather than being handed the database's refusal as a failure.
+  if (
+    partner.partner?.telegramId &&
+    (await isPartnerTaken(auth.supabase, {
+      eventId: event.id,
+      hostTelegramId: auth.user.telegram_id,
+      partnerTelegramId: partner.partner.telegramId,
+    }))
+  ) {
+    return NextResponse.json(
+      {
+        error: "partner_taken",
+        message: "Этого игрока уже зовут вторым на этот турнир. Выберите другого напарника.",
+      },
+      { status: 409 },
+    );
+  }
+
   // A pass opens the seat of its own kind only, and one the player still holds. It buys
   // a single ticket, so it never covers a pair — the "1+1" already has its own price.
   const usePass =
@@ -131,6 +151,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const partnerChanged =
     mine?.duoPartnerTelegramId != null &&
     mine.duoPartnerTelegramId !== (partner.partner?.telegramId ?? null);
+  // Naming the same partner again changes nothing, so their answer stands. Un-answering
+  // them would strand the pair: their half of the ticket is written, which is exactly
+  // what takes the banner they would answer through off their screen.
+  const keptConfirmation =
+    mine?.ticketType === "duo" &&
+    mine.duoPartnerTelegramId != null &&
+    mine.duoPartnerTelegramId === (partner.partner?.telegramId ?? null)
+      ? mine.duoConfirmedAt ?? null
+      : null;
 
   if (partnerChanged && mine) {
     await cancelDuoPlusOne(auth.supabase, {
@@ -145,7 +174,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     {
       // Switching away from a "1+1" lets go of the partner it was bought for, and a new
       // partner has yet to answer.
-      duo_confirmed_at: null,
+      duo_confirmed_at: keptConfirmation,
       duo_partner_name: partner.partner?.name ?? null,
       duo_partner_telegram_id: partner.partner?.telegramId ?? null,
       event_id: event.id,
@@ -159,7 +188,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (error) throw error;
 
-  const invited = partner.partner?.telegramId ?? null;
+  // A partner who has already said yes is not asked again — there is nothing left for
+  // them to answer, and the message would send them to a screen without the question.
+  const invited = keptConfirmation ? null : partner.partner?.telegramId ?? null;
   const dropped = partnerChanged ? mine?.duoPartnerTelegramId ?? null : null;
 
   // The bot carries the news once the sign-up stands, never before it: an invitation to
