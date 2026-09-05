@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
 import { isValidBirthDate, normalizeClientBotText } from "@/lib/client-bot/registration";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +51,31 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "invalid", message: parsed.error.issues[0]?.message ?? "Проверьте поля анкеты." },
       { status: 400 },
+    );
+  }
+
+  // One nickname, one player. Without this a member who already has an account could
+  // fill the questionnaire again from the web — answering "нет, я впервые" out of habit
+  // — and end up with two profiles under one name: the passes, medals and sign-ups
+  // split between them, and the very flow that would join them back refusing to guess
+  // which is which ever after.
+  const nicknameKey = buildNicknameKey(parsed.data.nickname);
+  const { data: taken } = await auth.supabase
+    .from("client_bot_users")
+    .select("id")
+    .eq("nickname_key", nicknameKey)
+    .neq("id", auth.user.id)
+    .limit(1);
+
+  if ((taken ?? []).length > 0) {
+    return NextResponse.json(
+      {
+        error: "nickname_taken",
+        message:
+          "Этот никнейм уже занят. Если это вы — вернитесь назад и выберите «Да, играл», " +
+          "чтобы найти свой профиль.",
+      },
+      { status: 409 },
     );
   }
 
