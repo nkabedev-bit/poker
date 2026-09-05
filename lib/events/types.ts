@@ -200,6 +200,29 @@ export function formatEventWeekdayLabel(iso: string) {
 
 // An event stays "upcoming" until late entry closes (or, without a late-entry time,
 // until it starts) — a player arriving at 21:00 for a 19:00 game still needs the card.
+/**
+ * How long the desk keeps seating players after a game has started.
+ *
+ * Long enough to cover the night: a tournament that begins at 21:00 is still being
+ * played at two in the morning, and the admin is still working from the same screen.
+ */
+const SEATING_HOURS_AFTER_START = 12;
+
+/**
+ * Whether the desk should still be working this event.
+ *
+ * Late entry closing means the club takes no more sign-ups — not that the evening is
+ * over. Everyone who asked in time still has to be let in and sat down, and the screen
+ * that does it used to empty at the very minute the deadline passed, taking the list of
+ * who was coming with it.
+ */
+export function isEventOpenForSeating(event: TournamentEvent, now: Date) {
+  if (isUpcomingEvent(event, now)) return true;
+
+  const started = new Date(event.startsAt).getTime();
+  return now.getTime() - started < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
+}
+
 export function isUpcomingEvent(event: TournamentEvent, now: Date) {
   const deadline = new Date(event.lateEntryUntil ?? event.startsAt);
   return deadline.getTime() >= now.getTime();

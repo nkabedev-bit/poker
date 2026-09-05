@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
+  isEventOpenForSeating,
   isUpcomingEvent,
   mapEventRow,
   mapSignupRow,
@@ -126,5 +127,45 @@ describe("a poster with no VIP table", () => {
 
   it("still treats a missing limit as unset", () => {
     expect(mapEventRow({ ...row, max_vip_players: null }).maxVipPlayers).toBeNull();
+  });
+});
+
+describe("what the desk is still working", () => {
+  const event = (startsAt: string, lateEntryUntil: string | null = null) =>
+    mapEventRow({
+      id: "event-1",
+      late_entry_until: lateEntryUntil,
+      starts_at: startsAt,
+      title: "ЧЕТВЕРГОВЫЙ",
+    });
+
+  const at = (iso: string) => new Date(iso);
+
+  it("keeps the evening after the last entry has closed", () => {
+    const thursday = event("2026-09-03T16:00:00.000Z", "2026-09-03T19:00:00.000Z");
+
+    // A minute past the deadline nobody new may sign up — and everyone who did still
+    // has to be let in.
+    expect(isUpcomingEvent(thursday, at("2026-09-03T19:01:00.000Z"))).toBe(false);
+    expect(isEventOpenForSeating(thursday, at("2026-09-03T19:01:00.000Z"))).toBe(true);
+  });
+
+  it("carries a late game through the night", () => {
+    const late = event("2026-09-03T18:00:00.000Z");
+
+    expect(isEventOpenForSeating(late, at("2026-09-03T23:30:00.000Z"))).toBe(true);
+    expect(isEventOpenForSeating(late, at("2026-09-04T02:00:00.000Z"))).toBe(true);
+  });
+
+  it("lets the evening go the next morning", () => {
+    const late = event("2026-09-03T18:00:00.000Z");
+
+    expect(isEventOpenForSeating(late, at("2026-09-04T07:00:00.000Z"))).toBe(false);
+  });
+
+  it("is open for a game that has not started", () => {
+    const soon = event("2026-09-03T18:00:00.000Z");
+
+    expect(isEventOpenForSeating(soon, at("2026-09-03T12:00:00.000Z"))).toBe(true);
   });
 });

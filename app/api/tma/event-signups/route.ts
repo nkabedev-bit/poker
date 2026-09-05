@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { listEventSignups, listEvents } from "@/lib/events/store";
-import { isUpcomingEvent } from "@/lib/events/types";
+import { isEventOpenForSeating } from "@/lib/events/types";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +19,9 @@ export async function GET(request: Request) {
 
   const now = new Date();
   const published = await listEvents(auth.supabase, { publishedOnly: true });
-  const event = published.find((item) => isUpcomingEvent(item, now)) ?? null;
+  // Not "still open for sign-ups" — the desk keeps working the evening after the last
+  // entry has closed, seating everyone who asked in time.
+  const event = published.find((item) => isEventOpenForSeating(item, now)) ?? null;
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
   const signups = event ? await listEventSignups(auth.supabase, event.id) : [];
