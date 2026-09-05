@@ -82,7 +82,10 @@ export default function ClientLinkPage() {
           <span className="text-sm font-semibold text-white/75">Игровой никнейм</span>
           <input
             className={inputClass}
-            placeholder="Киберпсих"
+            // No real player's nickname stands here as an example: the nickname is the
+            // whole of what claims a profile, and one printed in the field is an
+            // invitation to take somebody else's.
+            placeholder="Ваш ник в клубе"
             value={nickname}
             onChange={(event) => setNickname(event.target.value)}
           />

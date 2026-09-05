@@ -92,7 +92,7 @@ export default function ClientOnboardingPage() {
         >
           <input
             className={inputClass}
-            placeholder="Киберпсих"
+            placeholder="Ваш игровой ник"
             value={nickname}
             onChange={(event) => setNickname(event.target.value)}
           />
