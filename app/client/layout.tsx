@@ -55,6 +55,39 @@ const TELEGRAM_WAIT_MS = 1200;
 /** The only screen a visitor with no session is allowed to reach. */
 const SIGN_IN_PATH = "/client/login";
 
+const TELEGRAM_SESSION_FLAG = "club:opened-in-telegram";
+
+/**
+ * Whether this browser is a Telegram mini-app, answered without waiting for Telegram's
+ * script.
+ *
+ * Telegram opens the app with its own parameters in the URL fragment, which is there
+ * from the first paint — the script is what reads them, not what creates them. Waiting
+ * for the script instead would put a player on a slow connection through the web
+ * sign-in screen, which is not a door they have.
+ *
+ * The fragment survives only the first screen, so the answer is kept for the rest of
+ * the visit.
+ */
+function isTelegramWebView() {
+  if (typeof window === "undefined") return false;
+  if (getClientTelegramWebApp()) return true;
+
+  try {
+    if (window.sessionStorage.getItem(TELEGRAM_SESSION_FLAG)) return true;
+
+    if (window.location.hash.includes("tgWebApp")) {
+      window.sessionStorage.setItem(TELEGRAM_SESSION_FLAG, "1");
+      return true;
+    }
+  } catch {
+    // Private windows can refuse storage; the fragment alone still answers on screen one.
+    return window.location.hash.includes("tgWebApp");
+  }
+
+  return false;
+}
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
   const [telegramUser, setTelegramUser] = useState<ClientTelegramUser | null>(null);
@@ -79,11 +112,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     const timeout = window.setTimeout(initTg, 0);
     // Outside Telegram the script never produces a WebApp at all, and the app used to
-    // sit on "Загрузка…" for good. After a moment, the web door is the answer.
-    const giveUp = window.setTimeout(
-      () => setDoor((current) => (current === "loading" ? "web" : current)),
-      TELEGRAM_WAIT_MS,
-    );
+    // sit on "Загрузка…" for good. After a moment, the web door is the answer — unless
+    // this really is Telegram and its script is merely slow, which the fragment says
+    // long before the script arrives.
+    const giveUp = window.setTimeout(() => {
+      if (isTelegramWebView()) return;
+      setDoor((current) => (current === "loading" ? "web" : current));
+    }, TELEGRAM_WAIT_MS);
 
     return () => {
       window.clearTimeout(timeout);
@@ -104,9 +139,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
     void fetch("/api/client-tma/me")
       .then((res) => {
-        if (!cancelled && (res.status === 401 || res.status === 403)) {
-          router.replace(SIGN_IN_PATH);
-        }
+        if (cancelled || (res.status !== 401 && res.status !== 403)) return;
+        // Asked again at the last moment: Telegram's script may have arrived while the
+        // request was in flight, and a player inside the mini-app has no web sign-in.
+        if (isTelegramWebView()) return;
+
+        router.replace(SIGN_IN_PATH);
       })
       .catch(() => {});
 
