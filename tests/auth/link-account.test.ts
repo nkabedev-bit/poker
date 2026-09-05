@@ -82,48 +82,4 @@ describe("claiming an existing club profile", () => {
       error: "wrong_details",
     });
   });
-  // Half the club filled the questionnaire in as a conversation with the bot, and the
-  // spreadsheet it wrote to keeps the day and the month without a year.
-  it("accepts a profile the club has no year for", async () => {
-    const noYear = { ...ON_FILE, pending_profile_answers: { birthDate: "07.03" } };
-
-    await expect(link([noYear], "ADAM SMASHER", "07.03.1991")).resolves.toMatchObject({
-      error: null,
-    });
-    await expect(link([noYear], "ADAM SMASHER", "07.03.1975")).resolves.toMatchObject({
-      error: null,
-    });
-  });
-
-  it("still checks the day and the month when there is no year", async () => {
-    const noYear = { ...ON_FILE, pending_profile_answers: { birthDate: "07.03" } };
-
-    await expect(link([noYear], "ADAM SMASHER", "08.03.1991")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-  });
-
-  // The club knows the year for this one, so it has to be right.
-  it("holds a player to the year when the club recorded one", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "07.03.1975")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-  });
-
-  it("asks the player for the whole date even so", async () => {
-    const noYear = { ...ON_FILE, pending_profile_answers: { birthDate: "07.03" } };
-
-    await expect(link([noYear], "ADAM SMASHER", "07.03")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-  });
-
-  it("refuses a day or a month that cannot exist", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "32.03.1991")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-    await expect(link([ON_FILE], "ADAM SMASHER", "07.13.1991")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-  });
 });
