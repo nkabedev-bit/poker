@@ -88,22 +88,32 @@ export function pickBirthdaysToday(accounts: BirthdayAccount[], now: Date): Birt
   );
 }
 
-/** Everyone with a birthday this month, in the order they come round. */
-export function pickBirthdaysThisMonth(accounts: BirthdayAccount[], now: Date): Birthday[] {
-  const today = moscowToday(now);
-
+/** Everyone with a birthday in one month, in the order the days come round. */
+export function pickBirthdaysInMonth(accounts: BirthdayAccount[], month: number): Birthday[] {
   return toBirthdays(accounts)
-    .filter((birthday) => birthday.month === today.month)
+    .filter((birthday) => birthday.month === month)
     .sort((a, b) => a.day - b.day || a.nickname.localeCompare(b.nickname, "ru-RU"));
 }
 
-/** Whether today is the first of a Moscow month — when the club wants its summary. */
-export function isFirstOfMonth(now: Date) {
-  return moscowToday(now).day === 1;
+/** The month after the one the club is living, December rolling into January. */
+export function moscowNextMonth(now: Date) {
+  return (moscowToday(now).month % 12) + 1;
 }
 
-export function moscowMonthName(now: Date) {
-  return MONTH_NAMES[moscowToday(now).month - 1] ?? "";
+/**
+ * The day the club wants the month ahead.
+ *
+ * The twentieth, by the admins' own choosing: far enough into the month that whoever
+ * plans the evenings still has time to arrange something for the birthdays coming.
+ */
+export const MONTH_DIGEST_DAY = 20;
+
+export function isMonthDigestDay(now: Date) {
+  return moscowToday(now).day === MONTH_DIGEST_DAY;
+}
+
+export function monthName(month: number) {
+  return MONTH_NAMES[month - 1] ?? "";
 }
 
 /** The coming birthdays, nearest first — what the /birthday command answers with. */

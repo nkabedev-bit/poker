@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { Bot } from "grammy";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
-import { moscowMonthName, pickBirthdaysThisMonth } from "@/lib/client-bot/birthdays";
+import { monthName, moscowNextMonth, pickBirthdaysInMonth } from "@/lib/client-bot/birthdays";
 import { buildMonthBirthdaysMessage } from "@/lib/admin-bot/messages";
 
 export const dynamic = "force-dynamic";
@@ -16,13 +16,14 @@ async function buildDigest() {
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { error: "Не авторизован" as const, message: "", supabase, count: 0 };
 
-  const now = new Date();
-  const birthdays = pickBirthdaysThisMonth(await readBirthdayAccounts(supabase), now);
+  // The same month the twentieth would send: the one ahead.
+  const ahead = moscowNextMonth(new Date());
+  const birthdays = pickBirthdaysInMonth(await readBirthdayAccounts(supabase), ahead);
 
   return {
     count: birthdays.length,
     error: null,
-    message: buildMonthBirthdaysMessage(birthdays, moscowMonthName(now)),
+    message: buildMonthBirthdaysMessage(birthdays, monthName(ahead)),
     supabase,
   };
 }
@@ -30,9 +31,9 @@ async function buildDigest() {
 /**
  * The month's birthdays as the admin would receive them — read, not sent.
  *
- * The summary rides the first of the month on its own, and this is for the times the
- * club wants it in the middle of one: seeing the message before it goes is the point,
- * so reading and sending are separate on purpose.
+ * The summary rides the twentieth on its own, and this is for the times the club wants
+ * it sooner: seeing the message before it goes is the point, so reading and sending are
+ * separate on purpose.
  */
 export async function GET() {
   const digest = await buildDigest();

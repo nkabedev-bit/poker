@@ -4,9 +4,10 @@ import { createClient } from "@supabase/supabase-js";
 import { getServerEnv } from "@/lib/env";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
 import {
-  isFirstOfMonth,
-  moscowMonthName,
-  pickBirthdaysThisMonth,
+  isMonthDigestDay,
+  monthName,
+  moscowNextMonth,
+  pickBirthdaysInMonth,
   pickBirthdaysToday,
 } from "@/lib/client-bot/birthdays";
 import { buildMonthBirthdaysMessage } from "@/lib/admin-bot/messages";
@@ -20,9 +21,10 @@ const BIRTHDAY_ADMIN_CHAT_ID = 384428007;
 /**
  * Runs at 21:00 UTC, which is midnight in Moscow — the club's own day, just begun.
  *
- * Two things at once, because they belong to the same moment and the same schedule:
- * whose birthday it is today, and on the first of a month, everyone whose birthday
- * falls in it. One cron entry rather than two the admin would have to set up by hand.
+ * Two things at once, because they belong to the same schedule: whose birthday it is
+ * today, and on the twentieth, everyone whose birthday falls in the month ahead — early
+ * enough that whoever plans the evenings can arrange something. One cron entry rather
+ * than two the admin would have to set up by hand.
  *
  * Dates come from the accounts now, not from the spreadsheet: a date the club can only
  * see on paper is one the app cannot act on.
@@ -70,10 +72,11 @@ export async function POST(request: Request) {
     await send(`Сегодня День Рождения игроку (${birthday.nickname})`);
   }
 
-  // The month's summary, on the day the month starts.
-  const monthly = isFirstOfMonth(now) ? pickBirthdaysThisMonth(accounts, now) : [];
-  if (isFirstOfMonth(now)) {
-    await send(buildMonthBirthdaysMessage(monthly, moscowMonthName(now)));
+  // The month ahead, sent while there is still time to plan for it.
+  const ahead = moscowNextMonth(now);
+  const monthly = isMonthDigestDay(now) ? pickBirthdaysInMonth(accounts, ahead) : [];
+  if (isMonthDigestDay(now)) {
+    await send(buildMonthBirthdaysMessage(monthly, monthName(ahead)));
   }
 
   return NextResponse.json({

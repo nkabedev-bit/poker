@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  isFirstOfMonth,
-  moscowMonthName,
-  pickBirthdaysThisMonth,
+  isMonthDigestDay,
+  monthName,
+  moscowNextMonth,
+  pickBirthdaysInMonth,
   pickBirthdaysToday,
   pickUpcomingBirthdaysFromAccounts,
   readBirthDay,
@@ -59,27 +60,38 @@ describe("whose birthday it is today", () => {
   });
 });
 
-describe("the month's summary", () => {
+describe("the month ahead", () => {
   const roster = [
-    account("Поздний", "28.09"),
-    account("Ранний", "03.09.1988"),
-    account("Другой месяц", "03.10"),
+    account("Поздний", "28.10"),
+    account("Ранний", "03.10.1988"),
+    account("Этот месяц", "03.09"),
   ];
 
   it("lists the month in the order the days come round", () => {
-    const found = pickBirthdaysThisMonth(roster, at("2026-09-05T12:00:00.000Z"));
+    const found = pickBirthdaysInMonth(roster, 10);
 
     expect(found.map((birthday) => birthday.nickname)).toEqual(["Ранний", "Поздний"]);
-    expect(found[0].date).toBe("03.09");
+    expect(found[0].date).toBe("03.10");
   });
 
-  it("knows the first of a Moscow month", () => {
-    expect(isFirstOfMonth(at("2026-08-31T21:30:00.000Z"))).toBe(true);
-    expect(isFirstOfMonth(at("2026-08-31T20:30:00.000Z"))).toBe(false);
+  // Sent on the twentieth of September, the list is October's.
+  it("looks at the month after the club's own", () => {
+    expect(moscowNextMonth(at("2026-09-20T12:00:00.000Z"))).toBe(10);
   });
 
-  it("names the month the club is in", () => {
-    expect(moscowMonthName(at("2026-08-31T21:30:00.000Z"))).toBe("сентябрь");
+  it("rolls December into January", () => {
+    expect(moscowNextMonth(at("2026-12-20T12:00:00.000Z"))).toBe(1);
+  });
+
+  it("knows the twentieth of a Moscow month", () => {
+    expect(isMonthDigestDay(at("2026-09-19T21:30:00.000Z"))).toBe(true);
+    expect(isMonthDigestDay(at("2026-09-19T20:30:00.000Z"))).toBe(false);
+    expect(isMonthDigestDay(at("2026-09-20T12:00:00.000Z"))).toBe(true);
+  });
+
+  it("names a month", () => {
+    expect(monthName(10)).toBe("октябрь");
+    expect(monthName(1)).toBe("январь");
   });
 });
 
