@@ -29,8 +29,8 @@ describe("achievements", () => {
   });
 
   it("counts top-3 finishes apart from the final table", () => {
-    expect(badge({ top3: 3 }, "in-rhythm")?.earned).toBe(true);
-    expect(badge({ top3: 3 }, "real-rival")).toMatchObject({ earned: false, goal: 10, value: 3 });
+    expect(badge({ top3: 5 }, "in-rhythm")?.earned).toBe(true);
+    expect(badge({ top3: 5 }, "real-rival")).toMatchObject({ earned: false, goal: 10, value: 5 });
   });
 
   it("counts wins, up to the club's own face", () => {
@@ -48,7 +48,7 @@ describe("achievements", () => {
     expect(badge({ lastPlace: 1 }, "early-flight")?.earned).toBe(true);
   });
 
-  // 11 knockouts in one tournament clear the 5 and the 10, but not the 15.
+  // 11 knockouts in one tournament clear the 5 and the 8, but not the 12.
   it("earns every knockout badge whose goal the best tournament passed", () => {
     const earned = achievementsFor({ bestTournamentBounty: 11 })
       .filter((item) => item.earned)
@@ -62,8 +62,8 @@ describe("achievements", () => {
 
     expect(badge(stats, "precise-aim")?.earned).toBe(true);
     expect(badge(stats, "table-storm")?.earned).toBe(true);
-    // 15 knockouts in one tournament is still ahead.
-    expect(badge(stats, "butcher")).toMatchObject({ earned: false, goal: 15, value: 10.5 });
+    // 12 knockouts in one tournament is still ahead.
+    expect(badge(stats, "butcher")).toMatchObject({ earned: false, goal: 12, value: 10.5 });
   });
 
   it("reads the longest run of final tables, not the current one", () => {

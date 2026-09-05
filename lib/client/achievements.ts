@@ -82,10 +82,10 @@ const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] 
   {
     title: "Попадания в топ-3",
     items: [
-      { description: "3 раза", goal: 3, icon: "dumbbell", id: "in-rhythm", metric: "top3", title: "Поймал ритм" },
+      { description: "5 раз", goal: 5, icon: "dumbbell", id: "in-rhythm", metric: "top3", title: "Поймал ритм" },
       { description: "10 раз", goal: 10, icon: "medal", id: "real-rival", metric: "top3", title: "Серьёзный соперник" },
-      { description: "25 раз", goal: 25, icon: "star", id: "experienced", metric: "top3", title: "На опыте" },
-      { description: "50 раз", goal: 50, icon: "sun", id: "elite", metric: "top3", title: "Элита" },
+      { description: "15 раз", goal: 15, icon: "star", id: "experienced", metric: "top3", title: "На опыте" },
+      { description: "20 раз", goal: 20, icon: "sun", id: "elite", metric: "top3", title: "Элита" },
     ],
   },
   {
@@ -102,8 +102,8 @@ const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] 
     items: [
       { description: "Последнее место", goal: 1, icon: "briefcase", id: "early-flight", metric: "lastPlace", title: "Ранний рейс" },
       { description: "5 баунти за турнир", goal: 5, icon: "target", id: "precise-aim", metric: "bestTournamentBounty", title: "Точный прицел" },
-      { description: "10 баунти за турнир", goal: 10, icon: "zap", id: "table-storm", metric: "bestTournamentBounty", title: "Шторм за столом" },
-      { description: "15 баунти за турнир", goal: 15, icon: "heart", id: "butcher", metric: "bestTournamentBounty", title: "Мясник" },
+      { description: "8 баунти за турнир", goal: 8, icon: "zap", id: "table-storm", metric: "bestTournamentBounty", title: "Шторм за столом" },
+      { description: "12 баунти за турнир", goal: 12, icon: "heart", id: "butcher", metric: "bestTournamentBounty", title: "Мясник" },
     ],
   },
   {
