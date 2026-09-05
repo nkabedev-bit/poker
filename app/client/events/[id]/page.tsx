@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
-import { getClientTelegramWebApp, useClientTMA } from "../../layout";
+import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import {
   Badge,
@@ -233,7 +233,7 @@ export default function ClientEventPage() {
         // goes back on sale — said out loud, because it is their own ticket being let go.
         const released = answer?.releasedTicket as HeldTicket | null | undefined;
         if (released) {
-          tg?.showAlert(
+          showClientAlert(
             released === "duo"
               ? "Ваш билет 1+1 отменён, место вернулось в продажу. Напарнику мы сообщили."
               : `Ваш билет «${TICKET_TITLES[released]}» отменён, место вернулось в продажу.`,
@@ -244,9 +244,9 @@ export default function ClientEventPage() {
 
       const data = await res.json().catch(() => null);
       tg?.HapticFeedback?.notificationOccurred("error");
-      tg?.showAlert(data?.message ?? "Не удалось ответить на приглашение.");
+      showClientAlert(data?.message ?? "Не удалось ответить на приглашение.");
     } catch {
-      tg?.showAlert("Нет связи с сервером. Попробуйте ещё раз.");
+      showClientAlert("Нет связи с сервером. Попробуйте ещё раз.");
     } finally {
       setAnswering(false);
     }
@@ -282,9 +282,9 @@ export default function ClientEventPage() {
         return;
       }
 
-      tg?.showAlert(data?.message ?? "Не удалось сохранить запись. Попробуйте ещё раз.");
+      showClientAlert(data?.message ?? "Не удалось сохранить запись. Попробуйте ещё раз.");
     } catch {
-      tg?.showAlert("Нет связи с сервером. Попробуйте ещё раз.");
+      showClientAlert("Нет связи с сервером. Попробуйте ещё раз.");
     } finally {
       setSubmitting(false);
     }

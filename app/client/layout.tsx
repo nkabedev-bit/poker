@@ -37,6 +37,25 @@ export function getClientTelegramWebApp(): ClientTelegramWebApp | undefined {
   return (window as unknown as { Telegram?: { WebApp?: ClientTelegramWebApp } }).Telegram?.WebApp;
 }
 
+/**
+ * Says something the player has to read.
+ *
+ * Telegram draws its own dialog, and the app used to call for it directly — which meant
+ * that on the web, where there is no Telegram, every "мест не осталось" and "нет связи"
+ * was thrown at a function that does not exist and vanished. The button simply stopped
+ * spinning and the player was left guessing.
+ */
+export function showClientAlert(message: string) {
+  const tg = getClientTelegramWebApp();
+
+  if (tg?.showAlert) {
+    tg.showAlert(message);
+    return;
+  }
+
+  window.alert(message);
+}
+
 export const ClientTMAContext = createContext<{ initData: string; telegramUser: ClientTelegramUser | null }>({
   initData: "",
   telegramUser: null,

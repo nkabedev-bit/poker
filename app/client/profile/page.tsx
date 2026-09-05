@@ -14,7 +14,7 @@ import {
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { getClientTelegramWebApp, useClientTMA } from "../layout";
+import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { pickPlayerPhoto } from "@/lib/players/photo";
@@ -114,14 +114,14 @@ export default function ClientProfilePage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        tg?.showAlert(data?.error ?? "Не удалось сохранить фото");
+        showClientAlert(data?.error ?? "Не удалось сохранить фото");
         return;
       }
 
       tg?.HapticFeedback?.notificationOccurred("success");
       await load();
     } catch {
-      tg?.showAlert("Не удалось прочитать файл");
+      showClientAlert("Не удалось прочитать файл");
     } finally {
       setAvatarBusy(false);
     }
