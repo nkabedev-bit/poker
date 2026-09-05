@@ -220,8 +220,20 @@ export default function ClientEventPage() {
       });
 
       if (res.ok) {
+        const answer = await res.json().catch(() => null);
         tg?.HapticFeedback?.notificationOccurred("success");
         await load();
+
+        // Coming as somebody's +1 replaces whatever this player had bought, and the seat
+        // goes back on sale — said out loud, because it is their own ticket being let go.
+        const released = answer?.releasedTicket as HeldTicket | null | undefined;
+        if (released) {
+          tg?.showAlert(
+            released === "duo"
+              ? "Ваш билет 1+1 отменён, место вернулось в продажу. Напарнику мы сообщили."
+              : `Ваш билет «${TICKET_TITLES[released]}» отменён, место вернулось в продажу.`,
+          );
+        }
         return;
       }
 
