@@ -57,15 +57,22 @@ async function grantMysteryBountyPass(
   players: TournamentPlayer[],
   vip: boolean,
 ): Promise<MysteryPassResult> {
-  const telegramId = players.find((player) => player.id === killer.id)?.telegramId ?? null;
+  const seat = players.find((player) => player.id === killer.id);
+  // The account behind the seat, whichever door its owner came through. A player the
+  // admin added by hand has neither, and the pass is handed over at the table.
+  const by = seat?.accountId
+    ? { column: "id", value: seat.accountId as string | number }
+    : seat?.telegramId
+      ? { column: "telegram_id", value: seat.telegramId as string | number }
+      : null;
   const column = vip ? "vip_free_entries" : "free_entries";
   let granted = false;
 
-  if (telegramId) {
+  if (by) {
     const { data: account } = await supabase
       .from("client_bot_users")
       .select(column)
-      .eq("telegram_id", telegramId)
+      .eq(by.column, by.value)
       .maybeSingle();
 
     if (account) {
@@ -73,7 +80,7 @@ async function grantMysteryBountyPass(
       const { error } = await supabase
         .from("client_bot_users")
         .update({ [column]: held + 1 })
-        .eq("telegram_id", telegramId);
+        .eq(by.column, by.value);
 
       if (error) console.error("Failed to grant the mystery bounty pass", error);
       else granted = true;

@@ -106,20 +106,25 @@ export async function POST(request: Request) {
     );
   }
 
-  // The free entry goes to the winner's profile, which only exists for a player whose
-  // nickname is linked to their Telegram account.
-  if (raffle.kind === "regular" && winner.telegramId) {
+  // The free entry goes to the winner's profile, which exists for anyone seated from a
+  // sign-up — through the bot or through the web. A player the admin added by hand has
+  // no account behind the seat, and the pass is handed over at the table instead.
+  if (raffle.kind === "regular" && (winner.accountId || winner.telegramId)) {
+    const byAccount = winner.accountId
+      ? { column: "id", value: winner.accountId as string | number }
+      : { column: "telegram_id", value: winner.telegramId as string | number };
+
     const { data: account } = await auth.supabase
       .from("client_bot_users")
       .select("free_entries")
-      .eq("telegram_id", winner.telegramId)
+      .eq(byAccount.column, byAccount.value)
       .maybeSingle();
 
     if (account) {
       const { error: grantError } = await auth.supabase
         .from("client_bot_users")
         .update({ free_entries: Math.max(0, Number(account.free_entries ?? 0)) + 1 })
-        .eq("telegram_id", winner.telegramId);
+        .eq(byAccount.column, byAccount.value);
 
       if (grantError) {
         console.error("Failed to grant the raffle pass", grantError);

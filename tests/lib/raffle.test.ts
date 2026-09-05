@@ -51,9 +51,28 @@ describe("listRaffleEntrants", () => {
   });
 
   it("carries the account the prize will go to", () => {
-    const [entrant] = listRaffleEntrants([player(2, { telegramId: 555 })], "regular");
+    const [entrant] = listRaffleEntrants(
+      [player(2, { accountId: "account-1", telegramId: 555 })],
+      "regular",
+    );
 
-    expect(entrant).toEqual({ name: "Игрок 2", number: 2, telegramId: 555 });
+    expect(entrant).toEqual({
+      accountId: "account-1",
+      name: "Игрок 2",
+      number: 2,
+      telegramId: 555,
+    });
+  });
+
+  // A player who signed in on the web has no Telegram id, and the account is the only
+  // thing their free entry can be credited to.
+  it("carries the account of a player who has no Telegram", () => {
+    const [entrant] = listRaffleEntrants(
+      [player(2, { accountId: "account-web", telegramId: null })],
+      "regular",
+    );
+
+    expect(entrant).toMatchObject({ accountId: "account-web", telegramId: null });
   });
 });
 

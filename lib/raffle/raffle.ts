@@ -7,6 +7,8 @@ export type RaffleKind = "regular" | "vip";
 export type RafflePrize = "granted" | "manual" | "none";
 
 export type RaffleEntrant = {
+  /** The club account behind the seat, which is what a prize is credited to. */
+  accountId: string | null;
   name: string;
   number: number;
   telegramId: number | null;
@@ -35,7 +37,9 @@ export const RAFFLE_SPIN_SECONDS = 10;
  * the registration number — 21 to 30 is the VIP range.
  */
 export function listRaffleEntrants(
-  players: Array<Pick<TournamentPlayer, "name" | "registrationNumber" | "telegramId">>,
+  players: Array<
+    Pick<TournamentPlayer, "accountId" | "name" | "registrationNumber" | "telegramId">
+  >,
   kind: RaffleKind,
 ): RaffleEntrant[] {
   return players
@@ -46,6 +50,7 @@ export function listRaffleEntrants(
       return isVipRegistrationNumber(number) === (kind === "vip");
     })
     .map((player) => ({
+      accountId: player.accountId ?? null,
       name: player.name,
       number: Number(player.registrationNumber),
       telegramId: player.telegramId ?? null,
