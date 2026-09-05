@@ -13,73 +13,50 @@ function supabaseWith(matches: unknown[]) {
   return { from: vi.fn(() => chain) } as never;
 }
 
-const ON_FILE = {
-  id: "account-old",
-  pending_profile_answers: { birthDate: "07.03.1991" },
-  yandex_id: null,
-};
+const ON_FILE = { id: "account-old", yandex_id: null };
 
-function link(matches: unknown[], nickname: string, birthDate: string) {
+function link(matches: unknown[], nickname: string) {
   return linkExistingAccount(supabaseWith(matches), {
-    birthDate,
     newAccountId: "account-new",
     nickname,
   });
 }
 
 describe("claiming an existing club profile", () => {
-  it("hands over the profile when the nickname and the birth date agree", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "07.03.1991")).resolves.toEqual({
+  it("hands over the profile the nickname belongs to", async () => {
+    await expect(link([ON_FILE], "ADAM SMASHER")).resolves.toEqual({
       account: { id: "account-old" },
       error: null,
     });
   });
 
-  // The nickname is on the public rating for anyone to read, so it cannot be the proof.
-  it("refuses the right nickname with the wrong birth date", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "08.03.1991")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
-  });
-
-  it("reads a date typed without leading zeros as the same day", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "7.3.1991")).resolves.toMatchObject({
-      error: null,
-    });
+  // The club writes a nickname as it pleases, and the key is what matches it.
+  it("finds the profile however the nickname was typed", async () => {
+    await expect(link([ON_FILE], "adam_smasher")).resolves.toMatchObject({ error: null });
+    await expect(link([ON_FILE], "  AdamSmasher ")).resolves.toMatchObject({ error: null });
   });
 
   it("refuses a nickname the club does not know", async () => {
-    await expect(link([], "Nobody", "07.03.1991")).resolves.toMatchObject({
-      error: "not_found",
-    });
+    await expect(link([], "Nobody")).resolves.toMatchObject({ error: "not_found" });
   });
 
-  // Two profiles under one nickname cannot be told apart by it, and guessing would hand
-  // somebody a history that is not theirs.
+  it("refuses an empty nickname without asking the database", async () => {
+    await expect(link([ON_FILE], "   ")).resolves.toMatchObject({ error: "not_found" });
+  });
+
+  // Two profiles under one nickname cannot be told apart by it, and handing over the
+  // wrong history is worse than handing over none.
   it("refuses a nickname two profiles share", async () => {
     const twin = { ...ON_FILE, id: "account-twin" };
 
-    await expect(link([ON_FILE, twin], "ADAM SMASHER", "07.03.1991")).resolves.toMatchObject({
+    await expect(link([ON_FILE, twin], "ADAM SMASHER")).resolves.toMatchObject({
       error: "not_found",
     });
   });
 
   it("refuses a profile already claimed by another Yandex account", async () => {
     await expect(
-      link([{ ...ON_FILE, yandex_id: "yandex-1" }], "ADAM SMASHER", "07.03.1991"),
+      link([{ ...ON_FILE, yandex_id: "yandex-1" }], "ADAM SMASHER"),
     ).resolves.toMatchObject({ error: "already_linked" });
-  });
-
-  // Profiles from before the questionnaire moved into the app have no date to check.
-  it("sends a profile with no birth date on file to the admin", async () => {
-    await expect(
-      link([{ ...ON_FILE, pending_profile_answers: null }], "ADAM SMASHER", "07.03.1991"),
-    ).resolves.toMatchObject({ error: "no_birth_date" });
-  });
-
-  it("refuses a date that is not one", async () => {
-    await expect(link([ON_FILE], "ADAM SMASHER", "вчера")).resolves.toMatchObject({
-      error: "wrong_details",
-    });
   });
 });

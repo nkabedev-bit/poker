@@ -12,10 +12,7 @@ export const dynamic = "force-dynamic";
 
 const MESSAGES = {
   already_linked: "Этот профиль уже привязан к другому аккаунту Яндекса. Напишите в поддержку.",
-  no_birth_date:
-    "В вашей анкете не записана дата рождения — привязать профиль может только администратор.",
   not_found: "Не нашли профиль с таким ником. Проверьте написание или заполните анкету заново.",
-  wrong_details: "Ник и дата рождения не совпали. Проверьте ещё раз.",
 } as const;
 
 /**
@@ -51,7 +48,6 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const outcome = await linkExistingAccount(auth.supabase, {
-    birthDate: String(body.birthDate ?? ""),
     newAccountId: auth.user.id,
     nickname: String(body.nickname ?? ""),
   });

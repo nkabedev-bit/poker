@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { GhostButton, GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
-import { maskBirthDateInput } from "@/lib/client-bot/registration";
 
 const inputClass =
   "w-full rounded-2xl border border-white/[0.07] bg-black/30 px-4 py-3.5 text-[15px] text-white placeholder:text-white/25 outline-none focus:border-[#c8163f]";
@@ -12,16 +11,14 @@ const inputClass =
  * The fork a web player meets the first time they sign in.
  *
  * Somebody the club already knows keeps their games, their rating and their free
- * entries, so they are asked for the nickname those are stored under. The date of birth
- * beside it is what makes the claim theirs: a nickname is on the public rating for
- * anyone to read, and a profile is worth taking.
+ * entries, so they are asked for the nickname those are stored under — and nothing
+ * else, by the club owner's decision.
  */
 export default function ClientLinkPage() {
   const router = useRouter();
 
   const [played, setPlayed] = useState<boolean | null>(null);
   const [nickname, setNickname] = useState("");
-  const [birthDate, setBirthDate] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,7 +30,7 @@ export default function ClientLinkPage() {
       const res = await fetch("/api/auth/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ birthDate, nickname }),
+        body: JSON.stringify({ nickname }),
       });
 
       if (res.ok) {
@@ -75,8 +72,8 @@ export default function ClientLinkPage() {
       <div className="space-y-1.5">
         <PageTitle>Найдём ваш профиль</PageTitle>
         <p className="text-sm text-white/45">
-          Ник — тот, под которым вы играете в клубе. Дата рождения — из анкеты, которую
-          вы заполняли.
+          Введите ник, под которым вы играете в клубе — к нему привяжется вся ваша
+          история.
         </p>
       </div>
 
@@ -90,18 +87,6 @@ export default function ClientLinkPage() {
             onChange={(event) => setNickname(event.target.value)}
           />
         </label>
-
-        <label className="block space-y-2">
-          <span className="text-sm font-semibold text-white/75">Дата рождения</span>
-          <input
-            className={inputClass}
-            inputMode="numeric"
-            maxLength={10}
-            placeholder="ДД.ММ.ГГГГ"
-            value={birthDate}
-            onChange={(event) => setBirthDate(maskBirthDateInput(event.target.value))}
-          />
-        </label>
       </GlassCard>
 
       {error ? (
@@ -111,11 +96,7 @@ export default function ClientLinkPage() {
       ) : null}
 
       <div className="space-y-3">
-        <PrimaryButton
-          disabled={!nickname.trim() || birthDate.length < 10}
-          loading={submitting}
-          onClick={submit}
-        >
+        <PrimaryButton disabled={!nickname.trim()} loading={submitting} onClick={submit}>
           Это мой профиль
         </PrimaryButton>
 
