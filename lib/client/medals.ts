@@ -53,6 +53,63 @@ export function getMedals(counts: Partial<Record<string, unknown>> | null | unde
   }));
 }
 
+export function isMedalKey(value: unknown): value is MedalKey {
+  return MEDAL_KEYS.includes(value as MedalKey);
+}
+
+/**
+ * Which medal winning this tournament is worth.
+ *
+ * The type the admin picked wins; a tournament set up by hand falls back to what its
+ * format and bounty mode say. A combination that is none of the seven club tournaments
+ * — Dealer Revenge, say — is worth no medal, and says so.
+ */
+export function resolveMedalKey(settings: {
+  bountyType?: string | null;
+  isBounty?: boolean | null;
+  tournamentFormat?: string | null;
+  tournamentPreset?: string | null;
+}): MedalKey | null {
+  const preset = settings.tournamentPreset?.trim();
+  if (preset) return isMedalKey(preset) ? preset : null;
+
+  const format = settings.tournamentFormat?.trim() || "regular";
+  if (isMedalKey(format) && format !== "bounty") return format;
+
+  if (!settings.isBounty) return null;
+
+  const bounty = settings.bountyType;
+  if (bounty === "standard") return "bounty";
+
+  return bounty === "progressive" || bounty === "mystery" ? bounty : null;
+}
+
+/**
+ * The medals a player holds: the club's own record of what they won before the app
+ * counted anything, plus every first place the results themselves know about.
+ *
+ * Counting the second half from the results rather than tallying it at finish time is
+ * what lets a game deleted in the admin take its medal with it.
+ */
+export function mergeMedalCounts(
+  historical: Partial<Record<string, unknown>> | null | undefined,
+  fromResults: Partial<Record<string, number>>,
+): Record<string, number> {
+  const total: Record<string, number> = {};
+
+  for (const key of MEDAL_KEYS) {
+    const base = Math.floor(Number(historical?.[key] ?? 0));
+    const earned = Math.floor(Number(fromResults[key] ?? 0));
+    const count =
+      (Number.isFinite(base) && base > 0 ? base : 0) +
+      (Number.isFinite(earned) && earned > 0 ? earned : 0);
+
+    if (count > 0) total[key] = count;
+  }
+
+  return total;
+}
+
 // How many of the seven the player has taken at least once — the header counter.
 export function countEarnedMedals(medals: Medal[]) {
   return medals.filter((medal) => medal.count > 0).length;

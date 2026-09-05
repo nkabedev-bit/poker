@@ -4,9 +4,11 @@ import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { countMedalsFromResults } from "@/lib/players/medal-counts";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
+import { mergeMedalCounts } from "@/lib/client/medals";
 
 export const dynamic = "force-dynamic";
 
@@ -81,6 +83,16 @@ export async function GET(request: Request) {
     label: getPersistedPlayerLabel(context?.extras.playerLabels, auth.user.display_name),
   });
 
+  // What the club recorded before any of this was counted, plus every first place the
+  // results themselves know about.
+  const medals = mergeMedalCounts(
+    achievementStats?.medals,
+    await countMedalsFromResults(auth.supabase, {
+      nickname: auth.user.display_name ?? "",
+      telegramId: auth.user.telegram_id,
+    }),
+  );
+
   const history = await getUserSignupsWithEvents(auth.supabase, auth.user.id);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
     (split, item) => {
@@ -134,7 +146,7 @@ export async function GET(request: Request) {
       wins: stats.wins,
     },
     // One counter per tournament type the player has won; the medals screen reads it.
-    medals: achievementStats?.medals ?? {},
+    medals,
     tier,
     tablesCount,
     username: auth.user.username,

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildTournamentResultRows } from "@/lib/results/tournament-results";
 import { getOpenSeason } from "@/lib/seasons/store";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
+import { resolveMedalKey } from "@/lib/client/medals";
 
 /**
  * Resolves what the game was called. A published poster for the same day gives the
@@ -76,9 +77,14 @@ export async function saveTournamentResults({
     (tournament as { name?: string } | null)?.name || "Турнир",
   );
 
+  // Which of the club's tournaments this was, written on every row of it: a first place
+  // here is the medal, and deleting the game takes the medal with it.
+  const medalKey = resolveMedalKey(extras.settings);
+
   const { error } = await supabase.from("tournament_results").upsert(
     rows.map((row) => ({
       event_id: eventId,
+      medal_key: medalKey,
       knockouts: row.knockouts,
       place: row.place,
       played_on: startedAt.toISOString().slice(0, 10),
@@ -93,6 +99,31 @@ export async function saveTournamentResults({
     })),
     { onConflict: "started_at,player_name" },
   );
+
+  if (error && String(error.message ?? "").includes("medal_key")) {
+    console.warn("Migration 202609050010 is not applied; storing results without the medal");
+
+    const { error: legacyError } = await supabase.from("tournament_results").upsert(
+      rows.map((row) => ({
+        event_id: eventId,
+        knockouts: row.knockouts,
+        place: row.place,
+        played_on: startedAt.toISOString().slice(0, 10),
+        season_id: season?.id ?? null,
+        player_name: row.playerName,
+        points: row.points,
+        source: "app",
+        started_at: startedAt.toISOString(),
+        telegram_id: row.telegramId,
+        title,
+        tournament_id: tournamentId,
+      })),
+      { onConflict: "started_at,player_name" },
+    );
+
+    if (legacyError) throw legacyError;
+    return { saved: rows.length };
+  }
 
   if (error) throw error;
 
