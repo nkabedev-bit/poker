@@ -979,6 +979,38 @@ export async function syncFinanceSheet(
   return { playerCount: players.length, sheetName };
 }
 
+/**
+ * Rewrites the money tab alone.
+ *
+ * Ticking a player off as paid changes nothing on the tournament sheet, so the desk
+ * pays for one write instead of the four a full sync costs — the admin marks a whole
+ * room off at the break, and the club's quota is sixty writes a minute.
+ *
+ * A finished game whose roster has been wiped is left to the full sync: the money is
+ * rebuilt there from the last elimination log, which this shortcut does not read.
+ */
+export async function syncFinanceSheetForTournament(
+  supabase: SupabaseClient,
+  tournamentId: string,
+) {
+  if (!process.env.GOOGLE_FINANCE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
+
+  const { data } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournamentId)
+    .maybeSingle();
+
+  const extras = mergeTournamentExtras(data?.data);
+  if (extras.players.length === 0) return null;
+
+  const sheetName = getEliminationSheetName(
+    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
+  );
+
+  return syncFinanceSheet(sheetName, extras.players, extras.settings);
+}
+
 // ---------------------------------------------------------------------------
 // "Проходки": the club's ledger of the passes players win — one tab in the finance
 // spreadsheet, a line per prize, so the owner can see who won a pass and where.

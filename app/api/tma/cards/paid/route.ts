@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { syncFinanceSheetForTournament } from "@/lib/google-sheets";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { buildCardSession, normalizeCardCode } from "@/lib/cards/card-code";
@@ -55,6 +56,16 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  // The money tab carries an "Оплатил" column, so the tick has to reach it — and only
+  // it: nothing else on the sheets changes when a player settles up.
+  after(async () => {
+    try {
+      await syncFinanceSheetForTournament(auth.supabase, t.id);
+    } catch (sheetError) {
+      console.error("Non-critical finance sheet sync error after a payment:", sheetError);
+    }
+  });
 
   return NextResponse.json({ session: buildCardSession(data, cardCode, prices, { freeroll }) });
 }
