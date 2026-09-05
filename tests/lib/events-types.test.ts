@@ -150,17 +150,19 @@ describe("what the desk is still working", () => {
     expect(isEventOpenForSeating(thursday, at("2026-09-03T19:01:00.000Z"))).toBe(true);
   });
 
-  it("carries a late game through the night", () => {
-    const late = event("2026-09-03T18:00:00.000Z");
+  it("keeps a seven o'clock game through the evening", () => {
+    const evening = event("2026-09-03T16:00:00.000Z");
 
-    expect(isEventOpenForSeating(late, at("2026-09-03T23:30:00.000Z"))).toBe(true);
-    expect(isEventOpenForSeating(late, at("2026-09-04T02:00:00.000Z"))).toBe(true);
+    expect(isEventOpenForSeating(evening, at("2026-09-03T20:00:00.000Z"))).toBe(true);
+    expect(isEventOpenForSeating(evening, at("2026-09-03T21:30:00.000Z"))).toBe(true);
   });
 
-  it("lets the evening go the next morning", () => {
-    const late = event("2026-09-03T18:00:00.000Z");
+  // Six hours after a game begins at seven, it is one in the morning and the evening
+  // is over.
+  it("lets the evening go six hours after it started", () => {
+    const evening = event("2026-09-03T16:00:00.000Z");
 
-    expect(isEventOpenForSeating(late, at("2026-09-04T07:00:00.000Z"))).toBe(false);
+    expect(isEventOpenForSeating(evening, at("2026-09-03T22:01:00.000Z"))).toBe(false);
   });
 
   it("is open for a game that has not started", () => {

@@ -203,10 +203,10 @@ export function formatEventWeekdayLabel(iso: string) {
 /**
  * How long the desk keeps seating players after a game has started.
  *
- * Long enough to cover the night: a tournament that begins at 21:00 is still being
- * played at two in the morning, and the admin is still working from the same screen.
+ * Long enough that latecomers to a seven o'clock game are still let in, and short
+ * enough that the evening is off the screen by the small hours.
  */
-const SEATING_HOURS_AFTER_START = 12;
+const SEATING_HOURS_AFTER_START = 6;
 
 /**
  * Whether the desk should still be working this event.
