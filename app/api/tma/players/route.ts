@@ -112,9 +112,9 @@ export async function POST(request: Request) {
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
 
-  // A walk-in typed by hand still owns an account and a history. Games, knockouts and
-  // final tables are credited by Telegram id, so without this lookup everything the
-  // player does tonight would be counted for nobody.
+  // A walk-in typed by hand still owns an account and a history. Tonight is credited to
+  // that account, so without this lookup everything the player does would be counted for
+  // nobody — and a player who signed in on the web has no Telegram id to fall back on.
   const match = await findClientBotUserByNickname(auth.supabase, String(name));
 
   const newPlayer = {
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
     finishPlace: null,
     registeredVia: "admin" as const,
     ...(duoTicket ? { duoTicket } : {}),
-    ...(match.user ? { telegramId: match.user.telegramId } : {}),
+    ...(match.user ? { accountId: match.user.id, telegramId: match.user.telegramId } : {}),
   };
 
   try {

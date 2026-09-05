@@ -561,7 +561,7 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   const { data: current } = await supabase
     .from("client_bot_users")
     .select(column)
-    .eq("telegram_id", match.user.telegramId)
+    .eq("id", match.user.id)
     .maybeSingle();
 
   const held = Number((current as Record<string, number> | null)?.[column] ?? 0);
@@ -571,7 +571,7 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   const { error } = await supabase
     .from("client_bot_users")
     .update({ [column]: next })
-    .eq("telegram_id", match.user.telegramId);
+    .eq("id", match.user.id);
 
   if (error) {
     console.error("Failed to change free entries", error);
