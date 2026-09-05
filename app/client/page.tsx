@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarDays, ClipboardList, LifeBuoy, MapPin, Spade } from "lucide-react";
+import { CalendarDays, ClipboardList, LifeBuoy, MapPin, Megaphone, Spade } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "./layout";
 import { GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_components/ui";
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
 import { pickPlayerPhoto } from "@/lib/players/photo";
+import { formatUnreadBadge, type Announcement } from "@/lib/client/announcements";
 
 type EventsResponse = {
   events: EventCardData[];
@@ -22,6 +23,8 @@ type EventsResponse = {
 };
 
 type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
+
+type AnnouncementsResponse = { announcements: Announcement[]; unread: number };
 
 const SUPPORT_TELEGRAM_URL = "https://t.me/markvasilyevv";
 
@@ -43,17 +46,22 @@ export default function ClientHomePage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<EventsResponse | null>(null);
   const [rating, setRating] = useState<RatingResponse | null>(null);
+  const [news, setNews] = useState<AnnouncementsResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     try {
-      const [eventsRes, ratingRes] = await Promise.all([
+      const [eventsRes, ratingRes, newsRes] = await Promise.all([
         fetch("/api/client-tma/events", { headers: { "X-Telegram-Init-Data": initData } }),
         fetch("/api/client-tma/rating", { headers: { "X-Telegram-Init-Data": initData } }),
+        fetch("/api/client-tma/announcements", {
+          headers: { "X-Telegram-Init-Data": initData },
+        }),
       ]);
 
       if (eventsRes.ok) setData(await eventsRes.json());
       if (ratingRes.ok) setRating(await ratingRes.json());
+      if (newsRes.ok) setNews(await newsRes.json());
     } finally {
       setLoading(false);
     }
@@ -106,6 +114,27 @@ export default function ClientHomePage() {
             <PrimaryButton>Заполнить анкету</PrimaryButton>
           </Link>
         </GlassCard>
+      ) : null}
+
+      {news?.announcements[0] ? (
+        <Link className="block transition-transform active:scale-[0.98]" href="/client/news">
+          <GlassCard className="space-y-2">
+            <div className="flex items-center gap-2">
+              <Megaphone className="text-[#e9c07a]" size={15} />
+              <span className="text-[12px] font-semibold uppercase tracking-wider text-white/45">
+                Объявление клуба
+              </span>
+              {news.unread > 0 ? (
+                <span className="ml-auto rounded-full bg-[#c8163f] px-2 py-0.5 text-[11px] font-bold text-white">
+                  {formatUnreadBadge(news.unread)}
+                </span>
+              ) : null}
+            </div>
+            <p className="line-clamp-3 whitespace-pre-wrap text-[15px] leading-relaxed text-white/85">
+              {news.announcements[0].message}
+            </p>
+          </GlassCard>
+        </Link>
       ) : null}
 
       {nextEvent ? (

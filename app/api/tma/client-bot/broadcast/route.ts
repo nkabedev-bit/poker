@@ -2,6 +2,7 @@ import { Bot, InputFile } from "grammy";
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { getClientBot } from "@/lib/client-bot/broadcast";
+import { recordClubAnnouncement } from "@/lib/client-bot/announcement-log";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -74,9 +75,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ scheduled: true, id: data.id, sendAt: sendAt.toISOString() });
   }
 
+  // Only the accounts the bot can write to. A web player has no chat, and counting
+  // them as failures told the admin a broadcast half failed when it did not.
   const { data: users, error } = await auth.supabase
     .from("client_bot_users")
     .select("chat_id")
+    .not("chat_id", "is", null)
     .order("created_at", { ascending: true });
 
   if (error) {
@@ -102,6 +106,10 @@ export async function POST(request: Request) {
       failed += 1;
     }
   }
+
+  // The copy the app shows, written once the bot has had its turn: everybody reads it,
+  // and for a player without Telegram it is the only place this ever appears.
+  await recordClubAnnouncement(auth.supabase, message);
 
   return NextResponse.json({ failed, sent, total: users?.length ?? 0 });
 }
