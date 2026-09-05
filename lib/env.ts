@@ -11,6 +11,12 @@ const serverEnvSchema = publicEnvSchema.extend({
   // Опционально: обязателен только для /api/cron/* (роут сам проверяет наличие),
   // чтобы не ломать остальные серверные роуты, пока переменная не выставлена.
   CRON_SECRET: z.string().min(1).optional(),
+  // Вход через Яндекс для веба. Опциональны по той же причине: пока переменные не
+  // выставлены, весь остальной сервер работает, а /api/auth/yandex/* отвечает 503.
+  YANDEX_CLIENT_ID: z.string().min(1).optional(),
+  YANDEX_CLIENT_SECRET: z.string().min(1).optional(),
+  // Подпись сессионной cookie веб-входа.
+  SESSION_SECRET: z.string().min(16).optional(),
 });
 
 export function getPublicEnv() {
@@ -34,5 +40,8 @@ export function getServerEnv() {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     ADMIN_EMAIL: process.env.ADMIN_EMAIL,
     CRON_SECRET: process.env.CRON_SECRET,
+    SESSION_SECRET: process.env.SESSION_SECRET,
+    YANDEX_CLIENT_ID: process.env.YANDEX_CLIENT_ID,
+    YANDEX_CLIENT_SECRET: process.env.YANDEX_CLIENT_SECRET,
   });
 }
