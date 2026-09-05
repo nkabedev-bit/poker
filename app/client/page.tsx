@@ -16,6 +16,7 @@ type EventsResponse = {
   player: {
     avatarIsCustom?: boolean;
     avatarUrl?: string | null;
+    canClaimProfile?: boolean;
     displayName: string | null;
     profileSubmitted: boolean;
     username: string | null;
@@ -104,14 +105,23 @@ export default function ClientHomePage() {
           <div className="flex items-start gap-3">
             <ClipboardList className="mt-0.5 shrink-0 text-[#f05a7e]" size={22} />
             <div>
-              <p className="text-[17px] font-bold">Заполните анкету</p>
+              <p className="text-[17px] font-bold">
+                {data.player.canClaimProfile ? "Ещё пара шагов" : "Заполните анкету"}
+              </p>
               <p className="mt-1 text-sm text-white/55">
-                Пара минут — и откроется запись на турниры.
+                {data.player.canClaimProfile
+                  ? "Играли у нас раньше — найдём ваш профиль. Впервые — заполните анкету."
+                  : "Пара минут — и откроется запись на турниры."}
               </p>
             </div>
           </div>
-          <Link href="/client/onboarding">
-            <PrimaryButton>Заполнить анкету</PrimaryButton>
+          {/* Somebody who signed in on the web may have been playing here for years, so
+              the fork stays reachable: reloading the app used to leave them with a new
+              questionnaire as the only way forward. */}
+          <Link href={data.player.canClaimProfile ? "/client/link" : "/client/onboarding"}>
+            <PrimaryButton>
+              {data.player.canClaimProfile ? "Продолжить" : "Заполнить анкету"}
+            </PrimaryButton>
           </Link>
         </GlassCard>
       ) : null}

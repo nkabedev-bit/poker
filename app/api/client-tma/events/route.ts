@@ -36,6 +36,10 @@ export async function GET(request: Request) {
         vip: Number(auth.user.vip_free_entries ?? 0),
       },
       profileSubmitted: Boolean(auth.user.profile_submitted_at),
+      // Somebody who signed in on the web and has answered nothing yet may still be a
+      // club member of years standing: they are asked first whether they have played
+      // here, rather than being marched straight into a new questionnaire.
+      canClaimProfile: Boolean(auth.user.yandex_id) && !auth.user.profile_submitted_at,
       username: auth.user.username,
     },
   });
