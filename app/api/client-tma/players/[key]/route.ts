@@ -29,15 +29,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   // medals. A player who has only ever been added by hand has neither.
   const { data: account } = await auth.supabase
     .from("client_bot_users")
-    .select("telegram_id, display_name, avatar_url, medals")
+    .select("id, telegram_id, display_name, avatar_url, medals")
     .eq("nickname_key", key)
     .maybeSingle();
 
   const record = account as {
     avatar_url: string | null;
     display_name: string | null;
+    id: string;
     medals: Record<string, unknown> | null;
-    telegram_id: number;
+    telegram_id: number | null;
   } | null;
 
   // Failing that, the nickname as the results themselves spell it.
@@ -78,7 +79,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
         place: game.place,
         startedAt: game.startedAt,
       })),
-      isMe: record?.telegram_id === auth.user.telegram_id,
+      isMe: record?.id === auth.user.id,
       medals: (record?.medals as Record<string, number> | null) ?? {},
       name: nickname,
       stats,

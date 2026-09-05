@@ -7,6 +7,7 @@ import {
 } from "@/lib/seasons/store";
 import type { SeasonStanding } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { resolvePlayerTier } from "@/lib/players/tier";
@@ -66,7 +67,7 @@ export async function GET(request: Request) {
   const players = standings.map((standing) => {
     const nickname = normalizeNickname(standing.playerName);
     const isMe =
-      standing.telegramId === auth.user.telegram_id ||
+      isSameTelegramAccount(auth.user.telegram_id, standing.telegramId) ||
       (Boolean(myNickname) && nickname === myNickname);
 
     return {

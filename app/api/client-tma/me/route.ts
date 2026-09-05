@@ -4,6 +4,7 @@ import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
 
@@ -54,8 +55,12 @@ export async function GET(request: Request) {
     ? Math.max(1, Math.floor(context.extras.settings.tablesCount))
     : 0;
 
-  const player = context?.extras.players.find(
-    (item) => item.telegramId === auth.user.telegram_id,
+  // Matched by account first: two web players both carry a null Telegram id, and
+  // comparing those would have shown one of them the other's table and number.
+  const player = context?.extras.players.find((item) =>
+    item.accountId
+      ? item.accountId === auth.user.id
+      : isSameTelegramAccount(auth.user.telegram_id, item.telegramId),
   );
 
   const achievementStats = await readAchievementStats(auth.supabase, auth.user.id);

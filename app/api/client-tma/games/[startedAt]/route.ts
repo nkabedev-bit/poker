@@ -5,6 +5,7 @@ import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
 
 export const dynamic = "force-dynamic";
@@ -30,6 +31,9 @@ export async function GET(
 
   if (error) throw error;
 
+  // A web player has no Telegram id on the results, so the nickname is what finds them
+  // in the finishing table — the same nickname the row was stored under.
+  const myNicknameKey = buildNicknameKey(auth.user.display_name ?? "");
   const rows = (data ?? []).map((row) => {
     const record = row as {
       counts_for_rating: boolean | null;
@@ -44,7 +48,9 @@ export async function GET(
 
     return {
       countsForRating: record.counts_for_rating !== false,
-      isMe: record.telegram_id === auth.user.telegram_id,
+      isMe:
+        isSameTelegramAccount(auth.user.telegram_id, record.telegram_id) ||
+        (Boolean(myNicknameKey) && buildNicknameKey(record.player_name) === myNicknameKey),
       knockouts: Number(record.knockouts ?? 0),
       place: record.place,
       playedOn: record.played_on,
