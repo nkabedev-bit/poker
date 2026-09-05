@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { Badge, Chip } from "./ui";
+import { countAnnouncedSeats, formatSeatsCount } from "@/lib/events/seats";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -20,6 +21,8 @@ export function EventCard({
   event: EventCardData;
   featured?: boolean;
 }) {
+  const seats = countAnnouncedSeats(event);
+
   return (
     <Link className="block active:scale-[0.99] transition-transform" href={`/client/events/${event.id}`}>
       <article
@@ -56,19 +59,24 @@ export function EventCard({
             <Chip>
               <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
             </Chip>
-            {event.maxPlayers ? (
-              <Chip>
-                <Users size={13} /> {event.maxPlayers}
-              </Chip>
-            ) : null}
           </div>
 
-          <div className="mt-auto flex flex-wrap items-center gap-2">
-            {event.badge ? <Badge>{event.badge}</Badge> : null}
-            {event.signedUp ? (
-              <span className="inline-flex items-center rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
-                Вы записаны
-              </span>
+          <div className="mt-auto flex flex-col items-start gap-2">
+            {event.badge || event.signedUp ? (
+              <div className="flex flex-wrap items-center gap-2">
+                {event.badge ? <Badge>{event.badge}</Badge> : null}
+                {event.signedUp ? (
+                  <span className="inline-flex items-center rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
+                    Вы записаны
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
+
+            {seats ? (
+              <Chip>
+                <Users size={13} /> {formatSeatsCount(seats.total)}
+              </Chip>
             ) : null}
           </div>
         </div>

@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  countAnnouncedSeats,
   countFreeSeats,
   describeAnnouncedSeats,
+  formatSeatsCount,
   hasFreeSeat,
   offersDuoTicket,
   offersVipTicket,
@@ -88,6 +90,84 @@ describe("the 1+1 ticket", () => {
     expect(describeAnnouncedSeats({ duoTickets: 1, regular: 16, vip: 9 })).toBe(
       "Всего мест: 27 (16 обычных · 2 по билетам 1+1 · 9 VIP)",
     );
+  });
+});
+
+describe("countAnnouncedSeats", () => {
+  it("adds up the regular seats, the VIP table and both halves of every 1+1", () => {
+    expect(countAnnouncedSeats({ ...withDuo, vipBuyIn: 2000 })).toEqual({
+      duoTickets: 1,
+      regular: 16,
+      total: 27,
+      vip: 9,
+    });
+  });
+
+  it("counts the VIP table's own ten seats when the poster leaves the field empty", () => {
+    expect(
+      countAnnouncedSeats({
+        duoBuyIn: null,
+        maxDuoTickets: null,
+        maxPlayers: 18,
+        maxVipPlayers: null,
+        vipBuyIn: 2000,
+      })?.total,
+    ).toBe(28);
+  });
+
+  it("counts only the regular seats when the poster sells neither VIP nor 1+1", () => {
+    expect(
+      countAnnouncedSeats({
+        duoBuyIn: null,
+        maxDuoTickets: null,
+        maxPlayers: 18,
+        maxVipPlayers: null,
+        vipBuyIn: null,
+      }),
+    ).toEqual({ duoTickets: 0, regular: 18, total: 18, vip: 0 });
+    expect(
+      countAnnouncedSeats({
+        duoBuyIn: 2000,
+        maxDuoTickets: 0,
+        maxPlayers: 18,
+        maxVipPlayers: 0,
+        vipBuyIn: 2000,
+      }),
+    ).toEqual({ duoTickets: 0, regular: 18, total: 18, vip: 0 });
+  });
+
+  it("names no total when the club announced no regular limit", () => {
+    expect(
+      countAnnouncedSeats({
+        duoBuyIn: null,
+        maxDuoTickets: null,
+        maxPlayers: null,
+        maxVipPlayers: 10,
+        vipBuyIn: 2000,
+      }),
+    ).toBeNull();
+  });
+
+  // The count the poster itself was filled in with has to read back the same way to the
+  // player, so the breakdown is built from what countAnnouncedSeats worked out.
+  it("feeds the announced line the club shows under the tickets", () => {
+    const seats = countAnnouncedSeats({ ...withDuo, vipBuyIn: 2000 });
+
+    expect(seats && describeAnnouncedSeats(seats)).toBe(
+      "Всего мест: 27 (16 обычных · 2 по билетам 1+1 · 9 VIP)",
+    );
+  });
+});
+
+describe("formatSeatsCount", () => {
+  it("declines the word by the count", () => {
+    expect(formatSeatsCount(1)).toBe("1 место");
+    expect(formatSeatsCount(3)).toBe("3 места");
+    expect(formatSeatsCount(11)).toBe("11 мест");
+    expect(formatSeatsCount(14)).toBe("14 мест");
+    expect(formatSeatsCount(21)).toBe("21 место");
+    expect(formatSeatsCount(22)).toBe("22 места");
+    expect(formatSeatsCount(27)).toBe("27 мест");
   });
 });
 

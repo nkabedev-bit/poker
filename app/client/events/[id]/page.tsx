@@ -16,6 +16,11 @@ import {
   ScreenMessage,
 } from "../../_components/ui";
 import {
+  countAnnouncedSeats,
+  describeAnnouncedSeats,
+  formatSeatsCount,
+} from "@/lib/events/seats";
+import {
   formatEventDayLabel,
   formatEventTimeLabel,
   type TournamentEvent,
@@ -314,6 +319,13 @@ export default function ClientEventPage() {
   // The club takes a "1+1" to mean an expected pair, so the second name is required.
   const partnerMissing = ticketType === "duo" && !partnerName.trim();
   const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
+  const announcedSeats = countAnnouncedSeats(event);
+  // The split is worth a line only when the poster sells more than the regular seats —
+  // otherwise it repeats the total the chip already shows.
+  const seatsBreakdown =
+    announcedSeats && (announcedSeats.duoTickets > 0 || announcedSeats.vip > 0)
+      ? describeAnnouncedSeats(announcedSeats)
+      : null;
   // The buyer keeps the ticket when their partner backs out, so the screen has to let
   // them name somebody else without cancelling and starting over.
   const needsPartner = event.signedUp && event.ticketType === "duo" && !event.partnerName;
@@ -406,9 +418,9 @@ export default function ClientEventPage() {
             <Chip>
               <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
             </Chip>
-            {event.maxPlayers ? (
+            {announcedSeats ? (
               <Chip>
-                <Users size={13} /> {event.maxPlayers} игроков
+                <Users size={13} /> {formatSeatsCount(announcedSeats.total)}
               </Chip>
             ) : null}
           </div>
@@ -459,6 +471,9 @@ export default function ClientEventPage() {
 
       <section className="space-y-2">
         <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
+        {seatsBreakdown ? (
+          <p className="px-1 text-xs text-white/40">{seatsBreakdown}</p>
+        ) : null}
         {event.signedUp ? (
           <div className={TICKET_GRID[ticketsInRow]}>
             <TicketCard

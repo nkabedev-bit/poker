@@ -2,6 +2,15 @@ import type { EventSignupCount } from "@/lib/events/store";
 import type { EventTicketType, TournamentEvent } from "@/lib/events/types";
 import { SEATS_PER_TABLE } from "@/lib/tables/seating";
 
+/** The three allotments of a poster, and how many players they let in together. */
+export type AnnouncedSeats = {
+  /** Tickets, not seats: each one brings a pair. */
+  duoTickets: number;
+  regular: number;
+  total: number;
+  vip: number;
+};
+
 export type FreeSeats = {
   /** "1+1" tickets left; zero when the poster sells none tonight. */
   duo: number;
@@ -85,6 +94,42 @@ export function describeAnnouncedSeats({
   if (vip) parts.push(`${vip} VIP`);
 
   return `Всего мест: ${regular + duoSeats + vip} (${parts.join(" · ")})`;
+}
+
+/**
+ * What the poster announces, by kind and altogether: the regular tables, the VIP table
+ * and both halves of every "1+1" ticket. Null when the club named no regular limit —
+ * without it there is no total to show.
+ */
+export function countAnnouncedSeats(
+  event: Pick<
+    TournamentEvent,
+    "duoBuyIn" | "maxDuoTickets" | "maxPlayers" | "maxVipPlayers" | "vipBuyIn"
+  >,
+): AnnouncedSeats | null {
+  if (event.maxPlayers === null) return null;
+
+  // A kind the poster does not sell adds nothing, whatever number is left in its field.
+  const vip = offersVipTicket(event) ? event.maxVipPlayers ?? SEATS_PER_TABLE : 0;
+  const duoTickets = offersDuoTicket(event) ? event.maxDuoTickets ?? 0 : 0;
+
+  return {
+    duoTickets,
+    regular: event.maxPlayers,
+    total: event.maxPlayers + duoTickets * 2 + vip,
+    vip,
+  };
+}
+
+/** "27 мест" — the count a poster or a chip shows on its own. */
+export function formatSeatsCount(seats: number) {
+  const lastTwo = seats % 100;
+  const last = seats % 10;
+  if (lastTwo >= 11 && lastTwo <= 14) return `${seats} мест`;
+  if (last === 1) return `${seats} место`;
+  if (last >= 2 && last <= 4) return `${seats} места`;
+
+  return `${seats} мест`;
 }
 
 /**
