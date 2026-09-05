@@ -11,6 +11,8 @@ const PLAYED_GAMES_LIMIT = 300;
 export type PlayedGame = {
   knockouts: number;
   place: number | null;
+  /** Re-entries bought that evening; null when the game predates the column. */
+  rebuys: number | null;
   startedAt: string;
 };
 
@@ -27,23 +29,36 @@ export async function readPlayerGames(
   supabase: SupabaseClient,
   { nickname, telegramId }: { nickname: string; telegramId: number | null },
 ): Promise<PlayedGame[]> {
-  const { data } = await supabase
-    .from("tournament_results")
-    .select("place, knockouts, started_at")
-    .or(buildPlayerResultsFilter(telegramId ?? null, nickname))
-    .order("started_at", { ascending: false })
-    .limit(PLAYED_GAMES_LIMIT);
+  const read = (columns: string) =>
+    supabase
+      .from("tournament_results")
+      .select(columns)
+      .or(buildPlayerResultsFilter(telegramId ?? null, nickname))
+      .order("started_at", { ascending: false })
+      .limit(PLAYED_GAMES_LIMIT);
+
+  // Re-entries were added to the table later and the club runs its migrations by hand,
+  // so a profile still opens where the column is missing — those games simply say they
+  // do not know.
+  // eslint-disable-next-line prefer-const -- `data` is reassigned by the fallback read
+  let { data, error } = await read("place, knockouts, started_at, rebuys");
+  if (error && String(error.message ?? "").includes("rebuys")) {
+    console.warn("tournament_results.rebuys is missing; reading games without it", error);
+    ({ data } = await read("place, knockouts, started_at"));
+  }
 
   return (data ?? []).map((row) => {
-    const record = row as {
+    const record = row as unknown as {
       knockouts: number | string | null;
       place: number | null;
+      rebuys?: number | string | null;
       started_at: string;
     };
 
     return {
       knockouts: Number(record.knockouts ?? 0),
       place: record.place,
+      rebuys: record.rebuys === null || record.rebuys === undefined ? null : Number(record.rebuys),
       startedAt: record.started_at,
     };
   });

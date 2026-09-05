@@ -81,45 +81,47 @@ export async function saveTournamentResults({
   // here is the medal, and deleting the game takes the medal with it.
   const medalKey = resolveMedalKey(extras.settings);
 
+  // Two columns arrived after the table did, and the club applies its migrations by
+  // hand: the write tries them and falls back to the shape that has always been there,
+  // so a finished game is never lost to a migration nobody has run yet.
+  const baseRows = rows.map((row) => ({
+    event_id: eventId,
+    knockouts: row.knockouts,
+    place: row.place,
+    played_on: startedAt.toISOString().slice(0, 10),
+    season_id: season?.id ?? null,
+    player_name: row.playerName,
+    points: row.points,
+    source: "app",
+    started_at: startedAt.toISOString(),
+    telegram_id: row.telegramId,
+    title,
+    tournament_id: tournamentId,
+  }));
+
   const { error } = await supabase.from("tournament_results").upsert(
-    rows.map((row) => ({
-      event_id: eventId,
+    baseRows.map((row, index) => ({
+      ...row,
       medal_key: medalKey,
-      knockouts: row.knockouts,
-      place: row.place,
-      played_on: startedAt.toISOString().slice(0, 10),
-      season_id: season?.id ?? null,
-      player_name: row.playerName,
-      points: row.points,
-      source: "app",
-      started_at: startedAt.toISOString(),
-      telegram_id: row.telegramId,
-      title,
-      tournament_id: tournamentId,
+      // Null would say "nobody knows"; the roster knows, so zero is written as zero.
+      rebuys: rows[index].rebuys,
     })),
     { onConflict: "started_at,player_name" },
   );
 
-  if (error && String(error.message ?? "").includes("medal_key")) {
-    console.warn("Migration 202609050010 is not applied; storing results without the medal");
+  const missingColumn = ["medal_key", "rebuys"].find((column) =>
+    String(error?.message ?? "").includes(column),
+  );
 
-    const { error: legacyError } = await supabase.from("tournament_results").upsert(
-      rows.map((row) => ({
-        event_id: eventId,
-        knockouts: row.knockouts,
-        place: row.place,
-        played_on: startedAt.toISOString().slice(0, 10),
-        season_id: season?.id ?? null,
-        player_name: row.playerName,
-        points: row.points,
-        source: "app",
-        started_at: startedAt.toISOString(),
-        telegram_id: row.telegramId,
-        title,
-        tournament_id: tournamentId,
-      })),
-      { onConflict: "started_at,player_name" },
+  if (missingColumn) {
+    console.warn(
+      `tournament_results.${missingColumn} is missing; storing results without it`,
+      error,
     );
+
+    const { error: legacyError } = await supabase
+      .from("tournament_results")
+      .upsert(baseRows, { onConflict: "started_at,player_name" });
 
     if (legacyError) throw legacyError;
     return { saved: rows.length };

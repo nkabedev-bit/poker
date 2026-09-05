@@ -3,6 +3,7 @@
  */
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ACHIEVEMENTS_TOTAL } from "@/lib/client/achievements";
 
 vi.mock("@/app/client/layout", () => ({
   useClientTMA: () => ({ initData: "mock-init", telegramUser: null }),
@@ -42,7 +43,7 @@ describe("client mini-app: достижения", () => {
     render(<ClientAchievementsPage />);
 
     // Дебют! and Первый вайб out of the full list.
-    expect(await screen.findByText(/2 \/ 22/)).toBeTruthy();
+    expect(await screen.findByText(new RegExp(`2 / ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy();
   });
 
   it("shows progress towards a goal that is still ahead", async () => {
@@ -68,6 +69,8 @@ describe("client mini-app: достижения", () => {
 
     render(<ClientAchievementsPage />);
 
-    await waitFor(() => expect(screen.getByText(/0 \/ 22/)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(new RegExp(`0 / ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy(),
+    );
   });
 });

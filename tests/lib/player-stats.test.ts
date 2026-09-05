@@ -10,6 +10,11 @@ function game(place: number | null, knockouts = 0, day = 1) {
   return { knockouts, place, startedAt: `2026-09-${String(day).padStart(2, "0")}T19:00:00.000Z` };
 }
 
+/** A game that also remembers what the player bought to stay in it. */
+function paidGame(place: number | null, rebuys: number | null, day = 1) {
+  return { ...game(place, 0, day), rebuys };
+}
+
 describe("computePlayerStats", () => {
   it("counts a game per stored result", () => {
     expect(computePlayerStats([game(12), game(3, 0, 2)]).games).toBe(2);
@@ -71,6 +76,67 @@ describe("computePlayerStats", () => {
       top9: 0,
       wins: 0,
     });
+  });
+});
+
+describe("the comeback win", () => {
+  it("counts a win that ended three tournaments away from the final table", () => {
+    const stats = computePlayerStats([game(14, 0, 1), game(20, 0, 2), game(11, 0, 3), game(1, 0, 4)]);
+
+    expect(stats.comebackWins).toBe(1);
+  });
+
+  it("asks for three misses, not two", () => {
+    expect(computePlayerStats([game(14, 0, 1), game(20, 0, 2), game(1, 0, 3)]).comebackWins).toBe(0);
+  });
+
+  // A final table breaks the run even when the player did not win it, so the win that
+  // follows is an ordinary one.
+  it("forgets the bad run once the player reaches a final table", () => {
+    const stats = computePlayerStats([
+      game(14, 0, 1),
+      game(20, 0, 2),
+      game(11, 0, 3),
+      game(6, 0, 4),
+      game(1, 0, 5),
+    ]);
+
+    expect(stats.comebackWins).toBe(0);
+  });
+
+  it("counts every comeback, not just the first", () => {
+    const stats = computePlayerStats([
+      game(14, 0, 1),
+      game(15, 0, 2),
+      game(16, 0, 3),
+      game(1, 0, 4),
+      game(17, 0, 5),
+      game(18, 0, 6),
+      game(19, 0, 7),
+      game(1, 0, 8),
+    ]);
+
+    expect(stats.comebackWins).toBe(2);
+  });
+});
+
+describe("the clean podium", () => {
+  it("counts a podium taken without buying a re-entry", () => {
+    expect(computePlayerStats([paidGame(2, 0)]).cleanPodiums).toBe(1);
+  });
+
+  it("does not count a podium the player re-entered into", () => {
+    expect(computePlayerStats([paidGame(1, 1)]).cleanPodiums).toBe(0);
+  });
+
+  // Games stored before the club kept re-entries say nothing about them, and a badge is
+  // not handed out on a guess.
+  it("does not count a podium from a game that never recorded re-entries", () => {
+    expect(computePlayerStats([paidGame(3, null), game(3)]).cleanPodiums).toBe(0);
+  });
+
+  it("asks for the podium, not merely the final table", () => {
+    expect(computePlayerStats([paidGame(4, 0)]).cleanPodiums).toBe(0);
   });
 });
 

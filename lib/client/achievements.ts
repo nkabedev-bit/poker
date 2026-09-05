@@ -6,6 +6,10 @@ export type PlayerStats = {
   bestMissStreak: number;
   // Longest run of tournaments finished at the final table (top-9).
   bestTop9Streak: number;
+  // Podiums taken on the first bullet, with no re-entry bought that evening.
+  cleanPodiums: number;
+  // Wins that ended a run of three or more tournaments outside the final table.
+  comebackWins: number;
   eliminations: number;
   games: number;
   // Times the player was the first one out — the last place of the tournament.
@@ -32,7 +36,9 @@ export type AchievementIcon =
   | "message"
   | "rocket"
   | "shark"
+  | "shield"
   | "star"
+  | "sunrise"
   | "sun"
   | "target"
   | "ticket"
@@ -104,6 +110,8 @@ const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] 
       { description: "5 баунти за турнир", goal: 5, icon: "target", id: "precise-aim", metric: "bestTournamentBounty", title: "Точный прицел" },
       { description: "8 баунти за турнир", goal: 8, icon: "zap", id: "table-storm", metric: "bestTournamentBounty", title: "Шторм за столом" },
       { description: "12 баунти за турнир", goal: 12, icon: "heart", id: "butcher", metric: "bestTournamentBounty", title: "Мясник" },
+      { description: "Топ-3 без единого ребая", goal: 1, icon: "shield", id: "no-insurance", metric: "cleanPodiums", title: "Без страховки" },
+      { description: "Победа после 3 вылетов без финалки подряд", goal: 1, icon: "sunrise", id: "comeback", metric: "comebackWins", title: "Возвращение" },
     ],
   },
   {
@@ -163,6 +171,8 @@ export const EMPTY_PLAYER_STATS: PlayerStats = {
   bestMissStreak: 0,
   bestTop9Streak: 0,
   bestTournamentBounty: 0,
+  cleanPodiums: 0,
+  comebackWins: 0,
   eliminations: 0,
   games: 0,
   lastPlace: 0,

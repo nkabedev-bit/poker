@@ -66,6 +66,16 @@ describe("achievements", () => {
     expect(badge(stats, "butcher")).toMatchObject({ earned: false, goal: 12, value: 10.5 });
   });
 
+  it("hands the clean podium to a player who never re-entered", () => {
+    expect(badge({ cleanPodiums: 1 }, "no-insurance")?.earned).toBe(true);
+    expect(badge({ cleanPodiums: 0 }, "no-insurance")?.earned).toBe(false);
+  });
+
+  it("hands the comeback to a win that ended a bad run", () => {
+    expect(badge({ comebackWins: 1 }, "comeback")?.earned).toBe(true);
+    expect(badge({ comebackWins: 0 }, "comeback")?.earned).toBe(false);
+  });
+
   it("reads the longest run of final tables, not the current one", () => {
     expect(badge({ bestTop9Streak: 3 }, "caught-the-wave")?.earned).toBe(true);
     expect(badge({ bestTop9Streak: 3 }, "series-shark")?.earned).toBe(true);

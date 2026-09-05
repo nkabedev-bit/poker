@@ -6,6 +6,8 @@ export type TournamentResultRow = {
   place: number | null;
   playerName: string;
   points: number;
+  /** Re-entries bought this evening, doubles included. */
+  rebuys: number;
   telegramId: number | null;
 };
 
@@ -36,10 +38,21 @@ export function buildTournamentResultRows(
         place,
         playerName: player.name || "Без имени",
         points: place ? (pointsByPlace.get(place) ?? 0) : 0,
+        rebuys: Math.max(0, Math.trunc(Number(player.rebuys) || 0)),
         telegramId: Number.isInteger(player.telegramId) ? Number(player.telegramId) : null,
       };
     });
 }
+
+/** What the monthly table reads off a result — the place and the re-entries mean
+ * nothing to it, so a caller need not carry them. */
+export type MonthlyStandingSource = {
+  avatarUrl?: string | null;
+  knockouts: number;
+  playerName: string;
+  points: number;
+  telegramId: number | null;
+};
 
 export type MonthlyStanding = {
   avatarUrl: string | null;
@@ -58,10 +71,10 @@ export const MONTHLY_COUNTED_GAMES = 5;
  * night cannot out-grind the field on volume alone.
  */
 export function buildMonthlyStandings(
-  results: Array<TournamentResultRow & { avatarUrl?: string | null }>,
+  results: MonthlyStandingSource[],
   countedGames = MONTHLY_COUNTED_GAMES,
 ): MonthlyStanding[] {
-  const byPlayer = new Map<string, Array<TournamentResultRow & { avatarUrl?: string | null }>>();
+  const byPlayer = new Map<string, MonthlyStandingSource[]>();
 
   for (const result of results) {
     // A guest without an account is tracked by name; everyone else by their account, so

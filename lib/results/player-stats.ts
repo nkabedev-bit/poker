@@ -3,6 +3,8 @@ import { buildNicknameKey } from "@/lib/players/nickname-key";
 export type PlayerResultRow = {
   knockouts: number;
   place: number | null;
+  /** Re-entries bought that evening; null when the game was stored before we kept them. */
+  rebuys?: number | null;
   startedAt: string;
 };
 
@@ -10,6 +12,10 @@ export type ComputedPlayerStats = {
   bestMissStreak: number;
   bestTop9Streak: number;
   bestTournamentBounty: number;
+  // Podium finishes taken on the first bullet, without buying a re-entry.
+  cleanPodiums: number;
+  // Wins that ended a run of three or more tournaments outside the final table.
+  comebackWins: number;
   eliminations: number;
   games: number;
   top3: number;
@@ -19,6 +25,8 @@ export type ComputedPlayerStats = {
 
 const TOP_PLACES = 9;
 const PODIUM_PLACES = 3;
+/** How long the bad run has to be before winning counts as coming back from it. */
+const COMEBACK_MISSES = 3;
 
 /**
  * PostgREST `or` filter matching a player's results.
@@ -51,6 +59,10 @@ function isTop9(place: number | null) {
   return place !== null && place >= 1 && place <= TOP_PLACES;
 }
 
+function isPodium(place: number | null) {
+  return place !== null && place >= 1 && place <= PODIUM_PLACES;
+}
+
 /**
  * Everything the profile and its achievements can be told from the games themselves:
  * how many were played, how many were won, how deep the runs went and how long the
@@ -67,6 +79,7 @@ export function computePlayerStats(rows: PlayerResultRow[]): ComputedPlayerStats
 
   let bestTop9Streak = 0;
   let bestMissStreak = 0;
+  let comebackWins = 0;
   let top9Streak = 0;
   let missStreak = 0;
 
@@ -75,6 +88,10 @@ export function computePlayerStats(rows: PlayerResultRow[]): ComputedPlayerStats
     // place. They count as games played, and they break no streak: nobody knows whether
     // that evening was a deep run or an early exit.
     if (row.place === null) continue;
+
+    // Read before the streaks move on: what makes this a comeback is the run of misses
+    // that came before it, and winning is itself a final table that ends that run.
+    if (row.place === 1 && missStreak >= COMEBACK_MISSES) comebackWins += 1;
 
     if (isTop9(row.place)) {
       top9Streak += 1;
@@ -95,12 +112,15 @@ export function computePlayerStats(rows: PlayerResultRow[]): ComputedPlayerStats
       (best, row) => Math.max(best, Math.max(0, row.knockouts)),
       0,
     ),
+    // A row that knows nothing about re-entries earns nothing: the club would rather
+    // withhold the badge than hand it out on an evening it cannot vouch for.
+    cleanPodiums: played.filter((row) => isPodium(row.place) && row.rebuys === 0).length,
+    comebackWins,
     eliminations: Number(
       played.reduce((total, row) => total + Math.max(0, row.knockouts), 0).toFixed(2),
     ),
     games: played.length,
-    top3: played.filter((row) => row.place !== null && row.place >= 1 && row.place <= PODIUM_PLACES)
-      .length,
+    top3: played.filter((row) => isPodium(row.place)).length,
     top9: played.filter((row) => isTop9(row.place)).length,
     wins: played.filter((row) => row.place === 1).length,
   };
