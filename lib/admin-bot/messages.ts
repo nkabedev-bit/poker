@@ -1,4 +1,9 @@
-import { UPCOMING_BIRTHDAY_DAYS, type UpcomingBirthday } from "@/lib/google-sheets";
+import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
+
+// Only what a line needs. Keeping it to this lets the same formatter serve whatever
+// found the birthdays — the accounts today, something else tomorrow.
+type BirthdayLine = { date: string; nickname: string };
+type UpcomingBirthday = BirthdayLine & { daysUntil: number };
 
 function formatDaysUntil(daysUntil: number) {
   if (daysUntil <= 0) return "сегодня";
@@ -13,12 +18,25 @@ export function buildBirthdayDigestMessage(
 ) {
   const header = `🎂 Дни рождения — ближайшие ${days} дн.`;
   if (birthdays.length === 0) {
-    return `${header}\n\nНикого нет. Список берётся из листа «анкеты» — там должна стоять дата рождения.`;
+    return `${header}\n\nНикого нет. Дата рождения берётся из анкеты игрока.`;
   }
 
   const lines = birthdays.map(
     (birthday) => `${birthday.date} — ${birthday.nickname} (${formatDaysUntil(birthday.daysUntil)})`,
   );
+
+  return `${header}\n\n${lines.join("\n")}`;
+}
+
+/**
+ * The summary the club asked for on the first of every month: everyone with a birthday
+ * in it, in the order the days come round.
+ */
+export function buildMonthBirthdaysMessage(birthdays: BirthdayLine[], month: string) {
+  const header = `🎂 Дни рождения — ${month}`;
+  if (birthdays.length === 0) return `${header}\n\nВ этом месяце именинников нет.`;
+
+  const lines = birthdays.map((birthday) => `${birthday.date} — ${birthday.nickname}`);
 
   return `${header}\n\n${lines.join("\n")}`;
 }

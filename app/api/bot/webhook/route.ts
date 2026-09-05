@@ -7,7 +7,9 @@ import {
   ADMIN_BOT_MENU_COMMANDS,
   buildBirthdayDigestMessage,
 } from "@/lib/admin-bot/messages";
-import { getUpcomingBirthdays } from "@/lib/google-sheets";
+import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
+import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
+import { pickUpcomingBirthdaysFromAccounts } from "@/lib/client-bot/birthdays";
 
 function getAdminSupabase() {
   return createClient(
@@ -91,7 +93,13 @@ bot.command("birthday", async (ctx) => {
   }
 
   try {
-    await ctx.reply(buildBirthdayDigestMessage(await getUpcomingBirthdays()));
+    const accounts = await readBirthdayAccounts(getAdminSupabase());
+
+    await ctx.reply(
+      buildBirthdayDigestMessage(
+        pickUpcomingBirthdaysFromAccounts(accounts, new Date(), UPCOMING_BIRTHDAY_DAYS),
+      ),
+    );
   } catch (err: unknown) {
     console.error("Error in /birthday command:", err);
     const message = err instanceof Error ? err.message : String(err);
