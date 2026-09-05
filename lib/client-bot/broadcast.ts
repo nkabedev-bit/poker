@@ -14,9 +14,13 @@ export async function sendTextToClientUsers(
   supabase: SupabaseClient,
   message: string,
 ): Promise<{ sent: number; failed: number; total: number }> {
+  // Only the accounts the bot can actually write to. A player who signed in on the web
+  // has no chat, and sending to nothing would have counted every one of them as a
+  // failed delivery — telling the admin a broadcast half failed when it did not.
   const { data: users, error } = await supabase
     .from("client_bot_users")
     .select("chat_id")
+    .not("chat_id", "is", null)
     .order("created_at", { ascending: true });
 
   if (error) throw new Error(error.message);

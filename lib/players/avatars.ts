@@ -20,7 +20,8 @@ type AccountRow = {
   avatar_thumb_url: string | null;
   avatar_url: string | null;
   display_name: string | null;
-  telegram_id: number;
+  /** Null on an account that signed in on the web; the nickname finds those. */
+  telegram_id: number | null;
 };
 
 const NO_AVATAR: PlayerAvatar = { thumbUrl: null, url: null };
@@ -44,7 +45,7 @@ export async function loadPlayerAvatars(supabase: SupabaseClient): Promise<Avata
   for (const row of (data ?? []) as AccountRow[]) {
     const avatar = { thumbUrl: row.avatar_thumb_url ?? row.avatar_url, url: row.avatar_url };
 
-    byTelegramId.set(row.telegram_id, avatar);
+    if (row.telegram_id !== null) byTelegramId.set(row.telegram_id, avatar);
     const nickname = buildNicknameKey(row.display_name ?? "");
     if (nickname) byNickname.set(nickname, avatar);
   }
