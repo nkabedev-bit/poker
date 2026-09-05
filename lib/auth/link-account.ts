@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { isValidBirthDate, normalizeClientBotText } from "@/lib/client-bot/registration";
+import { normalizeClientBotText } from "@/lib/client-bot/registration";
 
 /**
  * Claiming the profile a returning player already has.
@@ -16,13 +16,42 @@ export type LinkOutcome =
   | { error: "already_linked" | "no_birth_date" | "not_found" | "wrong_details"; account: null }
   | { error: null; account: { id: string } };
 
-/** Both sides of the comparison in one shape, so 01.02.2003 and 1.2.2003 are one date. */
-function normalizeBirthDate(value: unknown) {
-  const text = normalizeClientBotText(typeof value === "string" ? value : "");
-  const match = text.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (!match) return "";
+type BirthDate = { day: string; month: string; year: string | null };
 
-  return `${match[1].padStart(2, "0")}.${match[2].padStart(2, "0")}.${match[3]}`;
+/**
+ * A date of birth in one shape, so 01.02.2003 and 1.2.2003 are the same day.
+ *
+ * The year is optional because for half the club it was never written down: the
+ * questionnaire used to be a conversation in the bot, and the spreadsheet it wrote to
+ * keeps the day and the month alone.
+ */
+function readBirthDate(value: unknown): BirthDate | null {
+  const text = normalizeClientBotText(typeof value === "string" ? value : "");
+  const match = text.match(/^(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?$/);
+  if (!match) return null;
+
+  const day = Number(match[1]);
+  const month = Number(match[2]);
+  if (day < 1 || day > 31 || month < 1 || month > 12) return null;
+
+  return {
+    day: match[1].padStart(2, "0"),
+    month: match[2].padStart(2, "0"),
+    year: match[3] ?? null,
+  };
+}
+
+/**
+ * Whether the date the player typed is the one on file.
+ *
+ * Where the club recorded a year, it has to match. Where it did not, the day and the
+ * month are the whole of what can be checked — still a date nobody but the player and
+ * the club knows, against a nickname anybody can read off the rating.
+ */
+function sameBirthDate(onFile: BirthDate, given: BirthDate) {
+  if (onFile.day !== given.day || onFile.month !== given.month) return false;
+
+  return onFile.year === null || onFile.year === given.year;
 }
 
 export async function linkExistingAccount(
@@ -34,10 +63,10 @@ export async function linkExistingAccount(
   }: { birthDate: string; newAccountId: string; nickname: string },
 ): Promise<LinkOutcome> {
   const key = buildNicknameKey(nickname);
-  // Padded before it is judged, so a player who types 7.3.1991 is not turned away over
-  // the two zeros they left out.
-  const given = normalizeBirthDate(birthDate);
-  if (!key || !isValidBirthDate(given)) return { error: "wrong_details", account: null };
+  // The player always gives the whole date; only what the club stored may be short of a
+  // year. Read before it is judged, so 7.3.1991 is not turned away over two zeros.
+  const given = readBirthDate(birthDate);
+  if (!key || !given?.year) return { error: "wrong_details", account: null };
 
   const { data, error } = await supabase
     .from("client_bot_users")
@@ -61,11 +90,11 @@ export async function linkExistingAccount(
   const existing = matches[0];
   if (existing.yandex_id) return { error: "already_linked", account: null };
 
-  const onFile = normalizeBirthDate(existing.pending_profile_answers?.birthDate);
-  // A profile from before the questionnaire moved into the app has no date to check
-  // against, and there is nothing safe to do about that here.
+  const onFile = readBirthDate(existing.pending_profile_answers?.birthDate);
+  // A profile the club has no date for at all cannot be claimed here — an admin has to
+  // hand it over.
   if (!onFile) return { error: "no_birth_date", account: null };
-  if (onFile !== given) return { error: "wrong_details", account: null };
+  if (!sameBirthDate(onFile, given)) return { error: "wrong_details", account: null };
 
   return { error: null, account: { id: existing.id } };
 }

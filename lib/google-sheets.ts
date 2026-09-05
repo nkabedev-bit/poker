@@ -713,6 +713,11 @@ async function readProfileGrid(): Promise<string[][]> {
   return ((res.data.values ?? []) as unknown[][]).map((row) => row.map((cell) => String(cell ?? "")));
 }
 
+/** The whole questionnaire sheet, for the one-off that carries it into the accounts. */
+export async function readClientBotProfileSheet(): Promise<string[][]> {
+  return readProfileGrid();
+}
+
 export async function getTodayBirthdayNicknames(date = new Date()): Promise<string[]> {
   return pickTodayBirthdayNicknames(await readProfileGrid(), date);
 }
