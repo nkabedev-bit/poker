@@ -97,9 +97,14 @@ export async function findDuoInvitation(
   // One row is expected — the database keeps a player from being asked twice for the
   // same evening — but this reads a list rather than insisting on it: an invitation
   // written before that rule existed must still open the page, not break it.
+  // A sign-up points at four accounts — its own, the pair's two halves and the old
+  // Telegram key — so the embed has to name the one it means, or PostgREST refuses
+  // to guess. `!user_id` is the account the row belongs to.
   const { data, error } = await supabase
     .from("event_signups")
-    .select("user_id, telegram_id, duo_confirmed_at, created_at, client_bot_users(display_name)")
+    .select(
+      "user_id, telegram_id, duo_confirmed_at, created_at, client_bot_users!user_id(display_name)",
+    )
     .eq("event_id", eventId)
     .eq("ticket_type", "duo")
     .eq("duo_partner_user_id", userId)

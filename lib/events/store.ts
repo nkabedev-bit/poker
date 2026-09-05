@@ -126,9 +126,11 @@ export async function listEventSignups(
   supabase: SupabaseClient,
   eventId: string,
 ): Promise<EventSignupWithPlayer[]> {
+  // The embed names its foreign key: several columns here point at client_bot_users,
+  // and `user_id` is the account whose sign-up this is.
   const { data, error } = await supabase
     .from("event_signups")
-    .select(`${SIGNUP_COLUMNS}, client_bot_users(display_name, username)`)
+    .select(`${SIGNUP_COLUMNS}, client_bot_users!user_id(display_name, username)`)
     .eq("event_id", eventId)
     .neq("status", "cancelled")
     .order("created_at");

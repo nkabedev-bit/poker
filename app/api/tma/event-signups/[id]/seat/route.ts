@@ -36,10 +36,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const cardCode = normalizeCardCode(body.cardCode);
   const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
 
+  // `!user_id` picks the account the sign-up belongs to: several columns of the row
+  // point at client_bot_users, and an unnamed embed is ambiguous.
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
     .select(
-      "id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users(display_name, free_entries, vip_free_entries)",
+      "id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users!user_id(display_name, free_entries, vip_free_entries)",
     )
     .eq("id", id)
     .maybeSingle();
