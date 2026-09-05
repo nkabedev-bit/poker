@@ -76,32 +76,45 @@ const SIGN_IN_PATH = "/client/login";
 
 const TELEGRAM_SESSION_FLAG = "club:opened-in-telegram";
 
+function rememberTelegram() {
+  try {
+    window.sessionStorage.setItem(TELEGRAM_SESSION_FLAG, "1");
+  } catch {
+    // Private windows can refuse storage; the fragment still answers on the first screen.
+  }
+}
+
 /**
- * Whether this browser is a Telegram mini-app, answered without waiting for Telegram's
- * script.
+ * Whether this browser really is a Telegram mini-app.
  *
- * Telegram opens the app with its own parameters in the URL fragment, which is there
- * from the first paint — the script is what reads them, not what creates them. Waiting
- * for the script instead would put a player on a slow connection through the web
+ * Not "does Telegram's script exist" — it defines `Telegram.WebApp` wherever it is
+ * loaded, an ordinary browser included, and taking that for an answer told every web
+ * visitor they were in Telegram and left them with no way to sign in.
+ *
+ * What only Telegram supplies is the signed init data, and the parameters it is parsed
+ * from, which sit in the URL fragment from the first paint. Reading them rather than
+ * waiting for the script also keeps a player on a slow connection out of the web
  * sign-in screen, which is not a door they have.
  *
- * The fragment survives only the first screen, so the answer is kept for the rest of
- * the visit.
+ * The fragment survives only the first screen, so the answer is kept for the visit.
  */
 function isTelegramWebView() {
   if (typeof window === "undefined") return false;
-  if (getClientTelegramWebApp()) return true;
+
+  if (getClientTelegramWebApp()?.initData?.trim()) {
+    rememberTelegram();
+    return true;
+  }
 
   try {
     if (window.sessionStorage.getItem(TELEGRAM_SESSION_FLAG)) return true;
-
-    if (window.location.hash.includes("tgWebApp")) {
-      window.sessionStorage.setItem(TELEGRAM_SESSION_FLAG, "1");
-      return true;
-    }
   } catch {
-    // Private windows can refuse storage; the fragment alone still answers on screen one.
     return window.location.hash.includes("tgWebApp");
+  }
+
+  if (window.location.hash.includes("tgWebApp")) {
+    rememberTelegram();
+    return true;
   }
 
   return false;
@@ -119,13 +132,19 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   const initTg = useCallback(() => {
     const tg = getClientTelegramWebApp();
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      setInitData(tg.initData || "mock");
-      setTelegramUser(tg.initDataUnsafe?.user ?? null);
-      setDoor("telegram");
-    }
+    if (!tg) return;
+
+    tg.ready();
+    tg.expand();
+
+    // The script is loaded in every browser, so its presence proves nothing. Without the
+    // signed data — and without the fragment it is parsed from — this is the web, and
+    // the visitor belongs at the Yandex sign-in rather than here holding a "mock".
+    if (!isTelegramWebView()) return;
+
+    setInitData(tg.initData || "mock");
+    setTelegramUser(tg.initDataUnsafe?.user ?? null);
+    setDoor("telegram");
   }, []);
 
   useEffect(() => {
