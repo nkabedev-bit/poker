@@ -49,9 +49,19 @@ const NAV_ITEMS = [
   { href: "/client/profile", label: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
 
+/** How long to wait for Telegram before deciding this is an ordinary browser. */
+const TELEGRAM_WAIT_MS = 1200;
+
+/** The only screen a visitor with no session is allowed to reach. */
+const SIGN_IN_PATH = "/client/login";
+
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
   const [telegramUser, setTelegramUser] = useState<ClientTelegramUser | null>(null);
+  // Which door this visitor came through. Until it is known the screen waits: rendering
+  // the app and then throwing a sign-in page at a Telegram player would be a flash of
+  // the wrong thing.
+  const [door, setDoor] = useState<"loading" | "telegram" | "web">("loading");
   const pathname = usePathname();
   const router = useRouter();
 
@@ -62,13 +72,48 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       tg.expand();
       setInitData(tg.initData || "mock");
       setTelegramUser(tg.initDataUnsafe?.user ?? null);
+      setDoor("telegram");
     }
   }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(initTg, 0);
-    return () => window.clearTimeout(timeout);
+    // Outside Telegram the script never produces a WebApp at all, and the app used to
+    // sit on "Загрузка…" for good. After a moment, the web door is the answer.
+    const giveUp = window.setTimeout(
+      () => setDoor((current) => (current === "loading" ? "web" : current)),
+      TELEGRAM_WAIT_MS,
+    );
+
+    return () => {
+      window.clearTimeout(timeout);
+      window.clearTimeout(giveUp);
+    };
   }, [initTg]);
+
+  // A web visitor carries their session in a cookie, and there is no way to tell from
+  // here whether it is still good. Asked once, rather than on every screen: every other
+  // request would answer the same question a second time.
+  const sessionChecked = useRef(false);
+
+  useEffect(() => {
+    if (door !== "web" || pathname === SIGN_IN_PATH || sessionChecked.current) return;
+    sessionChecked.current = true;
+
+    let cancelled = false;
+
+    void fetch("/api/client-tma/me")
+      .then((res) => {
+        if (!cancelled && (res.status === 401 || res.status === 403)) {
+          router.replace(SIGN_IN_PATH);
+        }
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [door, pathname, router]);
 
   // Telegram's own back button, wired the way a native screen behaves: present on every
   // screen except the home one, and pressing it returns to where the player came from.
@@ -151,12 +196,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           <span className="text-[13px] font-semibold tracking-[0.38em] text-[#e9c07a]">MAJESTIC</span>
         </header>
 
-        {!initData ? (
+        {door === "loading" ? (
           <div className="relative z-10 flex flex-1 items-center justify-center text-white/40">
             Загрузка…
           </div>
         ) : (
-          <ClientTMAContext.Provider value={{ initData, telegramUser }}>
+          <ClientTMAContext.Provider value={{ initData: initData ?? "", telegramUser }}>
             <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
               {children}
             </main>

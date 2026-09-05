@@ -68,3 +68,13 @@ export function readSessionToken(
     return null;
   }
 }
+
+/** One cookie off a raw request, for handlers that never touch `next/headers`. */
+export function readCookie(request: Request, name: string) {
+  return request.headers
+    .get("cookie")
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${name}=`))
+    ?.slice(name.length + 1) ?? null;
+}

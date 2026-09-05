@@ -8,7 +8,13 @@ import { buildNicknameKey } from "@/lib/players/nickname-key";
  * the invitation in the app, or a guest from outside it, who is a name on the buyer's
  * sign-up and nothing more until they walk in.
  */
-export type DuoPartner = { name: string; telegramId: number | null };
+export type DuoPartner = {
+  name: string;
+  /** How to tell them, when they have a Telegram; a web player is told in the app. */
+  telegramId: number | null;
+  /** The club account of a member; null for a guest from outside it. */
+  userId: string | null;
+};
 
 export const MAX_PARTNER_NAME_LENGTH = 40;
 
@@ -31,42 +37,49 @@ export async function resolveDuoPartner(
   {
     partnerKey,
     partnerName,
-    selfTelegramId,
-  }: { partnerKey: unknown; partnerName: string; selfTelegramId: number },
+    selfUserId,
+  }: { partnerKey: unknown; partnerName: string; selfUserId: string },
 ): Promise<{ error: "ambiguous" | "not_found" | "self" | null; partner: DuoPartner | null }> {
   const key = typeof partnerKey === "string" ? buildNicknameKey(partnerKey) : "";
 
   if (!key) {
     return partnerName
-      ? { error: null, partner: { name: partnerName, telegramId: null } }
+      ? { error: null, partner: { name: partnerName, telegramId: null, userId: null } }
       : { error: "not_found", partner: null };
   }
 
   const { data, error } = await supabase
     .from("client_bot_users")
-    .select("telegram_id, display_name")
+    .select("id, telegram_id, display_name")
     .eq("nickname_key", key)
     .limit(2);
 
   if (error) throw error;
 
-  const matches = (data ?? []) as Array<{ display_name: string | null; telegram_id: number }>;
+  const matches = (data ?? []) as Array<{
+    display_name: string | null;
+    id: string;
+    telegram_id: number | null;
+  }>;
   if (matches.length === 0) return { error: "not_found", partner: null };
   if (matches.length > 1) return { error: "ambiguous", partner: null };
-  if (matches[0].telegram_id === selfTelegramId) return { error: "self", partner: null };
+  if (matches[0].id === selfUserId) return { error: "self", partner: null };
 
   return {
     error: null,
     partner: {
       name: matches[0].display_name ?? partnerName,
       telegramId: matches[0].telegram_id,
+      userId: matches[0].id,
     },
   };
 }
 
 export type DuoInvitation = {
   hostName: string;
-  hostTelegramId: number;
+  /** Null when the buyer signed in on the web: they read the answer in the app. */
+  hostTelegramId: number | null;
+  hostUserId: string;
   /** Set once this player has already answered by taking their half of the ticket. */
   joined: boolean;
 };
@@ -79,17 +92,17 @@ export type DuoInvitation = {
  */
 export async function findDuoInvitation(
   supabase: SupabaseClient,
-  { eventId, telegramId }: { eventId: string; telegramId: number },
+  { eventId, userId }: { eventId: string; userId: string },
 ): Promise<DuoInvitation | null> {
   // One row is expected — the database keeps a player from being asked twice for the
   // same evening — but this reads a list rather than insisting on it: an invitation
   // written before that rule existed must still open the page, not break it.
   const { data, error } = await supabase
     .from("event_signups")
-    .select("telegram_id, duo_confirmed_at, created_at, client_bot_users(display_name)")
+    .select("user_id, telegram_id, duo_confirmed_at, created_at, client_bot_users(display_name)")
     .eq("event_id", eventId)
     .eq("ticket_type", "duo")
-    .eq("duo_partner_telegram_id", telegramId)
+    .eq("duo_partner_user_id", userId)
     .neq("status", "cancelled")
     .order("created_at")
     .limit(1);
@@ -102,7 +115,8 @@ export async function findDuoInvitation(
   const record = first as {
     client_bot_users?: unknown;
     duo_confirmed_at: string | null;
-    telegram_id: number;
+    telegram_id: number | null;
+    user_id: string;
   };
   const embedded = record.client_bot_users;
   const host = (Array.isArray(embedded) ? embedded[0] : embedded) as
@@ -112,6 +126,7 @@ export async function findDuoInvitation(
   return {
     hostName: host?.display_name ?? "Игрок клуба",
     hostTelegramId: record.telegram_id,
+    hostUserId: record.user_id,
     joined: Boolean(record.duo_confirmed_at),
   };
 }
@@ -127,16 +142,16 @@ export async function isPartnerTaken(
   supabase: SupabaseClient,
   {
     eventId,
-    hostTelegramId,
-    partnerTelegramId,
-  }: { eventId: string; hostTelegramId: number; partnerTelegramId: number },
+    hostUserId,
+    partnerUserId,
+  }: { eventId: string; hostUserId: string; partnerUserId: string },
 ) {
   const { data, error } = await supabase
     .from("event_signups")
-    .select("telegram_id")
+    .select("user_id")
     .eq("event_id", eventId)
-    .eq("duo_partner_telegram_id", partnerTelegramId)
-    .neq("telegram_id", hostTelegramId)
+    .eq("duo_partner_user_id", partnerUserId)
+    .neq("user_id", hostUserId)
     .neq("status", "cancelled")
     .limit(1);
 
@@ -147,13 +162,13 @@ export async function isPartnerTaken(
 /** Withdraws the +1 half of a pair — the buyer cancelled, or the partner said no. */
 export async function cancelDuoPlusOne(
   supabase: SupabaseClient,
-  { eventId, hostTelegramId }: { eventId: string; hostTelegramId: number },
+  { eventId, hostUserId }: { eventId: string; hostUserId: string },
 ) {
   const { error } = await supabase
     .from("event_signups")
     .update({ status: "cancelled" })
     .eq("event_id", eventId)
-    .eq("duo_host_telegram_id", hostTelegramId)
+    .eq("duo_host_user_id", hostUserId)
     .neq("status", "cancelled");
 
   if (error) throw error;

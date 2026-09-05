@@ -30,13 +30,21 @@ const PODIUM_PLACES = 3;
  * The nickname is matched by its key, so "Kabedev", "kabedev" and "KABE_DEV" all find
  * the same player's games.
  */
-export function buildPlayerResultsFilter(telegramId: number, nickname: string) {
-  const filters = [`telegram_id.eq.${telegramId}`];
+/**
+ * How a stored result is recognised as this player's: by the Telegram id written on it,
+ * or by their club nickname. A player who signed in on the web has no Telegram id, and
+ * the nickname carries them on its own — which is also what matches the games they
+ * played before they ever opened the app.
+ */
+export function buildPlayerResultsFilter(telegramId: number | null, nickname: string) {
+  const filters = telegramId === null ? [] : [`telegram_id.eq.${telegramId}`];
   const key = buildNicknameKey(nickname);
 
   if (key) filters.push(`player_key.eq.${key}`);
 
-  return filters.join(",");
+  // An account with neither owns no results. Matching on an id no row can hold says so
+  // without the caller having to check first.
+  return filters.length > 0 ? filters.join(",") : "telegram_id.eq.0";
 }
 
 function isTop9(place: number | null) {

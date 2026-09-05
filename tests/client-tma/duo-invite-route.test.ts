@@ -64,6 +64,7 @@ function authWith(supabase: unknown) {
     supabase,
     user: {
       display_name: "TitAn",
+      id: "account-plus-one",
       profile_submitted_at: "2026-08-01T00:00:00.000Z",
       telegram_id: 777,
     },
@@ -92,6 +93,7 @@ describe("answering a 1+1 invitation", () => {
     mocks.findDuoInvitation.mockResolvedValue({
       hostName: "Karel",
       hostTelegramId: 555,
+      hostUserId: "account-host",
       joined: false,
     });
   });
@@ -107,20 +109,21 @@ describe("answering a 1+1 invitation", () => {
     expect(upsert).toHaveBeenCalledWith(
       {
         duo_confirmed_at: null,
-        duo_host_telegram_id: 555,
+        duo_host_user_id: "account-host",
         duo_partner_name: null,
-        duo_partner_telegram_id: null,
+        duo_partner_user_id: null,
         event_id: "event-1",
         status: "signed_up",
         telegram_id: 777,
         ticket_type: "duo_plus_one",
         use_pass: "none",
+        user_id: "account-plus-one",
       },
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(
       supabase,
-      555,
+      "account-host",
       expect.stringContaining("TitAn"),
     );
   });
@@ -139,7 +142,7 @@ describe("answering a 1+1 invitation", () => {
     expect(update).toHaveBeenCalledWith({
       duo_confirmed_at: null,
       duo_partner_name: null,
-      duo_partner_telegram_id: null,
+      duo_partner_user_id: null,
     });
   });
 
@@ -163,11 +166,12 @@ describe("answering a 1+1 invitation", () => {
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: null,
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: null,
-        duoPartnerTelegramId: null,
+        duoPartnerUserId: null,
         eventId: "event-1",
         ticketType: "vip",
+        userId: "account-plus-one",
       },
     ]);
 
@@ -177,7 +181,7 @@ describe("answering a 1+1 invitation", () => {
     expect(await response.json()).toEqual({ joined: true, releasedTicket: "vip" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "duo_plus_one" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -189,11 +193,12 @@ describe("answering a 1+1 invitation", () => {
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: "2026-08-02T00:00:00.000Z",
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: "Дима",
-        duoPartnerTelegramId: 999,
+        duoPartnerUserId: "account-dima",
         eventId: "event-1",
         ticketType: "duo",
+        userId: "account-plus-one",
       },
     ]);
 
@@ -203,8 +208,16 @@ describe("answering a 1+1 invitation", () => {
     expect(await response.json()).toEqual({ joined: true, releasedTicket: "duo" });
     expect(update).toHaveBeenCalledWith({ status: "cancelled" });
     // Both the host who invited them and the partner they are letting go are told.
-    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 555, expect.any(String));
-    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 999, expect.any(String));
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
+      supabase,
+      "account-host",
+      expect.any(String),
+    );
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
+      supabase,
+      "account-dima",
+      expect.any(String),
+    );
   });
 
   it("leaves a refusal to release nothing", async () => {
@@ -213,11 +226,12 @@ describe("answering a 1+1 invitation", () => {
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: null,
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: null,
-        duoPartnerTelegramId: null,
+        duoPartnerUserId: null,
         eventId: "event-1",
         ticketType: "regular",
+        userId: "account-plus-one",
       },
     ]);
 
@@ -227,7 +241,7 @@ describe("answering a 1+1 invitation", () => {
     expect(update).toHaveBeenCalledWith({
       duo_confirmed_at: null,
       duo_partner_name: null,
-      duo_partner_telegram_id: null,
+      duo_partner_user_id: null,
     });
   });
 });

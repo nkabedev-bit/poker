@@ -19,9 +19,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const [signupCounts, mySignups, invitation] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
-    getUserSignups(auth.supabase, auth.user.telegram_id),
+    getUserSignups(auth.supabase, auth.user.id),
     // Somebody may be waiting on this player to say they are coming as their +1.
-    findDuoInvitation(auth.supabase, { eventId: event.id, telegramId: auth.user.telegram_id }),
+    findDuoInvitation(auth.supabase, { eventId: event.id, userId: auth.user.id }),
   ]);
 
   const mySignup = mySignups.find((signup) => signup.eventId === event.id) ?? null;
@@ -33,7 +33,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       // What the player already asked for, so the page can say it back to them —
       // including the partner on a "1+1" and whether they have answered yet.
       partnerConfirmed: Boolean(mySignup?.duoConfirmedAt),
-      partnerIsMember: mySignup?.duoPartnerTelegramId != null,
+      partnerIsMember: mySignup?.duoPartnerUserId != null,
       partnerName: mySignup?.duoPartnerName ?? null,
       signedUp: Boolean(mySignup),
       signupsCount: taken?.total ?? 0,

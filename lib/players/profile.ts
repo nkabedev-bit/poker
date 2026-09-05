@@ -30,7 +30,7 @@ export async function readPlayerGames(
   const { data } = await supabase
     .from("tournament_results")
     .select("place, knockouts, started_at")
-    .or(buildPlayerResultsFilter(telegramId ?? 0, nickname))
+    .or(buildPlayerResultsFilter(telegramId ?? null, nickname))
     .order("started_at", { ascending: false })
     .limit(PLAYED_GAMES_LIMIT);
 

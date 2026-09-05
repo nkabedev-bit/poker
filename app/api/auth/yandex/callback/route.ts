@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth/yandex";
 import {
   createSessionToken,
+  readCookie,
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
 } from "@/lib/auth/session";
@@ -71,12 +72,7 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL("/client", request.url));
   }
 
-  const expectedState = request.headers
-    .get("cookie")
-    ?.split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(`${OAUTH_STATE_COOKIE}=`))
-    ?.slice(OAUTH_STATE_COOKIE.length + 1);
+  const expectedState = readCookie(request, OAUTH_STATE_COOKIE);
 
   if (!code || !state || !expectedState || !matches(state, expectedState)) {
     return NextResponse.json(

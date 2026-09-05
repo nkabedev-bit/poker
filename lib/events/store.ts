@@ -13,7 +13,7 @@ const EVENT_COLUMNS =
   "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 const SIGNUP_COLUMNS =
-  "id, event_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_telegram_id, duo_partner_name, duo_host_telegram_id, duo_confirmed_at";
+  "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;
@@ -90,7 +90,7 @@ export async function countActiveSignups(
 
   const { data, error } = await supabase
     .from("event_signups")
-    .select("event_id, ticket_type, duo_partner_name, duo_partner_telegram_id")
+    .select("event_id, ticket_type, duo_partner_name, duo_partner_user_id")
     .in("event_id", eventIds)
     .neq("status", "cancelled");
 
@@ -99,7 +99,7 @@ export async function countActiveSignups(
   for (const row of data ?? []) {
     const record = row as {
       duo_partner_name: unknown;
-      duo_partner_telegram_id: unknown;
+      duo_partner_user_id: unknown;
       event_id: unknown;
       ticket_type: unknown;
     };
@@ -109,7 +109,7 @@ export async function countActiveSignups(
     // A member brought as a +1 counts on their own row once they accept; a guest from
     // outside the club has no row of their own and is counted here, on the buyer's.
     const bringsGuest =
-      ticket === "duo" && !record.duo_partner_telegram_id && Boolean(record.duo_partner_name);
+      ticket === "duo" && !record.duo_partner_user_id && Boolean(record.duo_partner_name);
 
     counts.set(eventId, {
       duo: taken.duo + (ticket === "duo" ? 1 : 0),
@@ -155,12 +155,12 @@ export async function listEventSignups(
 /** A player's own sign-ups joined with the event, for the history on their profile. */
 export async function getUserSignupsWithEvents(
   supabase: SupabaseClient,
-  telegramId: number,
+  userId: string,
 ): Promise<Array<{ event: TournamentEvent; status: EventSignup["status"] }>> {
   const { data, error } = await supabase
     .from("event_signups")
     .select(`id, status, tournament_events(${EVENT_COLUMNS})`)
-    .eq("telegram_id", telegramId)
+    .eq("user_id", userId)
     .neq("status", "cancelled");
 
   if (error) throw error;
@@ -183,12 +183,12 @@ export async function getUserSignupsWithEvents(
 
 export async function getUserSignups(
   supabase: SupabaseClient,
-  telegramId: number,
+  userId: string,
 ): Promise<EventSignup[]> {
   const { data, error } = await supabase
     .from("event_signups")
     .select(SIGNUP_COLUMNS)
-    .eq("telegram_id", telegramId)
+    .eq("user_id", userId)
     .neq("status", "cancelled");
 
   if (error) throw error;

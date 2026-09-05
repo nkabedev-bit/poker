@@ -39,7 +39,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
     .select(
-      "id, telegram_id, status, use_pass, ticket_type, client_bot_users(display_name, free_entries, vip_free_entries)",
+      "id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users(display_name, free_entries, vip_free_entries)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -57,7 +57,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
   }
 
-  const telegramId = Number((signup as { telegram_id: unknown }).telegram_id);
+  // A player who signed in on the web has no Telegram id at all: `Number(null)` is 0,
+  // and seating two of them would have them share a seat. The account is what tells
+  // them apart, and the Telegram id is only carried when there really is one.
+  const rawTelegramId = Number((signup as { telegram_id: unknown }).telegram_id);
+  const telegramId = Number.isInteger(rawTelegramId) && rawTelegramId > 0 ? rawTelegramId : null;
+  const accountId = String((signup as { user_id: unknown }).user_id ?? "") || null;
   const embedded = (signup as Record<string, unknown>).client_bot_users;
   const player = (Array.isArray(embedded) ? embedded[0] : embedded) as
     | { display_name?: string | null; free_entries?: number | null; vip_free_entries?: number | null }
@@ -68,7 +73,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "У игрока нет никнейма в анкете" }, { status: 400 });
   }
 
-  const alreadySeated = extras.players.find((item) => Number(item.telegramId) === telegramId);
+  const alreadySeated = extras.players.find((item) =>
+    accountId && item.accountId
+      ? item.accountId === accountId
+      : telegramId !== null && Number(item.telegramId) === telegramId,
+  );
   if (alreadySeated) {
     await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
     return NextResponse.json({ alreadySeated: true, player: alreadySeated });
@@ -108,6 +117,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const duoTicket = signupTicket === "duo" || signupTicket === "duo_plus_one";
 
   const playerDraft: TournamentPlayer = {
+    accountId,
     addons: 0,
     duoTicket,
     freePass: passUsed,

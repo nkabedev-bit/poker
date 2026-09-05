@@ -25,7 +25,7 @@ type AchievementStatsRow = {
 // locking every player out.
 async function readAchievementStats(
   supabase: Awaited<ReturnType<typeof requireClientTmaAuth>>["supabase"],
-  telegramId: number,
+  accountId: string,
 ): Promise<AchievementStatsRow | null> {
   if (!supabase) return null;
 
@@ -34,7 +34,7 @@ async function readAchievementStats(
     .select(
       "top3_count, wins_count, last_place_count, best_tournament_bounty, best_top9_streak, best_miss_streak, medals",
     )
-    .eq("telegram_id", telegramId)
+    .eq("id", accountId)
     .maybeSingle();
 
   if (error) {
@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     (item) => item.telegramId === auth.user.telegram_id,
   );
 
-  const achievementStats = await readAchievementStats(auth.supabase, auth.user.telegram_id);
+  const achievementStats = await readAchievementStats(auth.supabase, auth.user.id);
 
   const now = new Date();
 
@@ -76,7 +76,7 @@ export async function GET(request: Request) {
     label: getPersistedPlayerLabel(context?.extras.playerLabels, auth.user.display_name),
   });
 
-  const history = await getUserSignupsWithEvents(auth.supabase, auth.user.telegram_id);
+  const history = await getUserSignupsWithEvents(auth.supabase, auth.user.id);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
     (split, item) => {
       split[isUpcomingEvent(item.event, now) ? 0 : 1].push(item);

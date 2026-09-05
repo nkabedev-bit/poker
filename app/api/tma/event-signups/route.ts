@@ -31,10 +31,12 @@ export async function GET(request: Request) {
     event: event ? { id: event.id, startsAt: event.startsAt, title: event.title } : null,
     signups: signups.map((signup) => ({
       id: signup.id,
-      name: signup.displayName ?? `id ${signup.telegramId}`,
+      name: signup.displayName ?? "Без никнейма",
       // Who the player is bringing on a "1+1", so the desk expects two of them.
       partnerName: signup.duoPartnerName,
-      seated: signup.status === "seated" || seatedTelegramIds.has(signup.telegramId),
+      seated:
+        signup.status === "seated" ||
+        (signup.telegramId !== null && seatedTelegramIds.has(signup.telegramId)),
       telegramId: signup.telegramId,
       // The ticket the player asked for, so the desk starts from their choice.
       ticketType: signup.ticketType,

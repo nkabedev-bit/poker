@@ -30,16 +30,19 @@ export type EventSignup = {
   createdAt: string;
   /** When the invited member said yes; a guest's pair is settled the moment it is made. */
   duoConfirmedAt: string | null;
-  /** On the +1's row: the player who bought the ticket for the two of them. */
-  duoHostTelegramId: number | null;
+  /** On the +1's row: the account that bought the ticket for the two of them. */
+  duoHostUserId: string | null;
   /** On the buyer's row: the guest they are bringing, when the +1 has no account. */
   duoPartnerName: string | null;
   /** On the buyer's row: the member they invited, when the +1 plays at the club. */
-  duoPartnerTelegramId: number | null;
+  duoPartnerUserId: string | null;
   eventId: string;
   id: string;
   status: EventSignupStatus;
-  telegramId: number;
+  /** Null on a sign-up made from the web: those players have no Telegram at all. */
+  telegramId: number | null;
+  /** Whose sign-up this is, whichever door they came through. */
+  userId: string;
   /** The ticket the player asked for; it decides which seat they are counted against. */
   ticketType: EventTicketType;
   /** Which free entry the player asked to pay with; spent only when they are seated. */
@@ -136,13 +139,14 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
   return {
     createdAt: String(row.created_at),
     duoConfirmedAt: optionalText(row.duo_confirmed_at),
-    duoHostTelegramId: optionalTelegramId(row.duo_host_telegram_id),
+    duoHostUserId: optionalText(row.duo_host_user_id),
     duoPartnerName: optionalText(row.duo_partner_name),
-    duoPartnerTelegramId: optionalTelegramId(row.duo_partner_telegram_id),
+    duoPartnerUserId: optionalText(row.duo_partner_user_id),
     eventId: String(row.event_id),
     id: String(row.id),
     status: (row.status as EventSignupStatus) ?? "signed_up",
-    telegramId: Number(row.telegram_id),
+    telegramId: optionalTelegramId(row.telegram_id),
+    userId: String(row.user_id),
     ticketType: isEventTicketType(row.ticket_type) ? row.ticket_type : "regular",
     usePass: isFreePassChoice(row.use_pass) ? row.use_pass : "none",
   };

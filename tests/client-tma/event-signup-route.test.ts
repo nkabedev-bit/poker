@@ -70,7 +70,7 @@ function taken({
  * partner up by nickname reads the accounts.
  */
 function upsertSpy({
-  members = [] as Array<{ display_name: string; telegram_id: number }>,
+  members = [] as Array<{ display_name: string; id: string; telegram_id: number | null }>,
   partnerTaken = false,
 } = {}) {
   const upsert = vi.fn(async () => ({ error: null }));
@@ -128,6 +128,7 @@ function authWith({
     user: {
       display_name: "Ace High",
       free_entries: freeEntries,
+      id: "account-host",
       profile_submitted_at: profileSubmitted ? "2026-08-01T00:00:00.000Z" : null,
       telegram_id: 555,
       vip_free_entries: vipFreeEntries,
@@ -168,14 +169,15 @@ describe("client sign-up route", () => {
       {
         duo_confirmed_at: null,
         duo_partner_name: null,
-        duo_partner_telegram_id: null,
+        duo_partner_user_id: null,
         event_id: "event-1",
         status: "signed_up",
         telegram_id: 555,
         ticket_type: "regular",
         use_pass: "none",
+        user_id: "account-host",
       },
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -189,7 +191,7 @@ describe("client sign-up route", () => {
     expect(await response.json()).toMatchObject({ usePass: "vip" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ use_pass: "vip" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -202,7 +204,7 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "vip" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -227,7 +229,7 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "regular" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -240,7 +242,7 @@ describe("client sign-up route", () => {
 
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "vip", use_pass: "none" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -255,7 +257,7 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ use_pass: "none" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -330,7 +332,7 @@ describe("the 1+1 ticket", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ duo_partner_name: "Дима Б", ticket_type: "duo" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -373,7 +375,7 @@ describe("the 1+1 ticket", () => {
     expect(await response.json()).toMatchObject({ usePass: "none" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "duo", use_pass: "none" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -385,13 +387,13 @@ describe("the 1+1 ticket", () => {
 
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
 
   it("invites a member of the club by nickname and tells them in the bot", async () => {
     const { supabase, upsert } = upsertSpy({
-      members: [{ display_name: "TitAn", telegram_id: 777 }],
+      members: [{ display_name: "TitAn", id: "account-titan", telegram_id: 777 }],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
 
@@ -401,14 +403,14 @@ describe("the 1+1 ticket", () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         duo_partner_name: "TitAn",
-        duo_partner_telegram_id: 777,
+        duo_partner_user_id: "account-titan",
         ticket_type: "duo",
       }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(
       supabase,
-      777,
+      "account-titan",
       expect.stringContaining("Ace High"),
     );
   });
@@ -417,8 +419,8 @@ describe("the 1+1 ticket", () => {
   it("refuses a nickname shared by several accounts", async () => {
     const { supabase, upsert } = upsertSpy({
       members: [
-        { display_name: "TitAn", telegram_id: 777 },
-        { display_name: "titan", telegram_id: 888 },
+        { display_name: "TitAn", id: "account-titan", telegram_id: 777 },
+        { display_name: "titan", id: "account-other", telegram_id: 888 },
       ],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
@@ -432,7 +434,7 @@ describe("the 1+1 ticket", () => {
 
   it("lets nobody bring themselves", async () => {
     const { supabase, upsert } = upsertSpy({
-      members: [{ display_name: "Ace High", telegram_id: 555 }],
+      members: [{ display_name: "Ace High", id: "account-host", telegram_id: 555 }],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
 
@@ -445,18 +447,19 @@ describe("the 1+1 ticket", () => {
   // The buyer keeps the only pair ticket of the evening while naming somebody else.
   it("lets the buyer swap the partner without losing their own ticket", async () => {
     const { supabase, update, upsert } = upsertSpy({
-      members: [{ display_name: "Secret", telegram_id: 999 }],
+      members: [{ display_name: "Secret", id: "account-secret", telegram_id: 999 }],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
     mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: null,
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: "TitAn",
-        duoPartnerTelegramId: 777,
+        duoPartnerUserId: "account-titan",
         eventId: "event-1",
         ticketType: "duo",
+        userId: "account-host",
       },
     ]);
 
@@ -465,10 +468,14 @@ describe("the 1+1 ticket", () => {
     expect(response.status).toBe(200);
     // The player who was asked before is withdrawn, and told the pair is off.
     expect(update).toHaveBeenCalledWith({ status: "cancelled" });
-    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 777, expect.any(String));
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
+      supabase,
+      "account-titan",
+      expect.any(String),
+    );
     expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ duo_partner_telegram_id: 999 }),
-      { onConflict: "event_id,telegram_id" },
+      expect.objectContaining({ duo_partner_user_id: "account-secret" }),
+      { onConflict: "event_id,user_id" },
     );
   });
 
@@ -483,14 +490,14 @@ describe("the 1+1 ticket", () => {
     expect(await response.json()).toMatchObject({ ticketType: "regular" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ duo_partner_name: null, ticket_type: "regular" }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
   });
   // A member comes as the +1 of one ticket only: two buyers naming the same person
   // leaves one of them with a partner who cannot come.
   it("refuses a partner somebody else is already bringing", async () => {
     const { supabase, upsert } = upsertSpy({
-      members: [{ display_name: "TitAn", telegram_id: 777 }],
+      members: [{ display_name: "TitAn", id: "account-titan", telegram_id: 777 }],
       partnerTaken: true,
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
@@ -507,18 +514,19 @@ describe("the 1+1 ticket", () => {
   // the pair, because the half of the ticket they already hold hides the question.
   it("leaves the partner's answer standing when the buyer names them again", async () => {
     const { supabase, upsert } = upsertSpy({
-      members: [{ display_name: "TitAn", telegram_id: 777 }],
+      members: [{ display_name: "TitAn", id: "account-titan", telegram_id: 777 }],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
     mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: "2026-08-02T00:00:00.000Z",
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: "TitAn",
-        duoPartnerTelegramId: 777,
+        duoPartnerUserId: "account-titan",
         eventId: "event-1",
         ticketType: "duo",
+        userId: "account-host",
       },
     ]);
 
@@ -528,9 +536,9 @@ describe("the 1+1 ticket", () => {
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         duo_confirmed_at: "2026-08-02T00:00:00.000Z",
-        duo_partner_telegram_id: 777,
+        duo_partner_user_id: "account-titan",
       }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
     expect(mocks.notifyClientUser).not.toHaveBeenCalled();
   });
@@ -539,18 +547,19 @@ describe("the 1+1 ticket", () => {
   // on their screen, so the invitation is sent a second time.
   it("asks a partner who has not answered yet again", async () => {
     const { supabase, upsert } = upsertSpy({
-      members: [{ display_name: "TitAn", telegram_id: 777 }],
+      members: [{ display_name: "TitAn", id: "account-titan", telegram_id: 777 }],
     });
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
     mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
     mocks.getUserSignups.mockResolvedValue([
       {
         duoConfirmedAt: null,
-        duoHostTelegramId: null,
+        duoHostUserId: null,
         duoPartnerName: "TitAn",
-        duoPartnerTelegramId: 777,
+        duoPartnerUserId: "account-titan",
         eventId: "event-1",
         ticketType: "duo",
+        userId: "account-host",
       },
     ]);
 
@@ -559,8 +568,12 @@ describe("the 1+1 ticket", () => {
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ duo_confirmed_at: null }),
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
-    expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, 777, expect.any(String));
+    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
+      supabase,
+      "account-titan",
+      expect.any(String),
+    );
   });
 });

@@ -19,7 +19,7 @@ export class AvatarUploadError extends Error {}
  */
 export async function uploadPlayerAvatar(
   supabase: SupabaseClient,
-  { dataUrl, telegramId }: { dataUrl: string; telegramId: number },
+  { dataUrl, owner }: { dataUrl: string; owner: string },
 ) {
   const parsed = parseAvatarDataUrl(dataUrl);
   if (!parsed) throw new AvatarUploadError("Не удалось прочитать изображение");
@@ -45,8 +45,8 @@ export async function uploadPlayerAvatar(
   ]);
 
   // One path per player, overwritten: an old photo should not linger in the bucket.
-  const path = `custom/${telegramId}.webp`;
-  const thumbPath = `custom/thumbs/${telegramId}.webp`;
+  const path = `custom/${owner}.webp`;
+  const thumbPath = `custom/thumbs/${owner}.webp`;
   const [{ error }, { error: thumbError }] = await Promise.all([
     supabase.storage
       .from(AVATAR_BUCKET)

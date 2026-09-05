@@ -15,7 +15,9 @@ export async function POST(request: Request) {
   try {
     const avatar = await uploadPlayerAvatar(auth.supabase, {
       dataUrl: String(body.dataUrl ?? ""),
-      telegramId: auth.user.telegram_id,
+      // Named by the Telegram id where there is one, so photos uploaded before the web
+      // door existed keep the file they are already stored under.
+      owner: String(auth.user.telegram_id ?? auth.user.id),
     });
 
     // Marked as the player's own, so the weekly Telegram sync leaves it alone.
@@ -27,7 +29,7 @@ export async function POST(request: Request) {
         avatar_thumb_url: avatar.thumbUrl,
         avatar_url: avatar.url,
       })
-      .eq("telegram_id", auth.user.telegram_id);
+      .eq("id", auth.user.id);
 
     if (error) {
       const missingColumn = String(error.message ?? "").includes("avatar_is_custom");
@@ -66,7 +68,7 @@ export async function DELETE(request: Request) {
       avatar_thumb_url: null,
       avatar_url: null,
     })
-    .eq("telegram_id", auth.user.telegram_id);
+    .eq("id", auth.user.id);
 
   if (error) throw error;
 

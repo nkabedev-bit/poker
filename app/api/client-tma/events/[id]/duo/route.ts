@@ -48,7 +48,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const invitation = await findDuoInvitation(auth.supabase, {
     eventId: id,
-    telegramId: auth.user.telegram_id,
+    userId: auth.user.id,
   });
 
   if (!invitation) {
@@ -61,22 +61,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // What this player already held for the evening. Coming as somebody's +1 replaces it:
   // one player, one seat, and the ticket they had goes back on sale.
   const mine =
-    (await getUserSignups(auth.supabase, auth.user.telegram_id)).find(
+    (await getUserSignups(auth.supabase, auth.user.id)).find(
       (signup) => signup.eventId === id,
     ) ?? null;
   const releasedTicket =
     accepted && mine && mine.ticketType !== "duo_plus_one" ? mine.ticketType : null;
   // Giving up a "1+1" of their own takes the pair with it: nobody is paying for it any
   // more, so the partner they had asked is told rather than left holding a seat.
-  const droppedOwnPartner =
-    releasedTicket === "duo" ? mine?.duoPartnerTelegramId ?? null : null;
+  const droppedOwnPartner = releasedTicket === "duo" ? mine?.duoPartnerUserId ?? null : null;
 
   if (accepted) {
     if (releasedTicket === "duo") {
-      await cancelDuoPlusOne(auth.supabase, {
-        eventId: id,
-        hostTelegramId: auth.user.telegram_id,
-      });
+      await cancelDuoPlusOne(auth.supabase, { eventId: id, hostUserId: auth.user.id });
     }
 
     // The +1 takes nothing from the poster's allotments: their seat was sold with the
@@ -86,17 +82,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         // This player is a guest on somebody else's ticket now, not the buyer of one:
         // a partner left behind here would still read as an invitation waiting.
         duo_confirmed_at: null,
-        duo_host_telegram_id: invitation.hostTelegramId,
+        duo_host_user_id: invitation.hostUserId,
         duo_partner_name: null,
-        duo_partner_telegram_id: null,
+        duo_partner_user_id: null,
         event_id: id,
         status: "signed_up",
         telegram_id: auth.user.telegram_id,
         ticket_type: "duo_plus_one",
         // A pass buys one ticket, and this one is already bought and paid for as a pair.
         use_pass: "none",
+        user_id: auth.user.id,
       },
-      { onConflict: "event_id,telegram_id" },
+      { onConflict: "event_id,user_id" },
     );
 
     if (error) throw error;
@@ -107,10 +104,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .update(
       accepted
         ? { duo_confirmed_at: new Date().toISOString() }
-        : { duo_confirmed_at: null, duo_partner_name: null, duo_partner_telegram_id: null },
+        : { duo_confirmed_at: null, duo_partner_name: null, duo_partner_user_id: null },
     )
     .eq("event_id", id)
-    .eq("telegram_id", invitation.hostTelegramId);
+    .eq("user_id", invitation.hostUserId);
 
   if (hostError) throw hostError;
 
@@ -119,7 +116,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     await notifyClientUser(
       auth.supabase,
-      invitation.hostTelegramId,
+      invitation.hostUserId,
       duoAnswerMessage(name, event.title, accepted),
     );
 

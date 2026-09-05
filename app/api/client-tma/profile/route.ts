@@ -75,7 +75,7 @@ export async function POST(request: Request) {
       profile_submitted_at: submittedAt.toISOString(),
       state: "idle",
     })
-    .eq("telegram_id", auth.user.telegram_id);
+    .eq("id", auth.user.id);
 
   if (error) throw error;
 

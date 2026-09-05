@@ -15,7 +15,7 @@ export async function GET(request: Request) {
 
   const [signupCounts, mySignups] = await Promise.all([
     countActiveSignups(auth.supabase, upcoming.map((event) => event.id)),
-    getUserSignups(auth.supabase, auth.user.telegram_id),
+    getUserSignups(auth.supabase, auth.user.id),
   ]);
 
   const mySignupEventIds = new Set(mySignups.map((signup) => signup.eventId));

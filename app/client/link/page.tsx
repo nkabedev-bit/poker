@@ -1,0 +1,126 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { GhostButton, GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
+import { maskBirthDateInput } from "@/lib/client-bot/registration";
+
+const inputClass =
+  "w-full rounded-2xl border border-white/[0.07] bg-black/30 px-4 py-3.5 text-[15px] text-white placeholder:text-white/25 outline-none focus:border-[#c8163f]";
+
+/**
+ * The fork a web player meets the first time they sign in.
+ *
+ * Somebody the club already knows keeps their games, their rating and their free
+ * entries, so they are asked for the nickname those are stored under. The date of birth
+ * beside it is what makes the claim theirs: a nickname is on the public rating for
+ * anyone to read, and a profile is worth taking.
+ */
+export default function ClientLinkPage() {
+  const router = useRouter();
+
+  const [played, setPlayed] = useState<boolean | null>(null);
+  const [nickname, setNickname] = useState("");
+  const [birthDate, setBirthDate] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const submit = async () => {
+    setError("");
+    setSubmitting(true);
+
+    try {
+      const res = await fetch("/api/auth/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ birthDate, nickname }),
+      });
+
+      if (res.ok) {
+        router.replace("/client");
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      setError(data?.message ?? "Не удалось привязать профиль.");
+    } catch {
+      setError("Нет связи с сервером. Попробуйте ещё раз.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (played === null) {
+    return (
+      <div className="flex min-h-full flex-col justify-center space-y-5 py-6">
+        <div className="space-y-1.5 text-center">
+          <PageTitle>Вы у нас уже играли?</PageTitle>
+          <p className="text-sm text-white/45">
+            Если играли — найдём ваш профиль со всей историей и проходками.
+          </p>
+        </div>
+
+        <GlassCard className="space-y-3">
+          <PrimaryButton onClick={() => setPlayed(true)}>Да, играл</PrimaryButton>
+          <GhostButton onClick={() => router.replace("/client/onboarding")}>
+            Нет, я впервые
+          </GhostButton>
+        </GlassCard>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5 pt-1">
+      <div className="space-y-1.5">
+        <PageTitle>Найдём ваш профиль</PageTitle>
+        <p className="text-sm text-white/45">
+          Ник — тот, под которым вы играете в клубе. Дата рождения — из анкеты, которую
+          вы заполняли.
+        </p>
+      </div>
+
+      <GlassCard className="space-y-4">
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-white/75">Игровой никнейм</span>
+          <input
+            className={inputClass}
+            placeholder="Киберпсих"
+            value={nickname}
+            onChange={(event) => setNickname(event.target.value)}
+          />
+        </label>
+
+        <label className="block space-y-2">
+          <span className="text-sm font-semibold text-white/75">Дата рождения</span>
+          <input
+            className={inputClass}
+            inputMode="numeric"
+            maxLength={10}
+            placeholder="ДД.ММ.ГГГГ"
+            value={birthDate}
+            onChange={(event) => setBirthDate(maskBirthDateInput(event.target.value))}
+          />
+        </label>
+      </GlassCard>
+
+      {error ? (
+        <p className="rounded-2xl border border-[#c8163f]/40 bg-[#c8163f]/10 px-4 py-3 text-sm text-white/80">
+          {error}
+        </p>
+      ) : null}
+
+      <div className="space-y-3">
+        <PrimaryButton
+          disabled={!nickname.trim() || birthDate.length < 10}
+          loading={submitting}
+          onClick={submit}
+        >
+          Это мой профиль
+        </PrimaryButton>
+
+        <GhostButton onClick={() => setPlayed(null)}>Назад</GhostButton>
+      </div>
+    </div>
+  );
+}

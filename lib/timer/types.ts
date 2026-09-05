@@ -85,6 +85,11 @@ export type TournamentPlayer = {
   category?: "VIP" | "Normal";
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
+  /**
+   * The club account this seat belongs to. Set for anyone seated from a sign-up, and the
+   * only way to tell two web players apart — they have no Telegram id between them.
+   */
+  accountId?: string | null;
   label?: string | null; // custom display marker for the public screen (e.g. "дилер")
   // Venue card handed out at the door for the evening; the code is printed on the card
   // and the card is reused by whoever comes next.

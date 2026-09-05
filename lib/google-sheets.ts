@@ -563,7 +563,8 @@ export async function appendEliminationRow(data: {
 export async function appendClientBotProfileRow(data: {
   answers: ClientBotProfileAnswers;
   submittedAt?: Date;
-  telegramId: number;
+  /** Empty for a player who signed in on the web and has no Telegram account. */
+  telegramId: number | null;
   username: string | null;
 }) {
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {

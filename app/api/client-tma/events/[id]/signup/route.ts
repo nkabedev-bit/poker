@@ -75,7 +75,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       ? await resolveDuoPartner(auth.supabase, {
           partnerKey: body.partnerKey,
           partnerName,
-          selfTelegramId: auth.user.telegram_id,
+          selfUserId: auth.user.id,
         })
       : { error: null, partner: null };
 
@@ -94,11 +94,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // A member comes as the +1 of one ticket only. Checked here so the buyer is told to
   // pick somebody else, rather than being handed the database's refusal as a failure.
   if (
-    partner.partner?.telegramId &&
+    partner.partner?.userId &&
     (await isPartnerTaken(auth.supabase, {
       eventId: event.id,
-      hostTelegramId: auth.user.telegram_id,
-      partnerTelegramId: partner.partner.telegramId,
+      hostUserId: auth.user.id,
+      partnerUserId: partner.partner.userId,
     }))
   ) {
     return NextResponse.json(
@@ -122,7 +122,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   const [counts, mySignups] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
-    getUserSignups(auth.supabase, auth.user.telegram_id),
+    getUserSignups(auth.supabase, auth.user.id),
   ]);
 
   // A player already holding a ticket of this kind keeps it: naming a different partner
@@ -149,23 +149,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Changing the partner starts the invitation over: the player who was asked before is
   // no longer coming, and their half of the ticket goes with them.
   const partnerChanged =
-    mine?.duoPartnerTelegramId != null &&
-    mine.duoPartnerTelegramId !== (partner.partner?.telegramId ?? null);
+    mine?.duoPartnerUserId != null &&
+    mine.duoPartnerUserId !== (partner.partner?.userId ?? null);
   // Naming the same partner again changes nothing, so their answer stands. Un-answering
   // them would strand the pair: their half of the ticket is written, which is exactly
   // what takes the banner they would answer through off their screen.
   const keptConfirmation =
     mine?.ticketType === "duo" &&
-    mine.duoPartnerTelegramId != null &&
-    mine.duoPartnerTelegramId === (partner.partner?.telegramId ?? null)
+    mine.duoPartnerUserId != null &&
+    mine.duoPartnerUserId === (partner.partner?.userId ?? null)
       ? mine.duoConfirmedAt ?? null
       : null;
 
   if (partnerChanged && mine) {
-    await cancelDuoPlusOne(auth.supabase, {
-      eventId: event.id,
-      hostTelegramId: auth.user.telegram_id,
-    });
+    await cancelDuoPlusOne(auth.supabase, { eventId: event.id, hostUserId: auth.user.id });
   }
 
   // A cancelled request is reused rather than duplicated: the unique (event, player)
@@ -176,22 +173,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // partner has yet to answer.
       duo_confirmed_at: keptConfirmation,
       duo_partner_name: partner.partner?.name ?? null,
-      duo_partner_telegram_id: partner.partner?.telegramId ?? null,
+      duo_partner_user_id: partner.partner?.userId ?? null,
       event_id: event.id,
       status: "signed_up",
       telegram_id: auth.user.telegram_id,
       ticket_type: ticketType,
       use_pass: usePass,
+      user_id: auth.user.id,
     },
-    { onConflict: "event_id,telegram_id" },
+    { onConflict: "event_id,user_id" },
   );
 
   if (error) throw error;
 
   // A partner who has already said yes is not asked again — there is nothing left for
   // them to answer, and the message would send them to a screen without the question.
-  const invited = keptConfirmation ? null : partner.partner?.telegramId ?? null;
-  const dropped = partnerChanged ? mine?.duoPartnerTelegramId ?? null : null;
+  const invited = keptConfirmation ? null : partner.partner?.userId ?? null;
+  // The player who was let go is told in the bot when they have one; a web player finds
+  // the pair gone the next time they open the tournament.
+  const dropped = partnerChanged ? mine?.duoPartnerUserId ?? null : null;
 
   // The bot carries the news once the sign-up stands, never before it: an invitation to
   // a ticket that failed to save would be a lie.
@@ -219,7 +219,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   if (auth.error) return auth.error;
 
   const id = (await params).id;
-  const mine = (await getUserSignups(auth.supabase, auth.user.telegram_id)).find(
+  const mine = (await getUserSignups(auth.supabase, auth.user.id)).find(
     (signup) => signup.eventId === id,
   );
 
@@ -227,31 +227,28 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     .from("event_signups")
     .update({ status: "cancelled" })
     .eq("event_id", id)
-    .eq("telegram_id", auth.user.telegram_id);
+    .eq("user_id", auth.user.id);
 
   if (error) throw error;
 
   // A pair falls together. Whichever half cancels, the other is left holding nothing:
   // the ticket was one, and the club has to hear about it from the app, not at the door.
   if (mine?.ticketType === "duo") {
-    await cancelDuoPlusOne(auth.supabase, {
-      eventId: id,
-      hostTelegramId: auth.user.telegram_id,
-    });
+    await cancelDuoPlusOne(auth.supabase, { eventId: id, hostUserId: auth.user.id });
   }
 
-  if (mine?.ticketType === "duo_plus_one" && mine.duoHostTelegramId) {
+  if (mine?.ticketType === "duo_plus_one" && mine.duoHostUserId) {
     const { error: hostError } = await auth.supabase
       .from("event_signups")
-      .update({ duo_confirmed_at: null, duo_partner_name: null, duo_partner_telegram_id: null })
+      .update({ duo_confirmed_at: null, duo_partner_name: null, duo_partner_user_id: null })
       .eq("event_id", id)
-      .eq("telegram_id", mine.duoHostTelegramId);
+      .eq("user_id", mine.duoHostUserId);
 
     if (hostError) throw hostError;
   }
 
   const event = await getEvent(auth.supabase, id);
-  const told = mine?.ticketType === "duo" ? mine.duoPartnerTelegramId : mine?.duoHostTelegramId;
+  const told = mine?.ticketType === "duo" ? mine.duoPartnerUserId : mine?.duoHostUserId;
 
   if (event && told) {
     after(async () => {

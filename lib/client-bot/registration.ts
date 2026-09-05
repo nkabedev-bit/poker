@@ -154,13 +154,14 @@ export function buildClientBotProfileSheetRow({
 }: {
   answers: ClientBotProfileAnswers;
   submittedAt: Date;
-  telegramId: number;
+  /** Empty for a player who signed in on the web and has no Telegram account. */
+  telegramId: number | null;
   username: string | null;
 }) {
   return [
     formatProfileSubmittedAt(submittedAt),
     formatTelegramUsername(username),
-    telegramId,
+    telegramId ?? "",
     answers.fullName,
     answers.nickname,
     answers.phone,
