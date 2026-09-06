@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { listReservations, releaseReservation, reserveTicket } from "@/lib/events/reservations";
+import { isReservableTicket } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,7 @@ export async function POST(request: Request) {
   const outcome = await reserveTicket(auth.supabase, {
     eventId,
     nickname: String(body.nickname ?? ""),
-    ticketType: body.ticketType === "vip" ? "vip" : "regular",
+    ticketType: isReservableTicket(body.ticketType) ? body.ticketType : "regular",
   });
 
   if (outcome.error) {

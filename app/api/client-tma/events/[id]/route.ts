@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
+import { isReservableTicket } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
@@ -45,12 +46,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       signedUp: mySignup
         ? mySignup.status !== "waitlist" && mySignup.status !== "reserved"
         : false,
-      // A ticket the admin put aside, waiting to be confirmed.
+      // A ticket the admin put aside, waiting to be confirmed. Only the three the club
+      // sells can be held: the "+1" half is given away by invitation, never reserved.
       reservedTicket:
-        mySignup?.status === "reserved"
-          ? mySignup.ticketType === "vip"
-            ? "vip"
-            : "regular"
+        mySignup?.status === "reserved" && isReservableTicket(mySignup.ticketType)
+          ? mySignup.ticketType
           : null,
       waitlisted: mySignup?.status === "waitlist",
       signupsCount: taken?.total ?? 0,

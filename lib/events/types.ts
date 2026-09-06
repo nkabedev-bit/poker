@@ -75,6 +75,17 @@ export type EventTicketType = "regular" | "vip" | "duo" | "duo_plus_one";
 
 export type FreePassChoice = "none" | "regular" | "vip";
 
+/**
+ * The tickets the club can hold for somebody who asked ahead. A "1+1" is one of them:
+ * the seat is promised, and who fills its second half is the player's to say when they
+ * confirm.
+ */
+export type ReservableTicket = "regular" | "vip" | "duo";
+
+export function isReservableTicket(value: unknown): value is ReservableTicket {
+  return value === "regular" || value === "vip" || value === "duo";
+}
+
 export function isEventTicketType(value: unknown): value is EventTicketType {
   return (
     value === "regular" || value === "vip" || value === "duo" || value === "duo_plus_one"

@@ -46,7 +46,7 @@ type EventDetails = TournamentEvent & {
   /** Who the player is bringing on a "1+1", as they wrote the name down. */
   partnerName: string | null;
   /** A ticket the admin put aside, waiting on this player to say they are coming. */
-  reservedTicket?: "regular" | "vip" | null;
+  reservedTicket?: "regular" | "vip" | "duo" | null;
   signedUp: boolean;
   signupsCount: number;
   /** Standing in line for a ticket that is sold out. */
@@ -346,6 +346,13 @@ export default function ClientEventPage() {
   const seatsLeft =
     ticketType === "vip" ? freeSeats.vip : ticketType === "duo" ? freeSeats.duo : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
+  // What the club has already given this player: their sign-up, or the ticket it is
+  // holding for them. Either way it is shown rather than chosen.
+  const heldTicket: HeldTicket | null = event.reservedTicket ?? (event.signedUp ? event.ticketType : null);
+  // A held "1+1" is confirmed by saying who is coming with them — the seat is promised,
+  // its second half is theirs to fill.
+  const reservedDuo = event.reservedTicket === "duo";
+  const reservedPartnerMissing = reservedDuo && partnerMode === "member" && !partnerName.trim();
   // The club takes a "1+1" to mean an expected pair, so the second name is required.
   // Only the nickname route needs a name typed in: the link is the invitation itself.
   const partnerMissing =
@@ -508,14 +515,14 @@ export default function ClientEventPage() {
         {seatsBreakdown ? (
           <p className="px-1 text-xs text-white/40">{seatsBreakdown}</p>
         ) : null}
-        {event.signedUp ? (
+        {event.signedUp || event.reservedTicket ? (
           <div className={TICKET_GRID[ticketsInRow]}>
             <TicketCard
               compact={ticketsInRow > 2}
               kind="regular"
               price={event.buyIn}
               seats={freeSeats.regular}
-              state={event.ticketType === "regular" ? "chosen" : "muted"}
+              state={heldTicket === "regular" ? "chosen" : "muted"}
             />
             {offersDuo ? (
               <TicketCard
@@ -524,7 +531,7 @@ export default function ClientEventPage() {
                 price={event.duoBuyIn}
                 seats={freeSeats.duo}
                 state={
-                  event.ticketType === "duo" || event.ticketType === "duo_plus_one"
+                  heldTicket === "duo" || heldTicket === "duo_plus_one"
                     ? "chosen"
                     : "muted"
                 }
@@ -536,7 +543,7 @@ export default function ClientEventPage() {
                 kind="vip"
                 price={event.vipBuyIn}
                 seats={freeSeats.vip}
-                state={event.ticketType === "vip" ? "chosen" : "muted"}
+                state={heldTicket === "vip" ? "chosen" : "muted"}
               />
             ) : null}
           </div>
@@ -585,7 +592,7 @@ export default function ClientEventPage() {
           </>
         )}
 
-        {ticketType === "duo" && (!event.signedUp || needsPartner) ? (
+        {(reservedDuo || ticketType === "duo") && (!event.signedUp || needsPartner) ? (
           <GlassCard className="space-y-3 !p-4">
             <p className="block text-sm font-bold">Кто придёт с вами?</p>
 
@@ -773,16 +780,24 @@ export default function ClientEventPage() {
         // for them to say they are coming.
         <div className="space-y-3">
           <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
-            Вам отложен {event.reservedTicket === "vip" ? "VIP" : "обычный"} билет
+            Вам отложен{" "}
+            {event.reservedTicket === "vip"
+              ? "VIP-билет"
+              : event.reservedTicket === "duo"
+                ? "билет 1+1"
+                : "обычный билет"}
             <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              Место держим за вами — подтвердите участие.
+              {reservedDuo
+                ? "Место держим за вами — впишите напарника и подтвердите."
+                : "Место держим за вами — подтвердите участие."}
             </span>
           </div>
           <PrimaryButton
+            disabled={reservedPartnerMissing}
             loading={submitting}
             onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
           >
-            Подтвердить участие
+            {reservedPartnerMissing ? "Укажите напарника" : "Подтвердить участие"}
           </PrimaryButton>
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
             Не смогу прийти

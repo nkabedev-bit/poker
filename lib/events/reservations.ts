@@ -2,14 +2,18 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import type { EventTicketType } from "@/lib/events/types";
+import {
+  isReservableTicket,
+  type EventTicketType,
+  type ReservableTicket,
+} from "@/lib/events/types";
 
 /** A ticket the club is holding for somebody who asked ahead. */
 export type Reservation = {
   id: string;
   nickname: string;
   notified: boolean;
-  ticketType: "regular" | "vip";
+  ticketType: ReservableTicket;
   userId: string;
 };
 
@@ -29,7 +33,7 @@ export async function reserveTicket(
     eventId,
     nickname,
     ticketType,
-  }: { eventId: string; nickname: string; ticketType: "regular" | "vip" },
+  }: { eventId: string; nickname: string; ticketType: ReservableTicket },
 ): Promise<ReserveOutcome> {
   const key = buildNicknameKey(nickname);
   if (!key) return { error: "not_found", reservation: null };
@@ -109,7 +113,7 @@ export async function listReservations(
       id: String(record.id),
       nickname: account?.display_name ?? "Без никнейма",
       notified: Boolean(record.notified_at),
-      ticketType: record.ticket_type === "vip" ? "vip" : "regular",
+      ticketType: isReservableTicket(record.ticket_type) ? record.ticket_type : "regular",
       userId: String(record.user_id),
     };
   });
@@ -147,7 +151,7 @@ export async function listReservationsForEvents(
       id: String(record.id),
       nickname: account?.display_name ?? "Без никнейма",
       notified: Boolean(record.notified_at),
-      ticketType: record.ticket_type === "vip" ? "vip" : "regular",
+      ticketType: isReservableTicket(record.ticket_type) ? record.ticket_type : "regular",
       userId: String(record.user_id),
     });
   }
@@ -171,6 +175,15 @@ export async function releaseReservation(
 }
 
 export function reservedTicketMessage(eventTitle: string, ticket: EventTicketType) {
+  // A pair is promised to one player, and the second half is theirs to fill — so the
+  // message asks for a name rather than just a yes.
+  if (ticket === "duo") {
+    return (
+      `Вам был отложен билет 1+1 на «${eventTitle}» — впишите имя своего напарника ` +
+      "в приложении и подтвердите участие."
+    );
+  }
+
   const kind = ticket === "vip" ? "VIP" : "обычный";
 
   return (
@@ -222,7 +235,10 @@ export async function notifyReservedOnPublish(
     await notifyClientUser(
       supabase,
       held.user_id,
-      reservedTicketMessage(title, held.ticket_type === "vip" ? "vip" : "regular"),
+      reservedTicketMessage(
+        title,
+        isReservableTicket(held.ticket_type) ? held.ticket_type : "regular",
+      ),
     );
   }
 

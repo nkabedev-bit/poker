@@ -388,7 +388,11 @@ export function EventsManager({
                     <li key={held.id}>
                       <span>
                         <strong>{held.nickname}</strong>
-                        {held.ticketType === "vip" ? " · VIP" : " · обычный"}
+                        {held.ticketType === "vip"
+                          ? " · VIP"
+                          : held.ticketType === "duo"
+                            ? " · 1+1"
+                            : " · обычный"}
                         {held.notified ? " · оповещён" : " · ждёт публикации"}
                       </span>
                       <SubmitButton
@@ -417,6 +421,7 @@ export function EventsManager({
                 <select defaultValue="regular" name="reservedTicket">
                   <option value="regular">Обычный</option>
                   <option value="vip">VIP</option>
+                  <option value="duo">1+1</option>
                 </select>
                 <SubmitButton
                   className="ghost-button"

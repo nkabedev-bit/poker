@@ -20,6 +20,8 @@ import { addMinutesToMoscowLocal, type EventTemplate } from "@/lib/events/templa
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
+  isReservableTicket,
+  type ReservableTicket,
   type TournamentEvent,
 } from "@/lib/events/types";
 import { describeAnnouncedSeats } from "@/lib/events/seats";
@@ -94,7 +96,7 @@ export default function TMAEventsPage() {
   // Tickets the club is holding for regulars who asked ahead, for the poster on screen.
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [reservedNickname, setReservedNickname] = useState("");
-  const [reservedTicket, setReservedTicket] = useState<"regular" | "vip">("regular");
+  const [reservedTicket, setReservedTicket] = useState<ReservableTicket>("regular");
   const posterInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -569,7 +571,12 @@ export default function TMAEventsPage() {
                           {held.nickname}
                         </span>
                         <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                          {held.ticketType === "vip" ? "VIP" : "обычный"} ·{" "}
+                          {held.ticketType === "vip"
+                            ? "VIP"
+                            : held.ticketType === "duo"
+                              ? "1+1"
+                              : "обычный"}{" "}
+                          ·{" "}
                           {held.notified ? "оповещён" : "ждёт публикации"}
                         </span>
                       </span>
@@ -606,11 +613,14 @@ export default function TMAEventsPage() {
                 className={textFieldClass}
                 value={reservedTicket}
                 onChange={(item) =>
-                  setReservedTicket(item.target.value === "vip" ? "vip" : "regular")
+                  setReservedTicket(
+                    isReservableTicket(item.target.value) ? item.target.value : "regular",
+                  )
                 }
               >
                 <option value="regular">Обычный билет</option>
                 <option value="vip">VIP билет</option>
+                <option value="duo">Билет 1+1</option>
               </select>
 
               <button

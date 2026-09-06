@@ -21,6 +21,7 @@ import {
   releaseReservation,
   reserveTicket,
 } from "@/lib/events/reservations";
+import { isReservableTicket } from "@/lib/events/types";
 
 const POSTER_BUCKET = "tournament-logos";
 
@@ -158,11 +159,12 @@ export async function reserveEventTicket(formData: FormData) {
   const nickname = String(formData.get("reservedNickname") ?? "").trim();
   if (!nickname) backWithError("Впишите ник резидента");
 
+  const requested = formData.get("reservedTicket");
   const supabase = await createSupabaseServerClient();
   const outcome = await reserveTicket(supabase, {
     eventId,
     nickname,
-    ticketType: formData.get("reservedTicket") === "vip" ? "vip" : "regular",
+    ticketType: isReservableTicket(requested) ? requested : "regular",
   });
 
   if (outcome.error === "ambiguous") backWithError("Этот ник носят несколько игроков — уточните");
