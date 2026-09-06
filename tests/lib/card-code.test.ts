@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardCodeFromDigits,
+  CARD_CODE_PREFIXES,
+  GUEST_CARD_CODE_PREFIX,
   buildCardSession,
   isTicketType,
   normalizeCardCode,
@@ -164,5 +166,16 @@ describe("typing a card number by hand", () => {
   it("builds nothing from an empty field", () => {
     expect(buildCardCodeFromDigits("")).toBe("");
     expect(buildCardCodeFromDigits("--")).toBe("");
+  });
+
+  // Guest cards are printed as a run of their own, so the same digits name a different
+  // card depending on which pack the one in the admin's hand came from.
+  it("keeps the guest pack apart from the club's own", () => {
+    expect(buildCardCodeFromDigits("5", GUEST_CARD_CODE_PREFIX)).toBe("G-05");
+    expect(buildCardCodeFromDigits("5")).toBe("MJ-05");
+  });
+
+  it("offers the club's own cards first", () => {
+    expect(CARD_CODE_PREFIXES).toEqual(["MJ", "G"]);
   });
 });

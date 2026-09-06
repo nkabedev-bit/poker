@@ -22,6 +22,8 @@ import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
 import {
   buildCardCodeFromDigits,
   CARD_CODE_PREFIX,
+  CARD_CODE_PREFIXES,
+  type CardCodePrefix,
   type CardSession,
   type TicketType,
 } from "@/lib/cards/card-code";
@@ -77,6 +79,7 @@ export default function TMACardsPage() {
   const [seating, setSeating] = useState<SeatingTarget | null>(null);
   const [seatChoice, setSeatChoice] = useState<SeatChoice | null>(null);
   const [manualOpen, setManualOpen] = useState(false);
+  const [manualPrefix, setManualPrefix] = useState<CardCodePrefix>(CARD_CODE_PREFIX);
   const [manualCode, setManualCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -527,12 +530,26 @@ export default function TMACardsPage() {
 
       {manualOpen ? (
         <div className="flex gap-2">
-          {/* Every card carries the same prefix, so it is printed on the field rather
-              than typed a hundred times a night. */}
-          <div className="flex flex-1 items-center gap-1 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-3">
-            <span className="font-semibold text-[var(--tg-theme-hint-color)]">
-              {CARD_CODE_PREFIX}-
-            </span>
+          {/* The prefix is picked rather than typed a hundred times a night — the club
+              prints guest cards as a run of their own, and G-05 is not MJ-05. */}
+          <div className="flex flex-1 items-center gap-1 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-2">
+            {CARD_CODE_PREFIXES.map((prefix) => (
+              <button
+                key={prefix}
+                aria-label={`Карты ${prefix}`}
+                aria-pressed={manualPrefix === prefix}
+                className={`shrink-0 rounded-md px-2 py-1.5 text-sm font-semibold ${
+                  manualPrefix === prefix
+                    ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
+                    : "text-[var(--tg-theme-hint-color)]"
+                }`}
+                type="button"
+                onClick={() => setManualPrefix(prefix)}
+              >
+                {prefix}
+              </button>
+            ))}
+            <span className="font-semibold text-[var(--tg-theme-hint-color)]">-</span>
             <input
               className="w-full bg-transparent py-3 font-semibold outline-none"
               inputMode="numeric"
@@ -546,7 +563,7 @@ export default function TMACardsPage() {
             disabled={busy || !manualCode.trim()}
             type="button"
             onClick={() => {
-              void readCard(buildCardCodeFromDigits(manualCode));
+              void readCard(buildCardCodeFromDigits(manualCode, manualPrefix));
               setManualCode("");
             }}
           >

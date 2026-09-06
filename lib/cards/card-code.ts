@@ -34,6 +34,14 @@ export type CardSession = {
 /** Every card the club prints carries this prefix, so the admin only types the number. */
 export const CARD_CODE_PREFIX = "MJ";
 
+/** Guest cards are a run of their own: MJ-01 and G-01 are two different cards. */
+export const GUEST_CARD_CODE_PREFIX = "G";
+
+/** The packs the desk hands out, in the order the prefix picker offers them. */
+export const CARD_CODE_PREFIXES = [CARD_CODE_PREFIX, GUEST_CARD_CODE_PREFIX] as const;
+
+export type CardCodePrefix = (typeof CARD_CODE_PREFIXES)[number];
+
 /**
  * The code behind the digits an admin typed. Numbers are padded to two places, the way
  * the batches are printed: card 2 is MJ-02, card 100 stays MJ-100.
