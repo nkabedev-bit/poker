@@ -10,10 +10,20 @@ export const dynamic = "force-dynamic";
 export default async function EventsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ event?: string }>;
+  searchParams: Promise<{ error?: string; event?: string; saved?: string }>;
 }) {
+  const query = await searchParams;
+  // What the last save had to say: the form throws nothing at the admin any more.
+  const notice = query.error
+    ? { kind: "error" as const, text: query.error }
+    : query.saved
+      ? { kind: "saved" as const, text: query.saved === "1" ? "Афиша сохранена" : query.saved }
+      : null;
+
   if (!hasPublicEnv()) {
-    return <EventsManager events={[]} signupCounts={{}} signups={[]} selectedEventId={null} />;
+    return (
+      <EventsManager events={[]} notice={notice} signupCounts={{}} signups={[]} selectedEventId={null} />
+    );
   }
 
   const supabase = await createSupabaseServerClient();
@@ -25,7 +35,7 @@ export default async function EventsPage({
     events.map((event) => event.id),
   );
 
-  const selectedEventId = (await searchParams).event ?? null;
+  const selectedEventId = query.event ?? null;
   let signups: EventSignupWithPlayer[] = [];
   if (selectedEventId && events.some((event) => event.id === selectedEventId)) {
     signups = await listEventSignups(supabase, selectedEventId);
@@ -34,6 +44,7 @@ export default async function EventsPage({
   return (
     <EventsManager
       events={events}
+      notice={notice}
       selectedEventId={selectedEventId}
       signupCounts={Object.fromEntries(
         [...signupCounts].map(([eventId, taken]) => [eventId, taken.total]),

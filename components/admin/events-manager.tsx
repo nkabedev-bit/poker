@@ -70,14 +70,19 @@ function toDraft(event: TournamentEvent): Draft {
   };
 }
 
+export type EventsNotice = { kind: "error" | "saved"; text: string };
+
 export function EventsManager({
   events,
+  notice = null,
   selectedEventId,
   signupCounts,
   signups,
   templates = [],
 }: {
   events: TournamentEvent[];
+  /** What the last save had to say, if anything. */
+  notice?: EventsNotice | null;
   selectedEventId: string | null;
   signupCounts: Record<string, number>;
   signups: EventSignupWithPlayer[];
@@ -121,6 +126,20 @@ export function EventsManager({
 
   return (
     <div className="settings-stack">
+      {notice ? (
+        <p
+          className="poker-panel"
+          role={notice.kind === "error" ? "alert" : "status"}
+          style={{
+            borderColor: notice.kind === "error" ? "var(--color-danger, #c8163f)" : undefined,
+            margin: 0,
+            padding: "14px 18px",
+          }}
+        >
+          {notice.kind === "error" ? `Не сохранилось: ${notice.text}` : notice.text}
+        </p>
+      ) : null}
+
       <form action={saveTournamentEvent} className="poker-panel">
         <div className="panel-heading">
           <div>

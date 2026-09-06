@@ -46,9 +46,19 @@ async function uploadPosterFile(supabase: SupabaseClient, formData: FormData) {
   return supabase.storage.from(POSTER_BUCKET).getPublicUrl(path).data.publicUrl;
 }
 
+/**
+ * Sends the admin back with something to read.
+ *
+ * Every way this form could fail used to throw, and the page it throws on has nothing
+ * to show for it: the poster simply did not appear and nobody was told why.
+ */
+function backWithError(message: string): never {
+  redirect(`/admin/events?error=${encodeURIComponent(message)}`);
+}
+
 export async function saveTournamentEvent(formData: FormData) {
   const id = String(formData.get("id") ?? "").trim();
-  const parsed = eventInputSchema.parse({
+  const parsed = eventInputSchema.safeParse({
     badge: formData.get("badge"),
     buyIn: formData.get("buyIn") || 0,
     duoBuyIn: optionalNumber(formData.get("duoBuyIn")),
@@ -67,13 +77,31 @@ export async function saveTournamentEvent(formData: FormData) {
     vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
   });
 
-  const supabase = await createSupabaseServerClient();
-  const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.posterUrl;
+  if (!parsed.success) {
+    backWithError(parsed.error.issues[0]?.message ?? "Проверьте поля афиши");
+  }
 
-  await saveEvent(supabase, {
-    ...toEventDraft({ ...parsed, posterUrl }),
-    ...(id ? { id } : {}),
-  });
+  // The redirects stay outside the catch: `redirect` works by throwing, and swallowing
+  // it here would turn a saved poster into a silent failure of its own.
+  let failure: string | null = null;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.data.posterUrl;
+
+    await saveEvent(supabase, {
+      ...toEventDraft({ ...parsed.data, posterUrl }),
+      ...(id ? { id } : {}),
+    });
+  } catch (error) {
+    console.error("Could not save the event", error);
+    failure =
+      error instanceof PosterUploadError
+        ? error.message
+        : "Не удалось сохранить афишу. Попробуйте ещё раз.";
+  }
+
+  if (failure) backWithError(failure);
 
   revalidatePath("/admin/events");
   redirect("/admin/events?saved=1");
@@ -86,7 +114,7 @@ export async function deleteTournamentEvent(formData: FormData) {
   await deleteEvent(supabase, id);
 
   revalidatePath("/admin/events");
-  redirect("/admin/events?deleted=1");
+  redirect("/admin/events?saved=Афиша удалена");
 }
 
 /**
@@ -95,9 +123,9 @@ export async function deleteTournamentEvent(formData: FormData) {
  */
 export async function saveTournamentEventTemplate(formData: FormData) {
   const name = String(formData.get("templateName") ?? "").trim();
-  if (!name) redirect("/admin/events?templateError=name");
+  if (!name) backWithError("Дайте шаблону название");
 
-  const parsed = eventInputSchema.parse({
+  const parsed = eventInputSchema.safeParse({
     badge: formData.get("badge"),
     buyIn: formData.get("buyIn") || 0,
     duoBuyIn: optionalNumber(formData.get("duoBuyIn")),
@@ -116,26 +144,42 @@ export async function saveTournamentEventTemplate(formData: FormData) {
     vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
   });
 
-  const supabase = await createSupabaseServerClient();
-  // A picture picked in the form but not yet saved is uploaded here, so the template
-  // keeps the artwork every poster of the club shares.
-  const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.posterUrl;
-  const { data: tournament } = await supabase.from("tournaments").select("id").limit(1).single();
-  const extras = await loadTournamentExtras(tournament?.id as string | undefined, supabase);
+  if (!parsed.success) {
+    backWithError(parsed.error.issues[0]?.message ?? "Проверьте поля афиши");
+  }
 
-  await saveTournamentExtras(
-    {
-      eventTemplates: upsertEventTemplate(
-        extras.eventTemplates,
-        makeEventTemplate(name, toEventDraft({ ...parsed, posterUrl })),
-      ),
-    },
-    "/admin/events",
-    supabase,
-  );
+  let failure: string | null = null;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    // A picture picked in the form but not yet saved is uploaded here, so the template
+    // keeps the artwork every poster of the club shares.
+    const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.data.posterUrl;
+    const { data: tournament } = await supabase.from("tournaments").select("id").limit(1).single();
+    const extras = await loadTournamentExtras(tournament?.id as string | undefined, supabase);
+
+    await saveTournamentExtras(
+      {
+        eventTemplates: upsertEventTemplate(
+          extras.eventTemplates,
+          makeEventTemplate(name, toEventDraft({ ...parsed.data, posterUrl })),
+        ),
+      },
+      "/admin/events",
+      supabase,
+    );
+  } catch (error) {
+    console.error("Could not save the event template", error);
+    failure =
+      error instanceof PosterUploadError
+        ? error.message
+        : "Не удалось сохранить шаблон. Попробуйте ещё раз.";
+  }
+
+  if (failure) backWithError(failure);
 
   revalidatePath("/admin/events");
-  redirect("/admin/events?templateSaved=1");
+  redirect("/admin/events?saved=Шаблон сохранён");
 }
 
 export async function deleteTournamentEventTemplate(formData: FormData) {
@@ -152,5 +196,5 @@ export async function deleteTournamentEventTemplate(formData: FormData) {
   );
 
   revalidatePath("/admin/events");
-  redirect("/admin/events?templateDeleted=1");
+  redirect("/admin/events?saved=Шаблон удалён");
 }
