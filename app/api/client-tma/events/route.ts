@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getUserSignups, listEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
+import { findDuoInvitationEventIds } from "@/lib/events/duo";
 
 export const dynamic = "force-dynamic";
 
@@ -18,14 +19,33 @@ export async function GET(request: Request) {
     getUserSignups(auth.supabase, auth.user.id),
   ]);
 
-  const mySignupEventIds = new Set(mySignups.map((signup) => signup.eventId));
+  const myStatusByEvent = new Map(mySignups.map((signup) => [signup.eventId, signup.status]));
+  // Somebody may be waiting on this player at one of these evenings, or the club may be
+  // holding a ticket for them: either way the card says so before they open it.
+  const invitedTo = await findDuoInvitationEventIds(auth.supabase, {
+    eventIds: upcoming.map((event) => event.id),
+    userId: auth.user.id,
+  });
 
   return NextResponse.json({
-    events: upcoming.map((event) => ({
-      ...event,
-      signedUp: mySignupEventIds.has(event.id),
-      signupsCount: signupCounts.get(event.id)?.total ?? 0,
-    })),
+    events: upcoming.map((event) => {
+      const status = myStatusByEvent.get(event.id);
+
+      return {
+        ...event,
+        // What the club is waiting on this player to answer, if anything.
+        // A partner who has already answered is not in the invitation query at all.
+        awaiting:
+          status === "reserved"
+            ? ("reserved" as const)
+            : invitedTo.has(event.id)
+              ? ("duo" as const)
+              : null,
+        signedUp: status === "signed_up" || status === "seated",
+        signupsCount: signupCounts.get(event.id)?.total ?? 0,
+        waitlisted: status === "waitlist",
+      };
+    }),
     player: {
       // The home screen shows the player their own photo, uploaded or from Telegram.
       avatarIsCustom: Boolean(auth.user.avatar_is_custom),

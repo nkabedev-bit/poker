@@ -265,3 +265,30 @@ export async function claimDuoInvite(
 
   return { error: null, eventId: invite.event_id };
 }
+
+/**
+ * The evenings where somebody is waiting on this player to say they are coming as their
+ * +1, asked for a whole list at once.
+ *
+ * The tournament's own screen reads one invitation at a time; the home screen has to
+ * mark every card, and one query does for all of them.
+ */
+export async function findDuoInvitationEventIds(
+  supabase: SupabaseClient,
+  { eventIds, userId }: { eventIds: string[]; userId: string },
+): Promise<Set<string>> {
+  if (eventIds.length === 0) return new Set();
+
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .eq("ticket_type", "duo")
+    .eq("duo_partner_user_id", userId)
+    .is("duo_confirmed_at", null)
+    .neq("status", "cancelled");
+
+  if (error) throw error;
+
+  return new Set((data ?? []).map((row) => String((row as { event_id: unknown }).event_id)));
+}

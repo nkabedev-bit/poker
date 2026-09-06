@@ -8,7 +8,13 @@ import {
   type TournamentEvent,
 } from "@/lib/events/types";
 
-export type EventCardData = TournamentEvent & { signedUp: boolean; signupsCount: number };
+export type EventCardData = TournamentEvent & {
+  /** What the club is waiting on this player to answer, if anything. */
+  awaiting?: "duo" | "reserved" | null;
+  signedUp: boolean;
+  signupsCount: number;
+  waitlisted?: boolean;
+};
 
 /**
  * The poster fills the card and the text sits in a dark gradient over it — the artwork
@@ -62,12 +68,24 @@ export function EventCard({
           </div>
 
           <div className="mt-auto flex flex-col items-start gap-2">
-            {event.badge || event.signedUp ? (
+            {event.badge || event.signedUp || event.awaiting || event.waitlisted ? (
               <div className="flex flex-wrap items-center gap-2">
                 {event.badge ? <Badge>{event.badge}</Badge> : null}
-                {event.signedUp ? (
+                {/* An invitation and a held ticket both wait on the player, and both go
+                    unanswered if the card looks the same as any other. */}
+                {event.awaiting ? (
+                  <span className="inline-flex items-center rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-3 py-1.5 text-[12px] font-bold text-[#e9c07a]">
+                    {event.awaiting === "reserved"
+                      ? "Билет отложен · подтвердите"
+                      : "Зовут в пару · подтвердите"}
+                  </span>
+                ) : event.signedUp ? (
                   <span className="inline-flex items-center rounded-xl border border-emerald-400/40 bg-emerald-400/10 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
                     Вы записаны
+                  </span>
+                ) : event.waitlisted ? (
+                  <span className="inline-flex items-center rounded-xl border border-white/20 bg-white/[0.06] px-3 py-1.5 text-[12px] font-bold text-white/70">
+                    В листе ожидания
                   </span>
                 ) : null}
               </div>
