@@ -199,11 +199,18 @@ export async function appendUnseatedTournamentPlayer({
 }
 
 /**
- * Gives a player their number once the ticket is known, leaving alone anyone who already
- * has one — a number is what the club calls a player all evening, and it does not change
- * under them.
+ * Writes the ticket the desk chose onto a player, and gives them a number if they have
+ * none yet.
+ *
+ * Both halves matter. On an evening played without cards nothing else records the
+ * ticket at all — the card RPC is what used to do it, and there is no card — so a guest
+ * who asked for a VIP seat was charged for a regular one. And the number follows the
+ * ticket, so it can only be handed out once the ticket is known.
+ *
+ * A number already given stays: it is what the club calls a player all evening, and it
+ * does not change under them.
  */
-export async function issueRegistrationNumberIfMissing({
+export async function applySeatingTicket({
   extras,
   playerId,
   redirectTo,
@@ -217,19 +224,23 @@ export async function issueRegistrationNumberIfMissing({
   ticketType: "regular" | "vip";
 }) {
   const player = extras.players.find((item) => item.id === playerId);
-  if (!player || Number(player.registrationNumber) > 0) return player ?? null;
+  if (!player) return null;
 
-  const numbered = assignRegistrationNumber(
-    { ...player, ticketType },
-    extras.players,
-    extras.settings,
-  );
+  const withTicket = { ...player, ticketType };
+  const next =
+    Number(player.registrationNumber) > 0
+      ? withTicket
+      : assignRegistrationNumber(withTicket, extras.players, extras.settings);
+
+  if (next.ticketType === player.ticketType && next.registrationNumber === player.registrationNumber) {
+    return player;
+  }
 
   await saveTournamentExtras(
-    { players: extras.players.map((item) => (item.id === playerId ? numbered : item)) },
+    { players: extras.players.map((item) => (item.id === playerId ? next : item)) },
     redirectTo,
     supabase,
   );
 
-  return numbered;
+  return next;
 }

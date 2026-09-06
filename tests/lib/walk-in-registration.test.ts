@@ -8,7 +8,7 @@ vi.mock("@/lib/tournament-extras", () => ({
   saveTournamentExtras: mocks.saveTournamentExtras,
 }));
 
-const { appendUnseatedTournamentPlayer, issueRegistrationNumberIfMissing } = await import(
+const { appendUnseatedTournamentPlayer, applySeatingTicket } = await import(
   "@/lib/tournament-player-registration"
 );
 
@@ -91,14 +91,14 @@ describe("a walk-in on the roster", () => {
   });
 });
 
-describe("giving a walk-in their number", () => {
+describe("seating a walk-in on the ticket they asked for", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.saveTournamentExtras.mockResolvedValue(undefined);
   });
 
   it("hands out a regular number for a regular ticket", async () => {
-    const numbered = await issueRegistrationNumberIfMissing({
+    const numbered = await applySeatingTicket({
       extras: extras({ players: [player({ table: 1 })] }),
       playerId: "walk-in",
       redirectTo: "/tma/players",
@@ -112,7 +112,7 @@ describe("giving a walk-in their number", () => {
   // The club keeps 21 to 30 for the VIP table, which is the whole reason the number
   // waits for the ticket.
   it("hands out a VIP number for a VIP ticket", async () => {
-    const numbered = await issueRegistrationNumberIfMissing({
+    const numbered = await applySeatingTicket({
       extras: extras({ players: [player({ table: 1 })] }),
       playerId: "walk-in",
       redirectTo: "/tma/players",
@@ -124,7 +124,7 @@ describe("giving a walk-in their number", () => {
   });
 
   it("takes the next number nobody holds", async () => {
-    const numbered = await issueRegistrationNumberIfMissing({
+    const numbered = await applySeatingTicket({
       extras: extras({
         players: [
           player({ id: "one", registrationNumber: 1 }),
@@ -143,7 +143,7 @@ describe("giving a walk-in their number", () => {
 
   // A number is what the club calls a player all evening; it does not change under them.
   it("leaves a number already given alone", async () => {
-    const numbered = await issueRegistrationNumberIfMissing({
+    const numbered = await applySeatingTicket({
       extras: extras({ players: [player({ registrationNumber: 7, table: 1 })] }),
       playerId: "walk-in",
       redirectTo: "/tma/players",
@@ -152,12 +152,40 @@ describe("giving a walk-in their number", () => {
     });
 
     expect(numbered?.registrationNumber).toBe(7);
+  });
+
+  // On an evening without cards nothing else records the ticket: the card RPC that used
+  // to do it is skipped, and the player was charged for a regular seat.
+  it("writes the ticket the desk chose, number or no number", async () => {
+    const seated = await applySeatingTicket({
+      extras: extras({ players: [player({ registrationNumber: 7, table: 1 })] }),
+      playerId: "walk-in",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "vip",
+    });
+
+    expect(seated?.ticketType).toBe("vip");
+    expect(savedPlayers()[0]).toMatchObject({ registrationNumber: 7, ticketType: "vip" });
+  });
+
+  it("writes nothing when the ticket and the number already stand", async () => {
+    await applySeatingTicket({
+      extras: extras({
+        players: [player({ registrationNumber: 7, table: 1, ticketType: "vip" })],
+      }),
+      playerId: "walk-in",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "vip",
+    });
+
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
   });
 
   it("does nothing for a player who is not there", async () => {
     await expect(
-      issueRegistrationNumberIfMissing({
+      applySeatingTicket({
         extras: extras(),
         playerId: "nobody",
         redirectTo: "/tma/players",

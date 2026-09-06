@@ -7,7 +7,7 @@ import {
   normalizeCardCode,
 } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
-import { issueRegistrationNumberIfMissing } from "@/lib/tournament-player-registration";
+import { applySeatingTicket } from "@/lib/tournament-player-registration";
 
 export const dynamic = "force-dynamic";
 
@@ -104,10 +104,11 @@ export async function POST(request: Request) {
     }
   }
 
-  // A walk-in was put on the roster without a number, because the number follows the
-  // ticket and nobody had asked yet which one they wanted. This is where they answer.
+  // The desk has just chosen the ticket, and on an evening without cards nothing else
+  // would write it down — the card RPC below is skipped. The number follows the ticket,
+  // so a walk-in who had none gets theirs here too.
   const seatedExtras = await loadTournamentExtras(t.id, auth.supabase);
-  await issueRegistrationNumberIfMissing({
+  await applySeatingTicket({
     extras: seatedExtras,
     playerId,
     redirectTo: "/tma/players",
