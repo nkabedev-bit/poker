@@ -157,12 +157,30 @@ describe("what the desk is still working", () => {
     expect(isEventOpenForSeating(evening, at("2026-09-03T21:30:00.000Z"))).toBe(true);
   });
 
+  // The club counts by the day, not by the clock: a four o'clock game is the evening's
+  // game until that evening is over, however late the player walks in.
+  it("keeps an afternoon game to the end of its day", () => {
+    // 16:00 in Moscow, and a player at half past eleven at night.
+    const afternoon = event("2026-09-03T13:00:00.000Z");
+
+    expect(isEventOpenForSeating(afternoon, at("2026-09-03T14:30:00.000Z"))).toBe(true);
+    expect(isEventOpenForSeating(afternoon, at("2026-09-03T20:30:00.000Z"))).toBe(true);
+  });
+
   // Six hours after a game begins at seven, it is one in the morning and the evening
-  // is over.
+  // is over — the day it belongs to ended an hour ago.
   it("lets the evening go six hours after it started", () => {
     const evening = event("2026-09-03T16:00:00.000Z");
 
     expect(isEventOpenForSeating(evening, at("2026-09-03T22:01:00.000Z"))).toBe(false);
+  });
+
+  // Yesterday's game is off the screen even when the club opens early: the day is the
+  // one on the poster, in Moscow, not the server's.
+  it("lets go of a game whose day has passed", () => {
+    const afternoon = event("2026-09-03T13:00:00.000Z");
+
+    expect(isEventOpenForSeating(afternoon, at("2026-09-04T08:00:00.000Z"))).toBe(false);
   });
 
   it("is open for a game that has not started", () => {

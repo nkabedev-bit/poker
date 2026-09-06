@@ -231,26 +231,41 @@ export function formatEventWeekdayLabel(iso: string) {
 // An event stays "upcoming" until late entry closes (or, without a late-entry time,
 // until it starts) — a player arriving at 21:00 for a 19:00 game still needs the card.
 /**
- * How long the desk keeps seating players after a game has started.
+ * How long the desk keeps seating players after midnight has passed.
  *
- * Long enough that latecomers to a seven o'clock game are still let in, and short
- * enough that the evening is off the screen by the small hours.
+ * An evening game is still being played in the small hours, and the calendar turning
+ * over is no reason to take its list off the screen.
  */
 const SEATING_HOURS_AFTER_START = 6;
+
+const moscowDayFormat = new Intl.DateTimeFormat("en-CA", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: MOSCOW_TIME_ZONE,
+  year: "numeric",
+});
+
+/** The club's day, which is the one on the posters: Moscow, whatever the server thinks. */
+function moscowDay(time: Date) {
+  return moscowDayFormat.format(time);
+}
 
 /**
  * Whether the desk should still be working this event.
  *
- * Late entry closing means the club takes no more sign-ups — not that the evening is
- * over. Everyone who asked in time still has to be let in and sat down, and the screen
- * that does it used to empty at the very minute the deadline passed, taking the list of
- * who was coming with it.
+ * The club counts by the day, not by the clock: a game announced for four o'clock is
+ * the evening's game until that day is over, and a player who turns up at half past
+ * five — or at eleven — is seated from the same list. Late entry closing means no new
+ * sign-ups, not that the evening is over.
  */
 export function isEventOpenForSeating(event: TournamentEvent, now: Date) {
   if (isUpcomingEvent(event, now)) return true;
 
-  const started = new Date(event.startsAt).getTime();
-  return now.getTime() - started < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
+  const started = new Date(event.startsAt);
+  if (moscowDay(started) === moscowDay(now)) return true;
+
+  // Past midnight the day no longer matches, and the game is still going.
+  return now.getTime() - started.getTime() < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
 }
 
 export function isUpcomingEvent(event: TournamentEvent, now: Date) {
