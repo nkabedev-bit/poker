@@ -1,3 +1,4 @@
+import { CARD_NUMBER_WIDTH } from "@/lib/cards/card-batch";
 import { buildPlayerCharge, type FinancePrices, type PlayerCharge } from "@/lib/finance/player-charge";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -34,7 +35,7 @@ export type CardSession = {
 /** Every card the club prints carries this prefix, so the admin only types the number. */
 export const CARD_CODE_PREFIX = "MJ";
 
-/** Guest cards are a run of their own: MJ-01 and G-01 are two different cards. */
+/** Guest cards are a run of their own: MJ-001 and G-001 are two different cards. */
 export const GUEST_CARD_CODE_PREFIX = "G";
 
 /** The packs the desk hands out, in the order the prefix picker offers them. */
@@ -43,14 +44,14 @@ export const CARD_CODE_PREFIXES = [CARD_CODE_PREFIX, GUEST_CARD_CODE_PREFIX] as 
 export type CardCodePrefix = (typeof CARD_CODE_PREFIXES)[number];
 
 /**
- * The code behind the digits an admin typed. Numbers are padded to two places, the way
- * the batches are printed: card 2 is MJ-02, card 100 stays MJ-100.
+ * The code behind the digits an admin typed. Numbers are padded the way the batches are
+ * printed: card 2 is MJ-002, card 1000 stays MJ-1000.
  */
 export function buildCardCodeFromDigits(digits: string, prefix = CARD_CODE_PREFIX) {
   const number = digits.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
   if (!number) return "";
 
-  return `${prefix}-${number.padStart(2, "0")}`;
+  return `${prefix}-${number.padStart(CARD_NUMBER_WIDTH, "0")}`;
 }
 
 /** Codes are printed on the cards; scanning brings back whatever the QR holds. */

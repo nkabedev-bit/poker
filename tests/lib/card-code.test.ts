@@ -147,20 +147,21 @@ describe("whether the player has settled up", () => {
 
 describe("typing a card number by hand", () => {
   it("builds the printed code from the digits alone", () => {
-    expect(buildCardCodeFromDigits("7")).toBe("MJ-07");
-    expect(buildCardCodeFromDigits("14")).toBe("MJ-14");
+    expect(buildCardCodeFromDigits("7")).toBe("MJ-007");
+    expect(buildCardCodeFromDigits("14")).toBe("MJ-014");
   });
 
-  it("keeps a three-digit card whole", () => {
+  it("keeps a card past the third digit whole", () => {
     expect(buildCardCodeFromDigits("100")).toBe("MJ-100");
+    expect(buildCardCodeFromDigits("1000")).toBe("MJ-1000");
   });
 
   it("drops anything that is not a digit", () => {
-    expect(buildCardCodeFromDigits("mj-08 ")).toBe("MJ-08");
+    expect(buildCardCodeFromDigits("mj-08 ")).toBe("MJ-008");
   });
 
   it("reads a leading zero as padding, not as part of the number", () => {
-    expect(buildCardCodeFromDigits("007")).toBe("MJ-07");
+    expect(buildCardCodeFromDigits("007")).toBe("MJ-007");
   });
 
   it("builds nothing from an empty field", () => {
@@ -171,8 +172,8 @@ describe("typing a card number by hand", () => {
   // Guest cards are printed as a run of their own, so the same digits name a different
   // card depending on which pack the one in the admin's hand came from.
   it("keeps the guest pack apart from the club's own", () => {
-    expect(buildCardCodeFromDigits("5", GUEST_CARD_CODE_PREFIX)).toBe("G-05");
-    expect(buildCardCodeFromDigits("5")).toBe("MJ-05");
+    expect(buildCardCodeFromDigits("5", GUEST_CARD_CODE_PREFIX)).toBe("G-005");
+    expect(buildCardCodeFromDigits("5")).toBe("MJ-005");
   });
 
   it("offers the club's own cards first", () => {

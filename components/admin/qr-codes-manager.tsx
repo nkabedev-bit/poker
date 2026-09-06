@@ -1,9 +1,17 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import QRCode from "qrcode";
-import { Download, Printer, QrCode, RefreshCw } from "lucide-react";
-import { buildCardCodes, CARD_BATCH_MAX } from "@/lib/cards/card-batch";
+import { Download, History, Printer, QrCode, RefreshCw, Trash2 } from "lucide-react";
+import { forgetCardBatch, rememberCardBatch } from "@/app/admin/qr-codes/actions";
+import {
+  buildCardCodes,
+  CARD_BATCH_MAX,
+  nextStartNumber,
+  type CardBatch,
+} from "@/lib/cards/card-batch";
+import { CARD_CODE_PREFIX } from "@/lib/cards/card-code";
 
 type Card = { code: string; svg: string };
 
@@ -29,27 +37,110 @@ function downloadFile(name: string, content: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
-export function QrCodesManager() {
-  const [prefix, setPrefix] = useState("MJ");
-  const [start, setStart] = useState("1");
+/** "MJ-001 — MJ-100", the run an admin recognises without opening it. */
+function describeBatch(batch: CardBatch) {
+  const codes = buildCardCodes({
+    count: batch.count,
+    prefix: batch.prefix,
+    start: batch.startNumber,
+  });
+
+  return codes.length === 1 ? codes[0] : `${codes[0]} — ${codes[codes.length - 1]}`;
+}
+
+function formatPrintedAt(iso: string) {
+  const printed = new Date(iso);
+  if (Number.isNaN(printed.getTime())) return "";
+
+  return printed.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+}
+
+export function QrCodesManager({ batches }: { batches: CardBatch[] }) {
+  const router = useRouter();
+  const lastBatch = batches[0] ?? null;
+  const [prefix, setPrefix] = useState(lastBatch?.prefix ?? CARD_CODE_PREFIX);
+  const [start, setStart] = useState(String(nextStartNumber(batches, lastBatch?.prefix ?? CARD_CODE_PREFIX)));
   const [count, setCount] = useState("10");
   const [cards, setCards] = useState<Card[]>([]);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const showBatch = useCallback(async (batch: CardBatch) => {
+    const codes = buildCardCodes({
+      count: batch.count,
+      prefix: batch.prefix,
+      start: batch.startNumber,
+    });
+
+    setCards(await Promise.all(codes.map(renderCard)));
+  }, []);
+
+  // The run the club printed last is what the page opens on: an admin coming back for
+  // the sheet finds it already there instead of generating it a second time.
+  const openedLastBatch = useRef(false);
+  useEffect(() => {
+    if (openedLastBatch.current || !lastBatch) return;
+
+    openedLastBatch.current = true;
+    void showBatch(lastBatch);
+  }, [lastBatch, showBatch]);
 
   const generate = useCallback(async () => {
     setBusy(true);
+    setError("");
     try {
-      const codes = buildCardCodes({
-        count: Number(count),
-        prefix,
-        start: Number(start),
-      });
+      const startNumber = Math.max(1, Number(start) || 1);
+      const codes = buildCardCodes({ count: Number(count), prefix, start: startNumber });
 
+      // Written down before it is shown: a run that reaches the printer without reaching
+      // the history is how two cards end up carrying the same number.
+      await rememberCardBatch({ count: codes.length, prefix, startNumber });
       setCards(await Promise.all(codes.map(renderCard)));
+      setStart(String(startNumber + codes.length));
+      router.refresh();
+    } catch {
+      setError("Тираж не записался в историю — проверьте связь и попробуйте ещё раз.");
     } finally {
       setBusy(false);
     }
-  }, [count, prefix, start]);
+  }, [count, prefix, router, start]);
+
+  /** Reopens a printed run: the same codes, without writing the run down twice. */
+  const reopen = useCallback(
+    async (batch: CardBatch) => {
+      setBusy(true);
+      try {
+        setPrefix(batch.prefix);
+        setStart(String(batch.startNumber));
+        setCount(String(batch.count));
+        await showBatch(batch);
+      } finally {
+        setBusy(false);
+      }
+    },
+    [showBatch],
+  );
+
+  async function forget(batch: CardBatch) {
+    if (
+      !window.confirm(
+        `Убрать тираж ${describeBatch(batch)} из истории? Номера снова станут свободными — удаляйте только то, что не ушло в печать.`,
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    try {
+      await forgetCardBatch(batch.id);
+      router.refresh();
+    } catch {
+      setError("Тираж не убрался из истории — проверьте связь и попробуйте ещё раз.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   function downloadSheet() {
     const cardsHtml = cards
@@ -95,8 +186,14 @@ export function QrCodesManager() {
             <input
               maxLength={12}
               value={prefix}
-              onChange={(event) => setPrefix(event.target.value)}
+              onChange={(event) => {
+                const next = event.target.value;
+                setPrefix(next);
+                // Each pack keeps its own numbering, so the field follows the pack.
+                setStart(String(nextStartNumber(batches, next)));
+              }}
             />
+            <span className="field-help">MJ — клубные, G — гостевые.</span>
           </label>
           <label>
             Начать с номера
@@ -105,6 +202,7 @@ export function QrCodesManager() {
               value={start}
               onChange={(event) => setStart(event.target.value)}
             />
+            <span className="field-help">Следующий свободный номер этой пачки.</span>
           </label>
           <label>
             Сколько карт
@@ -138,6 +236,52 @@ export function QrCodesManager() {
             <Printer size={16} /> Печать
           </button>
         </div>
+
+        {error ? <p className="form-error">{error}</p> : null}
+      </section>
+
+      <section className="poker-panel qr-history-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Напечатанные тиражи</h2>
+            <p className="muted">
+              Каждая генерация записывается сюда — отсюда и берётся следующий свободный номер.
+            </p>
+          </div>
+        </div>
+
+        {batches.length === 0 ? (
+          <p className="muted">
+            <History size={16} /> Пока ни одного тиража — первый запишется сам.
+          </p>
+        ) : (
+          <ul className="qr-history">
+            {batches.map((batch) => (
+              <li key={batch.id}>
+                <button
+                  className="qr-history-open"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void reopen(batch)}
+                >
+                  <strong>{describeBatch(batch)}</strong>
+                  <span className="muted">
+                    {batch.count} шт · {formatPrintedAt(batch.createdAt)}
+                  </span>
+                </button>
+                <button
+                  aria-label={`Убрать тираж ${describeBatch(batch)}`}
+                  className="ghost-button qr-history-forget"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => void forget(batch)}
+                >
+                  <Trash2 size={16} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       <section className="poker-panel qr-sheet-panel">

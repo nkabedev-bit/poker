@@ -553,7 +553,7 @@ export default function TMACardsPage() {
             <input
               className="w-full bg-transparent py-3 font-semibold outline-none"
               inputMode="numeric"
-              placeholder="01"
+              placeholder="001"
               value={manualCode}
               onChange={(event) => setManualCode(event.target.value.replace(/\D/g, "").slice(0, 4))}
             />

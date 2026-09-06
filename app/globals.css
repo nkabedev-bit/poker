@@ -3074,12 +3074,50 @@ p {
   color: #111;
 }
 
+.qr-history {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.qr-history li {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.qr-history-open {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  align-items: baseline;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.qr-history-open strong {
+  letter-spacing: 0.06em;
+}
+
+.qr-history-forget {
+  flex: 0 0 auto;
+}
+
 /* Printing the page gives the same sheet the download does. */
 @media print {
   .admin-header,
   .admin-tabs,
   .qr-actions,
   .qr-form-row,
+  .qr-history-panel,
   .panel-heading {
     display: none !important;
   }

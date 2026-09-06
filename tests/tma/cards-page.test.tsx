@@ -65,28 +65,28 @@ describe("typing a card code at the desk", () => {
     const fetchMock = stubDesk();
     await openManualEntry();
 
-    fireEvent.change(screen.getByPlaceholderText("01"), { target: { value: "5" } });
+    fireEvent.change(screen.getByPlaceholderText("001"), { target: { value: "5" } });
     fireEvent.click(screen.getByText("Найти"));
 
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/tma/cards?code=MJ-05")).toBe(
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/tma/cards?code=MJ-005")).toBe(
         true,
       ),
     );
   });
 
   // A guest card carries the same digits as one of the club's own, so the pack has to be
-  // said out loud — otherwise G-05 looks up MJ-05 and finds the wrong player.
+  // said out loud — otherwise G-005 looks up MJ-005 and finds the wrong player.
   it("reads a guest card once the desk picks the guest pack", async () => {
     const fetchMock = stubDesk();
     await openManualEntry();
 
     fireEvent.click(screen.getByLabelText("Карты G"));
-    fireEvent.change(screen.getByPlaceholderText("01"), { target: { value: "5" } });
+    fireEvent.change(screen.getByPlaceholderText("001"), { target: { value: "5" } });
     fireEvent.click(screen.getByText("Найти"));
 
     await waitFor(() =>
-      expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/tma/cards?code=G-05")).toBe(
+      expect(fetchMock.mock.calls.some(([url]) => String(url) === "/api/tma/cards?code=G-005")).toBe(
         true,
       ),
     );
