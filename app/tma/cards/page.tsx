@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Armchair,
   Check,
+  ChevronLeft,
   CreditCard,
   Dices,
   Keyboard,
@@ -558,11 +559,11 @@ export default function TMACardsPage() {
         <p className="text-center text-xs text-[var(--tg-theme-hint-color)]">
           Карта {scannedCode}
         </p>
-      ) : (
+      ) : cardsEnabled ? (
         <p className="text-center text-sm text-[var(--tg-theme-hint-color)]">
           Отсканируйте карту, чтобы выдать её игроку или принять обратно.
         </p>
-      )}
+      ) : null}
 
       {session ? (
         <div className="space-y-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
@@ -616,22 +617,32 @@ export default function TMACardsPage() {
             />
           </div>
 
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold disabled:opacity-60"
-            disabled={busy}
-            type="button"
-            onClick={release}
-          >
-            <RotateCcw size={16} /> Принять карту обратно
-          </button>
+          {session.cardCode ? (
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold disabled:opacity-60"
+              disabled={busy}
+              type="button"
+              onClick={release}
+            >
+              <RotateCcw size={16} /> Принять карту обратно
+            </button>
+          ) : (
+            <button
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold"
+              type="button"
+              onClick={() => setSession(null)}
+            >
+              <ChevronLeft size={16} /> К списку
+            </button>
+          )}
         </div>
       ) : null}
 
       {/* Only when no card is in hand: while one is scanned the screen is about that
           card, and the evening's list underneath it only confuses the desk. */}
-      {!cardsEnabled ? searchBox : null}
+      {!cardsEnabled && !session ? searchBox : null}
 
-      {settling.length > 0 && !scannedCode ? (
+      {settling.length > 0 && !scannedCode && !session ? (
         <section className="space-y-2">
           <p className="text-sm font-semibold">
             {cardsEnabled ? "Выданные карты" : "За столами"} ({settling.length})
@@ -641,7 +652,14 @@ export default function TMACardsPage() {
                 key={card.playerId}
                 className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3"
               >
-                <div className="flex items-baseline justify-between gap-3">
+                {/* The row opens the bill behind the number: the desk is asked "за что
+                    столько?" across the table and should not have to remember. The paid
+                    toggle stays outside it, so settling up is still one tap. */}
+                <button
+                  className="flex w-full items-baseline justify-between gap-3 text-left"
+                  type="button"
+                  onClick={() => setSession(card)}
+                >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">{card.name}</span>
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
@@ -658,7 +676,7 @@ export default function TMACardsPage() {
                   >
                     {card.charge.total.toLocaleString("ru-RU")} ₽
                   </span>
-                </div>
+                </button>
 
                 <PaidToggle
                   busy={busy}
