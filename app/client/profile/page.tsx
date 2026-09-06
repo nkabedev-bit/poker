@@ -359,6 +359,14 @@ export default function ClientProfilePage() {
                     {formatEventDayLabel(item.event.startsAt)},{" "}
                     {formatEventTimeLabel(item.event.startsAt)}
                   </p>
+                  {/* A ticket the club is holding is not a sign-up: it is still waiting
+                      on the player, and a card that looks like the rest never gets
+                      answered. */}
+                  {item.status === "reserved" ? (
+                    <p className="mt-2 inline-flex rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e9c07a]">
+                      Билет отложен · подтвердите
+                    </p>
+                  ) : null}
                 </Link>
               ))}
             </div>

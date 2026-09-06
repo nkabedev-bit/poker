@@ -29,6 +29,7 @@ function createTelegramWebApp(): TelegramWebApp {
 const SIGNUP = {
   id: "signup-1",
   name: "Ace High",
+  reserved: false,
   seated: false,
   telegramId: 555,
   ticketType: "vip" as const,
@@ -131,6 +132,17 @@ describe("TMASignupsPage", () => {
       expect.anything(),
     );
     expect(screen.getByText("нет — вход через Яндекс")).toBeTruthy();
+  });
+
+  // A held ticket is not a sign-up: the desk has to see that nobody has answered yet.
+  it("marks a player whose ticket is only being held", async () => {
+    mockFetch({ signups: [{ ...SIGNUP, reserved: true }] });
+    render(<TMASignupsPage />);
+
+    expect(await screen.findByText("отложен · не подтвердил")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /ace high/i }));
+    await screen.findByText(/игрок ещё не подтвердил/i);
   });
 
   it("says so plainly when the player has no questionnaire", async () => {

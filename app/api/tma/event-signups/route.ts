@@ -41,6 +41,9 @@ export async function GET(request: Request) {
       name: signup.displayName ?? "Без никнейма",
       // Who the player is bringing on a "1+1", so the desk expects two of them.
       partnerName: signup.duoPartnerName,
+      // A ticket the admin put aside and the player has yet to answer. It holds a seat,
+      // so the desk expects them — but nobody has said they are coming.
+      reserved: signup.status === "reserved",
       seated:
         signup.status === "seated" ||
         seatedAccountIds.has(signup.userId) ||

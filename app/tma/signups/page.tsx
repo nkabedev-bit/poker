@@ -15,6 +15,8 @@ type Signup = {
   name: string;
   /** The guest coming in on this player's "1+1", when they bought one. */
   partnerName: string | null;
+  /** The club put this ticket aside and the player has not answered yet. */
+  reserved: boolean;
   seated: boolean;
   /** Null for a player who joined through the web: they have no Telegram at all. */
   telegramId: number | null;
@@ -253,6 +255,11 @@ export default function TMASignupsPage() {
 
         <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm">
           <p className="font-semibold">{TICKET_LABELS[opened.ticketType]}</p>
+          {opened.reserved ? (
+            <p className="mt-1 text-[#e9c07a]">
+              Билет отложен админом — игрок ещё не подтвердил, что придёт.
+            </p>
+          ) : null}
           {opened.usePass !== "none" ? (
             <p className="mt-1 text-emerald-500">Вход {PASS_LABELS[opened.usePass]}</p>
           ) : null}
@@ -377,6 +384,11 @@ export default function TMASignupsPage() {
                 </span>
               ) : null}
               <span className="mt-1 flex flex-wrap gap-1.5">
+                {signup.reserved ? (
+                  <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
+                    отложен · не подтвердил
+                  </span>
+                ) : null}
                 {signup.ticketType === "vip" ? (
                   <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
                     VIP

@@ -601,9 +601,12 @@ export function EventsManager({
               {signups.map((signup, index) => (
                 <li key={signup.id}>
                   <span className="muted">{index + 1}.</span>{" "}
-                  <strong>{signup.displayName ?? `id ${signup.telegramId}`}</strong>
+                  <strong>{signup.displayName ?? "Без никнейма"}</strong>
                   {signup.username ? <span className="muted"> @{signup.username}</span> : null}
                   {signup.status === "seated" ? <span className="muted"> · за столом</span> : null}
+                  {signup.status === "reserved" ? (
+                    <span className="muted"> · билет отложен, не подтвердил</span>
+                  ) : null}
                 </li>
               ))}
             </ol>
