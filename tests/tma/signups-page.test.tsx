@@ -33,7 +33,20 @@ const SIGNUP = {
   telegramId: 555,
   ticketType: "vip" as const,
   usePass: "vip" as const,
+  userId: "account-1",
   username: "ace",
+};
+
+/** Somebody who joined through the web: no Telegram, and no username to show. */
+const WEB_SIGNUP = {
+  ...SIGNUP,
+  id: "signup-2",
+  name: "Королева",
+  telegramId: null,
+  ticketType: "regular" as const,
+  usePass: "none" as const,
+  userId: "account-2",
+  username: null,
 };
 
 const PROFILE = {
@@ -50,12 +63,15 @@ const PROFILE = {
   username: "ace",
 };
 
-function mockFetch({ profile = PROFILE as unknown }: { profile?: unknown } = {}) {
+function mockFetch({
+  profile = PROFILE as unknown,
+  signups = [SIGNUP as unknown],
+}: { profile?: unknown; signups?: unknown[] } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
     if (url.startsWith("/api/tma/event-signups")) {
-      return Response.json({ event: null, signups: [SIGNUP], tablesCount: 3 });
+      return Response.json({ event: null, signups, tablesCount: 3 });
     }
     if (url.startsWith("/api/tma/players")) {
       return Response.json({ players: [], tablesCount: 3 });
@@ -92,9 +108,29 @@ describe("TMASignupsPage", () => {
     expect(screen.getByText("+7 911 000-00-00")).toBeTruthy();
     expect(screen.getByText("14.06.1990")).toBeTruthy();
     expect(fetchMock).toHaveBeenCalledWith(
-      "/api/tma/client-profile?telegramId=555",
+      "/api/tma/client-profile?userId=account-1",
       expect.anything(),
     );
+  });
+
+  // The web player has no Telegram id, and asking for their questionnaire by one used
+  // to send the desk "telegramId=null" and bring back nothing at all.
+  it("opens the questionnaire of a player who joined through the web", async () => {
+    const fetchMock = mockFetch({
+      profile: { ...PROFILE, displayName: "Королева", username: null },
+      signups: [WEB_SIGNUP],
+    });
+    render(<TMASignupsPage />);
+
+    expect(await screen.findByText("записался на сайте")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /королева/i }));
+
+    await screen.findByText("Иван Иванов");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/client-profile?userId=account-2",
+      expect.anything(),
+    );
+    expect(screen.getByText("нет — вход через Яндекс")).toBeTruthy();
   });
 
   it("says so plainly when the player has no questionnaire", async () => {

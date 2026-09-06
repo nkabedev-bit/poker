@@ -167,7 +167,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { error: passError } = await auth.supabase
       .from("client_bot_users")
       .update({ [column]: Math.max(0, heldPasses - 1) })
-      .eq("telegram_id", telegramId);
+      .eq("id", accountId);
 
     if (passError) console.error("Failed to spend a free entry", passError);
   };
@@ -207,7 +207,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   await auth.supabase
     .from("client_bot_users")
     .update({ registered_at: new Date().toISOString(), registered_player_id: seatedPlayer.id })
-    .eq("telegram_id", telegramId);
+    .eq("id", accountId);
 
   await spendPass();
 

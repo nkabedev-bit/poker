@@ -16,9 +16,12 @@ type Signup = {
   /** The guest coming in on this player's "1+1", when they bought one. */
   partnerName: string | null;
   seated: boolean;
-  telegramId: number;
+  /** Null for a player who joined through the web: they have no Telegram at all. */
+  telegramId: number | null;
   ticketType: "regular" | "vip" | "duo" | "duo_plus_one";
   usePass: "none" | "regular" | "vip";
+  /** The account behind the sign-up, which is who the player is on either door. */
+  userId: string;
   username: string | null;
 };
 
@@ -103,7 +106,7 @@ export default function TMASignupsPage() {
     setProfileLoading(true);
 
     try {
-      const res = await fetch(`/api/tma/client-profile?telegramId=${signup.telegramId}`, {
+      const res = await fetch(`/api/tma/client-profile?userId=${signup.userId}`, {
         headers: { "X-Telegram-Init-Data": initData },
       });
 
@@ -272,7 +275,13 @@ export default function TMASignupsPage() {
             <ProfileRow label="Откуда узнал" value={profile.discoverySource} />
             <ProfileRow
               label="Telegram"
-              value={profile.username ? `@${profile.username}` : `id ${opened.telegramId}`}
+              value={
+                profile.username
+                  ? `@${profile.username}`
+                  : opened.telegramId
+                    ? `id ${opened.telegramId}`
+                    : "нет — вход через Яндекс"
+              }
             />
             <ProfileRow label="Согласие на рейтинг" value={profile.ratingConsent ? "Да" : "Нет"} />
             <ProfileRow
@@ -356,7 +365,11 @@ export default function TMASignupsPage() {
             <span className="min-w-0">
               <span className="block truncate font-semibold">{signup.name}</span>
               <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                {signup.username ? `@${signup.username}` : "записался в приложении"}
+                {signup.username
+                  ? `@${signup.username}`
+                  : signup.telegramId
+                    ? "записался в приложении"
+                    : "записался на сайте"}
               </span>
               {signup.partnerName ? (
                 <span className="block text-xs text-[var(--tg-theme-hint-color)]">

@@ -56,22 +56,27 @@ async function revokeMysteryPasses(
 
     const killerId = String(item.id ?? "");
     const nickname = String(item.name ?? "");
-    const telegramId = players.find((player) => player.id === killerId)?.telegramId ?? null;
+    const owner = players.find((player) => player.id === killerId) ?? null;
+    const accountId = owner?.accountId ?? null;
+    const telegramId = owner?.telegramId ?? null;
     const column = pass === "vip" ? "vip_free_entries" : "free_entries";
-
-    if (telegramId) {
-      const { data: account } = await supabase
-        .from("client_bot_users")
-        .select(column)
-        .eq("telegram_id", telegramId)
-        .maybeSingle();
+    // A player who joined through the web has no Telegram id, and the pass hangs on
+    // their account like anybody else's.
+    if (accountId || telegramId) {
+      const selection = supabase.from("client_bot_users").select(column);
+      const { data: account } = await (accountId
+        ? selection.eq("id", accountId)
+        : selection.eq("telegram_id", telegramId as number)
+      ).maybeSingle();
 
       if (account) {
         const held = Math.max(0, Number((account as Record<string, number>)[column] ?? 0));
-        const { error } = await supabase
+        const patch = supabase
           .from("client_bot_users")
-          .update({ [column]: Math.max(0, held - 1) })
-          .eq("telegram_id", telegramId);
+          .update({ [column]: Math.max(0, held - 1) });
+        const { error } = await (accountId
+          ? patch.eq("id", accountId)
+          : patch.eq("telegram_id", telegramId as number));
 
         if (error) console.error("Failed to take the mystery bounty pass back", error);
       }

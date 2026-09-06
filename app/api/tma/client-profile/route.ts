@@ -23,18 +23,27 @@ export async function GET(request: Request) {
   const auth = await requireTmaAuth(request);
   if (auth.error) return auth.error;
 
-  const telegramId = Number(new URL(request.url).searchParams.get("telegramId"));
-  if (!Number.isInteger(telegramId) || telegramId <= 0) {
+  // A player who joined through the web has no Telegram id at all, so the account is
+  // what the questionnaire is looked up by; the id still works for anyone who has one.
+  const params = new URL(request.url).searchParams;
+  const userId = (params.get("userId") ?? "").trim();
+  const telegramId = Number(params.get("telegramId"));
+  const byTelegram = !userId && Number.isInteger(telegramId) && telegramId > 0;
+
+  if (!userId && !byTelegram) {
     return NextResponse.json({ error: "Не выбран игрок" }, { status: 400 });
   }
 
-  const { data, error } = await auth.supabase
+  const query = auth.supabase
     .from("client_bot_users")
     .select(
       "telegram_id, username, display_name, avatar_url, created_at, profile_submitted_at, pending_profile_answers, free_entries, vip_free_entries",
-    )
-    .eq("telegram_id", telegramId)
-    .maybeSingle();
+    );
+
+  const { data, error } = await (byTelegram
+    ? query.eq("telegram_id", telegramId)
+    : query.eq("id", userId)
+  ).maybeSingle();
 
   if (error) throw error;
   if (!data) return NextResponse.json({ error: "Анкета не найдена" }, { status: 404 });
@@ -46,7 +55,7 @@ export async function GET(request: Request) {
     free_entries: number | null;
     pending_profile_answers: ProfileAnswers | null;
     profile_submitted_at: string | null;
-    telegram_id: number;
+    telegram_id: number | null;
     username: string | null;
     vip_free_entries: number | null;
   };
