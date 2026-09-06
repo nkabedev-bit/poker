@@ -7,7 +7,10 @@ import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadDemoPublicState, saveDemoExtras, saveDemoTimerState, saveDemoTournamentSettings } from "@/lib/demo-overrides";
 import { getEffectiveTimerState } from "@/lib/timer/calculate";
-import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import {
+  getFinishTournamentExtrasPatch,
+  getStartTournamentExtrasPatch,
+} from "@/lib/timer/lifecycle";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
@@ -157,6 +160,9 @@ export async function restartTournament() {
     finished_at: null,
   });
   await saveSheetsSessionStart(now);
+  // The evening that just ended kept its roster so the desk could finish settling up;
+  // this is where it stops being the current one.
+  await saveTournamentExtras(getStartTournamentExtrasPatch(), "/admin/timer");
 }
 
 export async function pauseTimer() {

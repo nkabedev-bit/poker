@@ -9,6 +9,7 @@ import {
   saveTournamentExtrasFromContext,
 } from "@/lib/client-bot/server";
 import { TimerState, BlindLevel } from "@/lib/timer/types";
+import { getStartTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
@@ -95,7 +96,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           await saveTournamentExtrasFromContext(
             auth.supabase,
             context,
-            { settings: { sheetsSessionStartedAt: now.toISOString(), statsCountedAt: null } },
+            {
+              // The last evening kept its roster so the desk could finish settling up.
+              // A new tournament starting is what ends it.
+              ...getStartTournamentExtrasPatch(),
+              settings: { sheetsSessionStartedAt: now.toISOString(), statsCountedAt: null },
+            },
           );
         }
       }

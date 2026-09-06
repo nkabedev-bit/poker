@@ -229,7 +229,7 @@ describe("TMA eliminations route", () => {
     mocks.appendFreeEntryGrant.mockResolvedValue(null);
   });
 
-  it("clears players when the final elimination finishes the tournament", async () => {
+  it("finishes the tournament on the final elimination, roster and all", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
@@ -259,21 +259,23 @@ describe("TMA eliminations route", () => {
         status: "finished",
       }),
     );
+    // The roster stays: the desk is still settling up, and the list of who owes what
+    // is read off it. Only the evening's draws go.
     expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
-      { players: [], raffle: null, raffleHistory: [] },
+      { raffle: null, raffleHistory: [] },
       "/admin/players",
       supabase,
     );
 
-    // Achievement stats must be counted from the final standings BEFORE the
-    // roster is wiped, otherwise accumulate_client_bot_stats reads an empty list.
+    // Achievement stats are counted from the final standings before anything else
+    // touches the evening, so nothing can read a roster that has moved on.
     const accumulateRpcIndex = supabase.rpc.mock.calls.findIndex(
       ([fnName]) => fnName === "accumulate_client_bot_stats",
     );
     expect(accumulateRpcIndex).toBeGreaterThanOrEqual(0);
     const accumulateOrder = supabase.rpc.mock.invocationCallOrder[accumulateRpcIndex];
-    const clearPlayersOrder = mocks.saveTournamentExtras.mock.invocationCallOrder[0];
-    expect(accumulateOrder).toBeLessThan(clearPlayersOrder);
+    const finishPatchOrder = mocks.saveTournamentExtras.mock.invocationCallOrder[0];
+    expect(accumulateOrder).toBeLessThan(finishPatchOrder);
   });
 
   it("ignores requested re-entry when re-entry is disabled", async () => {
