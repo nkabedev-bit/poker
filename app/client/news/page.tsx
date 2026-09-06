@@ -41,7 +41,10 @@ export default function ClientNewsPage() {
   }, [initData]);
 
   useEffect(() => {
-    void load();
+    // Loaded a tick later, the way every other screen here does it: a fetch that
+    // settles synchronously would otherwise set state inside the effect itself.
+    const timeout = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timeout);
   }, [load]);
 
   if (announcements === null) return <LoadingScreen />;
