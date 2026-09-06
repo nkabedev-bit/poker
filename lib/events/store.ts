@@ -13,7 +13,7 @@ const EVENT_COLUMNS =
   "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 const SIGNUP_COLUMNS =
-  "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at";
+  "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at, duo_invite_token";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;

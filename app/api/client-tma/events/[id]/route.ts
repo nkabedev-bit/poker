@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
+import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +34,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       // What the player already asked for, so the page can say it back to them —
       // including the partner on a "1+1" and whether they have answered yet.
       partnerConfirmed: Boolean(mySignup?.duoConfirmedAt),
+      // The link the buyer is waiting on, so the screen can offer it again rather than
+      // making them start the ticket over to see it.
+      inviteToken: mySignup?.duoInviteToken ?? null,
+      inviteLinks: await buildDuoInviteLinks(mySignup?.duoInviteToken ?? null),
       partnerIsMember: mySignup?.duoPartnerUserId != null,
       partnerName: mySignup?.duoPartnerName ?? null,
       signedUp: Boolean(mySignup),

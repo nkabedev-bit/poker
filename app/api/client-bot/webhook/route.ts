@@ -75,10 +75,58 @@ async function sendWelcome(ctx: Context) {
 
 const bot = new Bot(getBotToken());
 
+/** The pass a "1+1" link carries: t.me/<bot>?start=duo_<token>. */
+const DUO_INVITE_PREFIX = "duo_";
+
 bot.command("start", async (ctx) => {
   await upsertClientBotUser(ctx);
+
+  // Somebody arriving on a friend's link is here for one reason. The account exists by
+  // now — upsert made it — so the ticket's second half is theirs before they are even
+  // shown the door into the app.
+  const payload = String(ctx.match ?? "").trim();
+  if (payload.startsWith(DUO_INVITE_PREFIX)) {
+    await takeUpDuoInvite(ctx, payload.slice(DUO_INVITE_PREFIX.length));
+  }
+
   await sendWelcome(ctx);
 });
+
+/**
+ * Hands the invitation to whoever followed the link.
+ *
+ * Never stops the welcome: a token already spent, or one the club no longer has, is
+ * worth a line of explanation rather than a door that fails to open.
+ */
+async function takeUpDuoInvite(ctx: Context, token: string) {
+  const telegramId = ctx.from?.id;
+  if (!telegramId || !token) return;
+
+  const supabase = getAdminSupabase();
+  const { data } = await supabase
+    .from("client_bot_users")
+    .select("id")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+
+  const userId = (data as { id?: string } | null)?.id;
+  if (!userId) return;
+
+  try {
+    const { claimDuoInvite } = await import("@/lib/events/duo");
+    const outcome = await claimDuoInvite(supabase, { token, userId });
+
+    await ctx.reply(
+      outcome.error === null
+        ? "Вас зовут вторым игроком по билету 1+1 — откройте приложение и подтвердите."
+        : outcome.error === "taken"
+          ? "Вас уже зовут вторым игроком на этот турнир."
+          : "Приглашение больше не действует — возможно, его уже приняли.",
+    );
+  } catch (error) {
+    console.error("Could not take up the pair invitation", error);
+  }
+}
 
 bot.on("message", async (ctx) => {
   await upsertClientBotUser(ctx);

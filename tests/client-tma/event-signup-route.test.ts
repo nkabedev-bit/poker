@@ -168,6 +168,7 @@ describe("client sign-up route", () => {
     expect(upsert).toHaveBeenCalledWith(
       {
         duo_confirmed_at: null,
+        duo_invite_token: null,
         duo_partner_name: null,
         duo_partner_user_id: null,
         event_id: "event-1",
@@ -575,5 +576,63 @@ describe("the 1+1 ticket", () => {
       "account-titan",
       expect.any(String),
     );
+  });
+  // The friend worth bringing is often the one who has not joined the club yet.
+  it("mints a link when the buyer is inviting somebody new", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerMode: "invite", ticketType: "duo" });
+    const saved = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(saved.inviteToken).toEqual(expect.any(String));
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        duo_invite_token: saved.inviteToken,
+        duo_partner_name: null,
+        duo_partner_user_id: null,
+        ticket_type: "duo",
+      }),
+      { onConflict: "event_id,user_id" },
+    );
+  });
+
+  // A link already sent out has to keep working: opening the ticket again must not
+  // break the one the friend is holding.
+  it("keeps the link it already gave out", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ duo: 1 }));
+    mocks.getUserSignups.mockResolvedValue([
+      {
+        duoConfirmedAt: null,
+        duoHostUserId: null,
+        duoInviteToken: "already-sent",
+        duoPartnerName: null,
+        duoPartnerUserId: null,
+        eventId: "event-1",
+        ticketType: "duo",
+        userId: "account-host",
+      },
+    ]);
+
+    await postSignup({ partnerMode: "invite", ticketType: "duo" });
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_invite_token: "already-sent" }),
+      { onConflict: "event_id,user_id" },
+    );
+  });
+
+  it("asks for nobody's name when a link is being sent", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerMode: "invite", ticketType: "duo" });
+
+    // The nickname route refuses an empty partner; the link route is the partner.
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalled();
   });
 });

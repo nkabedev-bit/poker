@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
@@ -195,4 +196,72 @@ export function duoAnswerMessage(partnerName: string, eventTitle: string, accept
 
 export function duoCancelledMessage(hostName: string, eventTitle: string) {
   return `${hostName} отменил запись на «${eventTitle}», и билет 1+1 больше не действует.`;
+}
+
+/**
+ * The pass a buyer sends to somebody the club has never met.
+ *
+ * Short enough to sit in a link and be sent in a message, random enough that nobody
+ * arrives at somebody else's invitation by guessing.
+ */
+export function createDuoInviteToken() {
+  return randomBytes(12).toString("base64url");
+}
+
+export type DuoInviteClaim =
+  | { error: "gone" | "taken" | "self"; eventId: null }
+  | { error: null; eventId: string };
+
+/**
+ * Hands the second half of a pair to whoever opened the link.
+ *
+ * Spent on use: the token is cleared as the partner is written in, so the same link
+ * cannot seat two people, and somebody who opens it later is told it is gone rather
+ * than quietly taking a place that is filled.
+ */
+export async function claimDuoInvite(
+  supabase: SupabaseClient,
+  { token, userId }: { token: string; userId: string },
+): Promise<DuoInviteClaim> {
+  const clean = token.trim();
+  if (!clean) return { error: "gone", eventId: null };
+
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select("event_id, user_id, duo_partner_user_id")
+    .eq("duo_invite_token", clean)
+    .neq("status", "cancelled")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return { error: "gone", eventId: null };
+
+  const invite = data as {
+    duo_partner_user_id: string | null;
+    event_id: string;
+    user_id: string;
+  };
+
+  // The buyer cannot be their own plus one.
+  if (invite.user_id === userId) return { error: "self", eventId: null };
+  if (invite.duo_partner_user_id) return { error: "gone", eventId: null };
+
+  // Somebody is already bringing this player to the same evening — one member is the
+  // +1 of one ticket, and the database says so too.
+  if (await isPartnerTaken(supabase, {
+    eventId: invite.event_id,
+    hostUserId: invite.user_id,
+    partnerUserId: userId,
+  })) {
+    return { error: "taken", eventId: null };
+  }
+
+  const { error: writeError } = await supabase
+    .from("event_signups")
+    .update({ duo_confirmed_at: null, duo_invite_token: null, duo_partner_user_id: userId })
+    .eq("duo_invite_token", clean);
+
+  if (writeError) throw writeError;
+
+  return { error: null, eventId: invite.event_id };
 }

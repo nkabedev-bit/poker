@@ -5,6 +5,7 @@ import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store
 import { countFreeSeats, hasFreeSeat, offersDuoTicket, offersVipTicket } from "@/lib/events/seats";
 import {
   cancelDuoPlusOne,
+  createDuoInviteToken,
   duoCancelledMessage,
   duoInviteMessage,
   isPartnerTaken,
@@ -12,6 +13,7 @@ import {
   resolveDuoPartner,
 } from "@/lib/events/duo";
 import { isEventTicketType, isUpcomingEvent, passMatchesTicket } from "@/lib/events/types";
+import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +39,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const body = await request.json().catch(() => ({}));
   const requestedTicket = isEventTicketType(body.ticketType) ? body.ticketType : "regular";
   const partnerName = readPartnerName(body.partnerName);
+  // The buyer either names somebody the club knows, or asks for a link to send to
+  // somebody it does not.
+  const wantsInvite = body.partnerMode === "invite";
   // What the player chose to pay with. Nothing is spent here: a pass is only used when
   // they turn up and are seated, so an intention costs nothing if they never come.
   const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
@@ -71,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // A "1+1" is bought for two, and the club needs to know who the second one is: the
   // whole point of the ticket is that the +1 is expected by name, not a surprise.
   const partner =
-    ticketType === "duo"
+    ticketType === "duo" && !wantsInvite
       ? await resolveDuoPartner(auth.supabase, {
           partnerKey: body.partnerKey,
           partnerName,
@@ -79,7 +84,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         })
       : { error: null, partner: null };
 
-  if (ticketType === "duo" && (partner.error || !partner.partner)) {
+  if (ticketType === "duo" && !wantsInvite && (partner.error || !partner.partner)) {
     return NextResponse.json(
       {
         error: "partner_required",
@@ -165,6 +170,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     await cancelDuoPlusOne(auth.supabase, { eventId: event.id, hostUserId: auth.user.id });
   }
 
+  // A link already sent out keeps working: the buyer opening their own ticket again
+  // must not quietly break the one their friend is holding.
+  const inviteToken =
+    ticketType === "duo" && wantsInvite
+      ? mine?.duoInviteToken ?? createDuoInviteToken()
+      : null;
+
   // A cancelled request is reused rather than duplicated: the unique (event, player)
   // pair means a second insert would fail instead of putting the player back in.
   const { error } = await auth.supabase.from("event_signups").upsert(
@@ -172,6 +184,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // Switching away from a "1+1" lets go of the partner it was bought for, and a new
       // partner has yet to answer.
       duo_confirmed_at: keptConfirmation,
+      duo_invite_token: inviteToken,
       duo_partner_name: partner.partner?.name ?? null,
       duo_partner_user_id: partner.partner?.userId ?? null,
       event_id: event.id,
@@ -207,6 +220,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
 
   return NextResponse.json({
+    inviteLinks: await buildDuoInviteLinks(inviteToken),
+    inviteToken,
     partnerName: partner.partner?.name ?? null,
     signedUp: true,
     ticketType,

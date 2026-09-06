@@ -33,7 +33,12 @@ type TicketType = "regular" | "vip" | "duo";
 /** What a sign-up can say; the +1's half is given out by accepting, never chosen. */
 type HeldTicket = TicketType | "duo_plus_one";
 
+type DuoInviteLinks = { telegram: string | null; web: string | null };
+
 type EventDetails = TournamentEvent & {
+  /** The two ways to open the "1+1" invitation, while nobody has taken it up. */
+  inviteLinks?: DuoInviteLinks;
+  inviteToken?: string | null;
   /** Set once the invited member said they are coming. */
   partnerConfirmed: boolean;
   /** Whether the +1 is a member of the club, who answers, or a guest, who does not. */
@@ -104,6 +109,10 @@ export default function ClientEventPage() {
   // The +1 is either picked from the club, and answers for themselves, or written down
   // as a guest, who is expected by name alone.
   const [partnerKey, setPartnerKey] = useState("");
+  // A friend the club already knows is picked by nickname; one it does not is sent a
+  // link and joins through it.
+  const [partnerMode, setPartnerMode] = useState<"member" | "invite">("member");
+  const [inviteLinks, setInviteLinks] = useState<DuoInviteLinks | null>(null);
   const [partnerMatches, setPartnerMatches] = useState<PartnerMatch[]>([]);
   const [invite, setInvite] = useState<{ hostName: string } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -262,11 +271,15 @@ export default function ClientEventPage() {
         method: signUp ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
         body: signUp
-          ? JSON.stringify({ partnerKey, partnerName, ticketType, usePass })
+          ? JSON.stringify({ partnerKey, partnerMode, partnerName, ticketType, usePass })
           : undefined,
       });
 
       if (res.ok) {
+        // The link is minted by the server as the ticket is saved; it is shown straight
+        // away so the buyer can send it while they still have their friend in mind.
+        const saved = await res.json().catch(() => null);
+        setInviteLinks(saved?.inviteLinks ?? null);
         tg?.HapticFeedback?.notificationOccurred("success");
         await load();
         return;
@@ -317,7 +330,11 @@ export default function ClientEventPage() {
     ticketType === "vip" ? freeSeats.vip : ticketType === "duo" ? freeSeats.duo : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
   // The club takes a "1+1" to mean an expected pair, so the second name is required.
-  const partnerMissing = ticketType === "duo" && !partnerName.trim();
+  // Only the nickname route needs a name typed in: the link is the invitation itself.
+  const partnerMissing =
+    ticketType === "duo" && partnerMode === "member" && !partnerName.trim();
+  const shownInviteLinks = inviteLinks ?? event.inviteLinks ?? null;
+  const hasInviteLinks = Boolean(shownInviteLinks?.telegram || shownInviteLinks?.web);
   const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
   const announcedSeats = countAnnouncedSeats(event);
   // The split is worth a line only when the poster sells more than the regular seats —
@@ -552,9 +569,56 @@ export default function ClientEventPage() {
         )}
 
         {ticketType === "duo" && (!event.signedUp || needsPartner) ? (
-          <GlassCard className="space-y-2 !p-4">
+          <GlassCard className="space-y-3 !p-4">
+            <p className="block text-sm font-bold">Кто придёт с вами?</p>
+
+            {/* The friend worth bringing is often the one who has not joined yet, so the
+                two cases are asked apart rather than guessed from what was typed. */}
+            <div className="grid grid-cols-2 gap-2">
+              {(["member", "invite"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  className={`rounded-2xl px-3 py-2.5 text-[13px] font-semibold transition ${
+                    partnerMode === mode
+                      ? "bg-[#c8163f] text-white"
+                      : "border border-white/[0.09] bg-white/[0.04] text-white/70"
+                  }`}
+                  type="button"
+                  onClick={() => setPartnerMode(mode)}
+                >
+                  {mode === "member" ? "Он есть в приложении" : "Позвать нового"}
+                </button>
+              ))}
+            </div>
+
+            {partnerMode === "invite" ? (
+              <div className="space-y-2">
+                <p className="text-[12px] leading-relaxed text-white/50">
+                  Запишитесь — и получите ссылку-приглашение. Друг откроет её,
+                  зарегистрируется и увидит приглашение на этот турнир.
+                </p>
+
+                {hasInviteLinks ? (
+                  <div className="space-y-1.5">
+                    {shownInviteLinks?.telegram ? (
+                      <InviteLink
+                        href={shownInviteLinks.telegram}
+                        label="Ссылка для Telegram"
+                      />
+                    ) : null}
+                    {shownInviteLinks?.web ? (
+                      <InviteLink href={shownInviteLinks.web} label="Ссылка без Telegram" />
+                    ) : null}
+                    <p className="text-[11px] leading-relaxed text-white/40">
+                      Ссылка одноразовая: кто откроет первым, тот и придёт с вами.
+                    </p>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
             <label className="block text-sm font-bold" htmlFor="duo-partner">
-              Кто придёт с вами?
+              Ник напарника
             </label>
             <input
               autoComplete="off"
@@ -592,6 +656,8 @@ export default function ClientEventPage() {
                 : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
               Вход для обоих, цена делится пополам.
             </p>
+              </>
+            )}
           </GlassCard>
         ) : null}
       </section>
@@ -759,6 +825,42 @@ function TicketCard({
       <p className={`mt-2 text-white/45 ${compact ? "text-[11px]" : "text-[12px]"}`}>
         {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
       </p>
+    </button>
+  );
+}
+
+/**
+ * One invitation link, ready to be sent on.
+ *
+ * Copying is the whole job: the buyer is going to paste this into a chat, and a link
+ * they have to select by hand on a phone is a link they will get wrong.
+ */
+function InviteLink({ href, label }: { href: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(href);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      showClientAlert(href);
+    }
+  };
+
+  return (
+    <button
+      className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-3 py-2.5 text-left"
+      type="button"
+      onClick={copy}
+    >
+      <span className="min-w-0 flex-1">
+        <span className="block text-[12px] font-semibold text-white/70">{label}</span>
+        <span className="block truncate text-[11px] text-white/35">{href}</span>
+      </span>
+      <span className="shrink-0 text-[12px] font-bold text-[#f05a7e]">
+        {copied ? "Скопировано" : "Копировать"}
+      </span>
     </button>
   );
 }

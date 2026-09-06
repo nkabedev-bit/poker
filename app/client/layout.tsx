@@ -76,6 +76,9 @@ const SIGN_IN_PATH = "/client/login";
 
 const TELEGRAM_SESSION_FLAG = "club:opened-in-telegram";
 
+/** A "1+1" link's pass, kept while its holder signs in. */
+const DUO_INVITE_KEY = "club:duo-invite";
+
 function rememberTelegram() {
   try {
     window.sessionStorage.setItem(TELEGRAM_SESSION_FLAG, "1");
@@ -163,6 +166,42 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       window.clearTimeout(giveUp);
     };
   }, [initTg]);
+
+  // Somebody arriving on a friend's "1+1" link has an invitation to take up, and no
+  // account yet to take it up with. The pass is kept aside while they sign in — through
+  // Yandex, which leaves and comes back — and spent the moment the club knows them.
+  useEffect(() => {
+    if (door === "loading") return;
+
+    let token = "";
+    try {
+      const fromUrl = new URLSearchParams(window.location.search).get("invite");
+      if (fromUrl) window.sessionStorage.setItem(DUO_INVITE_KEY, fromUrl);
+      token = fromUrl ?? window.sessionStorage.getItem(DUO_INVITE_KEY) ?? "";
+    } catch {
+      return;
+    }
+
+    if (!token) return;
+
+    void fetch("/api/client-tma/duo-invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData ?? "" },
+      body: JSON.stringify({ token }),
+    })
+      .then((res) => {
+        // 401 means they have yet to sign in, and the pass waits for them. Anything else
+        // is an answer: taken up, already spent, or theirs to begin with.
+        if (res.status === 401) return;
+
+        try {
+          window.sessionStorage.removeItem(DUO_INVITE_KEY);
+        } catch {
+          // Nothing to clean up in a window that refuses storage.
+        }
+      })
+      .catch(() => {});
+  }, [door, initData]);
 
   // A web visitor carries their session in a cookie, and there is no way to tell from
   // here whether it is still good. Asked once, rather than on every screen: every other

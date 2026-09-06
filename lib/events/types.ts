@@ -36,6 +36,8 @@ export type EventSignup = {
   duoPartnerName: string | null;
   /** On the buyer's row: the member they invited, when the +1 plays at the club. */
   duoPartnerUserId: string | null;
+  /** The link's pass, while the buyer is waiting for somebody new to open it. */
+  duoInviteToken: string | null;
   eventId: string;
   id: string;
   status: EventSignupStatus;
@@ -141,6 +143,7 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
     duoConfirmedAt: optionalText(row.duo_confirmed_at),
     duoHostUserId: optionalText(row.duo_host_user_id),
     duoPartnerName: optionalText(row.duo_partner_name),
+    duoInviteToken: optionalText(row.duo_invite_token),
     duoPartnerUserId: optionalText(row.duo_partner_user_id),
     eventId: String(row.event_id),
     id: String(row.id),
