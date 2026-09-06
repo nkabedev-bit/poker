@@ -9,7 +9,12 @@ export type TicketType = "regular" | "vip";
  */
 export type CardSession = {
   addons: number;
+  /** Empty on an evening played without cards; the player is found by name instead. */
   cardCode: string;
+  /** Whether the player has already been knocked out — they may still owe for the night. */
+  eliminated: boolean;
+  /** Who this is, which is what the desk works by when no card was handed over. */
+  playerId: string;
   /** What the player owes for the evening, line by line. */
   charge: PlayerCharge;
   doubleReentries: number;
@@ -61,6 +66,8 @@ export function buildCardSession(
   return {
     addons: Math.max(0, Number(player.addons ?? 0)),
     cardCode,
+    eliminated: player.status === "eliminated",
+    playerId: player.id,
     charge: buildPlayerCharge(player, prices, options),
     // `rebuys` counts every re-entry including the doubles, and the two are reported
     // apart so the desk can tell one from the other.

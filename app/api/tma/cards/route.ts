@@ -21,6 +21,8 @@ export async function GET(request: Request) {
   const extras = await loadTournamentExtras(t.id, auth.supabase);
   const prices = getFinancePrices(extras.settings);
   const freeroll = extras.settings.tournamentFormat === "freeroll";
+  // Tournaments saved before the setting existed were played with cards.
+  const cardsEnabled = extras.settings.cardsEnabled !== false;
 
   const cardCode = normalizeCardCode(new URL(request.url).searchParams.get("code"));
 
@@ -28,9 +30,14 @@ export async function GET(request: Request) {
   // out, so the desk can see who still owes money.
   if (!cardCode) {
     return NextResponse.json({
+      cardsEnabled,
       issued: extras.players
-        .filter((item) => item.cardCode && item.status === "active")
-        .map((item) => buildCardSession(item, String(item.cardCode), prices, { freeroll }))
+        // Everybody the desk still has business with. A player who busted an hour ago
+        // owes for their re-entries just the same, and without a card to scan there is
+        // no other way back to them — so they stay until they have settled.
+        .filter((item) => (cardsEnabled ? Boolean(item.cardCode) : Boolean(item.table)))
+        .filter((item) => item.status === "active" || item.paid !== true)
+        .map((item) => buildCardSession(item, String(item.cardCode ?? ""), prices, { freeroll }))
         .sort((a, b) => (a.registrationNumber ?? 0) - (b.registrationNumber ?? 0)),
     });
   }
@@ -56,6 +63,7 @@ export async function POST(request: Request) {
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+  const cardsEnabled = extras.settings.cardsEnabled !== false;
   const body = await request.json().catch(() => ({}));
   const cardCode = normalizeCardCode(body.cardCode);
   const playerId = String(body.playerId ?? "");
@@ -63,7 +71,11 @@ export async function POST(request: Request) {
   const tableNumber = Number(body.table);
   const seatNumber = Number(body.seat);
 
-  if (!cardCode) return NextResponse.json({ error: "Пустой код карты" }, { status: 400 });
+  // On an evening played without cards there is no code to ask for: the chair is the
+  // whole of what is being handed over.
+  if (cardsEnabled && !cardCode) {
+    return NextResponse.json({ error: "Пустой код карты" }, { status: 400 });
+  }
   if (!playerId) return NextResponse.json({ error: "Не выбран игрок" }, { status: 400 });
 
   // Handing over a card is also when the player is told where to sit, so the chair
@@ -89,6 +101,21 @@ export async function POST(request: Request) {
       }
       throw seatError;
     }
+  }
+
+  if (!cardCode) {
+    // Nothing to hand over but the seat, which is already saved. The player is read
+    // back so the desk sees the same card it would have seen with one.
+    const seated = await loadTournamentExtras(t.id, auth.supabase);
+    const player = seated.players.find((item) => item.id === playerId);
+
+    if (!player) return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+
+    return NextResponse.json({
+      session: buildCardSession(player, "", getFinancePrices(seated.settings), {
+        freeroll: seated.settings.tournamentFormat === "freeroll",
+      }),
+    });
   }
 
   const { data, error } = await auth.supabase.rpc("assign_player_card", {

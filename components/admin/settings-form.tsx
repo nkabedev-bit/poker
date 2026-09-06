@@ -131,6 +131,8 @@ export function SettingsForm({
   const [soundFile, setSoundFile] = useState<File | null>(null);
   const [soundError, setSoundError] = useState<string | null>(null);
   const [reentryEnabled, setReentryEnabled] = useState(settings.reentryEnabled);
+  // Backward compatible: a tournament saved before this setting existed had cards.
+  const [cardsEnabled, setCardsEnabled] = useState(settings.cardsEnabled !== false);
   const [addonEnabled, setAddonEnabled] = useState(settings.addonEnabled);
   const [maxReentries, setMaxReentries] = useState(settings.maxReentries);
   const [tournamentFormat, setTournamentFormat] = useState<TournamentFormat>(
@@ -286,6 +288,18 @@ export function SettingsForm({
             min={1}
             defaultValue={settings.maxPlayersPerTable}
           />
+        </label>
+        <label>
+          QR-карты на входе?
+          <select
+            aria-label="QR-карты на входе?"
+            name="cardsEnabled"
+            value={cardsEnabled ? "yes" : "no"}
+            onChange={(event) => setCardsEnabled(event.target.value === "yes")}
+          >
+            <option value="yes">Да</option>
+            <option value="no">Нет — расчёт по нику</option>
+          </select>
         </label>
         <label>
           Включить ре-энтри?

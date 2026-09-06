@@ -144,6 +144,14 @@ export type TournamentExtras = {
     // Price of the double (x2) re-entry; a single re-entry costs `rebuyPrice`.
     doubleRebuyPrice: number;
     bountyType: BountyType;
+    /**
+     * Whether the club hands out its printed QR cards tonight.
+     *
+     * Off, the desk works from a list of names instead of a scanner: the card was only
+     * ever a fast way to find a player, and everything owed is counted on the player
+     * either way.
+     */
+    cardsEnabled: boolean;
     isBounty: boolean;
     maxPlayersPerTable: number;
     maxAddons: number;

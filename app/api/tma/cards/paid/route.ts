@@ -20,14 +20,26 @@ export async function POST(request: Request) {
 
   const body = await request.json().catch(() => ({}));
   const cardCode = normalizeCardCode(body.cardCode);
+  const playerId = String(body.playerId ?? "");
   const paid = Boolean(body.paid);
 
-  if (!cardCode) return NextResponse.json({ error: "Пустой код карты" }, { status: 400 });
+  if (!cardCode && !playerId) {
+    return NextResponse.json({ error: "Не выбран игрок" }, { status: 400 });
+  }
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
-  const player = extras.players.find((item) => item.cardCode === cardCode);
+  // A card names the player where the club hands them out; on an evening played without
+  // them the desk points at the player itself.
+  const player = cardCode
+    ? extras.players.find((item) => item.cardCode === cardCode)
+    : extras.players.find((item) => item.id === playerId);
 
-  if (!player) return NextResponse.json({ error: "Карта ни за кем не закреплена" }, { status: 404 });
+  if (!player) {
+    return NextResponse.json(
+      { error: cardCode ? "Карта ни за кем не закреплена" : "Игрок не найден" },
+      { status: 404 },
+    );
+  }
 
   const prices = getFinancePrices(extras.settings);
   const freeroll = extras.settings.tournamentFormat === "freeroll";
@@ -67,5 +79,7 @@ export async function POST(request: Request) {
     }
   });
 
-  return NextResponse.json({ session: buildCardSession(data, cardCode, prices, { freeroll }) });
+  return NextResponse.json({
+    session: buildCardSession(data, player.cardCode ?? "", prices, { freeroll }),
+  });
 }

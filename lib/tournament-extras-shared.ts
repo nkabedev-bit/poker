@@ -72,6 +72,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     maxAddons: 1,
     maxReentries: 1,
     rebuyPrice: 1250,
+    cardsEnabled: true,
     reentryEnabled: false,
     sheetsSessionStartedAt: null,
     statsCountedAt: null,

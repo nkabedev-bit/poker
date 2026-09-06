@@ -80,6 +80,7 @@ const settingsSchema = z.object({
   vipBuyIn: z.number().int().min(0).optional(),
   duoBuyIn: z.number().int().min(0).optional(),
   doubleRebuyPrice: z.number().int().min(0).optional(),
+  cardsEnabled: z.boolean().optional(),
   isBounty: z.boolean().optional(),
   maxPlayersPerTable: z.number().int().positive().optional(),
   maxAddons: z.number().int().min(1).optional(),

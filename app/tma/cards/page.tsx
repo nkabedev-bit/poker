@@ -82,6 +82,9 @@ export default function TMACardsPage() {
   const [session, setSession] = useState<CardSession | null>(null);
   // Every card that is out tonight, so the desk can see who still owes money.
   const [issued, setIssued] = useState<CardSession[]>([]);
+  // Whether the club is handing out its printed cards tonight. Without them the desk
+  // works from the same list, found by name rather than by scanner.
+  const [cardsEnabled, setCardsEnabled] = useState(true);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [ticketType, setTicketType] = useState<TicketType>("regular");
@@ -97,6 +100,7 @@ export default function TMACardsPage() {
       if (issuedRes.ok) {
         const data = await issuedRes.json();
         setIssued(data.issued ?? []);
+        setCardsEnabled(data.cardsEnabled !== false);
       }
 
       if (playersRes.ok) {
@@ -166,7 +170,7 @@ export default function TMACardsPage() {
 
   const assign = async (player: Player, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
-    if (!scannedCode || busy) return;
+    if (busy || (cardsEnabled && !scannedCode)) return;
 
     setBusy(true);
     try {
@@ -174,7 +178,7 @@ export default function TMACardsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
         body: JSON.stringify({
-          cardCode: scannedCode,
+          cardCode: scannedCode ?? "",
           playerId: player.id,
           seat: choice.seat,
           table: choice.table,
@@ -185,7 +189,7 @@ export default function TMACardsPage() {
 
       if (!res.ok) {
         tg?.HapticFeedback.notificationOccurred("error");
-        tg?.showAlert(data?.error ?? "Не удалось выдать карту");
+        tg?.showAlert(data?.error ?? (cardsEnabled ? "Не удалось выдать карту" : "Не удалось посадить игрока"));
         return;
       }
 
@@ -280,7 +284,7 @@ export default function TMACardsPage() {
 
   const seatAndAssign = async (signup: Signup, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
-    if (!scannedCode || busy) return;
+    if (busy || (cardsEnabled && !scannedCode)) return;
 
     setBusy(true);
     try {
@@ -288,7 +292,7 @@ export default function TMACardsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
         body: JSON.stringify({
-          cardCode: scannedCode,
+          cardCode: scannedCode ?? "",
           seat: choice.seat,
           table: choice.table,
           ticketType,
@@ -339,7 +343,7 @@ export default function TMACardsPage() {
       const res = await fetch("/api/tma/cards/paid", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ cardCode: card.cardCode, paid }),
+        body: JSON.stringify({ cardCode: card.cardCode, paid, playerId: card.playerId }),
       });
       const data = await res.json().catch(() => null);
 
@@ -350,7 +354,7 @@ export default function TMACardsPage() {
       }
 
       tg?.HapticFeedback.impactOccurred("light");
-      if (session?.cardCode === card.cardCode) setSession(data.session);
+      if (session?.playerId === card.playerId) setSession(data.session);
       await loadPlayers();
     } finally {
       setBusy(false);
@@ -463,8 +467,31 @@ export default function TMACardsPage() {
     .filter((signup) => signup.name.toLowerCase().includes(search.toLowerCase()));
 
   const withoutCard = players
-    .filter((player) => player.status === "active" && !player.cardCode)
+    .filter((player) =>
+      player.status === "active" && (cardsEnabled ? !player.cardCode : !player.table),
+    )
     .filter((player) => player.name.toLowerCase().includes(search.toLowerCase()));
+
+  // The settling list is searched by name too when there is no scanner to jump straight
+  // to somebody: at the end of the evening it is the whole room.
+  const settling = issued.filter((card) =>
+    cardsEnabled ? true : card.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  const searchBox = (
+    <div className="relative">
+      <Search
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
+        size={18}
+      />
+      <input
+        className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 pl-10 outline-none"
+        placeholder="Поиск по нику"
+        value={search}
+        onChange={(event) => setSearch(event.target.value)}
+      />
+    </div>
+  );
 
   return (
     <div className="space-y-4">
@@ -472,22 +499,30 @@ export default function TMACardsPage() {
         <CreditCard size={20} /> Карты
       </h1>
 
-      <button
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-        disabled={busy}
-        type="button"
-        onClick={scan}
-      >
-        <QrCode size={20} /> Сканировать карту
-      </button>
+      {cardsEnabled ? (
+        <>
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+            disabled={busy}
+            type="button"
+            onClick={scan}
+          >
+            <QrCode size={20} /> Сканировать карту
+          </button>
 
-      <button
-        className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm"
-        type="button"
-        onClick={() => setManualOpen((open) => !open)}
-      >
-        <Keyboard size={16} /> {manualOpen ? "Скрыть ручной ввод" : "Ввести код вручную"}
-      </button>
+          <button
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm"
+            type="button"
+            onClick={() => setManualOpen((open) => !open)}
+          >
+            <Keyboard size={16} /> {manualOpen ? "Скрыть ручной ввод" : "Ввести код вручную"}
+          </button>
+        </>
+      ) : (
+        <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm text-[var(--tg-theme-hint-color)]">
+          Сегодня без карт: найдите игрока по нику в списке ниже.
+        </p>
+      )}
 
       {manualOpen ? (
         <div className="flex gap-2">
@@ -594,12 +629,16 @@ export default function TMACardsPage() {
 
       {/* Only when no card is in hand: while one is scanned the screen is about that
           card, and the evening's list underneath it only confuses the desk. */}
-      {issued.length > 0 && !scannedCode ? (
+      {!cardsEnabled ? searchBox : null}
+
+      {settling.length > 0 && !scannedCode ? (
         <section className="space-y-2">
-          <p className="text-sm font-semibold">Выданные карты ({issued.length})</p>
-          {issued.map((card) => (
+          <p className="text-sm font-semibold">
+            {cardsEnabled ? "Выданные карты" : "За столами"} ({settling.length})
+          </p>
+          {settling.map((card) => (
               <div
-                key={card.cardCode}
+                key={card.playerId}
                 className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3"
               >
                 <div className="flex items-baseline justify-between gap-3">
@@ -609,6 +648,9 @@ export default function TMACardsPage() {
                       {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
                       {card.table ? ` · стол ${card.table}` : ""}
                       {card.seat ? ` · место ${card.seat}` : ""}
+                      {/* Knocked out and still owing: the desk has to catch them before
+                          they leave, so the row says so rather than looking settled. */}
+                      {card.eliminated ? " · выбыл" : ""}
                     </span>
                   </span>
                   <span
@@ -628,9 +670,11 @@ export default function TMACardsPage() {
         </section>
       ) : null}
 
-      {scannedCode && !session ? (
+      {(cardsEnabled ? Boolean(scannedCode) : true) && !session ? (
         <div className="space-y-3">
-          <p className="text-sm font-semibold">Карта свободна — кому выдать?</p>
+          <p className="text-sm font-semibold">
+            {cardsEnabled ? "Карта свободна — кому выдать?" : "Кого посадить за стол?"}
+          </p>
 
           <div className="grid grid-cols-2 gap-2">
             {(Object.keys(TICKET_LABELS) as TicketType[]).map((type) => (
@@ -649,23 +693,14 @@ export default function TMACardsPage() {
             ))}
           </div>
 
-          <div className="relative">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
-              size={18}
-            />
-            <input
-              className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 pl-10 outline-none"
-              placeholder="Поиск игрока"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+          {cardsEnabled ? searchBox : null}
 
           {waitingSignups.length > 0 ? (
             <div className="space-y-2">
               <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                Записались в приложении — посадим и выдадим карту
+                {cardsEnabled
+                  ? "Записались в приложении — посадим и выдадим карту"
+                  : "Записались в приложении — осталось посадить"}
               </p>
               {waitingSignups.map((signup) => (
                 <button
@@ -701,7 +736,9 @@ export default function TMACardsPage() {
 
           <div className="space-y-2">
             {withoutCard.length > 0 && waitingSignups.length > 0 ? (
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">Уже за столом, без карты</p>
+              <p className="text-xs text-[var(--tg-theme-hint-color)]">
+                {cardsEnabled ? "Уже за столом, без карты" : "В ростере, но не за столом"}
+              </p>
             ) : null}
             {withoutCard.map((player) => (
               <button
@@ -725,7 +762,11 @@ export default function TMACardsPage() {
 
             {withoutCard.length === 0 && waitingSignups.length === 0 ? (
               <p className="py-6 text-center text-[var(--tg-theme-hint-color)]">
-                {search ? "Никого не нашли" : "Все за столами и с картами"}
+                {search
+                  ? "Никого не нашли"
+                  : cardsEnabled
+                    ? "Все за столами и с картами"
+                    : "Все записавшиеся уже за столами"}
               </p>
             ) : null}
           </div>
