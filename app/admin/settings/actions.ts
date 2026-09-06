@@ -313,6 +313,7 @@ export async function updateTournamentSettings(formData: FormData) {
         maxPlayersPerTable: parsed.data.maxPlayersPerTable,
         maxReentries: parsed.data.maxReentries,
         rebuyPrice: parsed.data.rebuyPrice,
+        cardsEnabled: parsed.data.cardsEnabled === "yes",
         reentryEnabled: parsed.data.reentryEnabled === "yes",
         tablesCount: parsed.data.tablesCount,
         tournamentFormat: parsed.data.tournamentFormat,

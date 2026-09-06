@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { buildCardSession } from "@/lib/cards/card-code";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
-const PRICES = { addonPrice: 500, buyIn: 1000, doubleRebuyPrice: 2000, rebuyPrice: 1000, vipBuyIn: 2000 };
+const PRICES = {
+  addonPrice: 500,
+  buyIn: 1000,
+  doubleRebuyPrice: 2000,
+  duoBuyIn: 2000,
+  rebuyPrice: 1000,
+  vipBuyIn: 2000,
+};
 
 const player = (over: Partial<TournamentPlayer> = {}): TournamentPlayer => ({
   addons: 0,
