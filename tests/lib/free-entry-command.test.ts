@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { describeFreeEntries, parseFreeEntryCommand } from "@/lib/free-entries/command";
+import {
+  canManageFreeEntries,
+  describeFreeEntries,
+  parseFreeEntryCommand,
+} from "@/lib/free-entries/command";
 
 describe("parseFreeEntryCommand", () => {
   it("gives one regular pass when only a nickname is named", () => {
@@ -68,5 +72,21 @@ describe("describeFreeEntries", () => {
     expect(describeFreeEntries(3, false)).toBe("3 проходки");
     expect(describeFreeEntries(5, false)).toBe("5 проходок");
     expect(describeFreeEntries(2, true)).toBe("2 VIP-проходки");
+  });
+});
+
+describe("who may hand out a free entry", () => {
+  const manager = 384428007;
+
+  it("lets the one admin the club named", () => {
+    expect(canManageFreeEntries(manager)).toBe(true);
+  });
+
+  // Passes are money, and the owner asked to be taken off the list: an owner who cannot
+  // give one away cannot be talked into it either.
+  it("refuses everybody else, the club owner included", () => {
+    expect(canManageFreeEntries(1)).toBe(false);
+    expect(canManageFreeEntries(0)).toBe(false);
+    expect(canManageFreeEntries(undefined)).toBe(false);
   });
 });

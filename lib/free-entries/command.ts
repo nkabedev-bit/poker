@@ -1,3 +1,16 @@
+/**
+ * The one person who hands out free entries.
+ *
+ * Passes are money. The club owner asked to be taken off this list themselves: being
+ * able to give one away is not the same as being the one who does it, and an owner who
+ * cannot is an owner who cannot be talked into it.
+ */
+const FREE_ENTRY_MANAGER_ID = 384428007;
+
+export function canManageFreeEntries(telegramId: number | undefined) {
+  return telegramId === FREE_ENTRY_MANAGER_ID;
+}
+
 export type FreeEntryCommand = {
   count: number;
   nickname: string;

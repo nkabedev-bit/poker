@@ -19,13 +19,11 @@ function getAdminSupabase() {
 }
 
 import {
+  canManageFreeEntries,
   describeFreeEntries,
   parseFreeEntryCommand,
 } from "@/lib/free-entries/command";
 import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
-
-// The club owner asked for one more person to be able to hand out passes.
-const FREE_ENTRY_MANAGER_ID = 384428007;
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30; // max 30s timeout
@@ -528,22 +526,9 @@ bot.command("givecolor", async (ctx) => {
   }
 });
 
-/**
- * Free entries are money, so only the club's owners hand them out — not every admin
- * with access to this bot.
- */
-function canManageFreeEntries(telegramId: number | undefined) {
-  if (!telegramId) return false;
-
-  const superAdminId = parseInt(process.env.TMA_SUPER_ADMIN_ID || "0", 10);
-  const managers = [superAdminId, FREE_ENTRY_MANAGER_ID].filter(Boolean);
-
-  return managers.includes(telegramId);
-}
-
 async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   if (!canManageFreeEntries(ctx.from?.id)) {
-    return ctx.reply("Нет прав.");
+    return ctx.reply("Нет прав: проходки выдаёт и снимает только назначенный админ.");
   }
 
   const parsed = parseFreeEntryCommand(ctx.message?.text || "");
