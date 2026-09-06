@@ -55,7 +55,7 @@ function isMissingAppendPlayerRpcError(error: unknown) {
   return code === "PGRST202" || String(message ?? "").includes("Could not find the function public.append_tournament_player");
 }
 
-function assignRegistrationNumber(
+export function assignRegistrationNumber(
   player: TournamentPlayer,
   players: TournamentPlayer[],
   settings: TournamentExtras["settings"],
@@ -155,4 +155,81 @@ export async function appendTournamentPlayerWithRegistrationNumber({
   );
 
   return nextPlayer;
+}
+
+/**
+ * Puts a walk-in on the roster without a chair or a number.
+ *
+ * The number belongs to the ticket — the club keeps 21 to 30 for the VIP table — and at
+ * the door nobody has asked yet which one this player wants. Handing out a regular
+ * number on the way in decided that for them, and it could not be taken back.
+ *
+ * So they are added bare and appear on the desk's screen among those still to be seated;
+ * the number is issued there, once the ticket is known.
+ */
+export async function appendUnseatedTournamentPlayer({
+  extras,
+  player,
+  redirectTo,
+  supabase,
+}: {
+  extras: TournamentExtras;
+  player: TournamentPlayer;
+  redirectTo: string;
+  supabase: SupabaseClient;
+}) {
+  const { maxNumber } = getCapacity(extras.settings);
+
+  if (extras.players.length >= maxNumber) {
+    throw new TournamentRegistrationCapacityError(extras.players.length);
+  }
+
+  const persistedLabel = getPersistedPlayerLabel(extras.playerLabels, player.name);
+  const seated: TournamentPlayer = {
+    ...player,
+    ...(persistedLabel ? { label: persistedLabel } : {}),
+    registrationNumber: null,
+    seat: null,
+    table: null,
+  };
+
+  await saveTournamentExtras({ players: [...extras.players, seated] }, redirectTo, supabase);
+
+  return seated;
+}
+
+/**
+ * Gives a player their number once the ticket is known, leaving alone anyone who already
+ * has one — a number is what the club calls a player all evening, and it does not change
+ * under them.
+ */
+export async function issueRegistrationNumberIfMissing({
+  extras,
+  playerId,
+  redirectTo,
+  supabase,
+  ticketType,
+}: {
+  extras: TournamentExtras;
+  playerId: string;
+  redirectTo: string;
+  supabase: SupabaseClient;
+  ticketType: "regular" | "vip";
+}) {
+  const player = extras.players.find((item) => item.id === playerId);
+  if (!player || Number(player.registrationNumber) > 0) return player ?? null;
+
+  const numbered = assignRegistrationNumber(
+    { ...player, ticketType },
+    extras.players,
+    extras.settings,
+  );
+
+  await saveTournamentExtras(
+    { players: extras.players.map((item) => (item.id === playerId ? numbered : item)) },
+    redirectTo,
+    supabase,
+  );
+
+  return numbered;
 }

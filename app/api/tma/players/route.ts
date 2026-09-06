@@ -5,6 +5,7 @@ import { syncVipSheet } from "@/lib/google-sheets";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
+  appendUnseatedTournamentPlayer,
   buildAdminRegistrationFullMessage,
   isTournamentRegistrationCapacityError,
   TournamentRegistrationCapacityError,
@@ -121,7 +122,7 @@ export async function POST(request: Request) {
     id: crypto.randomUUID(),
     name,
     stack: Number(t.starting_stack) || 10000,
-    table: Number(table) || 1,
+    table: Number.isInteger(Number(table)) && Number(table) > 0 ? Number(table) : null,
     // No chair until a card is handed over: the seating plan is where players are sat
     // down, and a default seat would show four walk-ins sharing seat 1.
     seat: Number.isInteger(Number(seat)) && Number(seat) > 0 ? Number(seat) : null,
@@ -138,14 +139,25 @@ export async function POST(request: Request) {
   };
 
   try {
-    const player = await appendTournamentPlayerWithRegistrationNumber({
-      extras,
-      player: newPlayer,
-      publicToken: t.public_token,
-      redirectTo: "/tma/players",
-      supabase: auth.supabase,
-      tournamentId: t.id,
-    });
+    // Somebody who walked in off the street has picked no ticket yet, and the number
+    // follows the ticket — so they go on the roster bare and turn up on the desk's
+    // screen among those still to be seated. A table given here means the admin has
+    // already decided, and the old path stands.
+    const player = newPlayer.table
+      ? await appendTournamentPlayerWithRegistrationNumber({
+          extras,
+          player: newPlayer,
+          publicToken: t.public_token,
+          redirectTo: "/tma/players",
+          supabase: auth.supabase,
+          tournamentId: t.id,
+        })
+      : await appendUnseatedTournamentPlayer({
+          extras,
+          player: newPlayer,
+          redirectTo: "/tma/players",
+          supabase: auth.supabase,
+        });
 
     // The sheet is the club's own copy, not something the admin waits for: writing it
     // took a second of its own while a queue stood at the door.

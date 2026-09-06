@@ -7,6 +7,7 @@ import {
   normalizeCardCode,
 } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
+import { issueRegistrationNumberIfMissing } from "@/lib/tournament-player-registration";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,17 @@ export async function POST(request: Request) {
       throw seatError;
     }
   }
+
+  // A walk-in was put on the roster without a number, because the number follows the
+  // ticket and nobody had asked yet which one they wanted. This is where they answer.
+  const seatedExtras = await loadTournamentExtras(t.id, auth.supabase);
+  await issueRegistrationNumberIfMissing({
+    extras: seatedExtras,
+    playerId,
+    redirectTo: "/tma/players",
+    supabase: auth.supabase,
+    ticketType,
+  });
 
   if (!cardCode) {
     // Nothing to hand over but the seat, which is already saved. The player is read
