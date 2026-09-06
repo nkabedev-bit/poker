@@ -23,6 +23,7 @@ import {
   type TournamentEvent,
 } from "@/lib/events/types";
 import { describeAnnouncedSeats } from "@/lib/events/seats";
+import type { Reservation } from "@/lib/events/reservations";
 
 type EventRow = TournamentEvent & { signupsCount: number };
 
@@ -88,6 +89,10 @@ export default function TMAEventsPage() {
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [templates, setTemplates] = useState<EventTemplate[]>([]);
+  // Tickets the club is holding for regulars who asked ahead, for the poster on screen.
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [reservedNickname, setReservedNickname] = useState("");
+  const [reservedTicket, setReservedTicket] = useState<"regular" | "vip">("regular");
   const posterInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -115,6 +120,39 @@ export default function TMAEventsPage() {
     const timeout = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timeout);
   }, [load]);
+
+  const loadReservations = useCallback(
+    async (eventId: string) => {
+      const res = await fetch(`/api/tma/event-reservations?eventId=${eventId}`, {
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+
+      setReservations(res.ok ? ((await res.json()).reservations ?? []) : []);
+    },
+    [initData],
+  );
+
+  /** Holds a ticket, or takes one back; either way the list is what comes back. */
+  const changeReservations = async (request: RequestInit & { url: string }) => {
+    const tg = getTelegramWebApp();
+    const { url, ...init } = request;
+    const res = await fetch(url, {
+      ...init,
+      headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+    });
+    const data = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      tg?.HapticFeedback.notificationOccurred("error");
+      tg?.showAlert(data?.error ?? "Не удалось изменить отложенные билеты");
+      return;
+    }
+
+    tg?.HapticFeedback.notificationOccurred("success");
+    setReservations(data?.reservations ?? []);
+    setReservedNickname("");
+    await load();
+  };
 
   const update = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
@@ -510,6 +548,96 @@ export default function TMAEventsPage() {
           />
         ) : null}
 
+        {/* Somebody writes days ahead asking for a seat. The ticket is held here, and
+            the player hears about it the moment the poster goes up. */}
+        <section className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3">
+          <p className="text-sm font-semibold">Отложенные билеты</p>
+
+          {draft.id ? (
+            <>
+              {reservations.length > 0 ? (
+                <ul className="space-y-1.5">
+                  {reservations.map((held) => (
+                    <li
+                      key={held.id}
+                      className="flex items-center justify-between gap-2 rounded bg-[var(--tg-theme-bg-color)] p-2"
+                    >
+                      <span className="min-w-0 text-sm">
+                        <span className="block truncate font-semibold">{held.nickname}</span>
+                        <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                          {held.ticketType === "vip" ? "VIP" : "обычный"} ·{" "}
+                          {held.notified ? "оповещён" : "ждёт публикации"}
+                        </span>
+                      </span>
+                      <button
+                        className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-[var(--tg-theme-destructive-text-color,#e5484d)]"
+                        type="button"
+                        onClick={() =>
+                          void changeReservations({
+                            method: "DELETE",
+                            url: `/api/tma/event-reservations?eventId=${draft.id}&id=${held.id}`,
+                          })
+                        }
+                      >
+                        Снять
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-xs text-[var(--tg-theme-hint-color)]">
+                  Пока никому не отложено.
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  className="min-w-0 flex-1 rounded bg-[var(--tg-theme-bg-color)] p-2 text-sm outline-none"
+                  placeholder="Ник резидента"
+                  value={reservedNickname}
+                  onChange={(item) => setReservedNickname(item.target.value)}
+                />
+                <select
+                  className="rounded bg-[var(--tg-theme-bg-color)] p-2 text-sm"
+                  value={reservedTicket}
+                  onChange={(item) =>
+                    setReservedTicket(item.target.value === "vip" ? "vip" : "regular")
+                  }
+                >
+                  <option value="regular">Обычный</option>
+                  <option value="vip">VIP</option>
+                </select>
+              </div>
+
+              <button
+                className="w-full rounded bg-[var(--tg-theme-button-color)] p-2 text-sm font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+                disabled={!reservedNickname.trim()}
+                type="button"
+                onClick={() =>
+                  void changeReservations({
+                    body: JSON.stringify({
+                      eventId: draft.id,
+                      nickname: reservedNickname,
+                      ticketType: reservedTicket,
+                    }),
+                    method: "POST",
+                    url: "/api/tma/event-reservations",
+                  })
+                }
+              >
+                Отложить билет
+              </button>
+              <p className="text-xs text-[var(--tg-theme-hint-color)]">
+                Только резиденты клуба. Сообщение уйдёт, когда афишу опубликуют.
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-[var(--tg-theme-hint-color)]">
+              Сохраните афишу — и сможете откладывать билеты.
+            </p>
+          )}
+        </section>
+
         <label className="flex items-center gap-3 py-2">
           <input
             checked={draft.isPublished}
@@ -552,7 +680,10 @@ export default function TMAEventsPage() {
           aria-label="Новая афиша"
           className="bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-2 rounded-full"
           type="button"
-          onClick={() => setDraft(EMPTY_DRAFT)}
+          onClick={() => {
+            setDraft(EMPTY_DRAFT);
+            setReservations([]);
+          }}
         >
           <CalendarPlus size={20} />
         </button>
@@ -584,7 +715,10 @@ export default function TMAEventsPage() {
               <button
                 className="flex-1 flex items-center justify-center gap-1 rounded p-2 text-sm bg-[var(--tg-theme-bg-color)]"
                 type="button"
-                onClick={() => setDraft(toDraft(event))}
+                onClick={() => {
+                  setDraft(toDraft(event));
+                  void loadReservations(event.id);
+                }}
               >
                 <Pencil size={14} /> Правка
               </button>

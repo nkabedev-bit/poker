@@ -6,6 +6,8 @@ import { CalendarPlus, Eye, EyeOff, Pencil, Trash2, Users } from "lucide-react";
 import {
   deleteTournamentEvent,
   deleteTournamentEventTemplate,
+  releaseEventTicket,
+  reserveEventTicket,
   toggleTournamentEventPublished,
   saveTournamentEvent,
   saveTournamentEventTemplate,
@@ -20,6 +22,7 @@ import {
   type TournamentEvent,
 } from "@/lib/events/types";
 import { describeAnnouncedSeats } from "@/lib/events/seats";
+import type { Reservation } from "@/lib/events/reservations";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
@@ -76,6 +79,7 @@ export type EventsNotice = { kind: "error" | "saved"; text: string };
 export function EventsManager({
   events,
   notice = null,
+  reservations = {},
   selectedEventId,
   signupCounts,
   signups,
@@ -84,6 +88,8 @@ export function EventsManager({
   events: TournamentEvent[];
   /** What the last save had to say, if anything. */
   notice?: EventsNotice | null;
+  /** Tickets the club is holding, by poster. */
+  reservations?: Record<string, Reservation[]>;
   selectedEventId: string | null;
   signupCounts: Record<string, number>;
   signups: EventSignupWithPlayer[];
@@ -368,6 +374,67 @@ export function EventsManager({
             />
           ) : null}
         </label>
+
+        {/* Somebody writes days ahead asking for a seat. The ticket is held here, and
+            the player hears about it the moment the poster goes up. */}
+        <fieldset className="events-reserved">
+          <legend>Отложенные билеты</legend>
+
+          {draft.id ? (
+            <>
+              {(reservations[draft.id] ?? []).length > 0 ? (
+                <ul className="events-reserved-list">
+                  {(reservations[draft.id] ?? []).map((held) => (
+                    <li key={held.id}>
+                      <span>
+                        <strong>{held.nickname}</strong>
+                        {held.ticketType === "vip" ? " · VIP" : " · обычный"}
+                        {held.notified ? " · оповещён" : " · ждёт публикации"}
+                      </span>
+                      <SubmitButton
+                        className="ghost-button"
+                        formAction={releaseEventTicket}
+                        name="reservationId"
+                        pendingText="Снимаем..."
+                        value={held.id}
+                      >
+                        Снять
+                      </SubmitButton>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Пока никому не отложено.</p>
+              )}
+
+              <div className="events-reserved-add">
+                <input
+                  autoComplete="off"
+                  name="reservedNickname"
+                  placeholder="Ник резидента"
+                  type="text"
+                />
+                <select defaultValue="regular" name="reservedTicket">
+                  <option value="regular">Обычный</option>
+                  <option value="vip">VIP</option>
+                </select>
+                <SubmitButton
+                  className="ghost-button"
+                  formAction={reserveEventTicket}
+                  pendingText="Откладываем..."
+                >
+                  Отложить билет
+                </SubmitButton>
+              </div>
+              <p className="muted">
+                Только резиденты клуба — у игрока должен быть аккаунт. Сообщение уйдёт,
+                когда афишу опубликуют.
+              </p>
+            </>
+          ) : (
+            <p className="muted">Сохраните афишу — и сможете откладывать билеты.</p>
+          )}
+        </fieldset>
 
         <label className="checkbox-field">
           <input

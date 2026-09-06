@@ -11,6 +11,7 @@ const waiting = (id: string, ticketType: EventTicketType): EventSignup => ({
   duoPartnerUserId: null,
   eventId: "event-1",
   id,
+  notifiedAt: null,
   status: "waitlist",
   telegramId: null,
   ticketType,

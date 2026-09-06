@@ -16,6 +16,11 @@ import {
 } from "@/lib/events/templates";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  notifyReservedOnPublish,
+  releaseReservation,
+  reserveTicket,
+} from "@/lib/events/reservations";
 
 const POSTER_BUCKET = "tournament-logos";
 
@@ -89,10 +94,14 @@ export async function saveTournamentEvent(formData: FormData) {
     const supabase = await createSupabaseServerClient();
     const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.data.posterUrl;
 
-    await saveEvent(supabase, {
+    const saved = await saveEvent(supabase, {
       ...toEventDraft({ ...parsed.data, posterUrl }),
       ...(id ? { id } : {}),
     });
+
+    // The poster going up is when a held ticket is announced, and only once — the
+    // reservation itself remembers whether its player has been told.
+    if (saved.isPublished) await notifyReservedOnPublish(supabase, saved.id);
   } catch (error) {
     console.error("Could not save the event", error);
     failure =
@@ -129,6 +138,7 @@ export async function toggleTournamentEventPublished(formData: FormData) {
       .eq("id", id);
 
     if (error) throw error;
+    if (publish) await notifyReservedOnPublish(supabase, id);
   } catch (error) {
     console.error("Could not change what the poster shows", error);
     failure = publish ? "Не удалось опубликовать афишу." : "Не удалось снять афишу.";
@@ -138,6 +148,42 @@ export async function toggleTournamentEventPublished(formData: FormData) {
 
   revalidatePath("/admin/events");
   redirect(`/admin/events?saved=${encodeURIComponent(publish ? "Афиша опубликована" : "Афиша снята с публикации")}`);
+}
+
+/** Holds a ticket for a resident who asked ahead. */
+export async function reserveEventTicket(formData: FormData) {
+  const eventId = String(formData.get("id") ?? "").trim();
+  if (!eventId) backWithError("Сначала сохраните афишу");
+
+  const nickname = String(formData.get("reservedNickname") ?? "").trim();
+  if (!nickname) backWithError("Впишите ник резидента");
+
+  const supabase = await createSupabaseServerClient();
+  const outcome = await reserveTicket(supabase, {
+    eventId,
+    nickname,
+    ticketType: formData.get("reservedTicket") === "vip" ? "vip" : "regular",
+  });
+
+  if (outcome.error === "ambiguous") backWithError("Этот ник носят несколько игроков — уточните");
+  if (outcome.error === "not_found") backWithError("Не нашли резидента с таким ником");
+  if (outcome.error === "taken") backWithError("Игрок уже записался на этот турнир сам");
+
+  revalidatePath("/admin/events");
+  redirect(`/admin/events?saved=${encodeURIComponent(`Билет отложен для ${nickname}`)}`);
+}
+
+/** Takes a held ticket back, freeing the seat it was keeping. */
+export async function releaseEventTicket(formData: FormData) {
+  const eventId = String(formData.get("id") ?? "").trim();
+  const id = String(formData.get("reservationId") ?? "").trim();
+  if (!eventId || !id) backWithError("Билет не выбран");
+
+  const supabase = await createSupabaseServerClient();
+  await releaseReservation(supabase, { eventId, id });
+
+  revalidatePath("/admin/events");
+  redirect("/admin/events?saved=Отложенный билет снят");
 }
 
 export async function deleteTournamentEvent(formData: FormData) {

@@ -40,8 +40,18 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       inviteLinks: await buildDuoInviteLinks(mySignup?.duoInviteToken ?? null),
       partnerIsMember: mySignup?.duoPartnerUserId != null,
       partnerName: mySignup?.duoPartnerName ?? null,
-      signedUp: mySignup ? mySignup.status !== "waitlist" : false,
-      // Standing in line is not a ticket, and the screen says so in its own words.
+      // Neither a place in line nor a ticket the club is holding is a sign-up: both
+      // are waiting on the player to do something, and the screen says which.
+      signedUp: mySignup
+        ? mySignup.status !== "waitlist" && mySignup.status !== "reserved"
+        : false,
+      // A ticket the admin put aside, waiting to be confirmed.
+      reservedTicket:
+        mySignup?.status === "reserved"
+          ? mySignup.ticketType === "vip"
+            ? "vip"
+            : "regular"
+          : null,
       waitlisted: mySignup?.status === "waitlist",
       signupsCount: taken?.total ?? 0,
       ticketType: mySignup?.ticketType ?? "regular",

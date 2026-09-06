@@ -3,6 +3,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { deleteEvent, getEvent, saveEvent } from "@/lib/events/store";
 import { eventInputSchema, EventInputError, toEventDraft } from "@/lib/events/input";
 import { PosterUploadError, uploadEventPosterDataUrl } from "@/lib/events/poster-upload";
+import { notifyReservedOnPublish } from "@/lib/events/reservations";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   // A publish toggle sends nothing but the flag, so the stored event fills in the rest.
   if (Object.keys(body).length === 1 && typeof body.isPublished === "boolean") {
     const event = await saveEvent(auth.supabase, { ...existing, isPublished: body.isPublished });
+
+    // The poster going up is when a held ticket is announced.
+    if (body.isPublished) await notifyReservedOnPublish(auth.supabase, event.id);
     return NextResponse.json({ event });
   }
 
@@ -39,6 +43,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       ...toEventDraft({ ...parsed.data, posterUrl }),
       id,
     });
+
+    // Saving a poster that was a draft is the same moment as publishing one.
+    if (event.isPublished && !existing.isPublished) {
+      await notifyReservedOnPublish(auth.supabase, event.id);
+    }
 
     return NextResponse.json({ event });
   } catch (error) {

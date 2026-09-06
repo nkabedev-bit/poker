@@ -24,7 +24,12 @@ export type TournamentEvent = {
   vipBuyIn: number | null;
 };
 
-export type EventSignupStatus = "signed_up" | "cancelled" | "seated" | "waitlist";
+export type EventSignupStatus =
+  | "signed_up"
+  | "cancelled"
+  | "seated"
+  | "waitlist"
+  | "reserved";
 
 /**
  * The statuses that take a seat.
@@ -32,7 +37,7 @@ export type EventSignupStatus = "signed_up" | "cancelled" | "seated" | "waitlist
  * Standing in line is not one of them: the whole point of the queue is that the room is
  * already full, and counting it would make the poster look fuller still.
  */
-export const SEAT_TAKING_STATUSES = ["signed_up", "seated"] as const;
+export const SEAT_TAKING_STATUSES = ["signed_up", "seated", "reserved"] as const;
 
 export type EventSignup = {
   createdAt: string;
@@ -46,6 +51,8 @@ export type EventSignup = {
   duoPartnerUserId: string | null;
   /** The link's pass, while the buyer is waiting for somebody new to open it. */
   duoInviteToken: string | null;
+  /** When the club told this player their ticket was waiting; null until the poster is up. */
+  notifiedAt: string | null;
   eventId: string;
   id: string;
   status: EventSignupStatus;
@@ -152,6 +159,7 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
     duoHostUserId: optionalText(row.duo_host_user_id),
     duoPartnerName: optionalText(row.duo_partner_name),
     duoInviteToken: optionalText(row.duo_invite_token),
+    notifiedAt: optionalText(row.notified_at),
     duoPartnerUserId: optionalText(row.duo_partner_user_id),
     eventId: String(row.event_id),
     id: String(row.id),

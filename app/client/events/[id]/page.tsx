@@ -45,6 +45,8 @@ type EventDetails = TournamentEvent & {
   partnerIsMember: boolean;
   /** Who the player is bringing on a "1+1", as they wrote the name down. */
   partnerName: string | null;
+  /** A ticket the admin put aside, waiting on this player to say they are coming. */
+  reservedTicket?: "regular" | "vip" | null;
   signedUp: boolean;
   signupsCount: number;
   /** Standing in line for a ticket that is sold out. */
@@ -263,7 +265,13 @@ export default function ClientEventPage() {
     }
   };
 
-  const toggleSignup = async (signUp: boolean, waitlist = false) => {
+  const toggleSignup = async (
+    signUp: boolean,
+    waitlist = false,
+    // Confirming a held ticket keeps the kind the club promised, whatever the screen
+    // happens to have selected.
+    forcedTicket?: TicketType,
+  ) => {
     if (!eventId || submitting) return;
 
     setSubmitting(true);
@@ -277,7 +285,7 @@ export default function ClientEventPage() {
               partnerKey,
               partnerMode,
               partnerName,
-              ticketType,
+              ticketType: forcedTicket ?? ticketType,
               usePass,
               waitlist,
             })
@@ -759,6 +767,26 @@ export default function ClientEventPage() {
               Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
             </p>
           )}
+        </div>
+      ) : event.reservedTicket ? (
+        // The club promised this seat to somebody who asked ahead; all that is left is
+        // for them to say they are coming.
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
+            Вам отложен {event.reservedTicket === "vip" ? "VIP" : "обычный"} билет
+            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
+              Место держим за вами — подтвердите участие.
+            </span>
+          </div>
+          <PrimaryButton
+            loading={submitting}
+            onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
+          >
+            Подтвердить участие
+          </PrimaryButton>
+          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+            Не смогу прийти
+          </GhostButton>
         </div>
       ) : event.waitlisted ? (
         <div className="space-y-3">

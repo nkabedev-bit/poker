@@ -451,6 +451,53 @@ p {
   object-fit: contain;
 }
 
+/* Tickets the club is holding for regulars who asked ahead, inside the poster form. */
+.events-reserved {
+  display: grid;
+  gap: 10px;
+  border: 1px solid var(--poker-border);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.02);
+  padding: 12px 14px 14px;
+}
+
+.events-reserved legend {
+  padding: 0 6px;
+  color: var(--poker-muted);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.events-reserved-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.events-reserved-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.04);
+  padding: 8px 10px;
+  font-size: 14px;
+}
+
+.events-reserved-add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.events-reserved-add input {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
 .checkbox-field {
   min-height: 42px;
   display: flex;

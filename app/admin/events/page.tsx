@@ -4,6 +4,7 @@ import { countActiveSignups, listEventSignups, listEvents } from "@/lib/events/s
 import type { EventSignupWithPlayer } from "@/lib/events/store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
+import { listReservationsForEvents } from "@/lib/events/reservations";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,14 @@ export default async function EventsPage({
 
   if (!hasPublicEnv()) {
     return (
-      <EventsManager events={[]} notice={notice} signupCounts={{}} signups={[]} selectedEventId={null} />
+      <EventsManager
+        events={[]}
+        notice={notice}
+        reservations={{}}
+        signupCounts={{}}
+        signups={[]}
+        selectedEventId={null}
+      />
     );
   }
 
@@ -35,6 +43,10 @@ export default async function EventsPage({
     events.map((event) => event.id),
   );
 
+  const reservations = await listReservationsForEvents(
+    supabase,
+    events.map((event) => event.id),
+  );
   const selectedEventId = query.event ?? null;
   let signups: EventSignupWithPlayer[] = [];
   if (selectedEventId && events.some((event) => event.id === selectedEventId)) {
@@ -45,6 +57,7 @@ export default async function EventsPage({
     <EventsManager
       events={events}
       notice={notice}
+      reservations={reservations}
       selectedEventId={selectedEventId}
       signupCounts={Object.fromEntries(
         [...signupCounts].map(([eventId, taken]) => [eventId, taken.total]),
