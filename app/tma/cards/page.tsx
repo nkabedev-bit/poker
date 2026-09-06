@@ -617,7 +617,10 @@ export default function TMACardsPage() {
             />
           </div>
 
-          {session.cardCode ? (
+          {/* Which way out depends on how the bill was opened, not on whether the player
+              holds a card: a scan is the desk taking the card back, a tap is the desk
+              looking something up and returning to the list. */}
+          {scannedCode ? (
             <button
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold disabled:opacity-60"
               disabled={busy}
