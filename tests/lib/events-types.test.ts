@@ -3,6 +3,7 @@ import {
   formatEventDayLabel,
   formatEventTimeLabel,
   isEventOpenForSeating,
+  isEventPlayingToday,
   isUpcomingEvent,
   mapEventRow,
   mapSignupRow,
@@ -181,6 +182,28 @@ describe("what the desk is still working", () => {
     const afternoon = event("2026-09-03T13:00:00.000Z");
 
     expect(isEventOpenForSeating(afternoon, at("2026-09-04T08:00:00.000Z"))).toBe(false);
+  });
+
+  // The desk may look at Thursday's list on Tuesday, but it seats nobody from it: the
+  // tables in front of the admin belong to tonight's tournament.
+  it("tells tonight's game apart from the ones still to come", () => {
+    const tonight = event("2026-09-03T13:00:00.000Z");
+    const thursday = event("2026-09-05T13:00:00.000Z");
+    const duringTonight = at("2026-09-03T18:00:00.000Z");
+
+    expect(isEventPlayingToday(tonight, duringTonight)).toBe(true);
+    expect(isEventPlayingToday(thursday, duringTonight)).toBe(false);
+    // Both are still the desk's business — one to work, one to look at.
+    expect(isEventOpenForSeating(thursday, duringTonight)).toBe(true);
+  });
+
+  // An evening game is still being played after midnight, and the calendar turning over
+  // does not end it.
+  it("keeps tonight's game past midnight", () => {
+    const evening = event("2026-09-03T17:00:00.000Z");
+
+    expect(isEventPlayingToday(evening, at("2026-09-03T22:00:00.000Z"))).toBe(true);
+    expect(isEventPlayingToday(evening, at("2026-09-04T06:00:00.000Z"))).toBe(false);
   });
 
   it("is open for a game that has not started", () => {

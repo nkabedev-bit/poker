@@ -57,8 +57,13 @@ function seatingTicket(ticket: Signup["ticketType"]) {
 
 const PASS_LABELS = { regular: "по проходке", vip: "по VIP проходке" } as const;
 
+/** One evening the desk can look at, as the day strip shows it. */
+type EventOption = { id: string; signupsCount: number; startsAt: string; title: string };
+
 type SignupsResponse = {
-  event: { id: string; startsAt: string; title: string } | null;
+  event: { id: string; seatingOpen: boolean; startsAt: string; title: string } | null;
+  /** Tonight's game and every poster still ahead of it, nearest first. */
+  events: EventOption[];
   signups: Signup[];
   tablesCount: number;
 };
@@ -66,6 +71,9 @@ type SignupsResponse = {
 export default function TMASignupsPage() {
   const { initData } = useTMA();
   const [data, setData] = useState<SignupsResponse | null>(null);
+  // Which evening the admin is looking at; null until they pick, and then the server
+  // opens the nearest one.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [seatingId, setSeatingId] = useState<string | null>(null);
   // The sign-up the admin opened: first their questionnaire, then the seating plan.
@@ -78,8 +86,11 @@ export default function TMASignupsPage() {
 
   const load = useCallback(async () => {
     try {
+      const chosen = selectedId ? `?eventId=${encodeURIComponent(selectedId)}` : "";
       const [signupsRes, playersRes] = await Promise.all([
-        fetch("/api/tma/event-signups", { headers: { "X-Telegram-Init-Data": initData } }),
+        fetch(`/api/tma/event-signups${chosen}`, {
+          headers: { "X-Telegram-Init-Data": initData },
+        }),
         fetch("/api/tma/players", { headers: { "X-Telegram-Init-Data": initData } }),
       ]);
 
@@ -91,7 +102,7 @@ export default function TMASignupsPage() {
     } finally {
       setLoading(false);
     }
-  }, [initData]);
+  }, [initData, selectedId]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => void load(), 0);
@@ -181,6 +192,10 @@ export default function TMASignupsPage() {
   };
 
   if (loading) return <div>Загрузка...</div>;
+
+  // Only tonight's players go to tonight's tables. A Thursday sign-up seated now would
+  // join a tournament nobody put them in.
+  const canSeat = data?.event?.seatingOpen ?? false;
 
   // One sign-up, opened: the questionnaire first, the seating plan when the admin is
   // ready to sit them down.
@@ -322,7 +337,7 @@ export default function TMASignupsPage() {
           <p className="flex items-center gap-2 text-sm text-green-500">
             <CheckCircle2 size={16} /> Уже за столом
           </p>
-        ) : (
+        ) : canSeat ? (
           <button
             className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)]"
             type="button"
@@ -330,6 +345,10 @@ export default function TMASignupsPage() {
           >
             Посадить за стол
           </button>
+        ) : (
+          <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm text-[var(--tg-theme-hint-color)]">
+            Игра не сегодня — посадить за стол можно будет в день турнира.
+          </p>
         )}
       </div>
     );
@@ -348,12 +367,53 @@ export default function TMASignupsPage() {
         <ClipboardList size={20} /> Заявки
       </h1>
 
+      {/* The club posts a week at a time, and the desk is asked about all of it: who is
+          coming on Thursday, whether Sunday is filling up. */}
+      {(data?.events?.length ?? 0) > 1 ? (
+        <div className="overflow-x-auto pb-1">
+          <div className="flex w-max gap-2">
+            {data?.events?.map((item) => {
+              const chosen = item.id === data.event?.id;
+
+              return (
+                <button
+                  key={item.id}
+                  className={`rounded-xl px-4 py-2.5 text-left ${
+                    chosen
+                      ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
+                      : "bg-[var(--tg-theme-secondary-bg-color)]"
+                  }`}
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                >
+                  <span className="block whitespace-nowrap text-sm font-semibold">
+                    {formatEventDayLabel(item.startsAt)}
+                  </span>
+                  <span
+                    className={`block whitespace-nowrap text-xs ${
+                      chosen ? "opacity-75" : "text-[var(--tg-theme-hint-color)]"
+                    }`}
+                  >
+                    записались: {item.signupsCount}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
       {data?.event ? (
         <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl">
           <p className="font-semibold">{data.event.title}</p>
           <p className="text-sm text-[var(--tg-theme-hint-color)]">
             {formatEventDayLabel(data.event.startsAt)}, {formatEventTimeLabel(data.event.startsAt)}
           </p>
+          {canSeat ? null : (
+            <p className="mt-1 text-sm text-[#e9c07a]">
+              Игра не сегодня — список смотрим, за стол сажаем в день турнира.
+            </p>
+          )}
         </div>
       ) : (
         <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl text-sm">

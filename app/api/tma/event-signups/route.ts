@@ -1,14 +1,19 @@
 import { NextResponse } from "next/server";
+import { countActiveSignups, listEventSignups, listEvents } from "@/lib/events/store";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { listEventSignups, listEvents } from "@/lib/events/store";
-import { isEventOpenForSeating } from "@/lib/events/types";
+import { isEventOpenForSeating, isEventPlayingToday } from "@/lib/events/types";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 
 export const dynamic = "force-dynamic";
 
 /**
- * The sign-up list an admin works through on game day: the nearest published event
- * plus everyone who asked to play, with the ones already seated marked.
+ * The sign-up list an admin works through on game day, and the evenings around it.
+ *
+ * The club posts a week at a time, so the desk is asked about more than tonight: who is
+ * coming on Thursday, whether Sunday is filling up. Every published evening still ahead
+ * is offered, the nearest opens by default, and only the one being played can be seated
+ * from — a Thursday player dropped into tonight's tournament sits at a table nobody
+ * expects them at.
  */
 export async function GET(request: Request) {
   const auth = await requireTmaAuth(request);
@@ -21,21 +26,44 @@ export async function GET(request: Request) {
   const published = await listEvents(auth.supabase, { publishedOnly: true });
   // Not "still open for sign-ups": the desk works the whole day of the game, seating
   // everyone who asked in time — including whoever walks in hours after the start.
-  const event = published.find((item) => isEventOpenForSeating(item, now)) ?? null;
+  const open = published.filter((item) => isEventOpenForSeating(item, now));
+  const asked = new URL(request.url).searchParams.get("eventId");
+  const event = open.find((item) => item.id === asked) ?? open[0] ?? null;
+  const seatingOpen = event ? isEventPlayingToday(event, now) : false;
 
-  const extras = await loadTournamentExtras(t.id, auth.supabase);
-  const signups = event ? await listEventSignups(auth.supabase, event.id) : [];
+  const [extras, signups, counts] = await Promise.all([
+    loadTournamentExtras(t.id, auth.supabase),
+    event ? listEventSignups(auth.supabase, event.id) : [],
+    countActiveSignups(
+      auth.supabase,
+      open.map((item) => item.id),
+    ),
+  ]);
+
+  // The roster is tonight's and says nothing about Thursday: without this, a player at
+  // the table now would show as seated on every evening they are signed up for.
   const seatedTelegramIds = new Set(
-    extras.players.map((player) => Number(player.telegramId)).filter(Boolean),
+    seatingOpen ? extras.players.map((player) => Number(player.telegramId)).filter(Boolean) : [],
   );
   // A player who joined through the web is at the table under their account and no
   // Telegram id at all, so that is what the roster is matched on.
   const seatedAccountIds = new Set(
-    extras.players.map((player) => player.accountId).filter((id): id is string => Boolean(id)),
+    seatingOpen
+      ? extras.players.map((player) => player.accountId).filter((id): id is string => Boolean(id))
+      : [],
   );
 
   return NextResponse.json({
-    event: event ? { id: event.id, startsAt: event.startsAt, title: event.title } : null,
+    event: event
+      ? { id: event.id, seatingOpen, startsAt: event.startsAt, title: event.title }
+      : null,
+    // Every evening the desk may be asked about, nearest first.
+    events: open.map((item) => ({
+      id: item.id,
+      signupsCount: counts.get(item.id)?.total ?? 0,
+      startsAt: item.startsAt,
+      title: item.title,
+    })),
     signups: signups.map((signup) => ({
       id: signup.id,
       name: signup.displayName ?? "Без никнейма",

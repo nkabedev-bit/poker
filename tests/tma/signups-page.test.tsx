@@ -64,15 +64,41 @@ const PROFILE = {
   username: "ace",
 };
 
+const TUESDAY = {
+  id: "event-1",
+  signupsCount: 1,
+  startsAt: "2026-09-01T13:00:00.000Z",
+  title: "ВТОРНИК",
+};
+
+const THURSDAY = {
+  id: "event-2",
+  signupsCount: 4,
+  startsAt: "2026-09-03T13:00:00.000Z",
+  title: "ЧЕТВЕРГОВЫЙ",
+};
+
 function mockFetch({
+  events = [TUESDAY, THURSDAY],
   profile = PROFILE as unknown,
   signups = [SIGNUP as unknown],
-}: { profile?: unknown; signups?: unknown[] } = {}) {
+}: {
+  events?: Array<{ id: string; signupsCount: number; startsAt: string; title: string }>;
+  profile?: unknown;
+  signups?: unknown[];
+} = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
     if (url.startsWith("/api/tma/event-signups")) {
-      return Response.json({ event: null, signups, tablesCount: 3 });
+      const chosen = events.find((item) => url.includes(item.id)) ?? events[0] ?? null;
+
+      return Response.json({
+        event: chosen ? { ...chosen, seatingOpen: chosen.id === "event-1" } : null,
+        events,
+        signups,
+        tablesCount: 3,
+      });
     }
     if (url.startsWith("/api/tma/players")) {
       return Response.json({ players: [], tablesCount: 3 });
@@ -132,6 +158,39 @@ describe("TMASignupsPage", () => {
       expect.anything(),
     );
     expect(screen.getByText("нет — вход через Яндекс")).toBeTruthy();
+  });
+
+  // The club posts a week at a time, and the desk is asked about all of it.
+  it("opens another evening when the admin taps its day", async () => {
+    const fetchMock = mockFetch();
+    render(<TMASignupsPage />);
+
+    // The nearest evening opens on its own, and the rest wait in the strip.
+    await screen.findByText("ВТОРНИК");
+    expect(screen.getByText("записались: 4")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /записались: 4/i }));
+
+    await screen.findByText("ЧЕТВЕРГОВЫЙ");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/event-signups?eventId=event-2",
+      expect.anything(),
+    );
+  });
+
+  // Tonight's tables are for tonight's players: a Thursday sign-up seated now would
+  // join a tournament nobody put them in.
+  it("refuses to seat anybody from an evening that is not today", async () => {
+    mockFetch();
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /записались: 4/i }));
+    await screen.findByText("ЧЕТВЕРГОВЫЙ");
+
+    fireEvent.click(screen.getByRole("button", { name: /ace high/i }));
+
+    await screen.findByText(/посадить за стол можно будет в день турнира/i);
+    expect(screen.queryByRole("button", { name: "Посадить за стол" })).toBeNull();
   });
 
   // A held ticket is not a sign-up: the desk has to see that nobody has answered yet.

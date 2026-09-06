@@ -251,21 +251,31 @@ function moscowDay(time: Date) {
 }
 
 /**
- * Whether the desk should still be working this event.
+ * Whether this is the evening being played — the one whose players are sat down now.
  *
  * The club counts by the day, not by the clock: a game announced for four o'clock is
  * the evening's game until that day is over, and a player who turns up at half past
- * five — or at eleven — is seated from the same list. Late entry closing means no new
- * sign-ups, not that the evening is over.
+ * five — or at eleven — is seated from the same list.
  */
-export function isEventOpenForSeating(event: TournamentEvent, now: Date) {
-  if (isUpcomingEvent(event, now)) return true;
-
+export function isEventPlayingToday(event: TournamentEvent, now: Date) {
   const started = new Date(event.startsAt);
   if (moscowDay(started) === moscowDay(now)) return true;
 
-  // Past midnight the day no longer matches, and the game is still going.
-  return now.getTime() - started.getTime() < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
+  // Past midnight the day no longer matches, and the game is still going. Only ever
+  // forwards: an evening still to come has not begun.
+  const since = now.getTime() - started.getTime();
+  return since >= 0 && since < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
+}
+
+/**
+ * Whether the desk should still be working this event: tonight's game, and every poster
+ * still ahead of it.
+ *
+ * Late entry closing means the club takes no more sign-ups — not that the evening is
+ * over. Everyone who asked in time still has to be let in and sat down.
+ */
+export function isEventOpenForSeating(event: TournamentEvent, now: Date) {
+  return isUpcomingEvent(event, now) || isEventPlayingToday(event, now);
 }
 
 export function isUpcomingEvent(event: TournamentEvent, now: Date) {
