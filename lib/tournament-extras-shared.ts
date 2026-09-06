@@ -101,6 +101,14 @@ export const defaultTournamentExtras: TournamentExtras = {
   },
 };
 
+/** The desk's copy of a finished evening, as far as anything can tell from stored JSON. */
+function isSettling(value: unknown): value is TournamentExtras["settling"] {
+  if (!value || typeof value !== "object") return false;
+
+  const settling = value as { closesAt?: unknown; players?: unknown };
+  return typeof settling.closesAt === "string" && Array.isArray(settling.players);
+}
+
 export function mergeTournamentExtras(value: unknown): TournamentExtras {
   const input = typeof value === "object" && value ? (value as Partial<TournamentExtras>) : {};
   const ptsInput =
@@ -129,6 +137,7 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       ),
     },
     players: Array.isArray(input.players) ? input.players : [],
+    ...(isSettling(input.settling) ? { settling: input.settling } : {}),
     playerLabels:
       typeof input.playerLabels === "object" && input.playerLabels && !Array.isArray(input.playerLabels)
         ? (input.playerLabels as Record<string, string>)

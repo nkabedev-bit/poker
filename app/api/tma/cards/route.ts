@@ -8,6 +8,7 @@ import {
 } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import { applySeatingTicket } from "@/lib/tournament-player-registration";
+import { getSettlingPlayers } from "@/lib/timer/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function GET(request: Request) {
   if (!cardCode) {
     return NextResponse.json({
       cardsEnabled,
-      issued: extras.players
+      issued: getSettlingPlayers(extras)
         // Everybody the desk still has business with. A player who busted an hour ago
         // owes for their re-entries just the same, and without a card to scan there is
         // no other way back to them — so they stay until they have settled.
@@ -43,7 +44,7 @@ export async function GET(request: Request) {
     });
   }
 
-  const player = extras.players.find((item) => item.cardCode === cardCode);
+  const player = getSettlingPlayers(extras).find((item) => item.cardCode === cardCode);
 
   if (!player) {
     return NextResponse.json({ cardCode, session: null });

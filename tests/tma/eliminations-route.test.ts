@@ -260,7 +260,9 @@ describe("TMA eliminations route", () => {
       }),
     );
     expect(mocks.saveTournamentExtras).toHaveBeenCalledWith(
-      { players: [], raffle: null, raffleHistory: [] },
+      // The desk keeps a copy of the standings for the hour it takes the room to
+      // settle up; the room itself is cleared.
+      expect.objectContaining({ players: [], raffle: null, raffleHistory: [] }),
       "/admin/players",
       supabase,
     );

@@ -8,7 +8,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadDemoPublicState, saveDemoExtras, saveDemoTimerState, saveDemoTournamentSettings } from "@/lib/demo-overrides";
 import { getEffectiveTimerState } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
-import { saveTournamentExtras } from "@/lib/tournament-extras";
+import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 type TimerContext = {
@@ -268,11 +268,16 @@ export async function finishTournament() {
   });
 
   if (!hasPublicEnv()) {
-    await saveDemoExtras(getFinishTournamentExtrasPatch());
+    const demo = await loadTournamentExtras();
+    await saveDemoExtras(getFinishTournamentExtrasPatch(demo.players));
     revalidatePath("/admin/players");
     return;
   }
 
-  await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/timer");
+  // The roster the desk will settle from, read before the finish clears it.
+  const context = await loadTimerContext();
+  const finished = await loadTournamentExtras(context.tournament.id);
+
+  await saveTournamentExtras(getFinishTournamentExtrasPatch(finished.players), "/admin/timer");
   revalidatePath("/admin/players");
 }

@@ -165,6 +165,18 @@ export type TournamentExtras = {
     tournamentFormat: TournamentFormat;
   };
   players: TournamentPlayer[];
+  /**
+   * The roster of the evening that just ended, kept for the desk alone.
+   *
+   * The last hand does not end the evening for the desk: half the room has yet to
+   * settle up. The roster itself is cleared at the finish, because the next tournament
+   * is already being seated by then — so what the desk works from is this copy, and it
+   * stops being read once its hour is up.
+   */
+  settling?: {
+    closesAt: string;
+    players: TournamentPlayer[];
+  };
   // Persistent per-guest display labels keyed by normalized nickname (e.g. "дилер").
   // Survives the roster wipe on tournament finish so regular guests keep their marker.
   playerLabels: Record<string, string>;

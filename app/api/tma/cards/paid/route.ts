@@ -1,9 +1,10 @@
 import { after, NextResponse } from "next/server";
 import { syncFinanceSheetForTournament } from "@/lib/google-sheets";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { loadTournamentExtras } from "@/lib/tournament-extras";
+import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { buildCardSession, normalizeCardCode } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
+import { getSettlingPlayers } from "@/lib/timer/lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -28,11 +29,14 @@ export async function POST(request: Request) {
   }
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+  // The room may already be empty: the evening finished and the desk is working from
+  // the copy it was left.
+  const roster = getSettlingPlayers(extras);
   // A card names the player where the club hands them out; on an evening played without
   // them the desk points at the player itself.
   const player = cardCode
-    ? extras.players.find((item) => item.cardCode === cardCode)
-    : extras.players.find((item) => item.id === playerId);
+    ? roster.find((item) => item.cardCode === cardCode)
+    : roster.find((item) => item.id === playerId);
 
   if (!player) {
     return NextResponse.json(
@@ -43,6 +47,35 @@ export async function POST(request: Request) {
 
   const prices = getFinancePrices(extras.settings);
   const freeroll = extras.settings.tournamentFormat === "freeroll";
+
+  // Once the evening is over the room is empty and the desk is working from the copy;
+  // the tick belongs there, and the database function only knows the live roster.
+  if (extras.players.length === 0 && extras.settling) {
+    const settled = { ...player, paid };
+
+    await saveTournamentExtras(
+      {
+        settling: {
+          ...extras.settling,
+          players: roster.map((item) => (item.id === player.id ? settled : item)),
+        },
+      },
+      "/tma/cards",
+      auth.supabase,
+    );
+
+    after(async () => {
+      try {
+        await syncFinanceSheetForTournament(auth.supabase, t.id);
+      } catch (sheetError) {
+        console.error("Non-critical finance sheet sync error:", sheetError);
+      }
+    });
+
+    return NextResponse.json({
+      session: buildCardSession(settled, player.cardCode ?? "", prices, { freeroll }),
+    });
+  }
 
   const { data, error } = await auth.supabase.rpc("set_player_paid", {
     p_tournament_id: t.id,

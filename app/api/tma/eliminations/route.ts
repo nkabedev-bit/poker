@@ -292,7 +292,13 @@ export async function POST(request: Request) {
         console.error("Failed to store tournament results", resultsError);
       }
 
-      await saveTournamentExtras(getFinishTournamentExtrasPatch(), "/admin/players", auth.supabase);
+      // The roster goes, but the desk keeps a copy of it for the hour it takes the room
+      // to settle up.
+      await saveTournamentExtras(
+        getFinishTournamentExtrasPatch(updatedPlayers),
+        "/admin/players",
+        auth.supabase,
+      );
       await broadcastPublicState(t.public_token);
     }
 
