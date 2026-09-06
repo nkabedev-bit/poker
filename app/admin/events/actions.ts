@@ -107,6 +107,39 @@ export async function saveTournamentEvent(formData: FormData) {
   redirect("/admin/events?saved=1");
 }
 
+/**
+ * Puts a poster in front of the players, or takes it back.
+ *
+ * The switch lives inside the poster's own form as well, but a club that lays out a
+ * week of tournaments at once publishes them one after another — and opening each one
+ * to flip a single field is the slow way round.
+ */
+export async function toggleTournamentEventPublished(formData: FormData) {
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) backWithError("Афиша не выбрана");
+
+  const publish = formData.get("publish") === "yes";
+  let failure: string | null = null;
+
+  try {
+    const supabase = await createSupabaseServerClient();
+    const { error } = await supabase
+      .from("tournament_events")
+      .update({ is_published: publish })
+      .eq("id", id);
+
+    if (error) throw error;
+  } catch (error) {
+    console.error("Could not change what the poster shows", error);
+    failure = publish ? "Не удалось опубликовать афишу." : "Не удалось снять афишу.";
+  }
+
+  if (failure) backWithError(failure);
+
+  revalidatePath("/admin/events");
+  redirect(`/admin/events?saved=${encodeURIComponent(publish ? "Афиша опубликована" : "Афиша снята с публикации")}`);
+}
+
 export async function deleteTournamentEvent(formData: FormData) {
   const id = z.string().uuid().parse(formData.get("id"));
   const supabase = await createSupabaseServerClient();

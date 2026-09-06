@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { CalendarPlus, Pencil, Trash2, Users } from "lucide-react";
+import { CalendarPlus, Eye, EyeOff, Pencil, Trash2, Users } from "lucide-react";
 import {
   deleteTournamentEvent,
   deleteTournamentEventTemplate,
+  toggleTournamentEventPublished,
   saveTournamentEvent,
   saveTournamentEventTemplate,
 } from "@/app/admin/events/actions";
@@ -470,6 +471,28 @@ export function EventsManager({
                       >
                         <Pencil size={14} /> Правка
                       </button>
+                      {/* A week of tournaments is laid out at once and published one
+                          after another; opening each poster to flip one field is the
+                          slow way round. */}
+                      <form action={toggleTournamentEventPublished}>
+                        <input name="id" type="hidden" value={event.id} />
+                        <input
+                          name="publish"
+                          type="hidden"
+                          value={event.isPublished ? "no" : "yes"}
+                        />
+                        <SubmitButton className="ghost-button" pendingText="Сохраняем...">
+                          {event.isPublished ? (
+                            <>
+                              <EyeOff size={14} /> Снять
+                            </>
+                          ) : (
+                            <>
+                              <Eye size={14} /> Опубликовать
+                            </>
+                          )}
+                        </SubmitButton>
+                      </form>
                       <form action={deleteTournamentEvent}>
                         <input name="id" type="hidden" value={event.id} />
                         <SubmitButton className="ghost-button" pendingText="Удаляем...">
