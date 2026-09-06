@@ -121,6 +121,18 @@ export function countAnnouncedSeats(
   };
 }
 
+/**
+ * "20/27 забронировано" — how much of the poster is already spoken for.
+ *
+ * The card shows what is left of the evening rather than the size of the room: a player
+ * scrolling the afisha decides by how full it is. The taken half never runs past the
+ * announced one — the desk can seat a walk-in the poster never counted, and a chip
+ * reading "30/27" looks like a broken number rather than a busy night.
+ */
+export function formatSeatsTaken(taken: number, total: number) {
+  return `${Math.min(taken, total)}/${total} забронировано`;
+}
+
 /** "27 мест" — the count a poster or a chip shows on its own. */
 export function formatSeatsCount(seats: number) {
   const lastTwo = seats % 100;

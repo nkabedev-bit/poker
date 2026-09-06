@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { Badge, Chip } from "./ui";
-import { countAnnouncedSeats, formatSeatsCount } from "@/lib/events/seats";
+import { countAnnouncedSeats, formatSeatsTaken } from "@/lib/events/seats";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -93,7 +93,7 @@ export function EventCard({
 
             {seats ? (
               <Chip>
-                <Users size={13} /> {formatSeatsCount(seats.total)}
+                <Users size={13} /> {formatSeatsTaken(event.signupsCount, seats.total)}
               </Chip>
             ) : null}
           </div>

@@ -4,6 +4,7 @@ import {
   countFreeSeats,
   describeAnnouncedSeats,
   formatSeatsCount,
+  formatSeatsTaken,
   hasFreeSeat,
   offersDuoTicket,
   offersVipTicket,
@@ -168,6 +169,20 @@ describe("formatSeatsCount", () => {
     expect(formatSeatsCount(21)).toBe("21 место");
     expect(formatSeatsCount(22)).toBe("22 места");
     expect(formatSeatsCount(27)).toBe("27 мест");
+  });
+});
+
+describe("formatSeatsTaken", () => {
+  it("shows how much of the evening is spoken for", () => {
+    expect(formatSeatsTaken(20, 27)).toBe("20/27 забронировано");
+    expect(formatSeatsTaken(0, 27)).toBe("0/27 забронировано");
+    expect(formatSeatsTaken(27, 27)).toBe("27/27 забронировано");
+  });
+
+  // The desk can seat a walk-in the poster never counted; the chip stays a number a
+  // player can read rather than "30/27".
+  it("never counts past the seats the poster announced", () => {
+    expect(formatSeatsTaken(30, 27)).toBe("27/27 забронировано");
   });
 });
 
