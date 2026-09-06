@@ -27,8 +27,10 @@ import type { Reservation } from "@/lib/events/reservations";
 
 type EventRow = TournamentEvent & { signupsCount: number };
 
+// The fallbacks matter: a Telegram client that sets none of its theme variables leaves
+// the text the colour of whatever is behind it, and the field reads as empty.
 const textFieldClass =
-  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color)] p-3 text-[var(--tg-theme-text-color)] placeholder:text-[var(--tg-theme-hint-color)] outline-none";
+  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color,#fff)] p-3 text-[var(--tg-theme-text-color,#111)] placeholder:text-[var(--tg-theme-hint-color,#707579)] outline-none";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
@@ -563,7 +565,9 @@ export default function TMAEventsPage() {
                       className="flex items-center justify-between gap-2 rounded bg-[var(--tg-theme-bg-color)] p-2"
                     >
                       <span className="min-w-0 text-sm">
-                        <span className="block truncate font-semibold">{held.nickname}</span>
+                        <span className="block truncate font-semibold text-[var(--tg-theme-text-color,#111)]">
+                          {held.nickname}
+                        </span>
                         <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                           {held.ticketType === "vip" ? "VIP" : "обычный"} ·{" "}
                           {held.notified ? "оповещён" : "ждёт публикации"}
@@ -590,24 +594,24 @@ export default function TMAEventsPage() {
                 </p>
               )}
 
-              <div className="flex gap-2">
-                <input
-                  className="min-w-0 flex-1 rounded bg-[var(--tg-theme-bg-color)] p-2 text-sm outline-none"
-                  placeholder="Ник резидента"
-                  value={reservedNickname}
-                  onChange={(item) => setReservedNickname(item.target.value)}
-                />
-                <select
-                  className="rounded bg-[var(--tg-theme-bg-color)] p-2 text-sm"
-                  value={reservedTicket}
-                  onChange={(item) =>
-                    setReservedTicket(item.target.value === "vip" ? "vip" : "regular")
-                  }
-                >
-                  <option value="regular">Обычный</option>
-                  <option value="vip">VIP</option>
-                </select>
-              </div>
+              {/* A nickname needs the whole width to be read back; the ticket is two
+                  words and sits under it. */}
+              <input
+                className={textFieldClass}
+                placeholder="Ник резидента"
+                value={reservedNickname}
+                onChange={(item) => setReservedNickname(item.target.value)}
+              />
+              <select
+                className={textFieldClass}
+                value={reservedTicket}
+                onChange={(item) =>
+                  setReservedTicket(item.target.value === "vip" ? "vip" : "regular")
+                }
+              >
+                <option value="regular">Обычный билет</option>
+                <option value="vip">VIP билет</option>
+              </select>
 
               <button
                 className="w-full rounded bg-[var(--tg-theme-button-color)] p-2 text-sm font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
