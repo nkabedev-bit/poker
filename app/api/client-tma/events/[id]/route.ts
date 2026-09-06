@@ -40,7 +40,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       inviteLinks: await buildDuoInviteLinks(mySignup?.duoInviteToken ?? null),
       partnerIsMember: mySignup?.duoPartnerUserId != null,
       partnerName: mySignup?.duoPartnerName ?? null,
-      signedUp: Boolean(mySignup),
+      signedUp: mySignup ? mySignup.status !== "waitlist" : false,
+      // Standing in line is not a ticket, and the screen says so in its own words.
+      waitlisted: mySignup?.status === "waitlist",
       signupsCount: taken?.total ?? 0,
       ticketType: mySignup?.ticketType ?? "regular",
       usePass: mySignup?.usePass ?? "none",

@@ -1,7 +1,13 @@
 import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { notifyClientUser } from "@/lib/client-bot/notify";
-import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
+import {
+  countActiveSignups,
+  getEvent,
+  getUserSignups,
+  listEventWaitlist,
+} from "@/lib/events/store";
+import { pickWaitlistToNotify, waitlistFreedMessage } from "@/lib/events/waitlist";
 import { countFreeSeats, hasFreeSeat, offersDuoTicket, offersVipTicket } from "@/lib/events/seats";
 import {
   cancelDuoPlusOne,
@@ -42,6 +48,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // The buyer either names somebody the club knows, or asks for a link to send to
   // somebody it does not.
   const wantsInvite = body.partnerMode === "invite";
+  // Asking to be told when a place comes free, rather than taking one now.
+  const wantsWaitlist = body.waitlist === true;
   // What the player chose to pay with. Nothing is spent here: a pass is only used when
   // they turn up and are seated, so an intention costs nothing if they never come.
   const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
@@ -134,7 +142,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // or re-sending the same choice must not be refused because their own sign-up filled
   // the last place.
   const mine = mySignups.find((signup) => signup.eventId === event.id) ?? null;
-  const alreadyHeld = mine?.ticketType === ticketType;
+  // A place in line is not a ticket: somebody stepping out of the queue for a seat that
+  // just came free has to be counted against the room like anybody else, or two of them
+  // would take the same chair.
+  const alreadyHeld = mine?.status !== "waitlist" && mine?.ticketType === ticketType;
+
+  // Standing in line is what a player does when there is no seat, so it is written down
+  // without asking the room for one.
+  if (wantsWaitlist) {
+    const { error: waitError } = await auth.supabase.from("event_signups").upsert(
+      {
+        duo_confirmed_at: null,
+        duo_invite_token: null,
+        duo_partner_name: null,
+        duo_partner_user_id: null,
+        event_id: event.id,
+        status: "waitlist",
+        telegram_id: auth.user.telegram_id,
+        ticket_type: ticketType,
+        use_pass: "none",
+        user_id: auth.user.id,
+      },
+      { onConflict: "event_id,user_id" },
+    );
+
+    if (waitError) throw waitError;
+
+    return NextResponse.json({ signedUp: false, ticketType, waitlisted: true });
+  }
 
   if (!alreadyHeld && !hasFreeSeat(countFreeSeats(event, counts.get(event.id)), ticketType)) {
     return NextResponse.json(
@@ -263,6 +298,29 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   }
 
   const event = await getEvent(auth.supabase, id);
+
+  // A seat has just come free, and somebody has been waiting to hear it. Everyone in
+  // line for that kind of ticket is told at once — first to answer takes it.
+  if (event && mine?.status !== "waitlist") {
+    const [waitlist, counts] = await Promise.all([
+      listEventWaitlist(auth.supabase, id),
+      countActiveSignups(auth.supabase, [id]),
+    ]);
+    const freed = pickWaitlistToNotify(waitlist, countFreeSeats(event, counts.get(id)));
+
+    if (freed.length > 0) {
+      after(async () => {
+        for (const entry of freed) {
+          await notifyClientUser(
+            auth.supabase,
+            entry.userId,
+            waitlistFreedMessage(event.title, entry.ticketType),
+          );
+        }
+      });
+    }
+  }
+
   const told = mine?.ticketType === "duo" ? mine.duoPartnerUserId : mine?.duoHostUserId;
 
   if (event && told) {

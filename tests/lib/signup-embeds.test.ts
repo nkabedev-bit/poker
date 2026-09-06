@@ -14,7 +14,7 @@ function supabaseStub(rows: unknown[]) {
     then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
       Promise.resolve({ data: rows, error: null }).then(resolve),
   };
-  for (const link of ["eq", "neq", "order", "limit"]) chain[link] = vi.fn(() => chain);
+  for (const link of ["eq", "in", "neq", "order", "limit"]) chain[link] = vi.fn(() => chain);
 
   const select = vi.fn((asked: string) => {
     columns.push(asked);

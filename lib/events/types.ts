@@ -24,7 +24,15 @@ export type TournamentEvent = {
   vipBuyIn: number | null;
 };
 
-export type EventSignupStatus = "signed_up" | "cancelled" | "seated";
+export type EventSignupStatus = "signed_up" | "cancelled" | "seated" | "waitlist";
+
+/**
+ * The statuses that take a seat.
+ *
+ * Standing in line is not one of them: the whole point of the queue is that the room is
+ * already full, and counting it would make the poster look fuller still.
+ */
+export const SEAT_TAKING_STATUSES = ["signed_up", "seated"] as const;
 
 export type EventSignup = {
   createdAt: string;

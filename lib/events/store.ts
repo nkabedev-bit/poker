@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  SEAT_TAKING_STATUSES,
   mapEventRow,
   mapSignupRow,
   toEventRow,
@@ -92,7 +93,8 @@ export async function countActiveSignups(
     .from("event_signups")
     .select("event_id, ticket_type, duo_partner_name, duo_partner_user_id")
     .in("event_id", eventIds)
-    .neq("status", "cancelled");
+    // Standing in line takes no seat — the queue exists because the room is full.
+    .in("status", SEAT_TAKING_STATUSES);
 
   if (error) throw error;
 
@@ -132,7 +134,7 @@ export async function listEventSignups(
     .from("event_signups")
     .select(`${SIGNUP_COLUMNS}, client_bot_users!user_id(display_name, username)`)
     .eq("event_id", eventId)
-    .neq("status", "cancelled")
+    .in("status", SEAT_TAKING_STATUSES)
     .order("created_at");
 
   if (error) throw error;
@@ -163,7 +165,7 @@ export async function getUserSignupsWithEvents(
     .from("event_signups")
     .select(`id, status, tournament_events(${EVENT_COLUMNS})`)
     .eq("user_id", userId)
-    .neq("status", "cancelled");
+    .in("status", SEAT_TAKING_STATUSES);
 
   if (error) throw error;
 
@@ -192,6 +194,28 @@ export async function getUserSignups(
     .select(SIGNUP_COLUMNS)
     .eq("user_id", userId)
     .neq("status", "cancelled");
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => mapSignupRow(row as Record<string, unknown>));
+}
+
+/**
+ * Who is standing in line for a sold-out poster, oldest first.
+ *
+ * The place in line remembers which ticket they wanted, so a freed VIP seat reaches the
+ * players waiting for one and leaves the rest alone.
+ */
+export async function listEventWaitlist(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<EventSignup[]> {
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select(SIGNUP_COLUMNS)
+    .eq("event_id", eventId)
+    .eq("status", "waitlist")
+    .order("created_at");
 
   if (error) throw error;
 
