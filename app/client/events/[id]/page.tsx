@@ -47,6 +47,8 @@ type EventDetails = TournamentEvent & {
   partnerName: string | null;
   signedUp: boolean;
   signupsCount: number;
+  /** Standing in line for a ticket that is sold out. */
+  waitlisted?: boolean;
   ticketType: HeldTicket;
   usePass: FreePassChoice;
 };
@@ -261,7 +263,7 @@ export default function ClientEventPage() {
     }
   };
 
-  const toggleSignup = async (signUp: boolean) => {
+  const toggleSignup = async (signUp: boolean, waitlist = false) => {
     if (!eventId || submitting) return;
 
     setSubmitting(true);
@@ -271,7 +273,14 @@ export default function ClientEventPage() {
         method: signUp ? "POST" : "DELETE",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
         body: signUp
-          ? JSON.stringify({ partnerKey, partnerMode, partnerName, ticketType, usePass })
+          ? JSON.stringify({
+              partnerKey,
+              partnerMode,
+              partnerName,
+              ticketType,
+              usePass,
+              waitlist,
+            })
           : undefined,
       });
 
@@ -586,7 +595,7 @@ export default function ClientEventPage() {
                   type="button"
                   onClick={() => setPartnerMode(mode)}
                 >
-                  {mode === "member" ? "Он есть в приложении" : "Позвать нового"}
+                  {mode === "member" ? "Резидент клуба" : "Нет аккаунта в Majestic"}
                 </button>
               ))}
             </div>
@@ -601,16 +610,18 @@ export default function ClientEventPage() {
                 {hasInviteLinks ? (
                   <div className="space-y-1.5">
                     {shownInviteLinks?.telegram ? (
-                      <InviteLink
-                        href={shownInviteLinks.telegram}
-                        label="Ссылка для Telegram"
-                      />
+                      <InviteLink href={shownInviteLinks.telegram} label="Телеграм" />
                     ) : null}
                     {shownInviteLinks?.web ? (
-                      <InviteLink href={shownInviteLinks.web} label="Ссылка без Telegram" />
+                      <InviteLink
+                        href={shownInviteLinks.web}
+                        label="Нет доступа к телеграмму"
+                      />
                     ) : null}
                     <p className="text-[11px] leading-relaxed text-white/40">
-                      Ссылка одноразовая: кто откроет первым, тот и придёт с вами.
+                      Отправьте другу ссылку-приглашение — ту, что подходит: есть ли у
+                      него доступ к телеграмму. Ссылка одноразовая: кто откроет первым,
+                      тот и придёт с вами.
                     </p>
                   </div>
                 ) : null}
@@ -749,21 +760,46 @@ export default function ClientEventPage() {
             </p>
           )}
         </div>
+      ) : event.waitlisted ? (
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
+            Вы в листе ожидания
+            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
+              Сообщим, как только освободится место. Кто успеет записаться первым — тот
+              и играет.
+            </span>
+          </div>
+          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+            Выйти из листа ожидания
+          </GhostButton>
+        </div>
+      ) : soldOut ? (
+        // Sold out is where the club used to lose the player: nothing on the screen
+        // said "tell me if a place comes free".
+        <div className="space-y-3">
+          <PrimaryButton
+            disabled={partnerMissing}
+            loading={submitting}
+            onClick={() => void toggleSignup(true, true)}
+          >
+            Встать в лист ожидания
+          </PrimaryButton>
+          <p className="px-2 text-center text-xs text-white/40">
+            {ticketType === "vip"
+              ? "VIP-места разобрали."
+              : ticketType === "duo"
+                ? "Билеты 1+1 разобрали."
+                : "Места разобрали."}{" "}
+            Если кто-то отменит запись, мы вам сообщим.
+          </p>
+        </div>
       ) : (
         <PrimaryButton
-          disabled={soldOut || partnerMissing}
+          disabled={partnerMissing}
           loading={submitting}
           onClick={() => void toggleSignup(true)}
         >
-          {soldOut
-            ? ticketType === "vip"
-              ? "VIP-мест нет"
-              : ticketType === "duo"
-                ? "Билетов 1+1 нет"
-                : "Мест нет"
-            : partnerMissing
-              ? "Укажите напарника"
-              : `Записаться · ${TICKET_TITLES[ticketType]}`}
+          {partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`}
         </PrimaryButton>
       )}
 
