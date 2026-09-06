@@ -688,7 +688,9 @@ export default function ClientEventPage() {
         ) : null}
       </section>
 
-      {passOptions.length > 0 && !event.signedUp && ticketType !== "duo" ? (
+      {/* A pass never buys a pair, whether the player picked the "1+1" themselves or the
+          club is holding one for them. */}
+      {passOptions.length > 0 && !event.signedUp && (heldTicket ?? ticketType) !== "duo" ? (
         <section className="space-y-2">
           <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
           <GlassCard className="space-y-2 !p-3">
