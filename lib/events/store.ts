@@ -7,6 +7,7 @@ import {
   mapSignupRow,
   toEventRow,
   type EventSignup,
+  type EventSignupStatus,
   type TournamentEvent,
 } from "@/lib/events/types";
 
@@ -124,17 +125,22 @@ export async function countActiveSignups(
   return counts;
 }
 
-export async function listEventSignups(
+/**
+ * Sign-ups of these statuses, with the name the desk knows each player by.
+ *
+ * The embed names its foreign key: several columns here point at client_bot_users, and
+ * `user_id` is the account whose sign-up this is.
+ */
+async function listSignupsByStatus(
   supabase: SupabaseClient,
   eventId: string,
+  statuses: readonly EventSignupStatus[],
 ): Promise<EventSignupWithPlayer[]> {
-  // The embed names its foreign key: several columns here point at client_bot_users,
-  // and `user_id` is the account whose sign-up this is.
   const { data, error } = await supabase
     .from("event_signups")
     .select(`${SIGNUP_COLUMNS}, client_bot_users!user_id(display_name, username)`)
     .eq("event_id", eventId)
-    .in("status", SEAT_TAKING_STATUSES)
+    .in("status", statuses)
     .order("created_at");
 
   if (error) throw error;
@@ -154,6 +160,18 @@ export async function listEventSignups(
       username: player?.username ?? null,
     };
   });
+}
+
+/**
+ * Everyone the desk works through: those holding a seat, and those whose seat was given
+ * away to the queue. A no-show takes no place any more, but the desk still has to see
+ * what became of them — they may walk in an hour late asking where their ticket went.
+ */
+export async function listEventSignups(
+  supabase: SupabaseClient,
+  eventId: string,
+): Promise<EventSignupWithPlayer[]> {
+  return listSignupsByStatus(supabase, eventId, [...SEAT_TAKING_STATUSES, "no_show"]);
 }
 
 /** A player's own sign-ups joined with the event, for the history on their profile. */
@@ -206,18 +224,10 @@ export async function getUserSignups(
  * The place in line remembers which ticket they wanted, so a freed VIP seat reaches the
  * players waiting for one and leaves the rest alone.
  */
+/** The queue, in the order it formed — with names, because the desk reads it too. */
 export async function listEventWaitlist(
   supabase: SupabaseClient,
   eventId: string,
-): Promise<EventSignup[]> {
-  const { data, error } = await supabase
-    .from("event_signups")
-    .select(SIGNUP_COLUMNS)
-    .eq("event_id", eventId)
-    .eq("status", "waitlist")
-    .order("created_at");
-
-  if (error) throw error;
-
-  return (data ?? []).map((row) => mapSignupRow(row as Record<string, unknown>));
+): Promise<EventSignupWithPlayer[]> {
+  return listSignupsByStatus(supabase, eventId, ["waitlist"]);
 }

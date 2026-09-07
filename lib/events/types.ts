@@ -29,13 +29,17 @@ export type EventSignupStatus =
   | "cancelled"
   | "seated"
   | "waitlist"
+  /** Signed up, never came, and their place went to somebody from the queue. */
+  | "no_show"
   | "reserved";
 
 /**
  * The statuses that take a seat.
  *
  * Standing in line is not one of them: the whole point of the queue is that the room is
- * already full, and counting it would make the poster look fuller still.
+ * already full, and counting it would make the poster look fuller still. Neither is a
+ * no-show — their place was given away to the queue, and counting it twice would close
+ * the poster on a seat somebody is already sitting in.
  */
 export const SEAT_TAKING_STATUSES = ["signed_up", "seated", "reserved"] as const;
 

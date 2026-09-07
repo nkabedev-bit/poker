@@ -144,8 +144,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const mine = mySignups.find((signup) => signup.eventId === event.id) ?? null;
   // A place in line is not a ticket: somebody stepping out of the queue for a seat that
   // just came free has to be counted against the room like anybody else, or two of them
-  // would take the same chair.
-  const alreadyHeld = mine?.status !== "waitlist" && mine?.ticketType === ticketType;
+  // would take the same chair. Neither is a seat that was given away — a player whose
+  // place went to the queue asks the room for a new one, like anybody arriving late.
+  const alreadyHeld =
+    mine?.status !== "waitlist" && mine?.status !== "no_show" && mine?.ticketType === ticketType;
 
   // Standing in line is what a player does when there is no seat, so it is written down
   // without asking the room for one.

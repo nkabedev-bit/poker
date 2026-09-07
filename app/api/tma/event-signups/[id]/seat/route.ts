@@ -35,19 +35,69 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // with this request instead of costing a second round trip.
   const cardCode = normalizeCardCode(body.cardCode);
   const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
+  // Seating somebody out of the queue: whose place they are taking. A player standing
+  // in line has no seat of their own, so they only ever come in instead of someone who
+  // signed up and did not turn up.
+  const replacesSignupId = String(body.replacesSignupId ?? "").trim();
 
   // `!user_id` picks the account the sign-up belongs to: several columns of the row
   // point at client_bot_users, and an unnamed embed is ambiguous.
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
     .select(
-      "id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users!user_id(display_name, free_entries, vip_free_entries)",
+      "id, event_id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users!user_id(display_name, free_entries, vip_free_entries)",
     )
     .eq("id", id)
     .maybeSingle();
 
   if (signupError) throw signupError;
   if (!signup) return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
+
+  const signupStatus = String((signup as { status?: unknown }).status ?? "");
+  const signupEventId = String((signup as { event_id?: unknown }).event_id ?? "");
+
+  // A place in the queue is not a ticket: it becomes one only in somebody's stead, and
+  // the desk says whose. Without that the room would quietly hold one player more than
+  // the poster sold.
+  if (signupStatus === "waitlist" && !replacesSignupId) {
+    return NextResponse.json(
+      { error: "Выберите, вместо кого сажаем игрока из листа ожидания" },
+      { status: 400 },
+    );
+  }
+
+  let replaced: { id: string; name: string } | null = null;
+  if (replacesSignupId) {
+    if (replacesSignupId === id) {
+      return NextResponse.json({ error: "Игрок не может заменить сам себя" }, { status: 400 });
+    }
+
+    const { data: absentee, error: absenteeError } = await auth.supabase
+      .from("event_signups")
+      .select("id, event_id, status, client_bot_users!user_id(display_name)")
+      .eq("id", replacesSignupId)
+      .maybeSingle();
+
+    if (absenteeError) throw absenteeError;
+    if (!absentee || String((absentee as { event_id?: unknown }).event_id ?? "") !== signupEventId) {
+      return NextResponse.json({ error: "Заявка не найдена" }, { status: 404 });
+    }
+
+    // Somebody already at a table is not a no-show, and their seat is not free to give.
+    if (String((absentee as { status?: unknown }).status ?? "") === "seated") {
+      return NextResponse.json({ error: "Этот игрок уже за столом" }, { status: 409 });
+    }
+
+    const absenteeEmbed = (absentee as Record<string, unknown>).client_bot_users;
+    const absenteePlayer = (Array.isArray(absenteeEmbed) ? absenteeEmbed[0] : absenteeEmbed) as
+      | { display_name?: string | null }
+      | undefined;
+
+    replaced = {
+      id: replacesSignupId,
+      name: absenteePlayer?.display_name?.trim() || "Игрок",
+    };
+  }
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
   const tablesCount = Math.max(1, Number(extras.settings.tablesCount ?? 1));
@@ -115,7 +165,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Half a "1+1" is charged half its price, and only the sign-up may say so — the desk
   // cannot hand out the discount by picking it on screen. The seat itself stays regular:
   // the pair plays at the ordinary tables and draws ordinary registration numbers.
-  const signupTicket = (signup as { ticket_type?: unknown }).ticket_type;
+  // A queue entry says what the player hoped for, not what they got: the desk picks the
+  // ticket at the door, and a pair ticket is not among the choices — nobody is coming
+  // in with them.
+  const signupTicket = signupStatus === "waitlist" ? ticketType : (signup as { ticket_type?: unknown }).ticket_type;
   const duoTicket = signupTicket === "duo" || signupTicket === "duo_plus_one";
 
   const playerDraft: TournamentPlayer = {
@@ -160,6 +213,25 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     throw error;
   }
 
+  // A queue entry that has been seated is a ticket now, of the kind the desk picked.
+  const seatedUpdate =
+    signupStatus === "waitlist"
+      ? { status: "seated", ticket_type: seatTicketType }
+      : { status: "seated" };
+
+  // Their place was given away, and the record says so: not "cancelled", which would
+  // read as a player who changed their mind, but a seat that went to the queue.
+  const markAbsentee = async () => {
+    if (!replaced) return;
+
+    const { error: absenteeError } = await auth.supabase
+      .from("event_signups")
+      .update({ status: "no_show" })
+      .eq("id", replaced.id);
+
+    if (absenteeError) console.error("Failed to mark a no-show", absenteeError);
+  };
+
   const spendPass = async () => {
     if (!passUsed) return;
 
@@ -188,13 +260,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       if (!message.includes("Card already issued")) throw cardError;
 
       session = null;
-      await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
+      await auth.supabase.from("event_signups").update(seatedUpdate).eq("id", id);
+      await markAbsentee();
       await spendPass();
 
       return NextResponse.json({
         cardError: "Эта карта уже выдана другому игроку",
         passUsed,
         player: seatedPlayer,
+        replacedName: replaced?.name ?? null,
       });
     }
 
@@ -203,7 +277,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     });
   }
 
-  await auth.supabase.from("event_signups").update({ status: "seated" }).eq("id", id);
+  await auth.supabase.from("event_signups").update(seatedUpdate).eq("id", id);
+  await markAbsentee();
   await auth.supabase
     .from("client_bot_users")
     .update({ registered_at: new Date().toISOString(), registered_player_id: seatedPlayer.id })
@@ -221,5 +296,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     }
   });
 
-  return NextResponse.json({ passUsed, player: seatedPlayer, session });
+  return NextResponse.json({
+    passUsed,
+    player: seatedPlayer,
+    // Whose place this was, so the desk can say it out loud when it hands the card over.
+    replacedName: replaced?.name ?? null,
+    session,
+  });
 }

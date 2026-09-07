@@ -29,6 +29,7 @@ function createTelegramWebApp(): TelegramWebApp {
 const SIGNUP = {
   id: "signup-1",
   name: "Ace High",
+  noShow: false,
   reserved: false,
   seated: false,
   telegramId: 555,
@@ -78,14 +79,26 @@ const THURSDAY = {
   title: "ЧЕТВЕРГОВЫЙ",
 };
 
+/** Somebody standing in line: no seat of their own until the desk gives them one. */
+const QUEUED = {
+  id: "wait-1",
+  name: "Иван Очередь",
+  telegramId: 777,
+  ticketType: "regular" as const,
+  userId: "account-9",
+  username: "vanya",
+};
+
 function mockFetch({
   events = [TUESDAY, THURSDAY],
   profile = PROFILE as unknown,
   signups = [SIGNUP as unknown],
+  waitlist = [] as unknown[],
 }: {
   events?: Array<{ id: string; signupsCount: number; startsAt: string; title: string }>;
   profile?: unknown;
   signups?: unknown[];
+  waitlist?: unknown[];
 } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -98,6 +111,7 @@ function mockFetch({
         events,
         signups,
         tablesCount: 3,
+        waitlist,
       });
     }
     if (url.startsWith("/api/tma/players")) {
@@ -229,5 +243,87 @@ describe("TMASignupsPage", () => {
         expect.objectContaining({ body: expect.stringContaining('"seat":5') }),
       );
     });
+  });
+});
+
+describe("the waiting list at the desk", () => {
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    delete window.Telegram;
+  });
+
+  it("says nothing about a queue nobody is standing in", async () => {
+    mockFetch();
+    render(<TMASignupsPage />);
+
+    await screen.findByText("Ace High");
+    expect(screen.queryByText(/Лист ожидания/)).toBeNull();
+  });
+
+  // Folded away by default: most evenings the desk works the sign-ups and never opens it.
+  it("keeps the queue folded until the admin opens it", async () => {
+    mockFetch({ waitlist: [QUEUED] });
+    render(<TMASignupsPage />);
+
+    await screen.findByText("Лист ожидания (1)");
+    expect(screen.queryByText(/Иван Очередь/)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /Лист ожидания/ }));
+
+    expect(screen.getByText("1. Иван Очередь")).toBeTruthy();
+  });
+
+  // A place in line is not a ticket: it becomes one only in somebody else's stead.
+  it("asks whose place the player from the queue is taking", async () => {
+    mockFetch({ waitlist: [QUEUED] });
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
+    fireEvent.click(screen.getByText("1. Иван Очередь"));
+
+    await screen.findByText(/Вместо кого сажаем/);
+    expect(screen.getByRole("button", { name: /ace high/i })).toBeTruthy();
+  });
+
+  it("seats them in the absentee's stead, on the ticket the desk picked", async () => {
+    const fetchMock = mockFetch({ waitlist: [QUEUED] });
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
+    fireEvent.click(screen.getByText("1. Иван Очередь"));
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+
+    await screen.findByText(/Вместо Ace High/);
+    fireEvent.click(screen.getByRole("button", { name: "VIP билет" }));
+    fireEvent.click(screen.getByRole("button", { name: /Посадить на случайное место/ }));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/event-signups/wait-1/seat",
+        expect.objectContaining({
+          body: expect.stringContaining('"replacesSignupId":"signup-1"'),
+        }),
+      ),
+    );
+
+    const seatCall = fetchMock.mock.calls.find(
+      ([url]) => String(url) === "/api/tma/event-signups/wait-1/seat",
+    ) as unknown as [string, { body: string }];
+
+    expect(JSON.parse(seatCall[1].body).ticketType).toBe("vip");
+  });
+
+  // They may still walk in an hour late and ask where their ticket went.
+  it("keeps a no-show on the list, marked", async () => {
+    mockFetch({ signups: [{ ...SIGNUP, id: "signup-3", name: "Опоздун", noShow: true }] });
+    render(<TMASignupsPage />);
+
+    expect(await screen.findByText("не пришёл · место отдано")).toBeTruthy();
+    expect(screen.getByText("Опоздун")).toBeTruthy();
   });
 });

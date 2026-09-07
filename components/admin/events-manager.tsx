@@ -584,7 +584,10 @@ export function EventsManager({
         <section className="poker-panel">
           <div className="panel-heading">
             <div>
-              <h2>Записались ({signups.length})</h2>
+              <h2>
+                Записались (
+                {signups.filter((signup) => signup.status !== "no_show").length})
+              </h2>
               <p className="muted">
                 Заявки на выбранный турнир. Посадить за стол можно в админ-боте.
               </p>
@@ -606,6 +609,9 @@ export function EventsManager({
                   {signup.status === "seated" ? <span className="muted"> · за столом</span> : null}
                   {signup.status === "reserved" ? (
                     <span className="muted"> · билет отложен, не подтвердил</span>
+                  ) : null}
+                  {signup.status === "no_show" ? (
+                    <span className="muted"> · не пришёл, место отдано</span>
                   ) : null}
                 </li>
               ))}

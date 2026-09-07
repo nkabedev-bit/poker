@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { countActiveSignups, listEventSignups, listEvents } from "@/lib/events/store";
+import {
+  countActiveSignups,
+  listEventSignups,
+  listEventWaitlist,
+  listEvents,
+} from "@/lib/events/store";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { isEventOpenForSeating, isEventPlayingToday } from "@/lib/events/types";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
@@ -31,9 +36,13 @@ export async function GET(request: Request) {
   const event = open.find((item) => item.id === asked) ?? open[0] ?? null;
   const seatingOpen = event ? isEventPlayingToday(event, now) : false;
 
-  const [extras, signups, counts] = await Promise.all([
+  const [extras, signups, waitlist, counts] = await Promise.all([
     loadTournamentExtras(t.id, auth.supabase),
     event ? listEventSignups(auth.supabase, event.id) : [],
+    // The queue is read alongside the sign-ups: when somebody does not turn up, the
+    // desk gives their place to the next player in line rather than leaving a chair
+    // empty at a sold-out table.
+    event ? listEventWaitlist(auth.supabase, event.id) : [],
     countActiveSignups(
       auth.supabase,
       open.map((item) => item.id),
@@ -67,6 +76,9 @@ export async function GET(request: Request) {
     signups: signups.map((signup) => ({
       id: signup.id,
       name: signup.displayName ?? "Без никнейма",
+      // They never came and their place went to the queue. Kept on the list so the desk
+      // can say what happened if they turn up late.
+      noShow: signup.status === "no_show",
       // Who the player is bringing on a "1+1", so the desk expects two of them.
       partnerName: signup.duoPartnerName,
       // A ticket the admin put aside and the player has yet to answer. It holds a seat,
@@ -86,5 +98,15 @@ export async function GET(request: Request) {
       username: signup.username,
     })),
     tablesCount: Math.max(1, Number(extras.settings.tablesCount ?? 1)),
+    // Standing in line, in the order it formed. A place in the queue is not a ticket:
+    // the desk seats one of these only in somebody else's stead.
+    waitlist: waitlist.map((entry) => ({
+      id: entry.id,
+      name: entry.displayName ?? "Без никнейма",
+      telegramId: entry.telegramId,
+      ticketType: entry.ticketType,
+      userId: entry.userId,
+      username: entry.username,
+    })),
   });
 }
