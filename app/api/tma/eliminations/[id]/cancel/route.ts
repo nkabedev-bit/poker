@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
@@ -59,26 +60,17 @@ async function revokeMysteryPasses(
     const owner = players.find((player) => player.id === killerId) ?? null;
     const accountId = owner?.accountId ?? null;
     const telegramId = owner?.telegramId ?? null;
-    const column = pass === "vip" ? "vip_free_entries" : "free_entries";
     // A player who joined through the web has no Telegram id, and the pass hangs on
     // their account like anybody else's.
     if (accountId || telegramId) {
-      const selection = supabase.from("client_bot_users").select(column);
-      const { data: account } = await (accountId
-        ? selection.eq("id", accountId)
-        : selection.eq("telegram_id", telegramId as number)
-      ).maybeSingle();
-
-      if (account) {
-        const held = Math.max(0, Number((account as Record<string, number>)[column] ?? 0));
-        const patch = supabase
-          .from("client_bot_users")
-          .update({ [column]: Math.max(0, held - 1) });
-        const { error } = await (accountId
-          ? patch.eq("id", accountId)
-          : patch.eq("telegram_id", telegramId as number));
-
-        if (error) console.error("Failed to take the mystery bounty pass back", error);
+      try {
+        await adjustFreeEntries(supabase, {
+          delta: -1,
+          holder: { accountId, telegramId },
+          vip: pass === "vip",
+        });
+      } catch (error) {
+        console.error("Failed to take the mystery bounty pass back", error);
       }
     }
 

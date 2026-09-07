@@ -177,6 +177,28 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     }
 
     const typedLog = log as BountyLog;
+
+    // Claimed before anything is rolled back: two admins opening the same eliminated
+    // player and both tapping "вернуть в игру" used to undo the knockout twice — every
+    // finish place behind them shifted twice, and a re-entry was recorded for each tap,
+    // with the killers paid their bounty over again. Whoever marks the row first does
+    // the work; the second request finds nothing to claim and says so.
+    const { data: claimed, error: claimError } = await auth.supabase
+      .from("bounty_log")
+      .update({ cancelled: true })
+      .eq("id", typedLog.id)
+      .eq("tournament_id", t.id)
+      .eq("cancelled", false)
+      .select("id");
+
+    if (claimError) throw claimError;
+    if (!claimed || claimed.length === 0) {
+      return NextResponse.json(
+        { error: "Игрока уже возвращают в игру — обновите список" },
+        { status: 409 },
+      );
+    }
+
     const isProgressiveBounty = extras.settings.bountyType === "progressive";
     const { data: updatedPlayers, error: rpcError } = await auth.supabase.rpc("cancel_player_elimination", {
       p_tournament_id: t.id,

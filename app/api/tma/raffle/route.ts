@@ -1,4 +1,5 @@
 import { randomInt } from "crypto";
+import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
@@ -110,46 +111,40 @@ export async function POST(request: Request) {
   // sign-up — through the bot or through the web. A player the admin added by hand has
   // no account behind the seat, and the pass is handed over at the table instead.
   if (raffle.kind === "regular" && (winner.accountId || winner.telegramId)) {
-    const byAccount = winner.accountId
-      ? { column: "id", value: winner.accountId as string | number }
-      : { column: "telegram_id", value: winner.telegramId as string | number };
+    let granted = false;
+    try {
+      const change = await adjustFreeEntries(auth.supabase, {
+        delta: 1,
+        holder: { accountId: winner.accountId, telegramId: winner.telegramId },
+        vip: false,
+      });
 
-    const { data: account } = await auth.supabase
-      .from("client_bot_users")
-      .select("free_entries")
-      .eq(byAccount.column, byAccount.value)
-      .maybeSingle();
+      granted = change !== null;
+    } catch (grantError) {
+      console.error("Failed to grant the raffle pass", grantError);
+    }
 
-    if (account) {
-      const { error: grantError } = await auth.supabase
-        .from("client_bot_users")
-        .update({ free_entries: Math.max(0, Number(account.free_entries ?? 0)) + 1 })
-        .eq(byAccount.column, byAccount.value);
-
-      if (grantError) {
-        console.error("Failed to grant the raffle pass", grantError);
-      } else {
-        raffle.prize = "granted";
-        // The ledger is bookkeeping: the pass is already in the profile, so a Sheets
-        // failure must not fail the draw.
-        try {
-          const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
-          await appendFreeEntryGrant({
-            count: 1,
-            nickname: winner.name,
-            source: "raffle",
-            vip: false,
-          });
-        } catch (sheetError) {
-          console.error("Failed to log the raffle pass", sheetError);
-        }
-        // Writing the same draw again records the prize; the database allows it because
-        // the id matches the one already in the history.
-        await auth.supabase.rpc("set_tournament_raffle", {
-          p_tournament_id: t.id,
-          p_raffle: raffle,
+    if (granted) {
+      raffle.prize = "granted";
+      // The ledger is bookkeeping: the pass is already in the profile, so a Sheets
+      // failure must not fail the draw.
+      try {
+        const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
+        await appendFreeEntryGrant({
+          count: 1,
+          nickname: winner.name,
+          source: "raffle",
+          vip: false,
         });
+      } catch (sheetError) {
+        console.error("Failed to log the raffle pass", sheetError);
       }
+      // Writing the same draw again records the prize; the database allows it because
+      // the id matches the one already in the history.
+      await auth.supabase.rpc("set_tournament_raffle", {
+        p_tournament_id: t.id,
+        p_raffle: raffle,
+      });
     }
   }
 

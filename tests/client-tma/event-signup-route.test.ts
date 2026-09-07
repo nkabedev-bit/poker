@@ -70,10 +70,13 @@ function taken({
  * partner up by nickname reads the accounts.
  */
 function upsertSpy({
+  eventFull = false,
   members = [] as Array<{ display_name: string; id: string; telegram_id: number | null }>,
   partnerTaken = false,
 } = {}) {
-  const upsert = vi.fn(async () => ({ error: null }));
+  const upsert = vi.fn<(row: unknown, options?: unknown) => Promise<{ error: null }>>(
+    async () => ({ error: null }),
+  );
   const update = vi.fn(() => {
     const chain = {
       eq: vi.fn(() => chain),
@@ -103,9 +106,37 @@ function upsertSpy({
     upsert,
   };
 
+  // Stands in for claim_event_signup: the database counts the room under the poster's
+  // row lock and writes the row itself, so the fake writes it too — the assertions below
+  // describe what lands in the table either way.
+  const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
+    if (fn !== "claim_event_signup") return { data: null, error: null };
+    if (eventFull) return { data: null, error: { message: "Event is full" } };
+
+    await upsert(
+      {
+        duo_confirmed_at: args.p_duo_confirmed_at,
+        duo_invite_token: args.p_duo_invite_token,
+        duo_partner_name: args.p_duo_partner_name,
+        duo_partner_user_id: args.p_duo_partner_user_id,
+        event_id: args.p_event_id,
+        status: args.p_status,
+        telegram_id: args.p_telegram_id,
+        ticket_type: args.p_ticket_type,
+        use_pass: args.p_use_pass,
+        user_id: args.p_user_id,
+      },
+      { onConflict: "event_id,user_id" },
+    );
+
+    return { data: {}, error: null };
+  });
+
   return {
+    rpc,
     supabase: {
       from: vi.fn((table: string) => (table === "client_bot_users" ? accounts : signups)),
+      rpc,
     },
     update,
     upsert,
@@ -156,6 +187,21 @@ describe("client sign-up route", () => {
     mocks.countActiveSignups.mockResolvedValue(taken());
     mocks.getUserSignups.mockResolvedValue([]);
     mocks.notifyClientUser.mockResolvedValue(true);
+  });
+
+  // The room is read and then written to a moment later. Two players tapping together
+  // both used to read "one place left" and both took it, so the club sold one more seat
+  // than it opened. The database counts again inside the write and refuses the loser.
+  it("refuses the player who lost the race for the last place", async () => {
+    const { supabase, upsert } = upsertSpy({ eventFull: true });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup();
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.error).toBe("full");
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it("records a sign-up for a player who filled in the questionnaire", async () => {

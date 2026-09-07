@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
+  holdsTicket,
   isEventOpenForSeating,
   isEventPlayingToday,
   isUpcomingEvent,
@@ -210,5 +211,23 @@ describe("what the desk is still working", () => {
     const soon = event("2026-09-03T18:00:00.000Z");
 
     expect(isEventOpenForSeating(soon, at("2026-09-03T12:00:00.000Z"))).toBe(true);
+  });
+});
+
+describe("holdsTicket", () => {
+  it("counts the two statuses that are a ticket", () => {
+    expect(holdsTicket("signed_up")).toBe(true);
+    expect(holdsTicket("seated")).toBe(true);
+  });
+
+  // The screen used to ask "not a queue and not a held ticket?", so every status added
+  // later read as a ticket. A no-show whose place went to the queue was the first.
+  it("refuses everything that is not one", () => {
+    expect(holdsTicket("no_show")).toBe(false);
+    expect(holdsTicket("waitlist")).toBe(false);
+    expect(holdsTicket("reserved")).toBe(false);
+    expect(holdsTicket("cancelled")).toBe(false);
+    expect(holdsTicket(null)).toBe(false);
+    expect(holdsTicket(undefined)).toBe(false);
   });
 });

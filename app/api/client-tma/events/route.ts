@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getUserSignups, listEvents } from "@/lib/events/store";
-import { isUpcomingEvent } from "@/lib/events/types";
+import { holdsTicket, isUpcomingEvent } from "@/lib/events/types";
 import { findDuoInvitationEventIds } from "@/lib/events/duo";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +41,7 @@ export async function GET(request: Request) {
             : invitedTo.has(event.id)
               ? ("duo" as const)
               : null,
-        signedUp: status === "signed_up" || status === "seated",
+        signedUp: holdsTicket(status),
         signupsCount: signupCounts.get(event.id)?.total ?? 0,
         waitlisted: status === "waitlist",
       };

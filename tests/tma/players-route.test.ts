@@ -49,11 +49,18 @@ function createSupabaseMock(
       eq: vi.fn(async () => ({ data: null, error: null })),
     })),
   }));
-  const bountyLogUpdate = vi.fn((payload: unknown) => ({
-    eq: vi.fn(() => ({
-      eq: vi.fn(async () => ({ data: payload, error: null })),
-    })),
-  }));
+  // Restoring a player claims the log row first (update ... .select), and cancelling a
+  // knockout marks it the same way, so the chain has to answer to both.
+  const bountyLogUpdate = vi.fn((payload: unknown) => {
+    const chain = {
+      eq: vi.fn(() => chain),
+      select: vi.fn(async () => ({ data: [{ id: "elim-1" }], error: null })),
+      then: (resolve: (value: { data: unknown; error: null }) => unknown) =>
+        resolve({ data: payload, error: null }),
+    };
+
+    return chain;
+  });
   const bountyLogRows: unknown[] = [];
   const bountyLogInsert = vi.fn((payload: unknown) => ({
     select: vi.fn(() => ({
@@ -782,5 +789,63 @@ describe("TMA players route", () => {
     expect(response.status).toBe(200);
     expect(supabase.rpc).not.toHaveBeenCalledWith("record_player_elimination", expect.anything());
     expect(supabase.bountyLogInsert).not.toHaveBeenCalled();
+  });
+});
+
+// Two admins can open the same eliminated player from two phones. Undoing the knockout
+// twice shifts every finish place behind them twice and pays the killers over again.
+describe("restoring a player twice at once", () => {
+  it("refuses the second admin instead of undoing the knockout again", async () => {
+    const supabase = createSupabaseMock();
+    supabase.bountyLogRows.push({
+      id: "elim-1",
+      eliminated_id: "player-1",
+      finish_place: 5,
+      killers: [],
+      uses_reentry: false,
+    });
+    // The row was claimed a moment earlier, so this request has nothing to claim.
+    supabase.bountyLogUpdate.mockImplementationOnce((payload: unknown) => {
+      const chain = {
+        eq: vi.fn(() => chain),
+        select: vi.fn(async () => ({ data: [] as { id: string }[], error: null })),
+        then: (resolve: (value: { data: unknown; error: null }) => unknown) =>
+          resolve({ data: payload, error: null }),
+      };
+
+      return chain;
+    });
+
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          {
+            id: "player-1",
+            addons: 0,
+            bountyCount: 0,
+            finishPlace: 5,
+            name: "Player Out",
+            rebuys: 0,
+            seat: 2,
+            stack: 0,
+            status: "eliminated" as const,
+            table: 1,
+          },
+        ],
+      }),
+    );
+
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    const response = await PATCH(
+      new Request("http://localhost/api/tma/players/player-1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "restore_player", reentry: "none" }),
+      }),
+      { params: Promise.resolve({ id: "player-1" }) },
+    );
+
+    expect(response.status).toBe(409);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_player_elimination", expect.anything());
   });
 });

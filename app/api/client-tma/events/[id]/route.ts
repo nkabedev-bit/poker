@@ -3,7 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
-import { isReservableTicket } from "@/lib/events/types";
+import { holdsTicket, isReservableTicket } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
@@ -41,11 +41,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       inviteLinks: await buildDuoInviteLinks(mySignup?.duoInviteToken ?? null),
       partnerIsMember: mySignup?.duoPartnerUserId != null,
       partnerName: mySignup?.duoPartnerName ?? null,
-      // Neither a place in line nor a ticket the club is holding is a sign-up: both
-      // are waiting on the player to do something, and the screen says which.
-      signedUp: mySignup
-        ? mySignup.status !== "waitlist" && mySignup.status !== "reserved"
-        : false,
+      // Asked by name, so a status added later cannot fall through as a ticket.
+      signedUp: holdsTicket(mySignup?.status),
+      // Their place went to somebody in the queue. Said out loud on the screen: the
+      // player is neither signed up nor free to sign up again while the room is full.
+      seatGivenAway: mySignup?.status === "no_show",
       // A ticket the admin put aside, waiting to be confirmed. Only the three the club
       // sells can be held: the "+1" half is given away by invitation, never reserved.
       reservedTicket:

@@ -80,6 +80,8 @@ function createSupabaseMock(options: {
   recentBountyLog?: unknown;
 } = {}) {
   const passUpdates: unknown[] = [];
+  // Passes are counted inside the write now, so the change arrives as one RPC call.
+  const passAdjustments: unknown[] = [];
   const timerUpdate = vi.fn((payload: unknown) => ({
     eq: vi.fn(async () => ({ data: payload, error: null })),
   }));
@@ -193,6 +195,7 @@ function createSupabaseMock(options: {
     }),
     bountyLogUpdate,
     insertPayloads,
+    passAdjustments,
     passUpdates,
     timerUpdate,
     rpc: vi.fn(async (fnName: string, args: RecordPlayerEliminationArgs) => {
@@ -214,6 +217,18 @@ function createSupabaseMock(options: {
             finishPlace: res.finishPlace,
             tournamentFinished: res.tournamentFinished,
           },
+          error: null,
+        };
+      }
+      if (fnName === "adjust_free_entries") {
+        const adjust = args as unknown as { p_delta: number; p_vip: boolean };
+        passAdjustments.push(adjust);
+        const account = (options.clientBotAccount ?? {}) as Record<string, number>;
+        const held = Number(
+          (adjust.p_vip ? account.vip_free_entries : account.free_entries) ?? 0,
+        );
+        return {
+          data: { after: Math.max(0, held + adjust.p_delta), before: held },
           error: null,
         };
       }
@@ -742,7 +757,9 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(supabase.passUpdates).toEqual([{ vip_free_entries: 3 }]);
+    expect(supabase.passAdjustments).toEqual([
+      expect.objectContaining({ p_delta: 1, p_vip: true }),
+    ]);
     expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
       count: 1,
       nickname: "Killer",

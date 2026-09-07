@@ -59,9 +59,12 @@ function createSupabaseMock(log: Record<string, unknown>, account: Record<string
     })),
   }));
   const passUpdates: unknown[] = [];
+  // Passes are counted inside the write now, so the change arrives as one RPC call.
+  const passAdjustments: unknown[] = [];
 
   return {
     bountyLogDelete,
+    passAdjustments,
     passUpdates,
     from: vi.fn((table: string) => {
       if (table === "tournaments") {
@@ -106,6 +109,11 @@ function createSupabaseMock(log: Record<string, unknown>, account: Record<string
     rpc: vi.fn(async (fnName: string, args: any) => {
       if (fnName === "cancel_player_elimination") {
         return { data: log.players_before, error: null };
+      }
+      if (fnName === "adjust_free_entries") {
+        passAdjustments.push(args);
+        const held = Number((account as Record<string, number> | null)?.vip_free_entries ?? 0);
+        return { data: { after: Math.max(0, held + args.p_delta), before: held }, error: null };
       }
       return { data: null, error: null };
     }),
@@ -183,7 +191,9 @@ describe("TMA elimination cancellation route", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(supabase.passUpdates).toEqual([{ vip_free_entries: 1 }]);
+    expect(supabase.passAdjustments).toEqual([
+      expect.objectContaining({ p_delta: -1, p_vip: true }),
+    ]);
     expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
       count: -1,
       nickname: "Killer",

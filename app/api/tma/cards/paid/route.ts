@@ -5,8 +5,17 @@ import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-ext
 import { buildCardSession, normalizeCardCode } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
+import type { TournamentPlayer } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
+
+/** The patch function is applied by hand; until it exists the old path stands in. */
+function isMissingSettlingRpc(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  const { code, message } = error as { code?: unknown; message?: unknown };
+  return code === "PGRST202" || String(message ?? "").includes("set_settling_player_paid");
+}
 
 /**
  * Marks a player as paid, or takes the mark back. Payment happens at the break that
@@ -49,20 +58,40 @@ export async function POST(request: Request) {
   const freeroll = extras.settings.tournamentFormat === "freeroll";
 
   // Once the evening is over the room is empty and the desk is working from the copy;
-  // the tick belongs there, and the database function only knows the live roster.
+  // the tick belongs there, and the live-roster function does not know about it.
   if (extras.players.length === 0 && extras.settling) {
-    const settled = { ...player, paid };
-
-    await saveTournamentExtras(
-      {
-        settling: {
-          ...extras.settling,
-          players: roster.map((item) => (item.id === player.id ? settled : item)),
-        },
-      },
-      "/tma/cards",
-      auth.supabase,
+    // Patched under the same row lock the live roster gets: the desk settles with
+    // several players at once, and writing the whole copy back meant the second tick
+    // undid the first — the player it had just marked paid owed the money again.
+    const { data: patched, error: patchError } = await auth.supabase.rpc(
+      "set_settling_player_paid",
+      { p_paid: paid, p_player_id: player.id, p_tournament_id: t.id },
     );
+
+    let settled = patched as TournamentPlayer | null;
+
+    if (patchError) {
+      // The function is applied by hand, so a deploy can land before it exists. Until
+      // then the whole copy is written back, the way it was before.
+      if (!isMissingSettlingRpc(patchError)) throw patchError;
+
+      const fallback = { ...player, paid };
+      settled = fallback;
+      await saveTournamentExtras(
+        {
+          settling: {
+            ...extras.settling,
+            players: roster.map((item) => (item.id === player.id ? fallback : item)),
+          },
+        },
+        "/tma/cards",
+        auth.supabase,
+      );
+    }
+
+    if (!settled) {
+      return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+    }
 
     after(async () => {
       try {

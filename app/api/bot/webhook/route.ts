@@ -1,4 +1,5 @@
 import { Bot, webhookCallback, type Context } from "grammy";
+import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
@@ -550,28 +551,27 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
     return ctx.reply(`Игрок «${parsed.nickname}» не найден среди анкет.`);
   }
 
-  const column = parsed.vip ? "vip_free_entries" : "free_entries";
-  const { data: current } = await supabase
-    .from("client_bot_users")
-    .select(column)
-    .eq("id", match.user.id)
-    .maybeSingle();
-
-  const held = Number((current as Record<string, number> | null)?.[column] ?? 0);
-  // Taking away more than a player holds leaves them at zero rather than in debt.
-  const next = Math.max(0, held + direction * parsed.count);
-
-  const { error } = await supabase
-    .from("client_bot_users")
-    .update({ [column]: next })
-    .eq("id", match.user.id);
-
-  if (error) {
+  // Counted inside the write: two admins handing out passes at once used to leave the
+  // player with whatever the slower one had read a moment earlier. Taking away more
+  // than a player holds still leaves them at zero rather than in debt.
+  let change;
+  try {
+    change = await adjustFreeEntries(supabase, {
+      delta: direction * parsed.count,
+      holder: { accountId: match.user.id },
+      vip: parsed.vip,
+    });
+  } catch (error) {
     console.error("Failed to change free entries", error);
     return ctx.reply("Не удалось изменить проходки. Попробуйте ещё раз.");
   }
 
-  const changed = Math.abs(next - held);
+  if (!change) {
+    return ctx.reply("Не удалось изменить проходки. Попробуйте ещё раз.");
+  }
+
+  const next = change.after;
+  const changed = Math.abs(change.after - change.before);
   const action = direction === 1 ? "Выдано" : "Снято";
   const kindLeft = parsed.vip ? "VIP-проходок" : "проходок";
 

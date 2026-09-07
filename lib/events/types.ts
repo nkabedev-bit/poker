@@ -43,6 +43,18 @@ export type EventSignupStatus =
  */
 export const SEAT_TAKING_STATUSES = ["signed_up", "seated", "reserved"] as const;
 
+/**
+ * Whether this sign-up is a ticket the player holds right now.
+ *
+ * Asked by name rather than by listing what it is not. The tournament screen used to
+ * say "neither a place in line nor a held ticket", and every status added later fell
+ * through that gap as a ticket — a no-show, whose seat had already gone to the queue,
+ * was told they were signed up and offered a button to cancel with.
+ */
+export function holdsTicket(status: EventSignupStatus | null | undefined) {
+  return status === "signed_up" || status === "seated";
+}
+
 export type EventSignup = {
   createdAt: string;
   /** When the invited member said yes; a guest's pair is settled the moment it is made. */

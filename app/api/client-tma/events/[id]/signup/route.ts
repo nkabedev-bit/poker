@@ -18,6 +18,7 @@ import {
   readPartnerName,
   resolveDuoPartner,
 } from "@/lib/events/duo";
+import { claimEventSignup } from "@/lib/events/claim-signup";
 import { isEventTicketType, isUpcomingEvent, passMatchesTicket } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
@@ -216,25 +217,39 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   // A cancelled request is reused rather than duplicated: the unique (event, player)
   // pair means a second insert would fail instead of putting the player back in.
-  const { error } = await auth.supabase.from("event_signups").upsert(
-    {
-      // Switching away from a "1+1" lets go of the partner it was bought for, and a new
-      // partner has yet to answer.
-      duo_confirmed_at: keptConfirmation,
-      duo_invite_token: inviteToken,
-      duo_partner_name: partner.partner?.name ?? null,
-      duo_partner_user_id: partner.partner?.userId ?? null,
-      event_id: event.id,
-      status: "signed_up",
-      telegram_id: auth.user.telegram_id,
-      ticket_type: ticketType,
-      use_pass: usePass,
-      user_id: auth.user.id,
-    },
-    { onConflict: "event_id,user_id" },
-  );
+  //
+  // The seat is counted again inside the write. The check above reads the room and the
+  // write happens a moment later, and in that moment somebody else can take the last
+  // place: two players tapping "записаться" together both read "one left" and both got
+  // it. The room is counted under the poster's own row lock here, so only one of them
+  // can be the one who took it.
+  const claim = await claimEventSignup(auth.supabase, {
+    duoConfirmedAt: keptConfirmation,
+    duoInviteToken: inviteToken,
+    duoPartnerName: partner.partner?.name ?? null,
+    duoPartnerUserId: partner.partner?.userId ?? null,
+    eventId: event.id,
+    status: "signed_up",
+    telegramId: auth.user.telegram_id,
+    ticketType,
+    usePass,
+    userId: auth.user.id,
+  });
 
-  if (error) throw error;
+  if (claim === "full") {
+    return NextResponse.json(
+      {
+        error: "full",
+        message:
+          ticketType === "vip"
+            ? "VIP-места разобрали. Выберите обычный билет или напишите в поддержку."
+            : ticketType === "duo"
+              ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
+              : "Все места разобрали. Напишите в поддержку.",
+      },
+      { status: 409 },
+    );
+  }
 
   // A partner who has already said yes is not asked again — there is nothing left for
   // them to answer, and the message would send them to a screen without the question.

@@ -18,6 +18,7 @@ import { getPersistedPlayerLabel, isDealerLabel } from "@/lib/player-labels";
 import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINTS } from "@/lib/pts-rating";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { loadTimerContext } from "@/lib/tma/timer-context";
+import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -65,25 +66,22 @@ async function grantMysteryBountyPass(
     : seat?.telegramId
       ? { column: "telegram_id", value: seat.telegramId as string | number }
       : null;
-  const column = vip ? "vip_free_entries" : "free_entries";
   let granted = false;
 
   if (by) {
-    const { data: account } = await supabase
-      .from("client_bot_users")
-      .select(column)
-      .eq(by.column, by.value)
-      .maybeSingle();
+    try {
+      const change = await adjustFreeEntries(supabase, {
+        delta: 1,
+        holder:
+          by.column === "id"
+            ? { accountId: String(by.value) }
+            : { telegramId: Number(by.value) },
+        vip,
+      });
 
-    if (account) {
-      const held = Math.max(0, Number((account as Record<string, number>)[column] ?? 0));
-      const { error } = await supabase
-        .from("client_bot_users")
-        .update({ [column]: held + 1 })
-        .eq(by.column, by.value);
-
-      if (error) console.error("Failed to grant the mystery bounty pass", error);
-      else granted = true;
+      granted = change !== null;
+    } catch (error) {
+      console.error("Failed to grant the mystery bounty pass", error);
     }
   }
 

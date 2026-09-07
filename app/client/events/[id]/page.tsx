@@ -47,6 +47,8 @@ type EventDetails = TournamentEvent & {
   partnerName: string | null;
   /** A ticket the admin put aside, waiting on this player to say they are coming. */
   reservedTicket?: "regular" | "vip" | "duo" | null;
+  /** Their place went to the queue after they did not come. */
+  seatGivenAway?: boolean;
   signedUp: boolean;
   signupsCount: number;
   /** Standing in line for a ticket that is sold out. */
@@ -817,6 +819,34 @@ export default function ClientEventPage() {
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
             Выйти из листа ожидания
           </GhostButton>
+        </div>
+      ) : event.seatGivenAway ? (
+        // They did not come and the desk gave their place to somebody waiting. Saying
+        // so beats the screen insisting they are signed up for a seat that is taken.
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3.5 text-center text-[15px] font-bold text-white/70">
+            Место передали другому игроку
+            <span className="mt-1 block text-[13px] font-semibold text-white/45">
+              Вас не было к началу, и место ушло тому, кто ждал в очереди.
+            </span>
+          </div>
+          {soldOut ? (
+            <PrimaryButton
+              disabled={partnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true, true)}
+            >
+              Встать в лист ожидания
+            </PrimaryButton>
+          ) : (
+            <PrimaryButton
+              disabled={partnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true)}
+            >
+              {partnerMissing ? "Укажите напарника" : `Записаться снова · ${TICKET_TITLES[ticketType]}`}
+            </PrimaryButton>
+          )}
         </div>
       ) : soldOut ? (
         // Sold out is where the club used to lose the player: nothing on the screen

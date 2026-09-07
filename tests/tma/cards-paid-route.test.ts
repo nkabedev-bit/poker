@@ -5,6 +5,7 @@ import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 const mocks = vi.hoisted(() => ({
   loadTournamentExtras: vi.fn(),
   requireTmaAuth: vi.fn(),
+  saveTournamentExtras: vi.fn(),
   syncFinanceSheetForTournament: vi.fn(),
 }));
 
@@ -12,7 +13,10 @@ vi.mock("@/lib/tma/require-auth", () => ({ requireTmaAuth: mocks.requireTmaAuth 
 vi.mock("@/lib/google-sheets", () => ({
   syncFinanceSheetForTournament: mocks.syncFinanceSheetForTournament,
 }));
-vi.mock("@/lib/tournament-extras", () => ({ loadTournamentExtras: mocks.loadTournamentExtras }));
+vi.mock("@/lib/tournament-extras", () => ({
+  loadTournamentExtras: mocks.loadTournamentExtras,
+  saveTournamentExtras: mocks.saveTournamentExtras,
+}));
 vi.mock("next/server", () => ({
   NextResponse: {
     json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
@@ -99,5 +103,47 @@ describe("POST /api/tma/cards/paid", () => {
 
     expect(response.status).toBe(500);
     expect(mocks.syncFinanceSheetForTournament).not.toHaveBeenCalled();
+  });
+});
+
+// After the tournament the room is empty and the desk settles from a copy of the roster.
+// Writing that copy back whole meant two ticks in a row undid each other: the player the
+// first one marked paid was a debtor again a second later.
+describe("settling up after the tournament", () => {
+  const settled = player({ id: "player-9", name: "Late", paid: false });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [],
+        settling: { closesAt: "2026-09-08T23:00:00.000Z", players: [settled] },
+      }),
+    );
+  });
+
+  it("patches one player in the copy instead of writing the copy back", async () => {
+    const supabase = supabaseMock({ data: { ...settled, paid: true }, error: null });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+
+    const response = await POST(request({ playerId: "player-9", paid: true }));
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith("set_settling_player_paid", {
+      p_paid: true,
+      p_player_id: "player-9",
+      p_tournament_id: "tournament-1",
+    });
+  });
+
+  // The function is applied by hand, so a deploy can land before it exists.
+  it("falls back to writing the copy while the function is missing", async () => {
+    const supabase = supabaseMock({ data: null, error: { code: "PGRST202" } });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+
+    const response = await POST(request({ playerId: "player-9", paid: true }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.saveTournamentExtras).toHaveBeenCalled();
   });
 });

@@ -1,4 +1,5 @@
 import { after, NextResponse } from "next/server";
+import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { syncVipSheet } from "@/lib/google-sheets";
 import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
@@ -235,13 +236,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const spendPass = async () => {
     if (!passUsed) return;
 
-    const column = passUsed === "vip" ? "vip_free_entries" : "free_entries";
-    const { error: passError } = await auth.supabase
-      .from("client_bot_users")
-      .update({ [column]: Math.max(0, heldPasses - 1) })
-      .eq("id", accountId);
-
-    if (passError) console.error("Failed to spend a free entry", passError);
+    try {
+      await adjustFreeEntries(auth.supabase, {
+        delta: -1,
+        holder: { accountId },
+        vip: passUsed === "vip",
+      });
+    } catch (passError) {
+      console.error("Failed to spend a free entry", passError);
+    }
   };
 
   let session = null;
