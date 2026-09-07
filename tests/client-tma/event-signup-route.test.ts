@@ -383,6 +383,38 @@ describe("the 1+1 ticket", () => {
     );
   });
 
+  // A member typed by hand instead of picked from the list used to become a guest: no
+  // invitation reached them, nothing appeared in their app, and the club recorded the
+  // evening against a name rather than their account.
+  it("refuses a club member written in as a guest", async () => {
+    const { supabase, upsert } = upsertSpy({
+      members: [{ display_name: "Sokur", id: "account-sokur", telegram_id: 909 }],
+    });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerName: "Sokur", ticketType: "duo" });
+    const payload = await response.json();
+
+    expect(response.status).toBe(400);
+    expect(payload.error).toBe("partner_required");
+    expect(payload.message).toContain("есть в клубе");
+    expect(payload.message).toContain("Sokur");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("still takes a guest the club has never heard of", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ partnerName: "Дядя Вова", ticketType: "duo" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ duo_partner_name: "Дядя Вова", duo_partner_user_id: null }),
+      { onConflict: "event_id,user_id" },
+    );
+  });
+
   // The whole point of the ticket is that the club expects two people by name.
   it("refuses a pair without a second player", async () => {
     const { supabase, upsert } = upsertSpy();

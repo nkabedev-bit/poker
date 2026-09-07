@@ -26,6 +26,9 @@ export const dynamic = "force-dynamic";
 
 const PARTNER_ERRORS = {
   ambiguous: "Этот ник носят несколько игроков. Впишите напарника как гостя.",
+  // Typed by hand while the club knows that nickname: picking them from the list is
+  // what sends the invitation and puts the evening on their account.
+  member_typed: "есть в клубе — выберите его из списка, чтобы ему пришло приглашение.",
   not_found: "Не нашли такого игрока. Впишите напарника как гостя.",
   self: "Нельзя привести самого себя — выберите напарника.",
 } as const;
@@ -98,7 +101,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       {
         error: "partner_required",
         message: partner.error
-          ? PARTNER_ERRORS[partner.error]
+          ? partner.error === "member_typed"
+            ? `«${partnerName}» ${PARTNER_ERRORS.member_typed}`
+            : PARTNER_ERRORS[partner.error]
           : "Укажите, с кем придёте по билету 1+1.",
       },
       { status: 400 },

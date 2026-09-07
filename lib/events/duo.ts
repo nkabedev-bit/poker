@@ -33,6 +33,24 @@ export function readPartnerName(value: unknown) {
  * and a nickname shared by two accounts is refused rather than guessed — inviting the
  * wrong person is worse than asking the buyer to type the guest in by hand.
  */
+/** The one club member a nickname belongs to, or null when it belongs to none or many. */
+async function findMemberByName(supabase: SupabaseClient, nicknameKey: string) {
+  if (!nicknameKey) return null;
+
+  const { data, error } = await supabase
+    .from("client_bot_users")
+    .select("id, display_name")
+    .eq("nickname_key", nicknameKey)
+    .limit(2);
+
+  if (error) throw error;
+
+  const matches = (data ?? []) as Array<{ display_name: string | null; id: string }>;
+  // A nickname two accounts share names nobody in particular, so a guest by that name
+  // stays a guest rather than being pinned on whichever row came back first.
+  return matches.length === 1 ? matches[0] : null;
+}
+
 export async function resolveDuoPartner(
   supabase: SupabaseClient,
   {
@@ -40,13 +58,25 @@ export async function resolveDuoPartner(
     partnerName,
     selfUserId,
   }: { partnerKey: unknown; partnerName: string; selfUserId: string },
-): Promise<{ error: "ambiguous" | "not_found" | "self" | null; partner: DuoPartner | null }> {
+): Promise<{
+  error: "ambiguous" | "member_typed" | "not_found" | "self" | null;
+  partner: DuoPartner | null;
+}> {
   const key = typeof partnerKey === "string" ? buildNicknameKey(partnerKey) : "";
 
   if (!key) {
-    return partnerName
-      ? { error: null, partner: { name: partnerName, telegramId: null, userId: null } }
-      : { error: "not_found", partner: null };
+    if (!partnerName) return { error: "not_found", partner: null };
+
+    // A member typed in by hand rather than picked from the list would be written down
+    // as a guest: no invitation reaches them, nothing appears in their app, and the
+    // evening is recorded against a name instead of their account. Refused by name so
+    // the buyer picks them properly — which is what they meant in the first place.
+    const guest = await findMemberByName(supabase, buildNicknameKey(partnerName));
+
+    if (guest?.id === selfUserId) return { error: "self", partner: null };
+    if (guest) return { error: "member_typed", partner: null };
+
+    return { error: null, partner: { name: partnerName, telegramId: null, userId: null } };
   }
 
   const { data, error } = await supabase

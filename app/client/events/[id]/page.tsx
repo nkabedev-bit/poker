@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
 import { PlayerAvatar } from "../../_components/player-avatar";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import {
   Badge,
   Chip,
@@ -359,6 +360,15 @@ export default function ClientEventPage() {
   // Only the nickname route needs a name typed in: the link is the invitation itself.
   const partnerMissing =
     ticketType === "duo" && partnerMode === "member" && !partnerName.trim();
+
+  // Typed a member's nickname without tapping them in the list: they would be written
+  // down as a guest, hear nothing, and see nothing in their own app. The server refuses
+  // it outright; this says so before the buyer gets that far.
+  const typedMember = partnerKey
+    ? null
+    : (partnerMatches.find(
+        (match) => match.key === buildNicknameKey(partnerName),
+      ) ?? null);
   const shownInviteLinks = inviteLinks ?? event.inviteLinks ?? null;
   const hasInviteLinks = Boolean(shownInviteLinks?.telegram || shownInviteLinks?.web);
   const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
@@ -678,12 +688,19 @@ export default function ClientEventPage() {
               </div>
             ) : null}
 
-            <p className="text-[11px] leading-relaxed text-white/45">
-              {partnerKey
-                ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
-                : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
-              Вход для обоих, цена делится пополам.
-            </p>
+            {typedMember ? (
+              <p className="text-[11px] font-semibold leading-relaxed text-[#e9c07a]">
+                {typedMember.name} есть в клубе — нажмите на него в списке выше, чтобы ему
+                пришло приглашение. Иначе он придёт гостем и ничего не увидит в приложении.
+              </p>
+            ) : (
+              <p className="text-[11px] leading-relaxed text-white/45">
+                {partnerKey
+                  ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
+                  : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
+                Вход для обоих, цена делится пополам.
+              </p>
+            )}
               </>
             )}
           </GlassCard>
