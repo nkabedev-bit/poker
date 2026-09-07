@@ -97,6 +97,8 @@ export async function GET(request: Request) {
       userId: signup.userId,
       username: signup.username,
     })),
+    // The plan is drawn with the chairs the club has at each table, not a fixed ten.
+    seatsPerTable: Math.max(1, Number(extras.settings.maxPlayersPerTable ?? 1)),
     tablesCount: Math.max(1, Number(extras.settings.tablesCount ?? 1)),
     // Standing in line, in the order it formed. A place in the queue is not a ticket:
     // the desk seats one of these only in somebody else's stead.

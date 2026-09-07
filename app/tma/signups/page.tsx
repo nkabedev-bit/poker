@@ -85,6 +85,8 @@ type SignupsResponse = {
   event: { id: string; seatingOpen: boolean; startsAt: string; title: string } | null;
   /** Tonight's game and every poster still ahead of it, nearest first. */
   events: EventOption[];
+  /** Chairs per table tonight, so the plan matches the room. */
+  seatsPerTable: number;
   signups: Signup[];
   tablesCount: number;
   waitlist: WaitlistEntry[];
@@ -223,7 +225,7 @@ export default function TMASignupsPage() {
   const seatAtRandom = (signup: Signup) => {
     const tg = getTelegramWebApp();
     const picked = pickRandomSeat(
-      buildSeatingTables(players, data?.tablesCount ?? 1),
+      buildSeatingTables(players, data?.tablesCount ?? 1, data?.seatsPerTable),
       seatingTicket(signup.ticketType),
     );
 
@@ -382,7 +384,7 @@ export default function TMASignupsPage() {
           onClick={() => {
             const tg = getTelegramWebApp();
             const picked = pickRandomSeat(
-              buildSeatingTables(players, data?.tablesCount ?? 1),
+              buildSeatingTables(players, data?.tablesCount ?? 1, data?.seatsPerTable),
               queueTicket,
             );
 
@@ -405,6 +407,7 @@ export default function TMASignupsPage() {
 
         <SeatingPicker
           players={players}
+          seatsPerTable={data?.seatsPerTable}
           selected={seatChoice}
           tablesCount={data?.tablesCount ?? 1}
           onSelect={(choice) => {
@@ -464,6 +467,7 @@ export default function TMASignupsPage() {
 
           <SeatingPicker
             players={players}
+            seatsPerTable={data?.seatsPerTable}
             selected={seatChoice}
             tablesCount={data?.tablesCount ?? 1}
             onSelect={(choice) => {

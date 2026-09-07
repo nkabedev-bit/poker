@@ -15,25 +15,30 @@ type SeatingPickerProps = {
   onSelect: (seat: { seat: number; table: number }) => void;
   onTakenSeat: (playerName: string) => void;
   players: SeatingPlayer[];
+  /** Chairs per table, as the tournament settings have them. */
+  seatsPerTable?: number | null;
   selected: { seat: number; table: number } | null;
   tablesCount: number;
 };
 
 /**
- * The room, drawn the way it stands: a table per oval, ten seats each, the VIP table
- * marked in the middle. The admin taps the chair the player is going to.
+ * The room, drawn the way it stands: a table per oval with the chairs the club has at
+ * it, the VIP table marked in the middle. The admin taps the chair the player is
+ * going to.
  */
 export function SeatingPicker({
   ignorePlayerId,
   onSelect,
   onTakenSeat,
   players,
+  seatsPerTable,
   selected,
   tablesCount,
 }: SeatingPickerProps) {
   const tables = buildSeatingTables(
     ignorePlayerId ? players.filter((player) => player.id !== ignorePlayerId) : players,
     tablesCount,
+    seatsPerTable,
   );
 
   return (

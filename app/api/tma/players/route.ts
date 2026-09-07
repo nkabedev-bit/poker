@@ -84,6 +84,9 @@ export async function GET(request: Request) {
     // Wanted Bounty: the admin-configured knockout points for a regular (non-wanted)
     // victim, surfaced so the confirm screen can show the exact award.
     ptsBountyPoints: Math.max(0, Number(extras.pts.bountyPoints) || 0),
+    // The club's tables seat nine or ten depending on the room, and the plan has to be
+    // drawn with the chairs that are actually there.
+    seatsPerTable: extras.settings.maxPlayersPerTable,
     tablesCount: extras.settings.tablesCount,
     reentryAvailable,
     doubleReentryAvailable,

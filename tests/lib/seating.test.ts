@@ -31,6 +31,27 @@ describe("isVipTable", () => {
 });
 
 describe("buildSeatingTables", () => {
+  // The club's tables seat nine, not ten: a plan drawn with a chair that is not in the
+  // room sends a player to sit nowhere.
+  it("draws the chairs the club actually has", () => {
+    const [table] = buildSeatingTables([], 1, 9);
+
+    expect(table.seats).toHaveLength(9);
+    expect(table.seats.at(-1)?.seat).toBe(9);
+  });
+
+  it("falls back to a full table when nothing says otherwise", () => {
+    expect(buildSeatingTables([], 1, 0)[0].seats).toHaveLength(SEATS_PER_TABLE);
+    expect(buildSeatingTables([], 1, null)[0].seats).toHaveLength(SEATS_PER_TABLE);
+    expect(buildSeatingTables([], 1)[0].seats).toHaveLength(SEATS_PER_TABLE);
+  });
+
+  it("keeps a player out of a chair the table no longer has", () => {
+    const [table] = buildSeatingTables([player({ seat: 10 })], 1, 9);
+
+    expect(table.seats.some((seat) => seat.player !== null)).toBe(false);
+  });
+
   it("lays out every table with ten seats", () => {
     const tables = buildSeatingTables([], 3);
 

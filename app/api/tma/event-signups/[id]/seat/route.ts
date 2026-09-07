@@ -11,7 +11,7 @@ import {
   isTournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import type { TournamentPlayer } from "@/lib/timer/types";
-import { SEATS_PER_TABLE } from "@/lib/tables/seating";
+import { readSeatsPerTable } from "@/lib/tables/seating";
 
 export const dynamic = "force-dynamic";
 
@@ -106,7 +106,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
   }
 
-  if (!Number.isInteger(seatNumber) || seatNumber < 1 || seatNumber > SEATS_PER_TABLE) {
+  // The chair has to exist in the room: the club's tables seat nine or ten, and the
+  // admin says which in the tournament settings.
+  const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
+  if (!Number.isInteger(seatNumber) || seatNumber < 1 || seatNumber > seatsPerTable) {
     return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
   }
 

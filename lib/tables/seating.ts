@@ -1,7 +1,18 @@
 import type { TournamentPlayer } from "@/lib/timer/types";
 
-/** Every table in the club seats ten. */
+/**
+ * How many chairs a table has when nobody says otherwise.
+ *
+ * The club's own tables seat nine or ten depending on the room, and the admin sets it
+ * per tournament — this is only the fallback for a caller that has no settings to hand.
+ */
 export const SEATS_PER_TABLE = 10;
+
+/** The seats a table has tonight, as the admin set them. */
+export function readSeatsPerTable(seatsPerTable?: number | null) {
+  const seats = Math.trunc(Number(seatsPerTable));
+  return Number.isFinite(seats) && seats > 0 ? seats : SEATS_PER_TABLE;
+}
 
 export type SeatOccupant = { id: string; name: string; registrationNumber: number | null };
 
@@ -20,6 +31,10 @@ export function isVipTable(tableNumber: number, tablesCount: number) {
 /**
  * The room as the admin sees it at the door: every table, every seat, and who is in it.
  *
+ * The tables are drawn with the chairs the club actually has — nine at some, ten at
+ * others — because a plan showing a chair that is not in the room seats somebody
+ * nowhere.
+ *
  * Only players still in the tournament hold a seat — someone knocked out has left the
  * chair for the next walk-in.
  */
@@ -32,8 +47,10 @@ export function buildSeatingTables(
     }
   >,
   tablesCount: number,
+  seatsPerTable?: number | null,
 ): SeatingTable[] {
   const tables = Math.max(1, Math.trunc(tablesCount) || 1);
+  const seats = readSeatsPerTable(seatsPerTable);
   const seated = new Map<string, SeatOccupant>();
 
   for (const player of players) {
@@ -53,7 +70,7 @@ export function buildSeatingTables(
     return {
       isVip: isVipTable(number, tables),
       number,
-      seats: Array.from({ length: SEATS_PER_TABLE }, (_, seatIndex) => {
+      seats: Array.from({ length: seats }, (_, seatIndex) => {
         const seat = seatIndex + 1;
         return { player: seated.get(`${number}:${seat}`) ?? null, seat };
       }),

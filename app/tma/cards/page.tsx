@@ -74,6 +74,8 @@ export default function TMACardsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [tablesCount, setTablesCount] = useState(1);
+  // The chairs each table has tonight, so the plan is not drawn with one too many.
+  const [seatsPerTable, setSeatsPerTable] = useState<number | null>(null);
   // Who the card is being handed to, waiting for a chair: someone who signed up in the
   // app, or a walk-in already in the roster.
   const [seating, setSeating] = useState<SeatingTarget | null>(null);
@@ -111,6 +113,7 @@ export default function TMACardsPage() {
         const data = await playersRes.json();
         setPlayers(data.players ?? []);
         setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
+        setSeatsPerTable(Number(data.seatsPerTable) || null);
       }
 
       if (signupsRes.ok) {
@@ -260,7 +263,10 @@ export default function TMACardsPage() {
       target.kind === "player"
         ? players.filter((item) => item.id !== target.player.id)
         : players;
-    const picked = pickRandomSeat(buildSeatingTables(seated, tablesCount), ticketType);
+    const picked = pickRandomSeat(
+      buildSeatingTables(seated, tablesCount, seatsPerTable),
+      ticketType,
+    );
 
     if (!picked) {
       tg?.HapticFeedback.notificationOccurred("error");
@@ -427,6 +433,7 @@ export default function TMACardsPage() {
         </button>
 
         <SeatingPicker
+          seatsPerTable={seatsPerTable}
           ignorePlayerId={seating.kind === "player" ? seating.player.id : undefined}
           players={players}
           selected={seatChoice}
