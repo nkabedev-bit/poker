@@ -45,6 +45,22 @@ type SeatChoice = { seat: number; table: number };
 
 const TICKET_LABELS = { regular: "обычный билет", vip: "VIP билет" } as const;
 
+/** What the desk can hand a walk-in. A pair is a regular ticket sold for two. */
+const NEW_PLAYER_TICKETS = ["regular", "duo", "vip"] as const;
+type NewPlayerTicket = (typeof NEW_PLAYER_TICKETS)[number];
+
+const NEW_PLAYER_TICKET_LABELS: Record<NewPlayerTicket, string> = {
+  duo: "1+1",
+  regular: "Обычный",
+  vip: "VIP",
+};
+
+const NEW_PLAYER_TICKET_HINTS: Record<NewPlayerTicket, string> = {
+  duo: "Половина цены билета — как и у того, кто его привёл. Номер и стол обычные.",
+  regular: "Номер из обычного диапазона.",
+  vip: "Номер из VIP-диапазона, игрок попадает в VIP-розыгрыш.",
+};
+
 /**
  * The ticket a player holds, as the screen can tell.
  *
@@ -60,9 +76,10 @@ export default function TMAPlayersPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  // The guest half of a "1+1" is typed in by hand, and only the desk knows they came in
-  // on one: without this they would be charged a whole ticket instead of half.
-  const [duoTicket, setDuoTicket] = useState(false);
+  // The ticket a walk-in came in on, which only the desk knows. It decides two things at
+  // once: the range their registration number is drawn from, and what they owe — half of
+  // a "1+1" pays half, and the pair plays at the ordinary tables like anybody else.
+  const [newTicket, setNewTicket] = useState<NewPlayerTicket>("regular");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [addonEnabled, setAddonEnabled] = useState(false);
   const [maxAddons, setMaxAddons] = useState(1);
@@ -79,7 +96,6 @@ export default function TMAPlayersPage() {
   const [seatTicketChoiceOpen, setSeatTicketChoiceOpen] = useState(false);
   // A walk-in the desk already knows the ticket for: the number follows it, so picking
   // it here is what lets a VIP guest be seated with a VIP number straight away.
-  const [newTicketType, setNewTicketType] = useState<"regular" | "vip" | null>(null);
   const [newSeat, setNewSeat] = useState<SeatChoice | null>(null);
   const [reentryAvailable, setReentryAvailable] = useState(false);
   const [doubleReentryAvailable, setDoubleReentryAvailable] = useState(false);
@@ -137,9 +153,11 @@ export default function TMAPlayersPage() {
               "X-Telegram-Init-Data": initData,
             },
             body: JSON.stringify({
-              duoTicket,
+              // A pair is a regular ticket that two people share: it changes the price,
+              // never the range the number comes from.
+              duoTicket: newTicket === "duo",
               name,
-              ...(newTicketType ? { ticketType: newTicketType } : {}),
+              ticketType: newTicket === "vip" ? "vip" : "regular",
               ...(newSeat ? { seat: newSeat.seat, table: newSeat.table } : {}),
             }),
           });
@@ -148,8 +166,7 @@ export default function TMAPlayersPage() {
             tg.HapticFeedback.notificationOccurred("success");
             setShowAddForm(false);
             setName("");
-            setDuoTicket(false);
-            setNewTicketType(null);
+            setNewTicket("regular");
             setNewSeat(null);
             await fetchPlayers();
 
@@ -180,7 +197,7 @@ export default function TMAPlayersPage() {
     } else {
       tg.MainButton.hide();
     }
-  }, [showAddForm, name, duoTicket, newSeat, newTicketType, initData, fetchPlayers]);
+  }, [showAddForm, name, newSeat, newTicket, initData, fetchPlayers]);
 
   const selectedPlayer = useMemo(
     () => players.find((player) => player.id === selectedPlayerId) ?? null,
@@ -435,72 +452,54 @@ export default function TMAPlayersPage() {
             placeholder="Иван Иванов"
           />
         </div>
-        <label className="flex items-center gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3">
-          <input
-            checked={duoTicket}
-            className="h-5 w-5"
-            onChange={(event) => setDuoTicket(event.target.checked)}
-            type="checkbox"
-          />
-          <span className="text-sm">
-            Пришёл по билету 1+1
-            <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-              Платит половину цены билета — как и тот, кто его привёл.
-            </span>
-          </span>
-        </label>
         <div className="space-y-2">
           <p className="text-xs text-[var(--tg-theme-hint-color)]">Билет</p>
           <div className="grid grid-cols-3 gap-2">
-            {([null, "regular", "vip"] as const).map((ticket) => (
+            {NEW_PLAYER_TICKETS.map((ticket) => (
               <button
-                key={String(ticket)}
+                key={ticket}
                 className={`rounded-lg p-3 text-sm font-semibold ${
-                  newTicketType === ticket
+                  newTicket === ticket
                     ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
                     : "bg-[var(--tg-theme-secondary-bg-color)]"
                 }`}
                 type="button"
                 onClick={() => {
-                  setNewTicketType(ticket);
+                  setNewTicket(ticket);
                   setNewSeat(null);
                 }}
               >
-                {ticket === null ? "У стойки" : ticket === "vip" ? "VIP" : "Обычный"}
+                {NEW_PLAYER_TICKET_LABELS[ticket]}
               </button>
             ))}
           </div>
+          <p className="text-xs text-[var(--tg-theme-hint-color)]">
+            {NEW_PLAYER_TICKET_HINTS[newTicket]}
+          </p>
         </div>
 
-        {newTicketType ? (
-          <div className="space-y-2">
-            <p className="text-xs text-[var(--tg-theme-hint-color)]">
-              {newSeat
-                ? `Сажаем за стол ${newSeat.table}, место ${newSeat.seat} — игрок сразу получит номер.`
-                : "Выберите место — игрок сразу получит номер. Можно пропустить: место и номер выдадут вместе с картой."}
-            </p>
-            <SeatingPicker
-              players={players}
-              seatsPerTable={seatsPerTable}
-              selected={newSeat}
-              tablesCount={tablesCount}
-              onSelect={(choice) => {
-                getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-                setNewSeat(choice);
-              }}
-              onTakenSeat={(takenBy) => getTelegramWebApp()?.showAlert(`Место занято: ${takenBy}`)}
-            />
-          </div>
-        ) : (
+        <div className="space-y-2">
           <p className="text-xs text-[var(--tg-theme-hint-color)]">
-            Стол и место игрок получит, когда ему выдадут карту.
+            {newSeat
+              ? `Сажаем за стол ${newSeat.table}, место ${newSeat.seat} — игрок сразу получит номер.`
+              : "Выберите место — игрок сразу получит номер. Можно пропустить: место и номер выдадут вместе с картой."}
           </p>
-        )}
+          <SeatingPicker
+            players={players}
+            seatsPerTable={seatsPerTable}
+            selected={newSeat}
+            tablesCount={tablesCount}
+            onSelect={(choice) => {
+              getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+              setNewSeat(choice);
+            }}
+            onTakenSeat={(takenBy) => getTelegramWebApp()?.showAlert(`Место занято: ${takenBy}`)}
+          />
+        </div>
 
         <button 
           onClick={() => {
-            setDuoTicket(false);
-            setNewTicketType(null);
+            setNewTicket("regular");
             setNewSeat(null);
             setShowAddForm(false);
           }}

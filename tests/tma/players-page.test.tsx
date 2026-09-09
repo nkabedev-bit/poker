@@ -200,6 +200,67 @@ describe("TMAPlayersPage", () => {
     });
   });
 
+  /**
+   * The desk types a walk-in in and says on the spot what they came in on: the ticket
+   * decides the range their number is drawn from, and a "1+1" is a regular ticket sold
+   * for two — half the price, an ordinary chair and an ordinary number.
+   */
+  it("hands a walk-in the ticket and the chair the desk picked", async () => {
+    const fetchMock = mockSeatingPage([]);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Добавить игрока" }));
+    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Гость" } });
+    fireEvent.click(screen.getByRole("button", { name: "1+1" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Стол 2, место 5, свободно" }));
+
+    // The form is submitted through Telegram's own main button, so the test presses the
+    // handler the page last registered on it.
+    const mainButton = window.Telegram?.WebApp?.MainButton.onClick as ReturnType<typeof vi.fn>;
+    await act(async () => {
+      await mainButton.mock.calls.at(-1)?.[0]();
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/players",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          duoTicket: true,
+          name: "Гость",
+          ticketType: "regular",
+          seat: 5,
+          table: 2,
+        }),
+      }),
+    );
+  });
+
+  it("draws a VIP walk-in a number out of the VIP range", async () => {
+    const fetchMock = mockSeatingPage([]);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Добавить игрока" }));
+    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Гость" } });
+    fireEvent.click(screen.getByRole("button", { name: "VIP" }));
+
+    const mainButton = window.Telegram?.WebApp?.MainButton.onClick as ReturnType<typeof vi.fn>;
+    await act(async () => {
+      await mainButton.mock.calls.at(-1)?.[0]();
+    });
+
+    // No chair picked: they go on the roster bare and are seated from their card, but the
+    // ticket the desk named travels with them.
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/players",
+      expect.objectContaining({
+        body: JSON.stringify({ duoTicket: false, name: "Гость", ticketType: "vip" }),
+      }),
+    );
+  });
+
   it("refreshes the players list every 5 seconds", async () => {
     vi.useFakeTimers();
     const fetchMock = vi
