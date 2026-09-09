@@ -7,11 +7,16 @@ import {
   appendTournamentPlayerWithRegistrationNumber,
   appendUnseatedTournamentPlayer,
   buildAdminRegistrationFullMessage,
+  buildRegularNumbersExhaustedMessage,
+  isRegularRegistrationNumbersExhaustedError,
   isTournamentRegistrationCapacityError,
   TournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
+import { isTicketType } from "@/lib/cards/card-code";
+import { markTonightSignupSeated } from "@/lib/events/store";
 import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
+import { readSeatsPerTable } from "@/lib/tables/seating";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
@@ -111,10 +116,43 @@ export async function POST(request: Request) {
   // Half of a "1+1", typed in at the door: the ticket was bought by the player who
   // brought them, and the two split its price.
   const duoTicket = body.duoTicket === true;
+  // The ticket the desk picked for a walk-in, when it already knows. The number follows
+  // it — a VIP guest typed in by hand belongs in the VIP draw wherever they end up
+  // sitting — and without one the table decides, as it always did.
+  const ticketType = isTicketType(body.ticketType) ? body.ticketType : null;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
+
+  // A chair the desk named when it typed the player in. Nothing above this point knows
+  // the room, so the table and the seat are checked against it here.
+  const tableNumber = Number.isInteger(Number(table)) && Number(table) > 0 ? Number(table) : null;
+  const seatNumber = Number.isInteger(Number(seat)) && Number(seat) > 0 ? Number(seat) : null;
+  const tablesCount = Math.max(1, Number(extras.settings.tablesCount ?? 1));
+  const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
+
+  if (tableNumber && tableNumber > tablesCount) {
+    return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
+  }
+  if (seatNumber && seatNumber > seatsPerTable) {
+    return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
+  }
+
+  // Two people cannot be given one chair: the plan on the admin's screen was drawn a
+  // moment ago, and somebody may have sat down since.
+  if (tableNumber && seatNumber) {
+    const seatTaken = extras.players.find(
+      (item) => item.status === "active" && item.table === tableNumber && item.seat === seatNumber,
+    );
+
+    if (seatTaken) {
+      return NextResponse.json(
+        { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${seatTaken.name}` },
+        { status: 409 },
+      );
+    }
+  }
 
   // A walk-in typed by hand still owns an account and a history. Tonight is credited to
   // that account, so without this lookup everything the player does would be counted for
@@ -125,10 +163,11 @@ export async function POST(request: Request) {
     id: crypto.randomUUID(),
     name,
     stack: Number(t.starting_stack) || 10000,
-    table: Number.isInteger(Number(table)) && Number(table) > 0 ? Number(table) : null,
-    // No chair until a card is handed over: the seating plan is where players are sat
-    // down, and a default seat would show four walk-ins sharing seat 1.
-    seat: Number.isInteger(Number(seat)) && Number(seat) > 0 ? Number(seat) : null,
+    table: tableNumber,
+    // No chair until a card is handed over, unless the desk named one: the seating plan
+    // is where players are sat down, and a default seat would show four walk-ins sharing
+    // seat 1.
+    seat: seatNumber,
     status: "active" as const,
     rebuys: 0,
     addons: 0,
@@ -138,6 +177,7 @@ export async function POST(request: Request) {
     finishPlace: null,
     registeredVia: "admin" as const,
     ...(duoTicket ? { duoTicket } : {}),
+    ...(ticketType ? { ticketType } : {}),
     ...(match.user ? { accountId: match.user.id, telegramId: match.user.telegramId } : {}),
   };
 
@@ -170,6 +210,15 @@ export async function POST(request: Request) {
       } catch (sheetError) {
         console.error("Failed to sync VIP sheet", sheetError);
       }
+
+      // They are at a table now, so their own sign-up is not waiting for anything —
+      // least of all a place in the queue they were standing in.
+      if (!match.user) return;
+      try {
+        await markTonightSignupSeated(auth.supabase, match.user.id);
+      } catch (signupError) {
+        console.error("Failed to close the sign-up of a walk-in", signupError);
+      }
     });
 
     return NextResponse.json({
@@ -193,8 +242,11 @@ export async function POST(request: Request) {
       );
     }
 
+    if (isRegularRegistrationNumbersExhaustedError(error)) {
+      return NextResponse.json({ error: buildRegularNumbersExhaustedMessage() }, { status: 409 });
+    }
+
     const message = error instanceof Error ? error.message : "Unknown error";
-    const status = message.includes("No registration numbers available") ? 409 : 500;
-    return NextResponse.json({ error: message }, { status });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

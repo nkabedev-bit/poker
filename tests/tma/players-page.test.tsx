@@ -72,19 +72,26 @@ describe("TMAPlayersPage", () => {
     await waitFor(() => expect(screen.getByText("Table 2 Player")).toBeTruthy());
   });
 
-  it("moves a selected player to another table", async () => {
-    let players = [
-      { id: "player-1", name: "Table 1 Player", table: 1, seat: 1, stack: 1000, status: "active" },
-    ];
+  /**
+   * The desk moves people between chairs, not just between tables: a player added by
+   * hand used to land at a table with no seat of their own and stayed invisible on
+   * everybody else's seating plan.
+   */
+  function mockSeatingPage(
+    seed: Array<Record<string, unknown>>,
+  ) {
+    let players = seed;
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/tma/players" && !init?.method) {
-        return Response.json({ tablesCount: 3, players });
+        return Response.json({ players, seatsPerTable: 9, tablesCount: 3 });
       }
 
       if (String(input) === "/api/tma/players/player-1" && init?.method === "PATCH") {
         const body = JSON.parse(String(init.body));
         players = players.map((player) =>
-          player.id === "player-1" ? { ...player, table: Number(body.table) } : player,
+          player.id === "player-1"
+            ? { ...player, seat: Number(body.seat), table: Number(body.table) }
+            : player,
         );
         return Response.json({ player: players[0] });
       }
@@ -92,23 +99,105 @@ describe("TMAPlayersPage", () => {
       return Response.json({ ok: true });
     });
     vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  const seatedPlayer = (over: Record<string, unknown> = {}) => ({
+    id: "player-1",
+    name: "Table 1 Player",
+    registrationNumber: 5,
+    seat: 1,
+    stack: 1000,
+    status: "active",
+    table: 1,
+    ticketType: "regular",
+    ...over,
+  });
+
+  it("moves a selected player to a named chair", async () => {
+    const fetchMock = mockSeatingPage([seatedPlayer()]);
 
     render(<TMAPlayersPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /table 1 player/i }));
-    fireEvent.change(await screen.findByLabelText("Пересадить за стол"), { target: { value: "3" } });
-    fireEvent.click(screen.getByRole("button", { name: /сохранить стол/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Стол 2, место 4, свободно" }));
+    fireEvent.click(screen.getByRole("button", { name: /пересадить: стол 2, место 4/i }));
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tma/players/player-1",
         expect.objectContaining({
           method: "PATCH",
-          body: JSON.stringify({ action: "move_table", table: 3 }),
+          body: JSON.stringify({ action: "move_seat", seat: 4, table: 2 }),
         }),
       );
     });
-    await waitFor(() => expect(screen.getByText("3")).toBeTruthy());
+  });
+
+  // A chair somebody is sitting in is not offered, and saying whose saves the admin
+  // hunting for a player they cannot see on the plan.
+  it("names the player already in a chair instead of offering it", async () => {
+    mockSeatingPage([
+      seatedPlayer(),
+      { id: "player-2", name: "Seat Holder", registrationNumber: 6, seat: 4, stack: 900, status: "active", table: 2 },
+    ]);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /table 1 player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Стол 2, место 4: Seat Holder" }));
+
+    await waitFor(() =>
+      expect(window.Telegram?.WebApp?.showAlert).toHaveBeenCalledWith("Место занято: Seat Holder"),
+    );
+  });
+
+  // The number follows the ticket, so moving between the VIP table and a regular one is
+  // the admin's call and not the screen's.
+  it("asks about the ticket before seating a regular player at the VIP table", async () => {
+    const fetchMock = mockSeatingPage([seatedPlayer()]);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /table 1 player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Стол 3, место 2, свободно" }));
+    fireEvent.click(screen.getByRole("button", { name: /пересадить: стол 3, место 2/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /сменить на VIP билет/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          body: JSON.stringify({ action: "move_seat", seat: 2, table: 3, ticketType: "vip" }),
+        }),
+      );
+    });
+  });
+
+  // The walk-in from the evening this was written for: on the roster, at a table, and
+  // out of the draw because nobody had ever said which ticket they came in on.
+  it("asks which ticket a numberless walk-in holds, so they get a number", async () => {
+    const fetchMock = mockSeatingPage([
+      seatedPlayer({ registrationNumber: null, seat: null, table: null, ticketType: undefined }),
+    ]);
+
+    render(<TMAPlayersPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /table 1 player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Стол 1, место 3, свободно" }));
+    fireEvent.click(screen.getByRole("button", { name: /пересадить: стол 1, место 3/i }));
+
+    fireEvent.click(await screen.findByRole("button", { name: /VIP билет/i }));
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          body: JSON.stringify({ action: "move_seat", seat: 3, table: 1, ticketType: "vip" }),
+        }),
+      );
+    });
   });
 
   it("refreshes the players list every 5 seconds", async () => {

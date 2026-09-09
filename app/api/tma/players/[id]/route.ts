@@ -1,6 +1,12 @@
 import { after, NextResponse } from "next/server";
-import { removePlayerFromVipSheet, syncTournamentToSheets } from "@/lib/google-sheets";
+import { removePlayerFromVipSheet, syncTournamentToSheets, syncVipSheet } from "@/lib/google-sheets";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { isVipTable, readSeatsPerTable } from "@/lib/tables/seating";
+import {
+  buildRegularNumbersExhaustedMessage,
+  isRegularRegistrationNumbersExhaustedError,
+  reissueRegistrationNumberForTicket,
+} from "@/lib/tournament-player-registration";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
 import { getProgressiveKnockoutsBefore, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
@@ -50,6 +56,15 @@ function getAddonChips(value: unknown) {
 function getTableNumber(value: unknown) {
   const tableNumber = Number(value);
   return Number.isInteger(tableNumber) && tableNumber > 0 ? tableNumber : null;
+}
+
+function getSeatNumber(value: unknown) {
+  const seatNumber = Number(value);
+  return Number.isInteger(seatNumber) && seatNumber > 0 ? seatNumber : null;
+}
+
+function getTicketType(value: unknown): "regular" | "vip" | null {
+  return value === "regular" || value === "vip" ? value : null;
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -290,6 +305,116 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     });
 
     return NextResponse.json({ player: updatedPlayer });
+  }
+
+  /**
+   * Moves a player to a named chair, not just to a table.
+   *
+   * The table on its own was never enough: the seat came with the card at the door, and
+   * a guest the desk had to add by hand — because the queue had nobody to replace, or
+   * because they walked in with a ticket and no sign-up — ended up at a table with no
+   * chair of their own, invisible on everybody else's seating plan.
+   *
+   * The chair is claimed through the same locked RPC the door uses, so two admins cannot
+   * send two players to one seat.
+   */
+  if (action === "move_seat") {
+    const tableNumber = getTableNumber(body.table);
+    const seatNumber = getSeatNumber(body.seat);
+    const tablesCount = Math.max(1, Number(extras.settings.tablesCount ?? 1));
+    const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
+
+    if (!tableNumber || tableNumber > tablesCount) {
+      return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
+    }
+    if (!seatNumber || seatNumber > seatsPerTable) {
+      return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
+    }
+
+    const player = extras.players.find((item) => item.id === id);
+    if (!player) return NextResponse.json({ error: "Player not found" }, { status: 404 });
+    // A player who is out holds no chair — theirs went to the next walk-in the moment
+    // they busted, and seating them again would take it back from whoever is in it.
+    if (player.status !== "active") {
+      return NextResponse.json({ error: "Игрок уже выбыл из турнира" }, { status: 409 });
+    }
+
+    const { data: seated, error: seatError } = await auth.supabase.rpc("seat_tournament_player", {
+      p_tournament_id: t.id,
+      p_player_id: id,
+      p_table: tableNumber,
+      p_seat: seatNumber,
+    });
+
+    if (seatError) {
+      const message = String(seatError.message ?? "");
+      // The RPC names whoever is in the chair, and so does the admin's screen: "занято"
+      // without a name leaves them looking for a player they cannot see.
+      const takenBy = message.match(/Seat already taken by (.+)$/)?.[1]?.trim();
+      if (takenBy) {
+        return NextResponse.json(
+          { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${takenBy}` },
+          { status: 409 },
+        );
+      }
+      if (message.includes("Player not found")) {
+        return NextResponse.json({ error: "Player not found" }, { status: 404 });
+      }
+      throw seatError;
+    }
+
+    // A chair always comes with a number. A walk-in typed in at the desk has none yet —
+    // that is the whole reason they could not be put in the draw — so seating them here
+    // issues one, on the ticket the admin picked or, failing that, the one the table
+    // implies. A player who already has a number keeps it unless the admin said in so
+    // many words that the ticket changed: the room has been calling them by it all
+    // evening.
+    const ticketType = getTicketType(body.ticketType);
+    const hasNumber = Number(player.registrationNumber) > 0;
+    if (!ticketType && hasNumber) return NextResponse.json({ player: seated });
+
+    let reissued: TournamentPlayer | null = null;
+    try {
+      reissued = await reissueRegistrationNumberForTicket({
+        extras: await loadTournamentExtras(t.id, auth.supabase),
+        playerId: id,
+        supabase: auth.supabase,
+        ticketType: ticketType ?? (isVipTable(tableNumber, tablesCount) ? "vip" : "regular"),
+        tournamentId: t.id,
+      });
+    } catch (error) {
+      if (!isRegularRegistrationNumbersExhaustedError(error)) throw error;
+
+      // The chair is already theirs; only the number could not be changed.
+      return NextResponse.json(
+        { error: buildRegularNumbersExhaustedMessage(), player: seated },
+        { status: 409 },
+      );
+    }
+
+    // A number is what the club's sheets call a player: the game sheet lists them by it,
+    // the money sheet charges them by the ticket it came from, and the VIP tab is the
+    // list the draw is run on. A new number has to reach all three.
+    const wasVip = isVipRegistrationNumber(player.registrationNumber);
+    const isVipNow = isVipRegistrationNumber(reissued?.registrationNumber);
+    if (reissued && reissued.registrationNumber !== player.registrationNumber) {
+      after(async () => {
+        try {
+          // The VIP tab is only ever added to, so a player who left it has to be struck
+          // out by name.
+          if (wasVip && !isVipNow) {
+            await removePlayerFromVipSheet(auth.supabase, t.id, player.name);
+          }
+          if (isVipNow) await syncVipSheet(auth.supabase, t.id);
+
+          await syncTournamentToSheets(auth.supabase, t.id);
+        } catch (sheetError) {
+          console.error("Non-critical seating sheets sync error:", sheetError);
+        }
+      });
+    }
+
+    return NextResponse.json({ player: reissued ?? seated });
   }
 
   if (action === "move_table") {

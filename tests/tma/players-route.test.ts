@@ -160,6 +160,37 @@ function createSupabaseMock(
           error: null,
         };
       }
+      if (fnName === "update_tournament_player") {
+        return {
+          data: {
+            id: args.p_player_id,
+            name: "Player 1",
+            status: "active",
+            stack: 1000,
+            rebuys: 0,
+            addons: 0,
+            bountyCount: 0,
+            ...args.p_patch,
+          },
+          error: null,
+        };
+      }
+      if (fnName === "seat_tournament_player") {
+        return {
+          data: {
+            id: args.p_player_id,
+            table: args.p_table,
+            seat: args.p_seat,
+            name: "Player 1",
+            status: "active",
+            stack: 1000,
+            rebuys: 0,
+            addons: 0,
+            bountyCount: 0,
+          },
+          error: null,
+        };
+      }
       if (fnName === "add_tournament_player_addon") {
         return {
           data: {
@@ -366,6 +397,111 @@ describe("TMA players route", () => {
     );
   });
 
+  function seatingExtras(player: Record<string, unknown>) {
+    return mergeTournamentExtras({
+      settings: { maxPlayersPerTable: 9, tablesCount: 3 },
+      players: [
+        {
+          addons: 0,
+          addonChipsTotal: 0,
+          bountyCount: 0,
+          finishPlace: null,
+          id: "player-1",
+          name: "Player 1",
+          rebuys: 0,
+          seat: 1,
+          stack: 1000,
+          status: "active",
+          table: 1,
+          ...player,
+        },
+      ],
+    });
+  }
+
+  async function moveSeat(body: Record<string, unknown>) {
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    return PATCH(
+      new Request("http://localhost/api/tma/players/player-1", {
+        method: "PATCH",
+        body: JSON.stringify({ action: "move_seat", ...body }),
+      }),
+      { params: Promise.resolve({ id: "player-1" }) },
+    );
+  }
+
+  it("seats a player in the chair the admin picked", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      seatingExtras({ registrationNumber: 5, ticketType: "regular" }),
+    );
+
+    const response = await moveSeat({ seat: 4, table: 2 });
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith("seat_tournament_player", {
+      p_tournament_id: "tournament-1",
+      p_player_id: "player-1",
+      p_table: 2,
+      p_seat: 4,
+    });
+    // The number is what the room has been calling them by; a move does not touch it.
+    expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+  });
+
+  // The evening this was written for: a walk-in typed in at the desk, at a table, and
+  // out of the draw because a chair never came with a number.
+  it("gives a numberless walk-in a number when it seats them", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.saveTournamentExtras.mockResolvedValue(undefined);
+    mocks.loadTournamentExtras.mockResolvedValue(
+      seatingExtras({ registrationNumber: null, seat: null, table: null }),
+    );
+
+    const response = await moveSeat({ seat: 3, table: 3, ticketType: "vip" });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.player.registrationNumber).toBe(21);
+    expect(data.player.ticketType).toBe("vip");
+  });
+
+  it("says who is in a chair it cannot give away", async () => {
+    const supabase = createSupabaseMock();
+    const base = supabase.rpc;
+    supabase.rpc = vi.fn(async (fnName: string, args: Record<string, unknown>) =>
+      fnName === "seat_tournament_player"
+        ? { data: null, error: { message: "Seat already taken by Иван" } }
+        : base(fnName, args),
+    ) as unknown as typeof supabase.rpc;
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      seatingExtras({ registrationNumber: 5, ticketType: "regular" }),
+    );
+
+    const response = await moveSeat({ seat: 4, table: 2 });
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.error).toBe("Место 4 за столом 2 занято: Иван");
+  });
+
+  // A knocked-out player's chair went to the next walk-in the moment they busted.
+  it("refuses to seat a player who is already out", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      seatingExtras({ registrationNumber: 5, status: "eliminated" }),
+    );
+
+    const response = await moveSeat({ seat: 4, table: 2 });
+
+    expect(response.status).toBe(409);
+    expect(supabase.rpc).not.toHaveBeenCalledWith("seat_tournament_player", expect.anything());
+  });
+
   it("assigns a registration number when an admin adds a player", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
@@ -397,7 +533,7 @@ describe("TMA players route", () => {
     const response = await POST(
       new Request("http://localhost/api/tma/players", {
         method: "POST",
-        body: JSON.stringify({ name: "Player 2", table: 1, seat: 1 }),
+        body: JSON.stringify({ name: "Player 2", table: 1, seat: 2 }),
       }),
     );
     const data = await response.json();
@@ -412,6 +548,46 @@ describe("TMA players route", () => {
         }),
       }),
     );
+  });
+
+  // The desk can name a chair when it types a walk-in in, and the plan it was looking at
+  // is a moment old: without this two players were written into one seat.
+  it("refuses a chair somebody is already sitting in", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        settings: { maxPlayersPerTable: 10, tablesCount: 3 },
+        players: [
+          {
+            addons: 0,
+            bountyCount: 0,
+            finishPlace: null,
+            id: "player-1",
+            name: "Player 1",
+            rebuys: 0,
+            registrationNumber: 1,
+            seat: 1,
+            stack: 1000,
+            status: "active",
+            table: 1,
+          },
+        ],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/players/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/players", {
+        method: "POST",
+        body: JSON.stringify({ name: "Player 2", seat: 1, table: 1 }),
+      }),
+    );
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.error).toBe("Место 1 за столом 1 занято: Player 1");
+    expect(supabase.rpc).not.toHaveBeenCalledWith("append_tournament_player", expect.anything());
   });
 
   it("falls back to saving extras when the registration number RPC is not deployed yet", async () => {
@@ -480,7 +656,7 @@ describe("TMA players route", () => {
     const response = await POST(
       new Request("http://localhost/api/tma/players", {
         method: "POST",
-        body: JSON.stringify({ name: "Late Player", table: 1, seat: 1 }),
+        body: JSON.stringify({ name: "Late Player", table: 1 }),
       }),
     );
     const data = await response.json();

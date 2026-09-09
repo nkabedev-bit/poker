@@ -7,7 +7,11 @@ import {
   normalizeCardCode,
 } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
-import { applySeatingTicket } from "@/lib/tournament-player-registration";
+import {
+  applySeatingTicket,
+  buildRegularNumbersExhaustedMessage,
+  isRegularRegistrationNumbersExhaustedError,
+} from "@/lib/tournament-player-registration";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
 
 export const dynamic = "force-dynamic";
@@ -109,13 +113,21 @@ export async function POST(request: Request) {
   // would write it down — the card RPC below is skipped. The number follows the ticket,
   // so a walk-in who had none gets theirs here too.
   const seatedExtras = await loadTournamentExtras(t.id, auth.supabase);
-  await applySeatingTicket({
-    extras: seatedExtras,
-    playerId,
-    redirectTo: "/tma/players",
-    supabase: auth.supabase,
-    ticketType,
-  });
+  try {
+    await applySeatingTicket({
+      extras: seatedExtras,
+      playerId,
+      redirectTo: "/tma/players",
+      supabase: auth.supabase,
+      ticketType,
+    });
+  } catch (error) {
+    // The chair above is already written and stays written — same as a clashing card.
+    // The desk is told which range ran dry so it can seat them on the other ticket.
+    if (!isRegularRegistrationNumbersExhaustedError(error)) throw error;
+
+    return NextResponse.json({ error: buildRegularNumbersExhaustedMessage() }, { status: 409 });
+  }
 
   if (!cardCode) {
     // Nothing to hand over but the seat, which is already saved. The player is read

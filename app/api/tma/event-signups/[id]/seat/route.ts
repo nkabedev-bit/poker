@@ -8,6 +8,8 @@ import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
   buildAdminRegistrationFullMessage,
+  buildRegularNumbersExhaustedMessage,
+  isRegularRegistrationNumbersExhaustedError,
   isTournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -211,6 +213,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (isTournamentRegistrationCapacityError(error)) {
       return NextResponse.json(
         { error: buildAdminRegistrationFullMessage(extras.players.length) },
+        { status: 409 },
+      );
+    }
+    // Running out of numbers is an everyday answer the desk can act on, not a server
+    // fault: without this the admin was told "не удалось посадить игрока" and nothing more.
+    if (isRegularRegistrationNumbersExhaustedError(error)) {
+      return NextResponse.json(
+        { error: buildRegularNumbersExhaustedMessage() },
         { status: 409 },
       );
     }
