@@ -1,4 +1,9 @@
-const AVATAR_SIZE = 160;
+/**
+ * The stored photo is 320 across because the hall's screen draws it a quarter of a metre
+ * wide during the draw. Telegram hands out this size natively, so nothing is upscaled on
+ * the way in; the lists still use the thumbnail below.
+ */
+const AVATAR_SIZE = 320;
 const REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const AVATAR_BUCKET = "player-avatars";
