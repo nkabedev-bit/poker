@@ -3,6 +3,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   buildCardSession,
+  type CardSession,
   isTicketType,
   normalizeCardCode,
 } from "@/lib/cards/card-code";
@@ -15,6 +16,18 @@ import {
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The order the desk works the list down. Whoever busted is already reaching for their
+ * coat and has to be caught before they walk out, so they come first; the ones who have
+ * settled sink to the bottom, still on screen to be corrected but out of the way.
+ */
+function compareSettlingCards(a: CardSession, b: CardSession) {
+  if (a.paid !== b.paid) return a.paid ? 1 : -1;
+  if (!a.paid && a.eliminated !== b.eliminated) return a.eliminated ? -1 : 1;
+
+  return (a.registrationNumber ?? 0) - (b.registrationNumber ?? 0);
+}
 
 /** Reads the card: who holds it tonight and what they took. */
 export async function GET(request: Request) {
@@ -38,13 +51,13 @@ export async function GET(request: Request) {
     return NextResponse.json({
       cardsEnabled,
       issued: getSettlingPlayers(extras)
-        // Everybody the desk still has business with. A player who busted an hour ago
-        // owes for their re-entries just the same, and without a card to scan there is
-        // no other way back to them — so they stay until they have settled.
+        // Everybody the desk had business with tonight. A player who busted an hour ago
+        // owes for their re-entries just the same, and one who has already settled stays
+        // on the list too: dropping them meant a tick pressed by mistake erased the
+        // player from the app for good, with no card left to scan to get back to them.
         .filter((item) => (cardsEnabled ? Boolean(item.cardCode) : Boolean(item.table)))
-        .filter((item) => item.status === "active" || item.paid !== true)
         .map((item) => buildCardSession(item, String(item.cardCode ?? ""), prices, { freeroll }))
-        .sort((a, b) => (a.registrationNumber ?? 0) - (b.registrationNumber ?? 0)),
+        .sort(compareSettlingCards),
     });
   }
 

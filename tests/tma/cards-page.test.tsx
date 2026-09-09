@@ -5,6 +5,9 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TMACardsPage from "@/app/tma/cards/page";
 import type { TelegramWebApp } from "@/app/tma/layout";
+import { buildCardSession, type CardSession } from "@/lib/cards/card-code";
+import { getFinancePrices } from "@/lib/finance/player-charge";
+import type { TournamentPlayer } from "@/lib/timer/types";
 
 function createTelegramWebApp(): TelegramWebApp {
   return {
@@ -167,5 +170,92 @@ describe("seating a walk-in from the roster", () => {
 
     acknowledge!();
     await waitFor(() => expect(screen.queryByText("Куда сажаем")).toBeNull());
+  });
+});
+
+// The desk works this list down all evening. Two complaints came from it: a tick pressed
+// by mistake used to erase the player from the app, and a player who had busted was easy
+// to miss on their way out because the row only whispered it in small print.
+describe("the settling list", () => {
+  const PRICES = getFinancePrices({ addonPrice: 500, buyIn: 1000, rebuyPrice: 1000 });
+
+  function card(overrides: Partial<TournamentPlayer>, cardCode: string) {
+    return buildCardSession(
+      {
+        addons: 0,
+        bountyCount: 0,
+        cardCode,
+        finishPlace: null,
+        id: cardCode,
+        name: cardCode,
+        rebuys: 0,
+        seat: 1,
+        stack: 20000,
+        status: "active",
+        table: 1,
+        ...overrides,
+      },
+      cardCode,
+      PRICES,
+    );
+  }
+
+  function stubSettling(issued: CardSession[]) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/tma/cards?")) return Response.json({ session: null });
+      if (url.startsWith("/api/tma/cards")) return Response.json({ cardsEnabled: true, issued });
+      if (url.startsWith("/api/tma/event-signups")) return Response.json({ signups: [] });
+
+      return Response.json({ players: [], tablesCount: 1 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    delete window.Telegram;
+  });
+
+  it("shouts who busted and who has already settled", async () => {
+    stubSettling([
+      card({ name: "Выбыл", status: "eliminated" }, "MJ-001"),
+      card({ name: "Играет" }, "MJ-002"),
+      card({ name: "Оплатил", paid: true }, "MJ-003"),
+    ]);
+
+    render(<TMACardsPage />);
+
+    expect(await screen.findByText("ВЫБЫЛ")).toBeTruthy();
+    expect(screen.getByText("ОПЛАЧЕНО")).toBeTruthy();
+  });
+
+  // The tick is what the admin presses by mistake, so the way back has to stay on screen.
+  it("keeps a player who busted and paid on the list", async () => {
+    stubSettling([card({ name: "Ушёл", paid: true, status: "eliminated" }, "MJ-004")]);
+
+    render(<TMACardsPage />);
+
+    expect(await screen.findByText("Ушёл")).toBeTruthy();
+    expect(screen.getByText("Оплатил")).toBeTruthy();
+  });
+
+  it("counts how many still owe rather than how long the list is", async () => {
+    stubSettling([
+      card({ name: "Играет" }, "MJ-005"),
+      card({ name: "Оплатил", paid: true }, "MJ-006"),
+    ]);
+
+    render(<TMACardsPage />);
+
+    expect(await screen.findByText("· не оплатили 1")).toBeTruthy();
   });
 });

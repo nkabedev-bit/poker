@@ -493,6 +493,9 @@ export default function TMACardsPage() {
   const settling = issued.filter((card) =>
     cardsEnabled ? true : card.name.toLowerCase().includes(search.toLowerCase()),
   );
+  // The list keeps everyone who has settled, so its length no longer says how much work
+  // is left — the number the desk actually works by is how many still owe.
+  const unpaidCount = settling.filter((card) => !card.paid).length;
 
   const searchBox = (
     <div className="relative">
@@ -678,11 +681,26 @@ export default function TMACardsPage() {
         <section className="space-y-2">
           <p className="text-sm font-semibold">
             {cardsEnabled ? "Выданные карты" : "За столами"} ({settling.length})
+            {unpaidCount > 0 ? (
+              <span className="font-normal text-[var(--tg-theme-hint-color)]">
+                {" "}
+                · не оплатили {unpaidCount}
+              </span>
+            ) : null}
           </p>
           {settling.map((card) => (
               <div
                 key={card.playerId}
-                className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3"
+                /* Three states the desk reads at a glance, in the order the list is
+                   sorted: red — busted and still owing, catch them; plain — playing on;
+                   green — settled, parked at the bottom. */
+                className={`space-y-2 rounded-lg p-3 ${
+                  card.paid
+                    ? "bg-green-500/10 ring-1 ring-green-500/30"
+                    : card.eliminated
+                      ? "bg-red-500/10 ring-1 ring-red-500/50"
+                      : "bg-[var(--tg-theme-secondary-bg-color)]"
+                }`}
               >
                 {/* The row opens the bill behind the number: the desk is asked "за что
                     столько?" across the table and should not have to remember. The paid
@@ -693,14 +711,28 @@ export default function TMACardsPage() {
                   onClick={() => setSession(card)}
                 >
                   <span className="min-w-0">
-                    <span className="block truncate font-semibold">{card.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="truncate font-semibold">{card.name}</span>
+                      {/* Knocked out and still owing: the desk has to catch them before
+                          they leave, so the row shouts it instead of whispering it in
+                          the line of small print underneath. */}
+                      {card.paid ? (
+                        <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[11px] font-bold text-green-500">
+                          ОПЛАЧЕНО
+                        </span>
+                      ) : card.eliminated ? (
+                        <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-500">
+                          ВЫБЫЛ
+                        </span>
+                      ) : null}
+                    </span>
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                       {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
                       {card.table ? ` · стол ${card.table}` : ""}
                       {card.seat ? ` · место ${card.seat}` : ""}
-                      {/* Knocked out and still owing: the desk has to catch them before
-                          they leave, so the row says so rather than looking settled. */}
-                      {card.eliminated ? " · выбыл" : ""}
+                      {/* Busted but already settled: the badge slot is taken by the
+                          green tick, so the fact still gets said here. */}
+                      {card.paid && card.eliminated ? " · выбыл" : ""}
                     </span>
                   </span>
                   <span
