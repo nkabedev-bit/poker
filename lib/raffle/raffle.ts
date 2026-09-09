@@ -47,26 +47,34 @@ export type Raffle = {
 export const RAFFLE_SPIN_SECONDS = 10;
 
 /**
- * Enough faces to read as a reel rather than a short list sliding past. A VIP draw can
- * be four people, and four cells would cross the screen in one blink.
+ * How far the reel runs before it settles, counted in faces.
+ *
+ * Far enough that the first seconds are a blur, and no further: every cell past this is
+ * one more the laptop driving the television has to draw, and the run is a ten-second
+ * ease-out — a longer reel does not read as a longer spin, only as a faster one.
  */
-const MIN_REEL_CELLS = 60;
+const REEL_TRAVEL_CELLS = 45;
+
+/** What is left to the right of the needle when it stops, so the screen is not half bare. */
+const REEL_TAIL_CELLS = 10;
 
 /**
- * How the reel is built: the same faces over and over, and which copy of the winner the
- * needle stops on.
+ * How the reel is built: which face it starts on, how many cells long it is, and which
+ * one the needle stops over.
  *
- * It lands two passes from the end, so there is still reel to the right of the needle
- * when everything stops — a winner at the very edge would leave half the screen empty.
+ * The run is the same length whoever wins and however big the club is. Rather than
+ * lengthening the reel until it reaches the winner's copy, it is started at whichever
+ * face puts the winner under the needle — the list order means nothing to the room, and
+ * a reel that grows with the guest list is one the laptop has to draw.
  */
 export function buildRaffleReel(faces: number, winnerIndex: number) {
   const total = Math.max(1, faces);
-  const passes = Math.max(5, Math.ceil(MIN_REEL_CELLS / total));
 
   return {
-    landingIndex: total * (passes - 2) + winnerIndex,
-    length: total * passes,
-    passes,
+    landingIndex: REEL_TRAVEL_CELLS,
+    length: REEL_TRAVEL_CELLS + REEL_TAIL_CELLS,
+    passes: Math.ceil((REEL_TRAVEL_CELLS + REEL_TAIL_CELLS) / total),
+    startOffset: (((winnerIndex - REEL_TRAVEL_CELLS) % total) + total) % total,
   };
 }
 

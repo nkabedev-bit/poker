@@ -3414,8 +3414,30 @@ p {
   border-top: 1px solid rgb(255 255 255 / 0.08);
   border-bottom: 1px solid rgb(255 255 255 / 0.08);
   background: rgb(10 6 8 / 0.6);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+/* The reel fades out at both ends. Done with two still overlays rather than a mask on
+   the wrapper: a mask makes the browser re-composite everything moving underneath it on
+   every frame, and what is moving underneath is the whole reel. */
+.raffle-strip-wrap::before,
+.raffle-strip-wrap::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  z-index: 1;
+  width: 12%;
+  pointer-events: none;
+}
+
+.raffle-strip-wrap::before {
+  left: 0;
+  background: linear-gradient(90deg, #0a0608, rgb(10 6 8 / 0));
+}
+
+.raffle-strip-wrap::after {
+  right: 0;
+  background: linear-gradient(270deg, #0a0608, rgb(10 6 8 / 0));
 }
 
 .raffle-strip {
@@ -3436,7 +3458,6 @@ p {
   border: 1px solid rgb(255 255 255 / 0.07);
   border-radius: clamp(14px, 1.6vw, 26px);
   background: linear-gradient(180deg, #241017, #150a0f);
-  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 }
 
 .raffle-cell__photo {
@@ -3459,6 +3480,7 @@ p {
 }
 
 .raffle-cell--winner {
+  transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
   border-color: rgb(233 192 122 / 0.9);
   box-shadow: 0 0 0 2px rgb(233 192 122 / 0.5), 0 0 42px rgb(233 192 122 / 0.45);
   transform: scale(1.04);

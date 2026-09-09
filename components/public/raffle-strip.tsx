@@ -42,8 +42,12 @@ export function RaffleStrip({ raffle }: { raffle: Raffle }) {
     [faces.length, winnerIndex],
   );
   const cells = useMemo(
-    () => Array.from({ length: reel.length }, (_, index) => faces[index % faces.length]),
-    [faces, reel.length],
+    () =>
+      Array.from(
+        { length: reel.length },
+        (_, index) => faces[(index + reel.startOffset) % faces.length],
+      ),
+    [faces, reel.length, reel.startOffset],
   );
 
   useEffect(() => {
