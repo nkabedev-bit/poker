@@ -50,6 +50,41 @@ export function getTelegramWebApp() {
   return window.Telegram?.WebApp;
 }
 
+/** Long enough to read the seat, short enough that a silent client is not a dead end. */
+const SEATED_ALERT_TIMEOUT_MS = 10_000;
+
+/**
+ * Tells the desk which chair the player got, and waits for the admin to take it in.
+ *
+ * The seating screen closes the moment a seat is taken, and the admin was left without
+ * the one thing they had just decided: they had to leave for the roster and look the
+ * player up to find out where they had been sent. The seat is said out loud here
+ * instead, and nothing moves on until the message has been read.
+ *
+ * Outside Telegram there is no alert to wait on, and the seating still has to finish —
+ * so the promise settles on its own rather than hanging the desk.
+ */
+export function confirmSeated(name: string, at: { seat: number; table: number }) {
+  const tg = getTelegramWebApp();
+  if (!tg?.showAlert) return Promise.resolve();
+
+  return new Promise<void>((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    // The player is already at the table by the time this is shown, so a client that
+    // never calls back would leave the desk holding a screen that will not close over a
+    // seating that actually went through. The wait gives up on its own rather than
+    // stranding the queue.
+    window.setTimeout(finish, SEATED_ALERT_TIMEOUT_MS);
+    tg.showAlert(`${name} посажен за стол ${at.table}, место ${at.seat}`, finish);
+  });
+}
+
 export default function TMALayout({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
   const pathname = usePathname();

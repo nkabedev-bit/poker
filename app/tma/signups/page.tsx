@@ -12,7 +12,7 @@ import {
   Dices,
   Hourglass,
 } from "lucide-react";
-import { getTelegramWebApp, useTMA } from "../layout";
+import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
 import { formatEventDayLabel, formatEventTimeLabel } from "@/lib/events/types";
 import { SeatingPicker } from "@/components/tma/seating-picker";
@@ -209,6 +209,7 @@ export default function TMASignupsPage() {
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
+        await confirmSeated(entry.name, choice);
         closeQueueSeating();
         await load();
         return;
@@ -261,6 +262,7 @@ export default function TMASignupsPage() {
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
+        await confirmSeated(signup.name, choice);
         closeSignup();
         await load();
         return;

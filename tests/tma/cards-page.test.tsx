@@ -11,7 +11,9 @@ function createTelegramWebApp(): TelegramWebApp {
     initData: "mock-init",
     ready: vi.fn(),
     expand: vi.fn(),
-    showAlert: vi.fn(),
+    // A real client calls back once the admin closes the alert; a mock that stays silent
+    // would test a screen nobody ever sees.
+    showAlert: vi.fn((_message: string, callback?: () => void) => callback?.()),
     showConfirm: vi.fn(),
     HapticFeedback: {
       impactOccurred: vi.fn(),
@@ -90,5 +92,80 @@ describe("typing a card code at the desk", () => {
         true,
       ),
     );
+  });
+});
+
+// A night played without cards: the desk finds the walk-in by nickname and sends them to
+// a chair, and used to be left with no idea which chair that was.
+describe("seating a walk-in from the roster", () => {
+  const WALK_IN = {
+    id: "player-1",
+    name: "Валет",
+    cardCode: null,
+    registrationNumber: 7,
+    seat: null,
+    status: "active" as const,
+    table: null,
+  };
+
+  function stubRoster() {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.startsWith("/api/tma/cards?")) return Response.json({ session: null });
+      if (url.startsWith("/api/tma/cards")) return Response.json({ cardsEnabled: false, issued: [] });
+      if (url.startsWith("/api/tma/event-signups")) return Response.json({ signups: [] });
+
+      return Response.json({ players: [WALK_IN], seatsPerTable: 10, tablesCount: 3 });
+    });
+
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    delete window.Telegram;
+  });
+
+  it("names the table and the seat once the player is sat down", async () => {
+    stubRoster();
+    render(<TMACardsPage />);
+
+    fireEvent.click(await screen.findByText("Валет"));
+    fireEvent.click(await screen.findByLabelText("Стол 2, место 4, свободно"));
+    fireEvent.click(screen.getByRole("button", { name: /посадить за стол 2, место 4/i }));
+
+    await waitFor(() => {
+      expect(window.Telegram?.WebApp?.showAlert).toHaveBeenCalledWith(
+        "Валет посажен за стол 2, место 4",
+        expect.any(Function),
+      );
+    });
+  });
+
+  it("keeps the seating screen up until the admin acknowledges it", async () => {
+    stubRoster();
+    let acknowledge: (() => void) | undefined;
+    window.Telegram!.WebApp!.showAlert = vi.fn((_message: string, callback?: () => void) => {
+      acknowledge = callback;
+    });
+
+    render(<TMACardsPage />);
+
+    fireEvent.click(await screen.findByText("Валет"));
+    fireEvent.click(await screen.findByLabelText("Стол 2, место 4, свободно"));
+    fireEvent.click(screen.getByRole("button", { name: /посадить за стол 2, место 4/i }));
+
+    await waitFor(() => expect(acknowledge).toBeTypeOf("function"));
+    expect(screen.getByText("Куда сажаем")).toBeTruthy();
+
+    acknowledge!();
+    await waitFor(() => expect(screen.queryByText("Куда сажаем")).toBeNull());
   });
 });

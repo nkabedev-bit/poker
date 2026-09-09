@@ -11,7 +11,9 @@ function createTelegramWebApp(): TelegramWebApp {
     initData: "mock-init",
     ready: vi.fn(),
     expand: vi.fn(),
-    showAlert: vi.fn(),
+    // A real client calls back once the admin closes the alert; a mock that stays silent
+    // would test a screen nobody ever sees.
+    showAlert: vi.fn((_message: string, callback?: () => void) => callback?.()),
     showConfirm: vi.fn(),
     HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
     MainButton: {
@@ -243,6 +245,70 @@ describe("TMASignupsPage", () => {
         expect.objectContaining({ body: expect.stringContaining('"seat":5') }),
       );
     });
+  });
+
+  // The screen used to close on its own, and the admin had to go and look the player up
+  // in the roster to find out where they had just sent them.
+  it("names the table and the seat before the screen closes", async () => {
+    mockFetch();
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
+    fireEvent.click(await screen.findByLabelText("Стол 3, место 5, свободно"));
+    fireEvent.click(screen.getByRole("button", { name: /посадить за стол 3, место 5/i }));
+
+    await waitFor(() => {
+      expect(window.Telegram?.WebApp?.showAlert).toHaveBeenCalledWith(
+        "Ace High посажен за стол 3, место 5",
+        expect.any(Function),
+      );
+    });
+  });
+
+  // The whole point of the message: the desk stays on the seat it just gave out until
+  // somebody has actually read it.
+  it("keeps the seating screen up until the admin acknowledges it", async () => {
+    mockFetch();
+    let acknowledge: (() => void) | undefined;
+    window.Telegram!.WebApp!.showAlert = vi.fn((_message: string, callback?: () => void) => {
+      acknowledge = callback;
+    });
+
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
+    fireEvent.click(await screen.findByLabelText("Стол 3, место 5, свободно"));
+    fireEvent.click(screen.getByRole("button", { name: /посадить за стол 3, место 5/i }));
+
+    await waitFor(() => expect(acknowledge).toBeTypeOf("function"));
+    expect(screen.getByText("Куда сажаем")).toBeTruthy();
+
+    acknowledge!();
+    await waitFor(() => expect(screen.queryByText("Куда сажаем")).toBeNull());
+  });
+
+  // A client that never calls back would otherwise leave the desk on a screen that will
+  // not close, over a player who is already sitting down.
+  it("closes the screen on its own when the alert is never answered", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    mockFetch();
+    window.Telegram!.WebApp!.showAlert = vi.fn();
+
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
+    fireEvent.click(await screen.findByLabelText("Стол 3, место 5, свободно"));
+    fireEvent.click(screen.getByRole("button", { name: /посадить за стол 3, место 5/i }));
+
+    await waitFor(() => expect(window.Telegram?.WebApp?.showAlert).toHaveBeenCalled());
+    expect(screen.getByText("Куда сажаем")).toBeTruthy();
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await waitFor(() => expect(screen.queryByText("Куда сажаем")).toBeNull());
+    vi.useRealTimers();
   });
 });
 

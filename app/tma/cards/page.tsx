@@ -15,7 +15,7 @@ import {
   UserPlus,
   Wallet,
 } from "lucide-react";
-import { getTelegramWebApp, useTMA } from "../layout";
+import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
@@ -201,6 +201,7 @@ export default function TMACardsPage() {
       }
 
       tg?.HapticFeedback.notificationOccurred("success");
+      await confirmSeated(player.name, choice);
       setSession(null);
       setScannedCode(null);
       setSeating(null);
@@ -315,6 +316,10 @@ export default function TMACardsPage() {
         tg?.showAlert(data?.error ?? "Не удалось посадить игрока");
         return;
       }
+
+      // Said first and waited on: an alert opened while another is still up is dropped by
+      // some Telegram clients, and the seat is the one thing the admin came here for.
+      await confirmSeated(signup.name, choice);
 
       // The pass was announced before the seat was picked, so the only thing left to
       // say is when the club could not actually take one — it was spent elsewhere, or
