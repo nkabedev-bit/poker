@@ -165,18 +165,6 @@ export default function TMAControlPage() {
               <Pause size={18} /> Пауза
             </button>
           )}
-          {/* Only offered while there is a game to stop — and always while one is being
-              reseated, so the announcement can be taken off the screens. */}
-          {tournamentActive || merging ? (
-            <button
-              onClick={() => handleAction(merging ? "table-merge-end" : "table-merge")}
-              className={`min-w-[calc(50%-0.375rem)] flex-1 py-3 rounded-lg flex items-center justify-center gap-2 font-medium text-white ${
-                merging ? "bg-green-600" : "bg-orange-600"
-              }`}
-            >
-              <Shuffle size={18} /> {merging ? "Завершить объединение" : "Объединение столов"}
-            </button>
-          ) : null}
           <button
             onClick={() => handleAction("previous", true)}
             className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] py-3 rounded-lg flex items-center justify-center gap-2 font-medium"
@@ -247,6 +235,30 @@ export default function TMAControlPage() {
           </div>
         )}
       </div>
+
+      {/* Offered while there is a game to stop — and always while the room is being
+          reseated, so the announcement can be taken back off the screens. */}
+      {tournamentActive || merging ? (
+        <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-6 text-center">
+          <h2 className="mb-4 text-sm font-semibold tracking-wider text-[var(--tg-theme-hint-color)]">
+            СТОЛЫ
+          </h2>
+          <button
+            className={`flex w-full items-center justify-center gap-2 rounded-lg py-3 font-medium text-white ${
+              merging ? "bg-green-600" : "bg-orange-600"
+            }`}
+            type="button"
+            onClick={() => handleAction(merging ? "table-merge-end" : "table-merge")}
+          >
+            <Shuffle size={18} /> {merging ? "Закончить рассадку" : "Объединение столов"}
+          </button>
+          {merging ? (
+            <p className="mt-3 text-sm text-[var(--tg-theme-hint-color)]">
+              Часы остановлены, на экранах объявление о пересадке.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
