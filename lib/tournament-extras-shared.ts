@@ -7,6 +7,7 @@ import {
 } from "@/lib/pts-rating";
 import { isEventTemplate } from "@/lib/events/templates";
 import { isRaffle } from "@/lib/raffle/raffle";
+import { isTableMerge } from "@/lib/timer/table-merge";
 import type { ScheduleVersion, TournamentExtras } from "@/lib/timer/types";
 
 export function normalizeScheduleVersions(value: unknown): ScheduleVersion[] {
@@ -48,6 +49,7 @@ export const defaultTournamentExtras: TournamentExtras = {
   eventTemplates: [],
   raffle: null,
   raffleHistory: [],
+  tableMerge: null,
   clientBot: {
     ratingUrl: "",
     scheduleText: "",
@@ -129,6 +131,7 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
     raffleHistory: Array.isArray(input.raffleHistory)
       ? input.raffleHistory.filter(isRaffle)
       : [],
+    tableMerge: isTableMerge(input.tableMerge) ? input.tableMerge : null,
     clientBot: {
       ...defaultTournamentExtras.clientBot,
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),

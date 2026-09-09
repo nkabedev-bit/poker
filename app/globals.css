@@ -3223,6 +3223,26 @@ p {
   text-wrap: balance;
 }
 
+/* Reseating: the same board-wide announcement, in the floor's amber instead of red. */
+.public-break-overlay--merge {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(201 168 76 / 0.32), transparent 62%),
+    rgba(6 0 0 / 0.97);
+}
+
+.public-break-overlay--merge .public-break-overlay__notice {
+  text-shadow: 0 0 40px rgba(201 168 76 / 0.7);
+}
+
+.public-break-overlay__detail {
+  max-width: 80vw;
+  color: rgba(255 255 255 / 0.85);
+  font-size: clamp(18px, 3.6vh, 56px);
+  font-weight: 600;
+  line-height: 1.25;
+  text-wrap: balance;
+}
+
 .public-break-overlay__clock {
   color: rgba(255 255 255 / 0.75);
   font-size: clamp(36px, 9vh, 140px);

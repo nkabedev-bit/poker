@@ -31,6 +31,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       raffle: extras.raffle,
       raffleHistory: extras.raffleHistory,
+      tableMerge: extras.tableMerge,
       timerState,
     });
   }

@@ -19,6 +19,8 @@ export function getFinishTournamentExtrasPatch(
     players: [],
     raffle: null,
     raffleHistory: [],
+    // A reseating left open at the finish would greet the next tournament on its screens.
+    tableMerge: null,
     settling: {
       closesAt: new Date(now.getTime() + SETTLING_HOURS * 60 * 60 * 1000).toISOString(),
       players,

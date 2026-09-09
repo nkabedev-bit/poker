@@ -82,6 +82,11 @@ export type TournamentPlayer = {
   status: "active" | "eliminated";
   finishPlace: number | null;
   registrationNumber?: number | null;
+  /**
+   * Numbers this player was called by earlier tonight, kept so that a number handed back
+   * when a ticket changed is not given to somebody else an hour later.
+   */
+  previousRegistrationNumbers?: number[];
   category?: "VIP" | "Normal";
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
@@ -114,12 +119,22 @@ export type TournamentPlayer = {
 
 export type ScheduleVersion = { effectiveFrom: string; text: string };
 
+/**
+ * The technical pause the floor calls to break a table up and reseat the room.
+ *
+ * It is not a level of its own: the clock stops where it stands and the screens turn
+ * into one announcement, the same way a break does.
+ */
+export type TableMerge = { startedAt: string };
+
 export type TournamentExtras = {
   blindTemplates: BlindTemplate[];
   /** Saved posters the club reuses week after week, dated afresh each time. */
   eventTemplates: EventTemplate[];
   /** The draw showing on the big screen right now, if one is running. */
   raffle: Raffle | null;
+  /** Set while the room is being reseated, so every screen says so and the clock waits. */
+  tableMerge: TableMerge | null;
   /** The draws already held tonight — one of each kind is all a tournament gets. */
   raffleHistory: Raffle[];
   clientBot: {

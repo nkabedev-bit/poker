@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { Crown, Gift, Pause, Play, SkipBack, SkipForward, Square, X } from "lucide-react";
-import type { TimerState } from "@/lib/timer/types";
+import { Crown, Gift, Pause, Play, Shuffle, SkipBack, SkipForward, Square, X } from "lucide-react";
+import type { TableMerge, TimerState } from "@/lib/timer/types";
 import type { Raffle } from "@/lib/raffle/raffle";
 
 const CONFIRM_MESSAGE = "Вы уверены?";
@@ -14,6 +14,7 @@ export default function TMAControlPage() {
   const [state, setState] = useState<{
     raffle: Raffle | null;
     raffleHistory?: Raffle[];
+    tableMerge: TableMerge | null;
     timerState: TimerState;
   } | null>(null);
   const [raffleBusy, setRaffleBusy] = useState(false);
@@ -127,6 +128,7 @@ export default function TMAControlPage() {
   const heldVip = state.raffleHistory?.find((item) => item.kind === "vip");
   const timerStatus = state.timerState.status;
   const tournamentActive = timerStatus === "running" || timerStatus === "paused" || timerStatus === "break";
+  const merging = Boolean(state.tableMerge);
 
   return (
     <div className="space-y-6">
@@ -163,6 +165,18 @@ export default function TMAControlPage() {
               <Pause size={18} /> Пауза
             </button>
           )}
+          {/* Only offered while there is a game to stop — and always while one is being
+              reseated, so the announcement can be taken off the screens. */}
+          {tournamentActive || merging ? (
+            <button
+              onClick={() => handleAction(merging ? "table-merge-end" : "table-merge")}
+              className={`min-w-[calc(50%-0.375rem)] flex-1 py-3 rounded-lg flex items-center justify-center gap-2 font-medium text-white ${
+                merging ? "bg-green-600" : "bg-orange-600"
+              }`}
+            >
+              <Shuffle size={18} /> {merging ? "Завершить объединение" : "Объединение столов"}
+            </button>
+          ) : null}
           <button
             onClick={() => handleAction("previous", true)}
             className="min-w-[calc(50%-0.375rem)] flex-1 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] py-3 rounded-lg flex items-center justify-center gap-2 font-medium"

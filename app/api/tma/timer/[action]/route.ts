@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
-import { getEffectiveTimerState } from "@/lib/timer/calculate";
+import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
 import {
@@ -64,18 +64,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
 
     const now = new Date();
 
+    /**
+     * Starts the clock again where it was stopped. The level is backdated by the part of
+     * it already played, so the remaining time carries over untouched.
+     */
+    const resumeFromPause = async () => {
+      const duration = getLevelDuration(blindLevels[timerState.currentLevelIndex] ?? null);
+      const remaining = timerState.pausedRemainingSeconds ?? duration;
+      const startedAt = new Date(now.getTime() - (duration - remaining) * 1000);
+
+      await auth.supabase.from("timer_state").update({
+        status: "running",
+        level_started_at: startedAt.toISOString(),
+        paused_remaining_seconds: null,
+      }).eq("tournament_id", t.id);
+    };
+
+    /**
+     * Takes the announcement off the screens. Called from every action that sets the
+     * clock going again: whatever gets the room playing ends the reseating, so the hall
+     * is never told to move while the blinds run.
+     */
+    const clearTableMergeIfSet = async () => {
+      const context = await loadCurrentTournamentContext(auth.supabase);
+      if (!context?.extras.tableMerge) return;
+
+      await saveTournamentExtrasFromContext(auth.supabase, context, { tableMerge: null });
+    };
+
     if (action === "start") {
       if (timerState.status === "paused") {
-        const current = blindLevels[timerState.currentLevelIndex];
-        const duration = current?.durationSeconds ?? 0;
-        const remaining = timerState.pausedRemainingSeconds ?? duration;
-        const startedAt = new Date(Date.now() - (duration - remaining) * 1000);
-
-        await auth.supabase.from("timer_state").update({
-          status: "running",
-          level_started_at: startedAt.toISOString(),
-          paused_remaining_seconds: null,
-        }).eq("tournament_id", t.id);
+        await resumeFromPause();
+        await clearTableMergeIfSet();
       } else {
         const registrationClosesAt = t.registration_minutes > 0
           ? new Date(now.getTime() + t.registration_minutes * 60_000)
@@ -95,17 +115,38 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           await saveTournamentExtrasFromContext(
             auth.supabase,
             context,
-            { settings: { sheetsSessionStartedAt: now.toISOString(), statsCountedAt: null } },
+            {
+              settings: { sheetsSessionStartedAt: now.toISOString(), statsCountedAt: null },
+              tableMerge: null,
+            },
           );
         }
       }
-    } else if (action === "pause") {
+    } else if (action === "pause" || action === "table-merge") {
       const { remainingSeconds, currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, now);
       await auth.supabase.from("timer_state").update({
         status: "paused",
         current_level_index: currentLevelIndex,
         paused_remaining_seconds: remainingSeconds,
       }).eq("tournament_id", t.id);
+
+      // Breaking a table up takes as long as it takes: the clock waits for the room.
+      if (action === "table-merge") {
+        const context = await loadCurrentTournamentContext(auth.supabase);
+        if (context) {
+          await saveTournamentExtrasFromContext(
+            auth.supabase,
+            context,
+            { tableMerge: { startedAt: now.toISOString() } },
+          );
+        }
+      }
+    } else if (action === "table-merge-end") {
+      await clearTableMergeIfSet();
+
+      // Only pick the clock back up if this pause is still the one the merge called.
+      // Somebody may have started it again from the control screen in the meantime.
+      if (timerState.status === "paused") await resumeFromPause();
     } else if (action === "next") {
       const { currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, now);
       const nextIndex = Math.min(currentLevelIndex + 1, Math.max(0, blindLevels.length - 1));
@@ -115,6 +156,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         level_started_at: now.toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
+      await clearTableMergeIfSet();
     } else if (action === "previous") {
       const { currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, now);
       const previousIndex = Math.max(0, currentLevelIndex - 1);
@@ -124,6 +166,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         level_started_at: now.toISOString(),
         paused_remaining_seconds: null,
       }).eq("tournament_id", t.id);
+      await clearTableMergeIfSet();
     } else if (action === "finish") {
       await auth.supabase.from("timer_state").update({
         status: "finished",
