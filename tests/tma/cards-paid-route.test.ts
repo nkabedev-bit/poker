@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { TournamentPlayer } from "@/lib/timer/types";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 
@@ -111,15 +111,25 @@ describe("POST /api/tma/cards/paid", () => {
 // first one marked paid was a debtor again a second later.
 describe("settling up after the tournament", () => {
   const settled = player({ id: "player-9", name: "Late", paid: false });
+  const CLOSES_AT = "2026-09-08T23:00:00.000Z";
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // The desk only settles while the window is open, so the clock is held inside it.
+    // Without this the test passed until the date in `CLOSES_AT` went by and then failed
+    // every day after, on a calendar rather than on anything the code did.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-08T20:00:00.000Z"));
     mocks.loadTournamentExtras.mockResolvedValue(
       mergeTournamentExtras({
         players: [],
-        settling: { closesAt: "2026-09-08T23:00:00.000Z", players: [settled] },
+        settling: { closesAt: CLOSES_AT, players: [settled] },
       }),
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("patches one player in the copy instead of writing the copy back", async () => {
