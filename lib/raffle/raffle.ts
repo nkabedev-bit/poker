@@ -30,11 +30,29 @@ export type Raffle = {
 export const RAFFLE_SPIN_SECONDS = 10;
 
 /**
+ * What the winner reads in the club's bot.
+ *
+ * The pass is credited to the profile before this is sent, so the regular message can
+ * say so outright — a player who is told to look in the app must find it there. The VIP
+ * certificate is a piece of paper handed over at the table, and says nothing about the
+ * app at all.
+ */
+export const RAFFLE_WIN_MESSAGE: Record<RaffleKind, string> = {
+  regular: "Вы победили в розыгрыше! Ваш приз — проходка, она уже начислена в приложении.",
+  vip: "Вы победили в розыгрыше для VIP игроков! Ваш приз — сертификат от наших партнёров.",
+};
+
+/**
  * Everyone in tonight's draw.
  *
  * The whole room takes part, knocked-out players included: they paid their entry and
- * are still in the hall. A VIP draw is for VIP tickets only, which the club reads off
- * the registration number — 21 to 30 is the VIP range.
+ * are still in the hall.
+ *
+ * The free pass is drawn on the whole room — a VIP ticket is a better ticket, not a
+ * smaller draw, so VIP guests stand in it alongside everyone else. The VIP draw is the
+ * one that narrows: it is for VIP tickets only, which the club reads off the
+ * registration number — 21 to 30 is the VIP range. A VIP guest therefore stands in both
+ * and can win both, which is the point of the ticket.
  */
 export function listRaffleEntrants(
   players: Array<
@@ -47,7 +65,7 @@ export function listRaffleEntrants(
       const number = Number(player.registrationNumber);
       if (!Number.isInteger(number) || number <= 0) return false;
 
-      return isVipRegistrationNumber(number) === (kind === "vip");
+      return kind === "vip" ? isVipRegistrationNumber(number) : true;
     })
     .map((player) => ({
       accountId: player.accountId ?? null,

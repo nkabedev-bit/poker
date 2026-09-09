@@ -4,10 +4,12 @@ import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
+import { notifyClientUser } from "@/lib/client-bot/notify";
 import {
   listRaffleEntrants,
   pickRaffleWinner,
   RAFFLE_SPIN_SECONDS,
+  RAFFLE_WIN_MESSAGE,
   type Raffle,
 } from "@/lib/raffle/raffle";
 
@@ -145,6 +147,24 @@ export async function POST(request: Request) {
         p_tournament_id: t.id,
         p_raffle: raffle,
       });
+    }
+  }
+
+  // The winner hears it from the bot as well as from the screen: they may be at the bar
+  // when the wheel stops, and a prize nobody noticed is a prize nobody collects.
+  //
+  // A regular pass is announced only once it has actually been credited — the message
+  // sends the player to look for it in the app, and must not send them to an empty
+  // profile. The VIP certificate is handed over at the table, so it is announced as soon
+  // as the draw stands. A player seated by hand has no account and no chat to write to;
+  // the admin is told to hand the prize over instead.
+  if (winner.accountId && (raffle.kind === "vip" || raffle.prize === "granted")) {
+    try {
+      await notifyClientUser(auth.supabase, winner.accountId, RAFFLE_WIN_MESSAGE[raffle.kind]);
+    } catch (notifyError) {
+      // The draw is written down and the prize is paid in; a bot that will not deliver
+      // must not turn either of those into an error on the admin's screen.
+      console.error("Failed to tell the raffle winner", notifyError);
     }
   }
 

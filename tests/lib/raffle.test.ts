@@ -3,6 +3,7 @@ import {
   isRaffle,
   listRaffleEntrants,
   pickRaffleWinner,
+  RAFFLE_WIN_MESSAGE,
   type Raffle,
 } from "@/lib/raffle/raffle";
 
@@ -26,14 +27,31 @@ describe("listRaffleEntrants", () => {
   it("takes only the numbers that exist tonight", () => {
     const numbers = listRaffleEntrants(ROOM, "regular").map((entrant) => entrant.number);
 
-    expect(numbers).toEqual(Array.from({ length: 15 }, (_, index) => index + 1));
+    expect(numbers).toEqual([...Array.from({ length: 15 }, (_, index) => index + 1), 21, 22, 23, 24, 25]);
     expect(numbers).not.toContain(16);
+  });
+
+  // The free pass is drawn on the whole room: a VIP ticket buys a better seat, not a
+  // smaller draw.
+  it("draws the free pass on VIP tickets as well as regular ones", () => {
+    const numbers = listRaffleEntrants(ROOM, "regular").map((entrant) => entrant.number);
+
+    expect(numbers).toContain(21);
+    expect(numbers).toHaveLength(20);
   });
 
   it("keeps the VIP draw to VIP tickets", () => {
     expect(listRaffleEntrants(ROOM, "vip").map((entrant) => entrant.number)).toEqual([
       21, 22, 23, 24, 25,
     ]);
+  });
+
+  // The same guest can take both prizes; that is what the VIP ticket is for.
+  it("stands a VIP guest in both draws", () => {
+    const inRegular = listRaffleEntrants(ROOM, "regular").some((entrant) => entrant.number === 23);
+    const inVip = listRaffleEntrants(ROOM, "vip").some((entrant) => entrant.number === 23);
+
+    expect([inRegular, inVip]).toEqual([true, true]);
   });
 
   // Everyone who came takes part: they paid their entry and are still in the hall.
@@ -84,7 +102,7 @@ describe("pickRaffleWinner", () => {
   });
 
   it("stays inside the room when the draw lands at the very top", () => {
-    expect(pickRaffleWinner(entrants, () => 0.999999999)?.number).toBe(15);
+    expect(pickRaffleWinner(entrants, () => 0.999999999)?.number).toBe(25);
   });
 
   it("reaches every entrant across the range", () => {
@@ -97,6 +115,19 @@ describe("pickRaffleWinner", () => {
 
   it("draws nobody from an empty room", () => {
     expect(pickRaffleWinner([], Math.random)).toBeNull();
+  });
+});
+
+describe("what the winner is told", () => {
+  it("sends the free pass winner to the app, where it has already landed", () => {
+    expect(RAFFLE_WIN_MESSAGE.regular).toContain("проходка");
+    expect(RAFFLE_WIN_MESSAGE.regular).toContain("начислена в приложении");
+  });
+
+  it("promises the VIP winner a certificate and says nothing about the app", () => {
+    expect(RAFFLE_WIN_MESSAGE.vip).toContain("VIP");
+    expect(RAFFLE_WIN_MESSAGE.vip).toContain("сертификат");
+    expect(RAFFLE_WIN_MESSAGE.vip).not.toContain("приложении");
   });
 });
 
