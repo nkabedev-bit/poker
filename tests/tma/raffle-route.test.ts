@@ -44,7 +44,14 @@ function player(
   };
 }
 
-function createSupabaseMock() {
+type AccountRow = {
+  avatar_thumb_url: string | null;
+  avatar_url: string | null;
+  display_name: string | null;
+  telegram_id: number | null;
+};
+
+function createSupabaseMock(accounts: AccountRow[] = []) {
   return {
     from: vi.fn(() => ({
       select: vi.fn(() => ({
@@ -54,6 +61,8 @@ function createSupabaseMock() {
             error: null,
           })),
         })),
+        // Where the faces on the reel come from.
+        not: vi.fn(async () => ({ data: accounts, error: null })),
       })),
     })),
     rpc: vi.fn(async () => ({ data: null, error: null })),
@@ -68,15 +77,26 @@ function request(kind: "regular" | "vip") {
 }
 
 /** One player in the room, so the draw can only land on them. */
-async function runDraw(kind: "regular" | "vip", only: TournamentPlayer) {
-  const supabase = createSupabaseMock();
+async function runDraw(kind: "regular" | "vip", only: TournamentPlayer, accounts: AccountRow[] = []) {
+  const supabase = createSupabaseMock(accounts);
   mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
   mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [only] }));
 
   const { POST } = await import("@/app/api/tma/raffle/route");
   const response = await POST(request(kind));
 
-  return { body: await response.json(), response };
+  return { body: await response.json(), response, supabase };
+}
+
+type StoredDraw = { faces?: Array<{ avatarUrl: string | null; name: string; number: number }> };
+
+/** The draw as it was written down, which is what the screen will run. */
+function storedDraw(supabase: ReturnType<typeof createSupabaseMock>): StoredDraw {
+  const calls = supabase.rpc.mock.calls as unknown as Array<[string, { p_raffle: StoredDraw }]>;
+  const call = calls.find(([name]) => name === "set_tournament_raffle");
+  if (!call) throw new Error("Розыгрыш не записали");
+
+  return call[1].p_raffle;
 }
 
 describe("POST /api/tma/raffle — telling the winner", () => {
@@ -140,6 +160,42 @@ describe("POST /api/tma/raffle — telling the winner", () => {
     expect(body.raffle.winnerNumber).toBe(4);
     expect(mocks.broadcastPublicState).toHaveBeenCalledWith("token-1");
     error.mockRestore();
+  });
+});
+
+describe("POST /api/tma/raffle — the faces on the reel", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.adjustFreeEntries.mockResolvedValue({ after: 1, before: 0 });
+    mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
+  });
+
+  // Frozen with the draw rather than looked up by the screen: a player seated while the
+  // reel is turning must not change what the room is watching.
+  it("writes the club's photo down with the draw", async () => {
+    const { supabase } = await runDraw("regular", player(4, { telegramId: 555 }), [
+      {
+        avatar_thumb_url: "https://club.example/thumbs/4.webp",
+        avatar_url: "https://club.example/faces/4.jpg",
+        display_name: "Игрок 4",
+        telegram_id: 555,
+      },
+    ]);
+
+    expect(storedDraw(supabase).faces).toEqual([
+      { avatarUrl: "https://club.example/faces/4.jpg", name: "Игрок 4", number: 4 },
+    ]);
+  });
+
+  // Somebody the admin seated by hand has no account, so there is no face to find —
+  // the reel runs their nickname instead, and the draw says so.
+  it("leaves the face empty for a player the club has no photo of", async () => {
+    const { supabase } = await runDraw("regular", player(9));
+
+    expect(storedDraw(supabase).faces).toEqual([
+      { avatarUrl: null, name: "Игрок 9", number: 9 },
+    ]);
   });
 });
 

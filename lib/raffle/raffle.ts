@@ -14,7 +14,24 @@ export type RaffleEntrant = {
   telegramId: number | null;
 };
 
+/**
+ * One player as the reel shows them: the club's photo of them, or their nickname when
+ * there is none — somebody seated by hand has no account to keep a face on, and a
+ * closed Telegram profile hands out no picture.
+ */
+export type RaffleFace = {
+  avatarUrl: string | null;
+  name: string;
+  number: number;
+};
+
 export type Raffle = {
+  /**
+   * Everyone in the draw, in the order the reel runs them, frozen when the draw is
+   * taken: a player seated mid-spin must not change the reel under the room's eyes.
+   * Missing on draws held before the reel existed, which fall back to their numbers.
+   */
+  faces?: RaffleFace[];
   /** A new id per spin, so a screen that reloads mid-spin does not replay the old one. */
   id: string;
   kind: RaffleKind;
@@ -26,8 +43,32 @@ export type Raffle = {
   winnerNumber: number;
 };
 
-/** The wheel turns for this long before the pointer settles. */
+/** The reel runs for this long before the needle settles. */
 export const RAFFLE_SPIN_SECONDS = 10;
+
+/**
+ * Enough faces to read as a reel rather than a short list sliding past. A VIP draw can
+ * be four people, and four cells would cross the screen in one blink.
+ */
+const MIN_REEL_CELLS = 60;
+
+/**
+ * How the reel is built: the same faces over and over, and which copy of the winner the
+ * needle stops on.
+ *
+ * It lands two passes from the end, so there is still reel to the right of the needle
+ * when everything stops — a winner at the very edge would leave half the screen empty.
+ */
+export function buildRaffleReel(faces: number, winnerIndex: number) {
+  const total = Math.max(1, faces);
+  const passes = Math.max(5, Math.ceil(MIN_REEL_CELLS / total));
+
+  return {
+    landingIndex: total * (passes - 2) + winnerIndex,
+    length: total * passes,
+    passes,
+  };
+}
 
 /**
  * What the winner reads in the club's bot.

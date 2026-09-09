@@ -5,6 +5,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { notifyClientUser } from "@/lib/client-bot/notify";
+import { loadPlayerAvatars } from "@/lib/players/avatars";
 import {
   listRaffleEntrants,
   pickRaffleWinner,
@@ -19,7 +20,7 @@ export const dynamic = "force-dynamic";
  * Runs a draw on the big screen.
  *
  * The winner is decided here, with the platform's cryptographic randomness, and stored
- * with the draw: the wheel in the hall is an animation that lands on a result already
+ * with the draw: the reel in the hall is an animation that lands on a result already
  * taken, so every screen agrees and no browser can steer it.
  */
 export async function POST(request: Request) {
@@ -68,7 +69,17 @@ export async function POST(request: Request) {
   const winner = pickRaffleWinner(entrants, () => randomInt(0, 2 ** 31) / 2 ** 31);
   if (!winner) return NextResponse.json({ error: "Не удалось выбрать победителя" }, { status: 500 });
 
+  // The faces travel with the draw rather than being looked up by the screen: the reel
+  // must show the room the players who were in the draw when it was taken, whoever is
+  // seated by the time it stops turning.
+  const avatars = await loadPlayerAvatars(auth.supabase);
+
   const raffle: Raffle = {
+    faces: entrants.map((entrant) => ({
+      avatarUrl: avatars.find({ name: entrant.name, telegramId: entrant.telegramId }).url,
+      name: entrant.name,
+      number: entrant.number,
+    })),
     id: crypto.randomUUID(),
     kind,
     numbers: entrants.map((entrant) => entrant.number),
