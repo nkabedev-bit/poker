@@ -6,7 +6,11 @@ import {
   listEvents,
 } from "@/lib/events/store";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { isEventOpenForSeating, isEventPlayingToday } from "@/lib/events/types";
+import {
+  isEventOpenForSeating,
+  isEventPlayingToday,
+  waitlistOfferIsLive,
+} from "@/lib/events/types";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +65,8 @@ export async function GET(request: Request) {
       ? extras.players.map((player) => player.accountId).filter((id): id is string => Boolean(id))
       : [],
   );
+  const isAtATable = (userId: string, telegramId: number | null) =>
+    seatedAccountIds.has(userId) || (telegramId !== null && seatedTelegramIds.has(telegramId));
 
   return NextResponse.json({
     event: event
@@ -84,10 +90,7 @@ export async function GET(request: Request) {
       // A ticket the admin put aside and the player has yet to answer. It holds a seat,
       // so the desk expects them — but nobody has said they are coming.
       reserved: signup.status === "reserved",
-      seated:
-        signup.status === "seated" ||
-        seatedAccountIds.has(signup.userId) ||
-        (signup.telegramId !== null && seatedTelegramIds.has(signup.telegramId)),
+      seated: signup.status === "seated" || isAtATable(signup.userId, signup.telegramId),
       telegramId: signup.telegramId,
       // The ticket the player asked for, so the desk starts from their choice.
       ticketType: signup.ticketType,
@@ -105,6 +108,16 @@ export async function GET(request: Request) {
     waitlist: waitlist.map((entry) => ({
       id: entry.id,
       name: entry.displayName ?? "Без никнейма",
+      // A place freed by an app cancellation is held for whoever is at the head of the
+      // queue. The desk sees whose it is and until when, so it does not hand the same
+      // seat to somebody standing at the door.
+      offerExpiresAt: waitlistOfferIsLive(entry.waitlistOfferExpiresAt, now)
+        ? entry.waitlistOfferExpiresAt
+        : null,
+      // Somebody the desk added by hand is already playing, whatever their row still
+      // says. Reading it off the roster costs nothing and covers every way to a chair
+      // that does not go through this screen.
+      seated: isAtATable(entry.userId, entry.telegramId),
       telegramId: entry.telegramId,
       ticketType: entry.ticketType,
       userId: entry.userId,

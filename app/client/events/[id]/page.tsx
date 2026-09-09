@@ -54,6 +54,8 @@ type EventDetails = TournamentEvent & {
   signupsCount: number;
   /** Standing in line for a ticket that is sold out. */
   waitlisted?: boolean;
+  /** The queue reached them: until this moment the freed place is theirs to take. */
+  waitlistOfferExpiresAt?: string | null;
   ticketType: HeldTicket;
   usePass: FreePassChoice;
 };
@@ -382,6 +384,13 @@ export default function ClientEventPage() {
   // The buyer keeps the ticket when their partner backs out, so the screen has to let
   // them name somebody else without cancelling and starting over.
   const needsPartner = event.signedUp && event.ticketType === "duo" && !event.partnerName;
+  // The ticket they asked for while standing in line — that is what the held place is
+  // for. The "+1" half is never queued for: it comes with somebody else's ticket.
+  const queuedTicket: TicketType | null =
+    event.waitlisted && event.ticketType !== "duo_plus_one" ? event.ticketType : null;
+  // A pair ticket is still a pair: the club expects two of them by name.
+  const queuedPartnerMissing =
+    queuedTicket === "duo" && partnerMode === "member" && !partnerName.trim();
 
   // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
   // ticket of its own kind, so choosing one switches the ticket to match.
@@ -824,13 +833,38 @@ export default function ClientEventPage() {
             Не смогу прийти
           </GhostButton>
         </div>
+      ) : queuedTicket && event.waitlistOfferExpiresAt ? (
+        // The queue reached them and the place is held for nobody else until the half
+        // hour runs out. The room reads full to everyone else, so this seat is theirs
+        // to take rather than to race anyone for.
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
+            Освободилось место — очередь дошла до вас
+            <span className="mt-1 block text-[13px] font-semibold text-emerald-300/75">
+              Держим его за вами до {formatEventTimeLabel(event.waitlistOfferExpiresAt)}.
+              Потом место уйдёт следующему в очереди.
+            </span>
+          </div>
+          <PrimaryButton
+            disabled={queuedPartnerMissing}
+            loading={submitting}
+            onClick={() => void toggleSignup(true, false, queuedTicket)}
+          >
+            {queuedPartnerMissing
+              ? "Укажите напарника"
+              : `Записаться · ${TICKET_TITLES[queuedTicket]}`}
+          </PrimaryButton>
+          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+            Отказаться от места
+          </GhostButton>
+        </div>
       ) : event.waitlisted ? (
         <div className="space-y-3">
           <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
             Вы в листе ожидания
             <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              Сообщим, как только освободится место. Кто успеет записаться первым — тот
-              и играет.
+              Как освободится место, оно уйдёт по очереди — первому, кто в ней стоит.
+              Когда дойдёт до вас, сообщим и полчаса будем держать место за вами.
             </span>
           </div>
           <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>

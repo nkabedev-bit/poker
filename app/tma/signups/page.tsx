@@ -56,6 +56,10 @@ type Profile = {
 type WaitlistEntry = {
   id: string;
   name: string;
+  /** Until when the club is holding a freed place for them; null when it is not. */
+  offerExpiresAt?: string | null;
+  /** They are at a table already — the desk put them there without going through here. */
+  seated: boolean;
   telegramId: number | null;
   ticketType: Signup["ticketType"];
   userId: string;
@@ -676,13 +680,17 @@ export default function TMASignupsPage() {
           {waitlistOpen ? (
             <div className="space-y-2 pl-2">
               <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                Места за ними не закреплены. Нажмите на игрока, чтобы посадить его вместо
+                Очередь идёт сверху вниз: место, освободившееся в приложении, полчаса
+                держат за первым в ней. Нажмите на игрока, чтобы посадить его вместо
                 того, кто не пришёл.
               </p>
               {waitlist.map((entry, index) => (
                 <button
                   key={entry.id}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-left"
+                  className={`flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-left${
+                    entry.seated ? " opacity-60" : ""
+                  }`}
+                  disabled={entry.seated}
                   type="button"
                   onClick={() => openQueueSeating(entry)}
                 >
@@ -691,11 +699,19 @@ export default function TMASignupsPage() {
                       {index + 1}. {entry.name}
                     </span>
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                      {entry.username ? `@${entry.username}` : TICKET_LABELS[entry.ticketType]}
+                      {entry.seated
+                        ? "уже за столом"
+                        : entry.offerExpiresAt
+                          ? `место держим до ${formatEventTimeLabel(entry.offerExpiresAt)}`
+                          : entry.username
+                            ? `@${entry.username}`
+                            : TICKET_LABELS[entry.ticketType]}
                     </span>
                   </span>
                   <span className="shrink-0">
-                    {entry.ticketType === "vip" ? (
+                    {entry.seated ? (
+                      <CheckCircle2 className="text-[#7ad0f0]" size={18} />
+                    ) : entry.ticketType === "vip" ? (
                       <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
                         VIP
                       </span>

@@ -1,13 +1,9 @@
 import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { notifyClientUser } from "@/lib/client-bot/notify";
-import {
-  countActiveSignups,
-  getEvent,
-  getUserSignups,
-  listEventWaitlist,
-} from "@/lib/events/store";
-import { pickWaitlistToNotify, waitlistFreedMessage } from "@/lib/events/waitlist";
+import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
+import { waitlistOfferMessage } from "@/lib/events/waitlist";
+import { offerFreedSeats } from "@/lib/events/waitlist-offers";
 import { countFreeSeats, hasFreeSeat, offersDuoTicket, offersVipTicket } from "@/lib/events/seats";
 import {
   cancelDuoPlusOne,
@@ -19,7 +15,12 @@ import {
   resolveDuoPartner,
 } from "@/lib/events/duo";
 import { claimEventSignup } from "@/lib/events/claim-signup";
-import { isEventTicketType, isUpcomingEvent, passMatchesTicket } from "@/lib/events/types";
+import {
+  isEventTicketType,
+  isUpcomingEvent,
+  passMatchesTicket,
+  waitlistOfferIsLive,
+} from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
@@ -170,6 +171,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         ticket_type: ticketType,
         use_pass: "none",
         user_id: auth.user.id,
+        // Joining the queue holds nothing. A row reused from an earlier turn would
+        // otherwise carry that hold back in, keeping a seat for somebody who is only
+        // asking to be told when one comes free.
+        waitlist_offer_expires_at: null,
       },
       { onConflict: "event_id,user_id" },
     );
@@ -179,7 +184,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ signedUp: false, ticketType, waitlisted: true });
   }
 
-  if (!alreadyHeld && !hasFreeSeat(countFreeSeats(event, counts.get(event.id)), ticketType)) {
+  // The queue reached this player and the club is holding the seat for them: it is
+  // counted as taken — by their own row — so the room reads full to everyone including
+  // them. Theirs is the one hold that must not stand in their way.
+  const holdsOffer =
+    mine?.status === "waitlist" && waitlistOfferIsLive(mine.waitlistOfferExpiresAt, new Date());
+
+  if (
+    !alreadyHeld &&
+    !holdsOffer &&
+    !hasFreeSeat(countFreeSeats(event, counts.get(event.id)), ticketType)
+  ) {
     return NextResponse.json(
       {
         error: "full",
@@ -321,22 +336,19 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const event = await getEvent(auth.supabase, id);
 
-  // A seat has just come free, and somebody has been waiting to hear it. Everyone in
-  // line for that kind of ticket is told at once — first to answer takes it.
-  if (event && mine?.status !== "waitlist") {
-    const [waitlist, counts] = await Promise.all([
-      listEventWaitlist(auth.supabase, id),
-      countActiveSignups(auth.supabase, [id]),
-    ]);
-    const freed = pickWaitlistToNotify(waitlist, countFreeSeats(event, counts.get(id)));
+  // A seat may have just come free, and the queue moves by one: the place is held for
+  // whoever has waited longest and offered to nobody else. Somebody leaving the queue
+  // frees a seat too — the one that was being held for them.
+  if (event) {
+    const offers = await offerFreedSeats(auth.supabase, event);
 
-    if (freed.length > 0) {
+    if (offers.length > 0) {
       after(async () => {
-        for (const entry of freed) {
+        for (const offer of offers) {
           await notifyClientUser(
             auth.supabase,
-            entry.userId,
-            waitlistFreedMessage(event.title, entry.ticketType),
+            offer.userId,
+            waitlistOfferMessage(event.title, offer.ticketType, offer.expiresAt),
           );
         }
       });

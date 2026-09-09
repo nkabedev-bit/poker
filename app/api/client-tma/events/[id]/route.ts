@@ -3,7 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
-import { holdsTicket, isReservableTicket } from "@/lib/events/types";
+import { holdsTicket, isReservableTicket, waitlistOfferIsLive } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           ? mySignup.ticketType
           : null,
       waitlisted: mySignup?.status === "waitlist",
+      // The queue reached this player: the seat is theirs alone until this moment, and
+      // the screen says so — the room reads full to everyone else, including the count
+      // right beside it.
+      waitlistOfferExpiresAt:
+        mySignup?.status === "waitlist" &&
+        waitlistOfferIsLive(mySignup.waitlistOfferExpiresAt, new Date())
+          ? mySignup.waitlistOfferExpiresAt
+          : null,
       signupsCount: taken?.total ?? 0,
       ticketType: mySignup?.ticketType ?? "regular",
       usePass: mySignup?.usePass ?? "none",

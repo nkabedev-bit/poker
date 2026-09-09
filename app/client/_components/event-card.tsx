@@ -14,6 +14,8 @@ export type EventCardData = TournamentEvent & {
   signedUp: boolean;
   signupsCount: number;
   waitlisted?: boolean;
+  /** A freed place is being held for them right now, and only for so long. */
+  waitlistOffered?: boolean;
 };
 
 /**
@@ -68,12 +70,19 @@ export function EventCard({
           </div>
 
           <div className="mt-auto flex flex-col items-start gap-2">
-            {event.badge || event.signedUp || event.awaiting || event.waitlisted ? (
+            {event.badge || event.signedUp || event.awaiting || event.waitlisted || event.waitlistOffered ? (
               <div className="flex flex-wrap items-center gap-2">
                 {event.badge ? <Badge>{event.badge}</Badge> : null}
                 {/* An invitation and a held ticket both wait on the player, and both go
                     unanswered if the card looks the same as any other. */}
-                {event.awaiting ? (
+                {event.waitlistOffered ? (
+                  // The bot's message only opens the app: without this the card looks
+                  // like any other evening they are waiting on, and the half hour runs
+                  // out on the wrong screen.
+                  <span className="inline-flex items-center rounded-xl border border-emerald-400/45 bg-emerald-400/15 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
+                    Место освободилось · запишитесь
+                  </span>
+                ) : event.awaiting ? (
                   <span className="inline-flex items-center rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-3 py-1.5 text-[12px] font-bold text-[#e9c07a]">
                     {event.awaiting === "reserved"
                       ? "Билет отложен · подтвердите"

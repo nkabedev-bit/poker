@@ -55,6 +55,35 @@ export function holdsTicket(status: EventSignupStatus | null | undefined) {
   return status === "signed_up" || status === "seated";
 }
 
+/**
+ * Whether the club is holding a freed place for this player right now.
+ *
+ * The queue moves one at a time: a seat that comes free is offered to whoever has
+ * waited longest, and until their half hour runs out nobody else can take it. The
+ * deadline is what is written down rather than the moment of the offer — the length of
+ * the window is the app's to decide, and the database only ever asks whether it passed.
+ */
+export function waitlistOfferIsLive(offerExpiresAt: string | null, now: Date) {
+  return offerExpiresAt !== null && new Date(offerExpiresAt).getTime() > now.getTime();
+}
+
+/**
+ * Whether this sign-up takes a seat out of the room.
+ *
+ * Standing in line takes none — that is the point of the queue — except while the club
+ * is holding a freed place for that player: for those minutes the seat is as spoken for
+ * as a ticket, or the first in line would lose it to whoever taps faster.
+ */
+export function takesSeat(
+  status: EventSignupStatus | null | undefined,
+  offerExpiresAt: string | null,
+  now: Date,
+) {
+  if (status === "waitlist") return waitlistOfferIsLive(offerExpiresAt, now);
+
+  return SEAT_TAKING_STATUSES.some((taking) => taking === status);
+}
+
 export type EventSignup = {
   createdAt: string;
   /** When the invited member said yes; a guest's pair is settled the moment it is made. */
@@ -80,6 +109,10 @@ export type EventSignup = {
   ticketType: EventTicketType;
   /** Which free entry the player asked to pay with; spent only when they are seated. */
   usePass: FreePassChoice;
+  /** Until when a freed place is held for this player in the queue; null when none is. */
+  waitlistOfferExpiresAt: string | null;
+  /** When the queue last reached this player — what keeps a silent one at its tail. */
+  waitlistOfferedAt: string | null;
 };
 
 /**
@@ -195,6 +228,8 @@ export function mapSignupRow(row: Record<string, unknown>): EventSignup {
     userId: String(row.user_id),
     ticketType: isEventTicketType(row.ticket_type) ? row.ticket_type : "regular",
     usePass: isFreePassChoice(row.use_pass) ? row.use_pass : "none",
+    waitlistOfferExpiresAt: optionalText(row.waitlist_offer_expires_at),
+    waitlistOfferedAt: optionalText(row.waitlist_offered_at),
   };
 }
 

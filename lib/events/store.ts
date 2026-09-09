@@ -3,8 +3,10 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   SEAT_TAKING_STATUSES,
+  isEventPlayingToday,
   mapEventRow,
   mapSignupRow,
+  takesSeat,
   toEventRow,
   type EventSignup,
   type EventSignupStatus,
@@ -15,7 +17,7 @@ const EVENT_COLUMNS =
   "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 const SIGNUP_COLUMNS =
-  "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at, duo_invite_token, notified_at";
+  "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at, duo_invite_token, notified_at, waitlist_offer_expires_at, waitlist_offered_at";
 
 export type EventSignupWithPlayer = EventSignup & {
   displayName: string | null;
@@ -33,6 +35,38 @@ export async function listEvents(
   if (error) throw error;
 
   return (data ?? []).map((row) => mapEventRow(row as Record<string, unknown>));
+}
+
+/**
+ * Closes the sign-up of somebody the desk put at a table by hand.
+ *
+ * A guest can reach a chair without going through their own sign-up: the queue had
+ * nobody to replace, or they walked in with a ticket and were typed in at the desk. The
+ * tournament counted them and their evening was credited, while their row went on
+ * standing in the queue as though they were still waiting outside.
+ *
+ * Only tonight's game, and only a row that is still waiting for something: a cancelled
+ * sign-up stays cancelled, and a no-show is not resurrected by a namesake at a table.
+ */
+export async function markTonightSignupSeated(
+  supabase: SupabaseClient,
+  userId: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const published = await listEvents(supabase, { publishedOnly: true });
+  const tonight = published.find((event) => isEventPlayingToday(event, now));
+  if (!tonight) return false;
+
+  const { data, error } = await supabase
+    .from("event_signups")
+    .update({ status: "seated" })
+    .eq("event_id", tonight.id)
+    .eq("user_id", userId)
+    .in("status", ["waitlist", "signed_up", "reserved"])
+    .select("id");
+
+  if (error) throw error;
+  return (data ?? []).length > 0;
 }
 
 export async function getEvent(
@@ -86,16 +120,21 @@ export type EventSignupCount = { duo: number; regular: number; total: number; vi
 export async function countActiveSignups(
   supabase: SupabaseClient,
   eventIds: string[],
+  now: Date = new Date(),
 ): Promise<Map<string, EventSignupCount>> {
   const counts = new Map<string, EventSignupCount>();
   if (eventIds.length === 0) return counts;
 
   const { data, error } = await supabase
     .from("event_signups")
-    .select("event_id, ticket_type, duo_partner_name, duo_partner_user_id")
+    .select(
+      "event_id, status, ticket_type, duo_partner_name, duo_partner_user_id, waitlist_offer_expires_at",
+    )
     .in("event_id", eventIds)
-    // Standing in line takes no seat — the queue exists because the room is full.
-    .in("status", SEAT_TAKING_STATUSES);
+    // Standing in line takes no seat — the queue exists because the room is full. The
+    // exception is the place the club is holding for whoever is at its head: it is read
+    // here as taken, so nobody else is sold the seat that was just offered to them.
+    .in("status", [...SEAT_TAKING_STATUSES, "waitlist"]);
 
   if (error) throw error;
 
@@ -104,8 +143,23 @@ export async function countActiveSignups(
       duo_partner_name: unknown;
       duo_partner_user_id: unknown;
       event_id: unknown;
+      status: unknown;
       ticket_type: unknown;
+      waitlist_offer_expires_at: unknown;
     };
+
+    if (
+      !takesSeat(
+        record.status as EventSignupStatus,
+        typeof record.waitlist_offer_expires_at === "string"
+          ? record.waitlist_offer_expires_at
+          : null,
+        now,
+      )
+    ) {
+      continue;
+    }
+
     const eventId = String(record.event_id);
     const taken = counts.get(eventId) ?? { duo: 0, regular: 0, total: 0, vip: 0 };
     const ticket = record.ticket_type;
