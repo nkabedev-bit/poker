@@ -105,9 +105,12 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
 
   return (
     <>
-      <Script 
-        src="https://telegram.org/js/telegram-web-app.js" 
-        strategy="beforeInteractive" 
+      {/* Our own copy: telegram.org is filtered by Russian ISPs and the request hangs
+          instead of failing, which under "beforeInteractive" left the screen on
+          "Loading..." for good — this one has no give-up timer at all. */}
+      <Script
+        src="/telegram-web-app.js"
+        strategy="afterInteractive"
         onLoad={initTg}
         onReady={initTg}
       />

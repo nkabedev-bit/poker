@@ -283,9 +283,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   return (
     <>
+      {/* Served from our own origin: Russian ISPs filter telegram.org, and the request
+          hangs open rather than failing. Under "beforeInteractive" that hang held back
+          every Next module behind it — the page rendered "Загрузка…" from the server and
+          never hydrated, so even the give-up timer below never got to run. */}
       <Script
-        src="https://telegram.org/js/telegram-web-app.js"
-        strategy="beforeInteractive"
+        src="/telegram-web-app.js"
+        strategy="afterInteractive"
         onLoad={initTg}
         onReady={initTg}
       />
