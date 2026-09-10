@@ -439,6 +439,59 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return NextResponse.json({ player: updatedPlayer });
   }
 
+  // An addon ticked on the wrong player is taken back from the player card. The count
+  // the admin saw travels with the request, so a repeated tap or a second admin on the
+  // same screen cannot take off a second addon.
+  if (action === "cancel_addon") {
+    const expectedAddons = Number(body.expectedAddons);
+    if (!Number.isInteger(expectedAddons) || expectedAddons < 1) {
+      return NextResponse.json({ error: "expectedAddons must be positive integer" }, { status: 400 });
+    }
+
+    // With addons switched off none could have been handed out, so none is taken back.
+    if (!extras.settings.addonEnabled) {
+      return NextResponse.json({ error: "Addons disabled" }, { status: 400 });
+    }
+
+    const { data: updatedPlayer, error: rpcError } = await auth.supabase.rpc(
+      "cancel_tournament_player_addon",
+      { p_tournament_id: t.id, p_player_id: id, p_expected_addons: expectedAddons },
+    );
+
+    if (rpcError) {
+      // The function is applied by hand, so a deploy can land before it exists.
+      const missingFunction =
+        rpcError.code === "PGRST202" ||
+        String(rpcError.message ?? "").includes("cancel_tournament_player_addon");
+      if (!missingFunction) throw rpcError;
+
+      return NextResponse.json(
+        { error: "Миграция 202609110001 не применена — отмена аддона не сохраняется" },
+        { status: 500 },
+      );
+    }
+
+    if (!updatedPlayer) {
+      const exists = extras.players.some((player) => player.id === id);
+      return NextResponse.json(
+        { error: exists ? "Addon already cancelled" : "Player not found" },
+        { status: exists ? 409 : 404 },
+      );
+    }
+
+    // The addon column on the game sheet and the money tab both drop with it: the
+    // finance sheet is rebuilt from the roster on every sync.
+    after(async () => {
+      try {
+        await syncTournamentToSheets(auth.supabase, t.id);
+      } catch (sheetError) {
+        console.error("Non-critical addon cancel sheets sync error:", sheetError);
+      }
+    });
+
+    return NextResponse.json({ player: updatedPlayer });
+  }
+
   if (action !== "add_addon") {
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }

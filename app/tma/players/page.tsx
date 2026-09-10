@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { ArrowRightLeft, BadgePlus, CheckSquare, ChevronLeft, ClipboardList, RotateCcw, Plus, Trash2, Users } from "lucide-react";
+import { ArrowRightLeft, BadgeMinus, BadgePlus, CheckSquare, ChevronLeft, ClipboardList, RotateCcw, Plus, Trash2, Users } from "lucide-react";
 import {
   formatPlayerNameWithRegistrationNumber,
   isVipRegistrationNumber,
@@ -24,6 +24,13 @@ const BULK_FAILURE_LABELS: Record<string, string> = {
   not_found: "не найден",
 };
 
+// Why an addon could not be taken back, in the admin's words.
+const CANCEL_ADDON_ERRORS: Record<string, string> = {
+  "Addon already cancelled": "Аддоны игрока уже изменились — проверьте карточку ещё раз",
+  "Addons disabled": "Аддоны выключены в настройках",
+  "Player not found": "Игрок не найден — обновите список",
+};
+
 // Telegram truncates long confirm dialogs, so the confirmation names only the first
 // few players and counts the rest.
 const CONFIRM_NAMES_LIMIT = 10;
@@ -33,6 +40,7 @@ type Player = {
   addonChipsTotal?: number;
   id: string;
   name: string;
+  paid?: boolean;
   registrationNumber?: number | null;
   table: number;
   seat: number;
@@ -261,6 +269,45 @@ export default function TMAPlayersPage() {
       const data = await res.json().catch(() => null);
       tg?.HapticFeedback.notificationOccurred("error");
       tg?.showAlert(data?.error === "Addon limit reached" ? "Лимит аддонов уже использован" : "Ошибка сохранения");
+    });
+  };
+
+  // Takes back an addon ticked on the wrong player. The count on screen goes along, so a
+  // second tap on a stale card cannot take off another one.
+  const submitCancelAddon = async () => {
+    const tg = getTelegramWebApp();
+    if (!selectedPlayer || selectedPlayerAddons < 1) return;
+
+    const chipsPerAddon = Math.round(Number(selectedPlayer.addonChipsTotal ?? 0) / selectedPlayerAddons);
+    const confirmText =
+      `Отменить аддон игроку «${selectedPlayer.name}»? ` +
+      `Снимем ${chipsPerAddon.toLocaleString("ru-RU")} фишек со стека, аддон уйдёт из счёта.` +
+      // The desk has already taken the money, and the sheet will no longer ask for it.
+      (selectedPlayer.paid ? "\nИгрок уже отмечен оплатившим — верните ему деньги за аддон." : "");
+
+    tg?.showConfirm(confirmText, async (confirmed: boolean) => {
+      if (!confirmed) return;
+
+      const res = await fetch(`/api/tma/players/${selectedPlayer.id}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Telegram-Init-Data": initData,
+        },
+        body: JSON.stringify({ action: "cancel_addon", expectedAddons: selectedPlayerAddons }),
+      });
+
+      if (res.ok) {
+        tg?.HapticFeedback.notificationOccurred("success");
+        await fetchPlayers();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      tg?.HapticFeedback.notificationOccurred("error");
+      tg?.showAlert(CANCEL_ADDON_ERRORS[data?.error] ?? data?.error ?? "Ошибка сохранения");
+      // Whatever was refused, the card has to show what the server holds now.
+      await fetchPlayers();
     });
   };
 
@@ -812,6 +859,17 @@ export default function TMAPlayersPage() {
             onClick={() => void submitAddon()}
           >
             <BadgePlus size={18} /> Добавить аддон
+          </button>
+        ) : null}
+
+        {/* Out or still playing, the addon stays on the bill until it is taken back. */}
+        {addonEnabled && selectedPlayerAddons > 0 ? (
+          <button
+            className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-red-400 p-3 rounded flex items-center justify-center gap-2"
+            type="button"
+            onClick={() => void submitCancelAddon()}
+          >
+            <BadgeMinus size={18} /> Отменить аддон
           </button>
         ) : null}
       </div>

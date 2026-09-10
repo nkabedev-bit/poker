@@ -405,6 +405,142 @@ describe("TMAPlayersPage", () => {
     );
   });
 
+  // A player with one 6000-chip addon; each test overrides what it is about.
+  function stubAddonPlayerFetch(
+    player: Record<string, unknown> = {},
+    options: { addonEnabled?: boolean; cancelResponse?: Response } = {},
+  ) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players" && !init?.method) {
+        return Response.json({
+          addonEnabled: options.addonEnabled ?? true,
+          maxAddons: 1,
+          tablesCount: 3,
+          players: [
+            {
+              id: "player-1",
+              name: "Addon Player",
+              table: 1,
+              seat: 1,
+              stack: 7000,
+              status: "active",
+              addons: 1,
+              addonChipsTotal: 6000,
+              ...player,
+            },
+          ],
+        });
+      }
+
+      if (String(input) === "/api/tma/players/player-1" && init?.method === "PATCH") {
+        return options.cancelResponse ?? Response.json({ player: { id: "player-1", addons: 0 } });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    return fetchMock;
+  }
+
+  it("takes an addon back after a confirmation naming the chips it removes", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    const fetchMock = stubAddonPlayerFetch();
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /отменить аддон/i }));
+
+    expect(showConfirm).toHaveBeenCalledWith(
+      `Отменить аддон игроку «Addon Player»? Снимем ${(6000).toLocaleString("ru-RU")} фишек со стека, аддон уйдёт из счёта.`,
+      expect.any(Function),
+    );
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/tma/players/player-1",
+        expect.objectContaining({
+          method: "PATCH",
+          body: JSON.stringify({ action: "cancel_addon", expectedAddons: 1 }),
+        }),
+      );
+    });
+  });
+
+  it("reminds the admin to refund a player who has already paid for the addon", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    stubAddonPlayerFetch({ paid: true });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /отменить аддон/i }));
+
+    expect(String(showConfirm.mock.calls[0]?.[0] ?? "")).toContain(
+      "Игрок уже отмечен оплатившим — верните ему деньги за аддон.",
+    );
+  });
+
+  it("offers the addon cancel for a player who is already out", async () => {
+    stubAddonPlayerFetch({ status: "eliminated" });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    expect(await screen.findByRole("button", { name: /отменить аддон/i })).toBeTruthy();
+  });
+
+  it.each([
+    ["the player has no addon", { addons: 0, addonChipsTotal: 0 }, true],
+    ["addons are switched off in the settings", {}, false],
+  ])("hides the addon cancel when %s", async (_label, player, addonEnabled) => {
+    stubAddonPlayerFetch(player, { addonEnabled });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    await screen.findByRole("button", { name: /назад/i });
+    expect(screen.queryByRole("button", { name: /отменить аддон/i })).toBeNull();
+  });
+
+  it("does not send the cancel when the confirmation is declined", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(false));
+    const fetchMock = stubAddonPlayerFetch();
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /отменить аддон/i }));
+
+    expect(showConfirm).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      "/api/tma/players/player-1",
+      expect.objectContaining({ method: "PATCH" }),
+    );
+  });
+
+  it("explains a stale card and reloads the roster when the addon is already gone", async () => {
+    const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
+    showConfirm.mockImplementation((_message, callback) => callback(true));
+    const showAlert = vi.mocked(window.Telegram!.WebApp!.showAlert);
+    const fetchMock = stubAddonPlayerFetch({}, {
+      cancelResponse: Response.json({ error: "Addon already cancelled" }, { status: 409 }),
+    });
+
+    const rosterLoads = () =>
+      fetchMock.mock.calls.filter(([input, init]) => String(input) === "/api/tma/players" && !init?.method)
+        .length;
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+    const cancelButton = await screen.findByRole("button", { name: /отменить аддон/i });
+    const loadsBeforeCancel = rosterLoads();
+    fireEvent.click(cancelButton);
+
+    await waitFor(() => {
+      expect(showAlert).toHaveBeenCalledWith("Аддоны игрока уже изменились — проверьте карточку ещё раз");
+    });
+    await waitFor(() => expect(rosterLoads()).toBeGreaterThan(loadsBeforeCancel));
+  });
+
   it("restores an eliminated player as a mistaken knockout", async () => {
     let players = [
       { id: "player-1", name: "Returned Player", table: 1, seat: 1, stack: 1000, status: "eliminated" },

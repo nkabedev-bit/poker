@@ -1025,3 +1025,165 @@ describe("restoring a player twice at once", () => {
     expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_player_elimination", expect.anything());
   });
 });
+
+// An addon ticked on the wrong player is taken back from the player card; the money tab
+// is rebuilt from the roster, so the refund shows up there on the next sync.
+describe("taking back a mistaken addon", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+  });
+
+  function addonExtras(
+    options: { addonEnabled?: boolean; status?: "active" | "eliminated" } = {},
+  ) {
+    return mergeTournamentExtras({
+      settings: { addonEnabled: options.addonEnabled ?? true },
+      players: [
+        {
+          id: "player-1",
+          addons: 1,
+          addonChipsTotal: 6000,
+          bountyCount: 0,
+          finishPlace: null,
+          name: "Player 1",
+          rebuys: 0,
+          seat: 1,
+          stack: 16000,
+          status: options.status ?? "active",
+          table: 1,
+        },
+      ],
+    });
+  }
+
+  function supabaseAnsweringCancel(result: { data: unknown; error: unknown }) {
+    const base = createSupabaseMock();
+    return {
+      ...base,
+      rpc: vi.fn(async (fnName: string, args: unknown) =>
+        fnName === "cancel_tournament_player_addon" ? result : base.rpc(fnName, args),
+      ),
+    };
+  }
+
+  const cancelledPlayer = {
+    id: "player-1",
+    addons: 0,
+    addonChipsTotal: 0,
+    name: "Player 1",
+    stack: 10000,
+    status: "active",
+  };
+
+  async function cancelAddon(body: Record<string, unknown>, id = "player-1") {
+    const { PATCH } = await import("@/app/api/tma/players/[id]/route");
+    return PATCH(
+      new Request(`http://localhost/api/tma/players/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "cancel_addon", ...body }),
+      }),
+      { params: Promise.resolve({ id }) },
+    );
+  }
+
+  it("takes one addon off against the count the admin saw and resyncs the sheets", async () => {
+    const supabase = supabaseAnsweringCancel({ data: cancelledPlayer, error: null });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras());
+
+    const response = await cancelAddon({ expectedAddons: 1 });
+    const data = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(data.player).toEqual(cancelledPlayer);
+    expect(supabase.rpc).toHaveBeenCalledWith("cancel_tournament_player_addon", {
+      p_tournament_id: "tournament-1",
+      p_player_id: "player-1",
+      p_expected_addons: 1,
+    });
+    expect(mocks.syncTournamentToSheets).toHaveBeenCalledWith(supabase, "tournament-1");
+  });
+
+  it("takes an addon back from a player who is already out", async () => {
+    const supabase = supabaseAnsweringCancel({
+      data: { ...cancelledPlayer, status: "eliminated" },
+      error: null,
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras({ status: "eliminated" }));
+
+    const response = await cancelAddon({ expectedAddons: 1 });
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith("cancel_tournament_player_addon", expect.anything());
+  });
+
+  it("refuses when addons are switched off in the settings", async () => {
+    const supabase = supabaseAnsweringCancel({ data: cancelledPlayer, error: null });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras({ addonEnabled: false }));
+
+    const response = await cancelAddon({ expectedAddons: 1 });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Addons disabled" });
+    expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_tournament_player_addon", expect.anything());
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
+  });
+
+  it.each([undefined, 0, 1.5])(
+    "refuses a request whose addon count is %s",
+    async (expectedAddons) => {
+      const supabase = supabaseAnsweringCancel({ data: cancelledPlayer, error: null });
+      mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+      mocks.loadTournamentExtras.mockResolvedValue(addonExtras());
+
+      const response = await cancelAddon({ expectedAddons });
+
+      expect(response.status).toBe(400);
+      expect(supabase.rpc).not.toHaveBeenCalledWith("cancel_tournament_player_addon", expect.anything());
+    },
+  );
+
+  it("says the addon is already gone when the count on screen is stale", async () => {
+    const supabase = supabaseAnsweringCancel({ data: null, error: null });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras());
+
+    const response = await cancelAddon({ expectedAddons: 1 });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "Addon already cancelled" });
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
+  });
+
+  it("says the player is not found when they are not on the roster", async () => {
+    const supabase = supabaseAnsweringCancel({ data: null, error: null });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras());
+
+    const response = await cancelAddon({ expectedAddons: 1 }, "ghost");
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ error: "Player not found" });
+  });
+
+  it("names the migration while the function is not in the database yet", async () => {
+    const supabase = supabaseAnsweringCancel({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find the function public.cancel_tournament_player_addon",
+      },
+    });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(addonExtras());
+
+    const response = await cancelAddon({ expectedAddons: 1 });
+
+    expect(response.status).toBe(500);
+    expect((await response.json()).error).toContain("202609110001");
+    expect(mocks.syncTournamentToSheets).not.toHaveBeenCalled();
+  });
+});
