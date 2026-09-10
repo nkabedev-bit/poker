@@ -9,6 +9,7 @@ import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
  * then — so the desk gets a copy that expires instead.
  */
 const SETTLING_HOURS = 1;
+const SETTLING_MS = SETTLING_HOURS * 60 * 60 * 1000;
 
 export function getFinishTournamentExtrasPatch(
   players: TournamentPlayer[] = [],
@@ -22,10 +23,38 @@ export function getFinishTournamentExtrasPatch(
     // A reseating left open at the finish would greet the next tournament on its screens.
     tableMerge: null,
     settling: {
-      closesAt: new Date(now.getTime() + SETTLING_HOURS * 60 * 60 * 1000).toISOString(),
+      closesAt: new Date(now.getTime() + SETTLING_MS).toISOString(),
       players,
     },
   };
+}
+
+/**
+ * The roster the money tab is written from, or null when there is none to write from.
+ *
+ * While the room is full, the live roster. Once the evening is over, the desk's copy: it
+ * is the only record of who settled up after the finish. Unlike the desk, the sheet keeps
+ * reading it after the hour is up, so a rebuild later that night does not strike the
+ * payments back off. A copy made before the session being written began belongs to an
+ * earlier evening and gives nothing.
+ */
+export function getFinanceRoster(
+  extras: Pick<TournamentExtras, "players" | "settling">,
+  sessionStartedAt: string | null,
+): TournamentPlayer[] | null {
+  if (extras.players.length > 0) return extras.players;
+
+  const settling = extras.settling;
+  if (!settling || settling.players.length === 0 || !sessionStartedAt) return null;
+
+  // The copy is made at the finish and closes an hour after it.
+  const finishedAt = new Date(settling.closesAt).getTime() - SETTLING_MS;
+  const startedAt = new Date(sessionStartedAt).getTime();
+  if (!Number.isFinite(finishedAt) || !Number.isFinite(startedAt) || finishedAt < startedAt) {
+    return null;
+  }
+
+  return settling.players;
 }
 
 /**

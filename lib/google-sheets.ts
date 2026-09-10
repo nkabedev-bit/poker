@@ -15,6 +15,7 @@ import {
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
+import { getFinanceRoster } from "@/lib/timer/lifecycle";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 const ELIMINATION_SHEET_HEADERS = [
@@ -998,8 +999,8 @@ export async function syncFinanceSheet(
  * pays for one write instead of the four a full sync costs — the admin marks a whole
  * room off at the break, and the club's quota is sixty writes a minute.
  *
- * A finished game whose roster has been wiped is left to the full sync: the money is
- * rebuilt there from the last elimination log, which this shortcut does not read.
+ * Once the game is over the roster is wiped and the desk ticks players off in its copy,
+ * so that copy is what the money tab is written from.
  */
 export async function syncFinanceSheetForTournament(
   supabase: SupabaseClient,
@@ -1014,13 +1015,11 @@ export async function syncFinanceSheetForTournament(
     .maybeSingle();
 
   const extras = mergeTournamentExtras(data?.data);
-  if (extras.players.length === 0) return null;
+  const sessionStartedAt = getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt);
+  const players = getFinanceRoster(extras, sessionStartedAt);
+  if (!players) return null;
 
-  const sheetName = getEliminationSheetName(
-    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
-  );
-
-  return syncFinanceSheet(sheetName, extras.players, extras.settings);
+  return syncFinanceSheet(getEliminationSheetName(sessionStartedAt), players, extras.settings);
 }
 
 // ---------------------------------------------------------------------------
@@ -1165,9 +1164,15 @@ export async function syncTournamentToSheets(
   ]);
 
   // The money lives in its own spreadsheet, so a problem with it (missing id, no access)
-  // must not take the tournament sheet down with it.
+  // must not take the tournament sheet down with it. After the finish the standings come
+  // from the last knockout, but the money comes from the desk's copy: the players who
+  // settled up once the room emptied are ticked there and nowhere else.
   try {
-    await syncFinanceSheet(sheetName, standingsPlayers, extras.settings);
+    await syncFinanceSheet(
+      sheetName,
+      getFinanceRoster(extras, sessionStartedAt) ?? standingsPlayers,
+      extras.settings,
+    );
   } catch (financeError) {
     console.error("Non-critical finance sheet sync error:", financeError);
   }

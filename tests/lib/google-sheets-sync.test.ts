@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
-type SheetsCall = { method: string; range?: string; ranges?: string[] };
+type SheetsCall = { method: string; range?: string; ranges?: string[]; values?: unknown[][] };
 
 const calls: SheetsCall[] = [];
 let batchUpdateFailures = 0;
@@ -46,8 +46,8 @@ const valuesApi = {
     calls.push({ method: "values.get", range: params.range });
     return { data: { values: [] } };
   }),
-  update: vi.fn(async (params: { range: string }) => {
-    calls.push({ method: "values.update", range: params.range });
+  update: vi.fn(async (params: { range: string; requestBody?: { values?: unknown[][] } }) => {
+    calls.push({ method: "values.update", range: params.range, values: params.requestBody?.values });
     return { data: {} };
   }),
 };
@@ -75,6 +75,7 @@ const {
   appendFreeEntryGrant,
   buildFreeEntryGrantRow,
   getEliminationSheetName,
+  syncFinanceSheetForTournament,
   syncTournamentToSheets,
   syncVipSheet,
 } = await import("@/lib/google-sheets");
@@ -215,6 +216,47 @@ describe("finance sheet sync", () => {
 
     expect(writeCalls()).toHaveLength(2);
     expect(calls.some((call) => call.method === "values.update")).toBe(false);
+  });
+
+  // An evening that finished five minutes ago: the room is empty and the desk has its copy.
+  function finishedEvening(copy: TournamentPlayer[]) {
+    const now = Date.now();
+    return {
+      players: [],
+      settings: { sheetsSessionStartedAt: new Date(now - 10 * 60 * 1000).toISOString() },
+      settling: { closesAt: new Date(now + 55 * 60 * 1000).toISOString(), players: copy },
+    };
+  }
+
+  function financeUpdates() {
+    return calls.filter((call) => call.method === "values.update");
+  }
+
+  // The players who settle up after the finish are ticked in the desk's copy; the last
+  // knockout's roster has never heard of those payments.
+  it("writes the payments the desk took after the finish on a full rebuild", async () => {
+    process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
+    const logs = [eliminationLog("Игрок 2", new Date().toISOString(), [player(1)])];
+
+    await syncTournamentToSheets(
+      fakeSupabase(finishedEvening([player(1, { paid: true })]), logs),
+      "t1",
+    );
+
+    expect(financeUpdates()).toHaveLength(1);
+    expect(financeUpdates()[0]?.values).toContainEqual(expect.arrayContaining(["Игрок 1", "Да"]));
+  });
+
+  it("rewrites the money tab when a payment is ticked after the finish", async () => {
+    process.env.GOOGLE_FINANCE_SHEET_ID = "finance-id";
+
+    await syncFinanceSheetForTournament(
+      fakeSupabase(finishedEvening([player(1, { paid: true })]), []),
+      "t1",
+    );
+
+    expect(financeUpdates()).toHaveLength(1);
+    expect(financeUpdates()[0]?.values).toContainEqual(expect.arrayContaining(["Игрок 1", "Да"]));
   });
 });
 
