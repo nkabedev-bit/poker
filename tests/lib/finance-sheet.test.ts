@@ -96,6 +96,22 @@ describe("finance sheet", () => {
     expect(totals?.[9]).toBe(7000);
   });
 
+  // The venue's owner plays on the house: his purchases are counted, written out as 0
+  // rather than left blank, and none of them reaches the money owed.
+  it("writes the owner's purchases at 0 ₽ instead of leaving them blank", () => {
+    const rows = buildFinanceSheetRows(
+      [
+        player(1, "Киберпсих", { addons: 1, doubleRebuys: 1, rebuys: 3 }),
+        player(2, "Иван", { rebuys: 1 }),
+      ],
+      prices,
+    );
+
+    expect(rows[0]).toEqual([1, "Киберпсих", 0, 2, 0, 1, 0, 1, 0, 0, "Нет"]);
+    // Only Иван's ticket and re-entry are owed.
+    expect(rows.at(-1)?.[9]).toBe(2500);
+  });
+
   it("sorts players by registration number and keeps the header row first", () => {
     const grid = buildFinanceSheetGrid([player(3, "Третий"), player(1, "Первый")], prices);
 

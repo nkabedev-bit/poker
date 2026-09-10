@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildPlayerCharge,
   getFinancePrices,
+  type ChargeLine,
   type FinancePrices,
 } from "@/lib/finance/player-charge";
 import {
@@ -734,6 +735,12 @@ function blankIfZero(value: number): string | number {
   return Number.isFinite(value) && value > 0 ? value : "";
 }
 
+// Blank means nothing was bought. Something bought for nothing — the venue's owner plays
+// on the house — is written as 0, so the row does not read as if he never re-entered.
+function sumIfBought(line: ChargeLine): string | number {
+  return line.count > 0 ? line.sum : "";
+}
+
 export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {
   return players
     .filter((player) => {
@@ -907,11 +914,11 @@ export function buildFinanceSheetRows(
         player.name || "",
         charge.ticket.free ? "" : charge.ticket.sum,
         blankIfZero(charge.reentries.count),
-        blankIfZero(charge.reentries.sum),
+        sumIfBought(charge.reentries),
         blankIfZero(charge.doubleReentries.count),
-        blankIfZero(charge.doubleReentries.sum),
+        sumIfBought(charge.doubleReentries),
         blankIfZero(charge.addons.count),
-        blankIfZero(charge.addons.sum),
+        sumIfBought(charge.addons),
         charge.total,
         // What the admin ticked at the desk, so the sheet and the room agree.
         player.paid ? "Да" : "Нет",

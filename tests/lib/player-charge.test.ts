@@ -39,6 +39,41 @@ describe("the 1+1 ticket", () => {
   });
 });
 
+// He plays on the house: every re-entry and add-on is still counted, none is charged.
+describe("the venue's owner", () => {
+  it("owes nothing for the seat, the re-entries, the doubles or the add-ons", () => {
+    const charge = buildPlayerCharge(
+      player({ addons: 1, doubleRebuys: 1, name: "Киберпсих", rebuys: 3 }),
+      prices,
+    );
+
+    expect(charge).toEqual({
+      addons: { count: 1, price: 0, sum: 0 },
+      doubleReentries: { count: 1, price: 0, sum: 0 },
+      reentries: { count: 2, price: 0, sum: 0 },
+      ticket: { count: 1, free: false, price: 0, sum: 0 },
+      total: 0,
+    });
+  });
+
+  it("is recognised whatever case and spaces his nickname was typed with", () => {
+    expect(buildPlayerCharge(player({ name: "  КИБЕРПСИХ ", rebuys: 1 }), prices).total).toBe(0);
+  });
+
+  it("keeps an entry he came in on with a pass marked as a pass", () => {
+    expect(buildPlayerCharge(player({ freePass: "vip", name: "Киберпсих" }), prices).ticket).toEqual({
+      count: 0,
+      free: true,
+      price: 0,
+      sum: 0,
+    });
+  });
+
+  it("does not spread to a nickname that only looks like his", () => {
+    expect(buildPlayerCharge(player({ name: "Киберпсих2", rebuys: 1 }), prices).total).toBe(1250 + 1250);
+  });
+});
+
 describe("buildPlayerCharge", () => {
   it("charges the ticket alone for a player who bought nothing else", () => {
     expect(buildPlayerCharge(player(), prices).total).toBe(1250);

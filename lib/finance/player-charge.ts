@@ -49,17 +49,26 @@ function line(count: number, price: number): ChargeLine {
 }
 
 /**
+ * The venue's owner plays on the house. What he buys is still counted — the screen, the
+ * chip bank and the game sheet all see his re-entries and add-ons — but the bill for
+ * the seat and for every one of them stays at zero.
+ */
+const VENUE_OWNER_NICKNAME = "киберпсих";
+
+/**
  * What a player owes for the evening.
  *
  * The entry is free when the club gave them a pass or the tournament is a freeroll;
  * re-entries and add-ons are always paid for, since a pass covers the seat only, and a
- * "1+1" halves the entry alone for the same reason.
+ * "1+1" halves the entry alone for the same reason. The venue's owner alone pays for
+ * nothing at all.
  */
 export function buildPlayerCharge(
   player: Pick<
     TournamentPlayer,
     "addons" | "doubleRebuys" | "duoTicket" | "freePass" | "rebuys" | "ticketType"
-  >,
+  > &
+    Partial<Pick<TournamentPlayer, "name">>,
   prices: FinancePrices,
   options: { freeroll?: boolean } = {},
 ): PlayerCharge {
@@ -67,6 +76,9 @@ export function buildPlayerCharge(
   // `rebuys` counts every re-entry, doubles included, and the two are priced apart.
   const reentries = Math.max(0, toCount(player.rebuys) - doubleReentries);
   const addons = toCount(player.addons);
+
+  const onTheHouse = String(player.name ?? "").trim().toLowerCase() === VENUE_OWNER_NICKNAME;
+  const charged = (price: number) => (onTheHouse ? 0 : price);
 
   const paidWithPass = player.freePass === "regular" || player.freePass === "vip";
   const free = paidWithPass || Boolean(options.freeroll);
@@ -77,12 +89,12 @@ export function buildPlayerCharge(
     : player.ticketType === "vip"
       ? prices.vipBuyIn
       : prices.buyIn;
-  const ticket = { ...line(free ? 0 : 1, free ? 0 : ticketPrice), free };
+  const ticket = { ...line(free ? 0 : 1, free ? 0 : charged(ticketPrice)), free };
 
   const charge = {
-    addons: line(addons, prices.addonPrice),
-    doubleReentries: line(doubleReentries, prices.doubleRebuyPrice),
-    reentries: line(reentries, prices.rebuyPrice),
+    addons: line(addons, charged(prices.addonPrice)),
+    doubleReentries: line(doubleReentries, charged(prices.doubleRebuyPrice)),
+    reentries: line(reentries, charged(prices.rebuyPrice)),
     ticket,
   };
 
