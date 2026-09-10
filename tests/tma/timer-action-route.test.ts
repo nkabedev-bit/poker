@@ -20,6 +20,10 @@ vi.mock("@/lib/client-bot/server", () => ({
   saveTournamentExtrasFromContext: mocks.saveTournamentExtrasFromContext,
 }));
 
+vi.mock("@/lib/results/store", () => ({
+  saveTournamentResults: vi.fn(async () => {}),
+}));
+
 const timerStateRow = {
   status: "finished",
   current_level_index: 4,
@@ -148,6 +152,31 @@ describe("TMA timer action route", () => {
       expect.objectContaining({
         current_level_index: 0,
         status: "finished",
+      }),
+    );
+  });
+
+  // The roster is wiped at the finish, and the players who settle up afterwards are
+  // found in the copy the desk is left. A finish from TMA used to leave it empty.
+  it("leaves the desk a copy of the room when finishing from TMA", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    const room = [{ id: "player-1", name: "Игрок", status: "active" }];
+    const context = { extras: { players: room } };
+    mocks.loadCurrentTournamentContext.mockResolvedValue(context);
+
+    const { POST } = await import("@/app/api/tma/timer/[action]/route");
+    await POST(
+      new Request("http://localhost/api/tma/timer/finish", { method: "POST" }),
+      { params: Promise.resolve({ action: "finish" }) },
+    );
+
+    expect(mocks.saveTournamentExtrasFromContext).toHaveBeenCalledWith(
+      supabase,
+      context,
+      expect.objectContaining({
+        players: [],
+        settling: expect.objectContaining({ players: room }),
       }),
     );
   });

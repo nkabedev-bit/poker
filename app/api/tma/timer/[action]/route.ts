@@ -197,10 +197,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           console.error("Failed to store tournament results", resultsError);
         }
 
+        // The roster goes, but the desk keeps a copy of it: the room settles up after the
+        // finish, and without the copy nobody could be found to take the money from.
         await saveTournamentExtrasFromContext(
           auth.supabase,
           context,
-          getFinishTournamentExtrasPatch(),
+          getFinishTournamentExtrasPatch(context.extras.players),
         );
       }
     } else {
