@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import type { Raffle } from "@/lib/raffle/raffle";
 
@@ -22,7 +22,16 @@ const DRAW: Raffle = {
 };
 
 describe("RaffleStrip", () => {
-  afterEach(cleanup);
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   it("runs the club's photo of a player who has one", () => {
     render(<RaffleStrip raffle={DRAW} />);
@@ -40,6 +49,35 @@ describe("RaffleStrip", () => {
     expect(screen.getAllByText("Козочка").length).toBeGreaterThan(1);
   });
 
+  // The screen refreshes while the reel turns and hands over a fresh copy of the same
+  // draw; the room must still be told who won.
+  it("shows the winner even when the screen refreshes mid-spin", async () => {
+    const { container, rerender } = render(<RaffleStrip raffle={DRAW} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    rerender(<RaffleStrip raffle={structuredClone(DRAW)} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAW.spinSeconds * 1000);
+    });
+
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
+    expect(container.querySelector(".raffle-cell--winner")).not.toBeNull();
+  });
+
+  it("runs a new draw from the start", async () => {
+    const { container, rerender } = render(<RaffleStrip raffle={DRAW} />);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAW.spinSeconds * 1000 + 2000);
+    });
+
+    rerender(<RaffleStrip raffle={{ ...DRAW, id: "draw-2", kind: "vip" }} />);
+
+    expect(container.querySelector(".raffle-result--shown")).toBeNull();
+    expect(screen.getByText("VIP розыгрыш")).toBeTruthy();
+  });
+
   // Draws taken before the reel existed carry numbers and nothing else.
   it("falls back to the numbers of an older draw", () => {
     const older: Raffle = { ...DRAW, faces: undefined };
@@ -49,9 +87,14 @@ describe("RaffleStrip", () => {
     expect(screen.queryByRole("presentation", { hidden: true })).toBeNull();
   });
 
-  it("names the winner once the reel has stopped", () => {
-    render(<RaffleStrip raffle={DRAW} />);
+  it("names the winner once the reel has stopped", async () => {
+    const { container } = render(<RaffleStrip raffle={DRAW} />);
 
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(DRAW.spinSeconds * 1000 + 2000);
+    });
+
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
     expect(screen.getByText("Победил номер")).toBeTruthy();
     expect(screen.getByText("Бесплатная проходка на следующую игру")).toBeTruthy();
   });

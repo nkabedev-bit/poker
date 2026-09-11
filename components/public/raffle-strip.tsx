@@ -16,13 +16,24 @@ const PRELOAD_TIMEOUT_MS = 1500;
  * the room sees one result and it cannot be argued with. Faces run past a needle in the
  * middle and stop with the winner under it — a player with no photo rides past as their
  * nickname, which is how the hall knows them anyway.
+ *
+ * Each draw gets a reel of its own. The screen refreshes its state while the reel is
+ * turning — a poll, somebody knocked out at another table — and every refresh hands
+ * over a new copy of the same draw; a reel that restarted on those would lose the timer
+ * that shows the result, and the room would never be told who won.
  */
 export function RaffleStrip({ raffle }: { raffle: Raffle }) {
+  return <RaffleReel initialRaffle={raffle} key={raffle.id} />;
+}
+
+function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
+  // The draw as it stood when the reel started. Nothing in it that the room sees
+  // changes afterwards, and a copy that arrives mid-spin must not restart it.
+  const [raffle] = useState(initialRaffle);
   const [settled, setSettled] = useState(false);
   const [offset, setOffset] = useState(0);
   // A face whose picture refused to load rides past as a nickname rather than a hole.
   const [broken, setBroken] = useState<string[]>([]);
-  const spunFor = useRef<string | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
 
@@ -51,11 +62,6 @@ export function RaffleStrip({ raffle }: { raffle: Raffle }) {
   );
 
   useEffect(() => {
-    if (spunFor.current === raffle.id) return;
-    spunFor.current = raffle.id;
-    setSettled(false);
-    setOffset(0);
-
     let cancelled = false;
     const timers: number[] = [];
 
@@ -101,7 +107,7 @@ export function RaffleStrip({ raffle }: { raffle: Raffle }) {
       cancelled = true;
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [faces, raffle.id, raffle.spinSeconds, reel.landingIndex]);
+  }, [faces, raffle.spinSeconds, reel.landingIndex]);
 
   return (
     <div className="raffle-overlay">
