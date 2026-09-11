@@ -72,7 +72,6 @@ export default function ClientHomePage() {
   const playerName = data?.player.displayName?.trim() || telegramUser?.first_name || "Гость";
   const address = events.find((event) => event.venueAddress)?.venueAddress ?? "";
   const photoUrl = pickPlayerPhoto({
-    avatarIsCustom: data?.player.avatarIsCustom,
     avatarUrl: data?.player.avatarUrl,
     telegramPhotoUrl: telegramUser?.photo_url,
   });

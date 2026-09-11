@@ -1,20 +1,19 @@
 /**
  * The picture to show for a player.
  *
- * A photo the player uploaded is theirs and wins outright; otherwise Telegram's own
- * photo is used, falling back to the copy the club stored when the mini-app was opened
- * without one.
+ * The club's stored copy wins. It is served from the club's own domain, while the photo
+ * Telegram hands the mini-app lives on t.me, which Russian ISPs filter like telegram.org:
+ * without a VPN the request hangs and the player gets an empty circle for a face. A
+ * photo uploaded in the app is a stored copy too, so it shows at once; one changed in
+ * Telegram catches up at the weekly sync. Telegram's own photo is for a player the club
+ * has no copy of yet.
  */
 export function pickPlayerPhoto({
-  avatarIsCustom,
   avatarUrl,
   telegramPhotoUrl,
 }: {
-  avatarIsCustom?: boolean | null;
   avatarUrl?: string | null;
   telegramPhotoUrl?: string | null;
 }) {
-  if (avatarIsCustom && avatarUrl) return avatarUrl;
-
-  return telegramPhotoUrl ?? avatarUrl ?? undefined;
+  return avatarUrl || telegramPhotoUrl || undefined;
 }

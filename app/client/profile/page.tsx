@@ -155,7 +155,6 @@ export default function ClientProfilePage() {
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
   const earned = countEarnedAchievements(achievements);
   const photoUrl = pickPlayerPhoto({
-    avatarIsCustom: me?.avatarIsCustom,
     avatarUrl: me?.avatarUrl,
     telegramPhotoUrl: telegramUser?.photo_url,
   });
