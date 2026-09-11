@@ -7,6 +7,7 @@ import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import {
   Badge,
   Chip,
@@ -461,7 +462,7 @@ export default function ClientEventPage() {
           <img
             alt=""
             className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            src={event.posterUrl}
+            src={toOwnOriginMediaUrl(event.posterUrl)}
           />
         ) : (
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />

@@ -26,6 +26,7 @@ import {
 } from "@/lib/events/types";
 import { describeAnnouncedSeats } from "@/lib/events/seats";
 import type { Reservation } from "@/lib/events/reservations";
+import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 
 type EventRow = TournamentEvent & { signupsCount: number };
 
@@ -548,7 +549,7 @@ export default function TMAEventsPage() {
           <img
             alt="Афиша"
             className="max-h-40 w-full rounded-lg object-cover"
-            src={draft.posterDataUrl || draft.posterUrl}
+            src={draft.posterDataUrl || toOwnOriginMediaUrl(draft.posterUrl)}
           />
         ) : null}
 

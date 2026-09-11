@@ -15,6 +15,7 @@ import {
   getBlindAlertVolumeMultiplier,
 } from "@/lib/timer/blind-alert";
 import { isDealerLabel } from "@/lib/player-labels";
+import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import {
   getPlateClass,
   readTierLabel,
@@ -763,7 +764,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
     if (playback.kind === "custom") {
       htmlAudioRef.current?.pause();
-      const audio = new Audio(playback.url);
+      const audio = new Audio(toOwnOriginMediaUrl(playback.url));
       audio.volume = 1;
       htmlAudioRef.current = audio;
       audio.play().then(() => {
@@ -834,7 +835,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
         <div className="public-brand">
           {state.tournament.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img alt="Логотип турнира" src={state.tournament.logoUrl} />
+            <img alt="Логотип турнира" src={toOwnOriginMediaUrl(state.tournament.logoUrl)} />
           ) : null}
           <div>
             <h1>{state.tournament.name}</h1>
@@ -911,7 +912,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
               <img
                 alt=""
                 className="public-logo-clear"
-                src={state.tournament.logoUrl}
+                src={toOwnOriginMediaUrl(state.tournament.logoUrl)}
               />
             </div>
           ) : (
