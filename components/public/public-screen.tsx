@@ -29,6 +29,7 @@ import { TABLE_MERGE_NOTICE } from "@/lib/timer/table-merge";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { TimerDisplay } from "@/components/public/timer-display";
+import { isTournamentUnderway, useStatePulse } from "@/components/public/use-state-pulse";
 
 type PublicScreenProps = {
   initialState: PublicTournamentState;
@@ -444,6 +445,8 @@ function createTimerWorker(): Worker | null {
 export function PublicScreen({ initialState, serverNowIso, token }: PublicScreenProps) {
   const clockOffsetRef = useRef<number>(0);
   const isFirstRender = useRef(true);
+  // The fingerprint of the state on screen, for the pulse to compare against.
+  const versionRef = useRef<string | undefined>(initialState.version);
 
   if (isFirstRender.current) {
     const clientNow = Date.now();
@@ -485,6 +488,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
     try {
       const { state: nextState, serverNowIso: nextServerNowIso } = await fetchPublicState(token);
       setState(nextState);
+      versionRef.current = nextState.version;
       const clientNow = Date.now();
       const serverTime = new Date(nextServerNowIso).getTime();
       clockOffsetRef.current = serverTime - clientNow;
@@ -493,6 +497,13 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       console.error(error);
     }
   }, [token]);
+
+  useStatePulse({
+    enabled: !isDemo && isTournamentUnderway(state.timerState.status),
+    refresh,
+    token,
+    versionRef,
+  });
 
   useEffect(() => {
     const worker = createTimerWorker();
@@ -589,7 +600,8 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
   useEffect(() => {
     // In demo mode, we poll frequently since there's no websocket.
-    // In production, we poll every 45 seconds as a fallback (Realtime pushes instant updates).
+    // In production, we poll every 45 seconds as a fallback: Realtime pushes changes when
+    // it gets through, and while a tournament is under way the pulse checks every 10 s.
     const pollInterval = isDemo ? 5000 : 45000;
     const poll = window.setInterval(() => {
       refresh().catch(() => undefined);

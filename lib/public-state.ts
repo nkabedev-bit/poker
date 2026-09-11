@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadDemoPublicState } from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -81,6 +82,57 @@ function mapBlindLevel(row: PublicStateRpc["blindLevels"][number]): BlindLevel {
   };
 }
 
+type Stamp = { updated_at: string };
+
+/** PostgREST hands a one-to-one embed back as an object, and older setups as a list. */
+function firstStamp(value: Stamp | Stamp[] | null | undefined) {
+  return (Array.isArray(value) ? value[0] : value)?.updated_at ?? "";
+}
+
+/**
+ * A fingerprint of everything the screen draws, cheap enough to ask for every few
+ * seconds.
+ *
+ * The database stamps `updated_at` on every write to the tournament, its timer, its
+ * blind levels and its extras — the roster, the draw, the settings — so anything a
+ * screen should show moves it, and a screen whose fingerprint still matches has nothing
+ * to fetch. The level count catches a level taken away, which leaves no stamp behind.
+ * Null when there is no screen by that token.
+ */
+export async function loadPublicStateVersion(
+  supabase: SupabaseClient,
+  token: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select(
+      "updated_at, timer_state(updated_at), tournament_extras(updated_at), blind_levels(updated_at)",
+    )
+    .eq("public_token", token)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  if (!data) return null;
+
+  const row = data as Stamp & {
+    blind_levels: Stamp[] | null;
+    timer_state: Stamp | Stamp[] | null;
+    tournament_extras: Stamp | Stamp[] | null;
+  };
+  const levels = row.blind_levels ?? [];
+  const latestLevel = levels.reduce(
+    (latest, level) => (level.updated_at > latest ? level.updated_at : latest),
+    "",
+  );
+
+  return [
+    row.updated_at,
+    firstStamp(row.timer_state),
+    firstStamp(row.tournament_extras),
+    `${levels.length}:${latestLevel}`,
+  ].join("|");
+}
+
 export async function loadPublicState(
   token: string,
 ): Promise<PublicTournamentState | null> {
@@ -89,6 +141,17 @@ export async function loadPublicState(
   }
 
   const supabase = createSupabaseAdminClient();
+
+  // Read before the state itself: a write that lands in between then costs the screen
+  // one extra refresh, rather than leaving it sure it already has a change it missed.
+  let version: string | undefined;
+  try {
+    version = (await loadPublicStateVersion(supabase, token)) ?? undefined;
+  } catch (error) {
+    // Without it the screen just refreshes once more on its next pulse.
+    console.error("Failed to read the screen's version", error);
+  }
+
   const { data, error } = await supabase.rpc("get_public_state", { token });
 
   if (error) {
@@ -132,5 +195,6 @@ export async function loadPublicState(
     timerState: mapTimerState(state.timerState),
     blindLevels: state.blindLevels.map(mapBlindLevel),
     extras: { ...merged, players },
+    version,
   };
 }

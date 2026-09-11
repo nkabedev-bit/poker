@@ -240,4 +240,9 @@ export type PublicTournamentState = {
   timerState: TimerState;
   blindLevels: BlindLevel[];
   extras: TournamentExtras;
+  /**
+   * The fingerprint this state was read at, which the screen's pulse compares against.
+   * Missing in the demo and when it could not be read; the screen then refreshes once.
+   */
+  version?: string;
 };
