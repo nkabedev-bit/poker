@@ -442,6 +442,22 @@ function createTimerWorker(): Worker | null {
   }
 }
 
+/**
+ * How far the screen's clock may sit from the server's before a refresh corrects it.
+ *
+ * A refresh reads the server's time off the `Date` header, which only counts whole
+ * seconds: taken every time, it moved the countdown on the wall a second back or
+ * forward on every change at the desk. A laptop clock that is really off, or one that
+ * slept, is out by more than this and is still put right on the next refresh.
+ */
+const CLOCK_OFFSET_TOLERANCE_MS = 1500;
+
+export function getSettledClockOffset(currentOffsetMs: number, measuredOffsetMs: number) {
+  return Math.abs(measuredOffsetMs - currentOffsetMs) > CLOCK_OFFSET_TOLERANCE_MS
+    ? measuredOffsetMs
+    : currentOffsetMs;
+}
+
 export function PublicScreen({ initialState, serverNowIso, token }: PublicScreenProps) {
   const clockOffsetRef = useRef<number>(0);
   const isFirstRender = useRef(true);
@@ -491,7 +507,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       versionRef.current = nextState.version;
       const clientNow = Date.now();
       const serverTime = new Date(nextServerNowIso).getTime();
-      clockOffsetRef.current = serverTime - clientNow;
+      clockOffsetRef.current = getSettledClockOffset(
+        clockOffsetRef.current,
+        serverTime - clientNow,
+      );
       setNow(new Date(Date.now() + clockOffsetRef.current));
     } catch (error) {
       console.error(error);
