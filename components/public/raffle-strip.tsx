@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import { buildRaffleReel, type Raffle, type RaffleFace } from "@/lib/raffle/raffle";
 
 /**
@@ -32,8 +33,10 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
   const [raffle] = useState(initialRaffle);
   const [settled, setSettled] = useState(false);
   const [offset, setOffset] = useState(0);
-  // A face whose picture refused to load rides past as a nickname rather than a hole.
-  const [broken, setBroken] = useState<string[]>([]);
+  // Photos that were here before the reel moved. Only these ride as faces: one still on
+  // its way — or one that never comes — rides past as the nickname, because a picture
+  // appearing mid-flight reads as a broken screen.
+  const [arrived, setArrived] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
 
@@ -42,7 +45,10 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
   const faces: RaffleFace[] = useMemo(
     () =>
       raffle.faces?.length
-        ? raffle.faces
+        ? raffle.faces.map((face) => ({
+            ...face,
+            avatarUrl: toOwnOriginMediaUrl(face.avatarUrl) ?? null,
+          }))
         : raffle.numbers.map((number) => ({ avatarUrl: null, name: String(number), number })),
     [raffle.faces, raffle.numbers],
   );
@@ -63,6 +69,7 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
 
   useEffect(() => {
     let cancelled = false;
+    let started = false;
     const timers: number[] = [];
 
     const start = () => {
@@ -79,25 +86,34 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
       );
     };
 
-    // Nothing moves until the faces are here: pictures appearing mid-flight read as a
-    // broken screen, and the draw is the one moment the room is all looking at it.
-    const loaded = faces
-      .map((face) => face.avatarUrl)
-      .filter((url): url is string => Boolean(url))
-      .map(
-        (url) =>
-          new Promise<void>((resolve) => {
-            const image = new window.Image();
-            image.onload = () => resolve();
-            image.onerror = () => resolve();
-            image.src = url;
-          }),
-      );
+    // Nothing moves until the faces are here, or until the room has waited long enough.
+    const urls = [
+      ...new Set(
+        faces.map((face) => face.avatarUrl).filter((url): url is string => Boolean(url)),
+      ),
+    ];
+    const loaded = urls.map(
+      (url) =>
+        new Promise<void>((resolve) => {
+          const image = new window.Image();
+          image.onload = () => {
+            if (!cancelled && !started) {
+              setArrived((list) => (list.includes(url) ? list : [...list, url]));
+            }
+            resolve();
+          };
+          image.onerror = () => resolve();
+          image.src = url;
+        }),
+    );
 
     void Promise.race([
       Promise.all(loaded),
       new Promise((resolve) => timers.push(window.setTimeout(resolve, PRELOAD_TIMEOUT_MS))),
     ]).then(() => {
+      if (cancelled) return;
+      // From here on the reel is what it is: a face still on its way stays a nickname.
+      started = true;
       // One frame at rest first, so the browser animates from a standstill rather than
       // jumping to the end.
       window.requestAnimationFrame(start);
@@ -127,9 +143,8 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
             }}
           >
             {cells.map((face, index) => {
-              const photo = face.avatarUrl && !broken.includes(face.avatarUrl)
-                ? face.avatarUrl
-                : null;
+              const photo =
+                face.avatarUrl && arrived.includes(face.avatarUrl) ? face.avatarUrl : null;
 
               return (
                 <div
@@ -146,9 +161,8 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
                       alt=""
                       className="raffle-cell__photo"
                       decoding="async"
-                      onError={() =>
-                        setBroken((urls) => (urls.includes(photo) ? urls : [...urls, photo]))
-                      }
+                      // Loaded once already, so this is rare; a nickname still beats a hole.
+                      onError={() => setArrived((list) => list.filter((url) => url !== photo))}
                       src={photo}
                     />
                   ) : (
