@@ -1,10 +1,12 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
-import { RAFFLE_WIN_MESSAGE } from "@/lib/raffle/raffle";
+import { RAFFLE_WIN_MESSAGE, RAFFLE_WIN_NOTICE_DELAY_MS } from "@/lib/raffle/raffle";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 const mocks = vi.hoisted(() => ({
   adjustFreeEntries: vi.fn(),
+  /** What the route left to do once the response is gone. */
+  afterResponse: [] as Array<() => Promise<void>>,
   appendFreeEntryGrant: vi.fn(),
   broadcastPublicState: vi.fn(),
   loadTournamentExtras: vi.fn(),
@@ -19,10 +21,20 @@ vi.mock("@/lib/free-entries/adjust", () => ({ adjustFreeEntries: mocks.adjustFre
 vi.mock("@/lib/client-bot/notify", () => ({ notifyClientUser: mocks.notifyClientUser }));
 vi.mock("@/lib/google-sheets", () => ({ appendFreeEntryGrant: mocks.appendFreeEntryGrant }));
 vi.mock("next/server", () => ({
+  after: (task: () => Promise<void>) => {
+    mocks.afterResponse.push(task);
+  },
   NextResponse: {
     json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
   },
 }));
+
+/** Runs what the route left for after the response, and lets `ms` go by for it. */
+async function waitAfterResponse(ms: number) {
+  const running = mocks.afterResponse.splice(0).map((task) => task());
+  await vi.advanceTimersByTimeAsync(ms);
+  return running;
+}
 
 function player(
   registrationNumber: number,
@@ -101,14 +113,21 @@ function storedDraw(supabase: ReturnType<typeof createSupabaseMock>): StoredDraw
 
 describe("POST /api/tma/raffle — telling the winner", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
+    mocks.afterResponse.length = 0;
     mocks.adjustFreeEntries.mockResolvedValue({ after: 1, before: 0 });
     mocks.notifyClientUser.mockResolvedValue(true);
     mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("tells the free pass winner it is already in the app", async () => {
     const { body } = await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(body.raffle.prize).toBe("granted");
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(
@@ -120,6 +139,7 @@ describe("POST /api/tma/raffle — telling the winner", () => {
 
   it("promises the VIP winner a partner certificate", async () => {
     const { body } = await runDraw("vip", player(23, { accountId: "account-23", telegramId: 23 }));
+    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(body.raffle.prize).toBe("none");
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(
@@ -129,12 +149,26 @@ describe("POST /api/tma/raffle — telling the winner", () => {
     );
   });
 
+  // Sent at once, the message reached the winner's phone while the reel in the hall was
+  // still turning: the winner knew before the room did.
+  it("lets the reel stop before the winner hears about it", async () => {
+    await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+
+    expect(mocks.broadcastPublicState).toHaveBeenCalledWith("token-1");
+    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS - 1);
+    expect(mocks.notifyClientUser).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(mocks.notifyClientUser).toHaveBeenCalledTimes(1);
+  });
+
   // The message sends the player to look in the app; an uncredited pass would send them
   // to an empty profile.
   it("stays quiet when the pass could not be credited", async () => {
     mocks.adjustFreeEntries.mockResolvedValue(null);
 
     const { body } = await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(body.raffle.prize).toBe("manual");
     expect(mocks.notifyClientUser).not.toHaveBeenCalled();
@@ -142,6 +176,7 @@ describe("POST /api/tma/raffle — telling the winner", () => {
 
   it("stays quiet for a player the admin seated by hand", async () => {
     await runDraw("vip", player(23));
+    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(mocks.notifyClientUser).not.toHaveBeenCalled();
   });
@@ -155,10 +190,13 @@ describe("POST /api/tma/raffle — telling the winner", () => {
       "regular",
       player(4, { accountId: "account-4", telegramId: 44 }),
     );
+    const running = await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
+    await Promise.all(running);
 
     expect(response.status).toBe(200);
     expect(body.raffle.winnerNumber).toBe(4);
     expect(mocks.broadcastPublicState).toHaveBeenCalledWith("token-1");
+    expect(error).toHaveBeenCalledWith("Failed to tell the raffle winner", expect.any(Error));
     error.mockRestore();
   });
 });

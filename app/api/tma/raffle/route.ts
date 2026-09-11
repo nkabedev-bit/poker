@@ -1,6 +1,6 @@
 import { randomInt } from "crypto";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
@@ -11,10 +11,14 @@ import {
   pickRaffleWinner,
   RAFFLE_SPIN_SECONDS,
   RAFFLE_WIN_MESSAGE,
+  RAFFLE_WIN_NOTICE_DELAY_MS,
   type Raffle,
 } from "@/lib/raffle/raffle";
 
 export const dynamic = "force-dynamic";
+
+/** The winner's message goes out a minute after the response, so the function stays up. */
+export const maxDuration = 120;
 
 /**
  * Runs a draw on the big screen.
@@ -162,21 +166,29 @@ export async function POST(request: Request) {
   }
 
   // The winner hears it from the bot as well as from the screen: they may be at the bar
-  // when the wheel stops, and a prize nobody noticed is a prize nobody collects.
+  // when the wheel stops, and a prize nobody noticed is a prize nobody collects. It goes
+  // out a minute later, after the response — sent at once, it reached the winner's phone
+  // while the reel was still turning and told them before the room saw it.
   //
   // A regular pass is announced only once it has actually been credited — the message
   // sends the player to look for it in the app, and must not send them to an empty
-  // profile. The VIP certificate is handed over at the table, so it is announced as soon
-  // as the draw stands. A player seated by hand has no account and no chat to write to;
+  // profile. The VIP certificate is handed over at the table, so its message waits on
+  // nothing being credited. A player seated by hand has no account and no chat to write to;
   // the admin is told to hand the prize over instead.
   if (winner.accountId && (raffle.kind === "vip" || raffle.prize === "granted")) {
-    try {
-      await notifyClientUser(auth.supabase, winner.accountId, RAFFLE_WIN_MESSAGE[raffle.kind]);
-    } catch (notifyError) {
-      // The draw is written down and the prize is paid in; a bot that will not deliver
-      // must not turn either of those into an error on the admin's screen.
-      console.error("Failed to tell the raffle winner", notifyError);
-    }
+    const accountId = winner.accountId;
+    const message = RAFFLE_WIN_MESSAGE[raffle.kind];
+
+    after(async () => {
+      await new Promise((resolve) => setTimeout(resolve, RAFFLE_WIN_NOTICE_DELAY_MS));
+      try {
+        await notifyClientUser(auth.supabase, accountId, message);
+      } catch (notifyError) {
+        // The draw is written down and the prize is paid in; a bot that will not deliver
+        // changes neither.
+        console.error("Failed to tell the raffle winner", notifyError);
+      }
+    });
   }
 
   await broadcastPublicState(t.public_token);

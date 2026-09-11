@@ -47,6 +47,15 @@ export type Raffle = {
 export const RAFFLE_SPIN_SECONDS = 10;
 
 /**
+ * How long after the draw the winner hears about it from the bot.
+ *
+ * The message must not beat the reel. A screen whose live connection is down picks the
+ * draw up only on its 45-second poll, then waits up to a second and a half for the faces
+ * and turns for ten more: a minute lets the room see the winner before their phone does.
+ */
+export const RAFFLE_WIN_NOTICE_DELAY_MS = 60_000;
+
+/**
  * How far the reel runs before it settles, counted in faces.
  *
  * Far enough that the first seconds are a blur, and no further: every cell past this is
