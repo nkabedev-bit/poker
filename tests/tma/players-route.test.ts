@@ -662,7 +662,9 @@ describe("TMA players route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(409);
-    expect(data.error).toBe("Уже зарегистрировано 4 игроков. Мест больше нет");
+    expect(data.error).toBe(
+      "За столами уже 4 игроков — свободных мест нет. Добавьте место за одним из столов",
+    );
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
   });
 

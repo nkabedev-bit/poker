@@ -79,7 +79,7 @@ describe("a walk-in on the roster", () => {
   it("refuses to seat more players than the room holds", async () => {
     const full = extras({
       settings: { ...defaultTournamentExtras.settings, maxPlayersPerTable: 1, tablesCount: 1 },
-      players: [player({ id: "already-here" })],
+      players: [player({ id: "already-here", seat: 1, table: 1 })],
     });
 
     await expect(
@@ -91,6 +91,59 @@ describe("a walk-in on the roster", () => {
       }),
     ).rejects.toThrow(/capacity/i);
     expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+  });
+
+  // A busted player has left their chair to the next walk-in: a six-handed room that lost
+  // a player still lets the late one in.
+  it("counts the chairs against the players still at the tables", async () => {
+    const room = extras({
+      settings: { ...defaultTournamentExtras.settings, maxPlayersPerTable: 1, tablesCount: 1 },
+      players: [player({ id: "busted", status: "eliminated" })],
+    });
+
+    const added = await appendUnseatedTournamentPlayer({
+      extras: room,
+      player: player(),
+      redirectTo: "/tma/players",
+      supabase,
+    });
+
+    expect(added.name).toBe("Гость");
+  });
+
+  it("counts a chair the desk brought over tonight", async () => {
+    const room = extras({
+      settings: { ...defaultTournamentExtras.settings, maxPlayersPerTable: 1, tablesCount: 1 },
+      players: [player({ id: "already-here", seat: 1, table: 1 })],
+      tableFormats: [2],
+    });
+
+    const added = await appendUnseatedTournamentPlayer({
+      extras: room,
+      player: player(),
+      redirectTo: "/tma/players",
+      supabase,
+    });
+
+    expect(added.name).toBe("Гость");
+  });
+
+  // A walk-in waiting for a chair has not taken one: the free chair is not theirs until
+  // they are sat in it, so the room does not read full because of them.
+  it("does not count a player still waiting for a chair", async () => {
+    const room = extras({
+      settings: { ...defaultTournamentExtras.settings, maxPlayersPerTable: 2, tablesCount: 1 },
+      players: [player({ id: "seated", seat: 1, table: 1 }), player({ id: "waiting" })],
+    });
+
+    const added = await appendUnseatedTournamentPlayer({
+      extras: room,
+      player: player(),
+      redirectTo: "/tma/players",
+      supabase,
+    });
+
+    expect(added.name).toBe("Гость");
   });
 });
 

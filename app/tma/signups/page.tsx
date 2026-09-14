@@ -16,7 +16,13 @@ import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
 import { formatEventDayLabel, formatEventTimeLabel } from "@/lib/events/types";
 import { SeatingPicker } from "@/components/tma/seating-picker";
-import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
+import { nameSeat } from "@/lib/tables/seating";
+import {
+  changeTableFormat,
+  drawSeatOrGrowTable,
+  readTableFormatsFrom,
+  type TableFormats,
+} from "../table-formats";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 type Signup = {
@@ -89,8 +95,10 @@ type SignupsResponse = {
   event: { id: string; seatingOpen: boolean; startsAt: string; title: string } | null;
   /** Tonight's game and every poster still ahead of it, nearest first. */
   events: EventOption[];
-  /** Chairs per table tonight, so the plan matches the room. */
+  /** Chairs per table tonight, from a server that predates the table formats. */
   seatsPerTable: number;
+  /** The format each table is dealt in tonight, so the plan matches the room. */
+  tableFormats?: number[];
   signups: Signup[];
   tablesCount: number;
   waitlist: WaitlistEntry[];
@@ -119,6 +127,8 @@ export default function TMASignupsPage() {
   const [replacing, setReplacing] = useState<Signup | null>(null);
   // A place in line says what the player hoped for; the desk decides at the door.
   const [queueTicket, setQueueTicket] = useState<"regular" | "vip">("regular");
+  // The table whose chairs are being changed, so its buttons wait for the answer.
+  const [changingTable, setChangingTable] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -213,7 +223,10 @@ export default function TMASignupsPage() {
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
-        await confirmSeated(entry.name, choice);
+        await confirmSeated(entry.name, {
+          ...choice,
+          label: nameSeat(tableFormats, choice.table, choice.seat),
+        });
         closeQueueSeating();
         await load();
         return;
@@ -227,22 +240,39 @@ export default function TMASignupsPage() {
     }
   };
 
-  const seatAtRandom = (signup: Signup) => {
-    const tg = getTelegramWebApp();
-    const picked = pickRandomSeat(
-      buildSeatingTables(players, data?.tablesCount ?? 1, data?.seatsPerTable),
-      seatingTicket(signup.ticketType),
-    );
+  // The formats come with the sign-ups; a chair brought over is written straight in, so
+  // the plan does not wait for the next poll to show it.
+  const tableFormats: TableFormats = readTableFormatsFrom(data);
+  const applyTableFormats = (formats: number[]) =>
+    setData((current) => (current ? { ...current, tableFormats: formats } : current));
 
-    if (!picked) {
-      tg?.HapticFeedback.notificationOccurred("error");
-      tg?.showAlert(
-        signup.ticketType === "vip"
-          ? "Свободных мест за VIP-столом нет"
-          : "Свободных мест за обычными столами нет",
-      );
-      return;
+  /** Brings a chair to a table or takes one away, and redraws the plan with it. */
+  const handleTableFormat = async (table: number, direction: "add" | "remove") => {
+    if (changingTable !== null) return;
+
+    setChangingTable(table);
+    try {
+      const formats = await changeTableFormat(initData, table, direction);
+      if (formats) applyTableFormats(formats);
+    } finally {
+      setChangingTable(null);
     }
+  };
+
+  /** A free chair for the ticket — or, with the room full, one brought to a table. */
+  const drawSeat = (ticket: "regular" | "vip") =>
+    drawSeatOrGrowTable({
+      initData,
+      onFormatsChanged: applyTableFormats,
+      players,
+      tableFormats,
+      tablesCount: data?.tablesCount ?? 1,
+      ticket,
+    });
+
+  const seatAtRandom = async (signup: Signup) => {
+    const picked = await drawSeat(seatingTicket(signup.ticketType));
+    if (!picked) return;
 
     setSeatChoice(picked);
     void seat(signup, picked);
@@ -266,7 +296,10 @@ export default function TMASignupsPage() {
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
-        await confirmSeated(signup.name, choice);
+        await confirmSeated(signup.name, {
+          ...choice,
+          label: nameSeat(tableFormats, choice.table, choice.seat),
+        });
         closeSignup();
         await load();
         return;
@@ -387,22 +420,9 @@ export default function TMASignupsPage() {
           className={`flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold${queueDisabledClass}`}
           disabled={Boolean(seatingId)}
           type="button"
-          onClick={() => {
-            const tg = getTelegramWebApp();
-            const picked = pickRandomSeat(
-              buildSeatingTables(players, data?.tablesCount ?? 1, data?.seatsPerTable),
-              queueTicket,
-            );
-
-            if (!picked) {
-              tg?.HapticFeedback.notificationOccurred("error");
-              tg?.showAlert(
-                queueTicket === "vip"
-                  ? "Свободных мест за VIP-столом нет"
-                  : "Свободных мест за обычными столами нет",
-              );
-              return;
-            }
+          onClick={async () => {
+            const picked = await drawSeat(queueTicket);
+            if (!picked) return;
 
             setSeatChoice(picked);
             void seatFromQueue(queueSeating, replacing, picked);
@@ -412,10 +432,12 @@ export default function TMASignupsPage() {
         </button>
 
         <SeatingPicker
+          changingTable={changingTable}
           players={players}
-          seatsPerTable={data?.seatsPerTable}
           selected={seatChoice}
+          tableFormats={tableFormats}
           tablesCount={data?.tablesCount ?? 1}
+          onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
           onSelect={(choice) => {
             getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
             setSeatChoice(choice);
@@ -430,7 +452,7 @@ export default function TMASignupsPage() {
           onClick={() => seatChoice && void seatFromQueue(queueSeating, replacing, seatChoice)}
         >
           {seatChoice
-            ? `Посадить за стол ${seatChoice.table}, место ${seatChoice.seat}`
+            ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
             : "Выберите место"}
         </button>
       </div>
@@ -466,16 +488,18 @@ export default function TMASignupsPage() {
             className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold disabled:opacity-60"
             disabled={seatingId !== null}
             type="button"
-            onClick={() => seatAtRandom(opened)}
+            onClick={() => void seatAtRandom(opened)}
           >
             <Dices size={18} /> Посадить на случайное место
           </button>
 
           <SeatingPicker
+            changingTable={changingTable}
             players={players}
-            seatsPerTable={data?.seatsPerTable}
             selected={seatChoice}
+            tableFormats={tableFormats}
             tablesCount={data?.tablesCount ?? 1}
+            onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
             onSelect={(choice) => {
               getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
               setSeatChoice(choice);
@@ -490,7 +514,7 @@ export default function TMASignupsPage() {
             onClick={() => seatChoice && void seat(opened, seatChoice)}
           >
             {seatChoice
-              ? `Посадить за стол ${seatChoice.table}, место ${seatChoice.seat}`
+              ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
               : "Выберите место"}
           </button>
         </div>

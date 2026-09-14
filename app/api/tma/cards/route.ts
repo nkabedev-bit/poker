@@ -14,6 +14,7 @@ import {
   isRegularRegistrationNumbersExhaustedError,
 } from "@/lib/tournament-player-registration";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
+import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 
 export const dynamic = "force-dynamic";
 
@@ -100,6 +101,17 @@ export async function POST(request: Request) {
   // Handing over a card is also when the player is told where to sit, so the chair
   // travels with it — a walk-in added by hand has a table but no seat of their own.
   if (Number.isInteger(tableNumber) && Number.isInteger(seatNumber)) {
+    const formats = readTableFormats(
+      extras.settings.maxPlayersPerTable,
+      extras.tableFormats,
+      extras.settings.tablesCount,
+    );
+    // The plan on the desk's screen may be a moment old, and a chair taken away since is
+    // not one to sit anybody in.
+    if (!isSeatAtTable(formats, tableNumber, seatNumber)) {
+      return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
+    }
+
     const { error: seatError } = await auth.supabase.rpc("seat_tournament_player", {
       p_tournament_id: t.id,
       p_player_id: playerId,
@@ -111,7 +123,9 @@ export async function POST(request: Request) {
       const message = String(seatError.message ?? "");
       if (message.includes("Seat already taken")) {
         return NextResponse.json(
-          { error: `Место ${seatNumber} за столом ${tableNumber} уже занято` },
+          {
+            error: `Место ${nameSeat(formats, tableNumber, seatNumber)} за столом ${tableNumber} уже занято`,
+          },
           { status: 409 },
         );
       }

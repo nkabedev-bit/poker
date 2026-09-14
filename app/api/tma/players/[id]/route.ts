@@ -1,7 +1,7 @@
 import { after, NextResponse } from "next/server";
 import { removePlayerFromVipSheet, syncTournamentToSheets, syncVipSheet } from "@/lib/google-sheets";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
-import { isVipTable, readSeatsPerTable } from "@/lib/tables/seating";
+import { isSeatAtTable, isVipTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 import {
   buildRegularNumbersExhaustedMessage,
   isRegularRegistrationNumbersExhaustedError,
@@ -322,12 +322,16 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const tableNumber = getTableNumber(body.table);
     const seatNumber = getSeatNumber(body.seat);
     const tablesCount = Math.max(1, Number(extras.settings.tablesCount ?? 1));
-    const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
+    const formats = readTableFormats(
+      extras.settings.maxPlayersPerTable,
+      extras.tableFormats,
+      tablesCount,
+    );
 
     if (!tableNumber || tableNumber > tablesCount) {
       return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
     }
-    if (!seatNumber || seatNumber > seatsPerTable) {
+    if (!seatNumber || !isSeatAtTable(formats, tableNumber, seatNumber)) {
       return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
     }
 
@@ -353,7 +357,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       const takenBy = message.match(/Seat already taken by (.+)$/)?.[1]?.trim();
       if (takenBy) {
         return NextResponse.json(
-          { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${takenBy}` },
+          {
+            error: `Место ${nameSeat(formats, tableNumber, seatNumber)} за столом ${tableNumber} занято: ${takenBy}`,
+          },
           { status: 409 },
         );
       }

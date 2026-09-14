@@ -325,6 +325,10 @@ export async function updateTournamentSettings(formData: FormData) {
           blindAlertCustomSoundName: finalSoundName,
         } : {}),
       },
+      // Tables the desk grew or shrank tonight follow a newly chosen format, not the old one.
+      ...(existingExtras.settings.maxPlayersPerTable !== parsed.data.maxPlayersPerTable
+        ? { tableFormats: [] }
+        : {}),
     },
     "/admin/settings",
   );

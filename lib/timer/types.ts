@@ -135,6 +135,11 @@ export type TournamentExtras = {
   raffle: Raffle | null;
   /** Set while the room is being reseated, so every screen says so and the clock waits. */
   tableMerge: TableMerge | null;
+  /**
+   * The format each table is dealt in, where the desk changed it tonight: one entry per
+   * table, null (or missing) where the table still follows `settings.maxPlayersPerTable`.
+   */
+  tableFormats?: Array<number | null>;
   /** The draws already held tonight — one of each kind is all a tournament gets. */
   raffleHistory: Raffle[];
   clientBot: {

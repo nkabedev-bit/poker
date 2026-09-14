@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
+import { TABLE_FORMATS } from "@/lib/tables/seating";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
 import type {
   BlindAlertSound,
@@ -281,13 +282,24 @@ export function SettingsForm({
           <input name="tablesCount" type="number" min={1} defaultValue={settings.tablesCount} />
         </label>
         <label>
-          Игроков за столом
-          <input
-            name="maxPlayersPerTable"
-            type="number"
-            min={1}
-            defaultValue={settings.maxPlayersPerTable}
-          />
+          Формат стола
+          <select name="maxPlayersPerTable" defaultValue={String(settings.maxPlayersPerTable)}>
+            {/* A count saved before the formats existed stays selectable until it is changed. */}
+            {TABLE_FORMATS.some((format) => format === settings.maxPlayersPerTable) ? null : (
+              <option value={settings.maxPlayersPerTable}>
+                {settings.maxPlayersPerTable} мест
+              </option>
+            )}
+            {TABLE_FORMATS.map((format) => (
+              <option key={format} value={format}>
+                {format} макс
+              </option>
+            ))}
+          </select>
+          <span className="field-help">
+            6 макс — места 1, 2/3, 4, 6, 7/8, 9; 7 макс — плюс 5. В мини-приложении за каждым
+            столом можно добавить или убрать место.
+          </span>
         </label>
         <label>
           QR-карты на входе?

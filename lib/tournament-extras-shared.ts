@@ -50,6 +50,7 @@ export const defaultTournamentExtras: TournamentExtras = {
   raffle: null,
   raffleHistory: [],
   tableMerge: null,
+  tableFormats: [],
   clientBot: {
     ratingUrl: "",
     scheduleText: "",
@@ -132,6 +133,9 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       ? input.raffleHistory.filter(isRaffle)
       : [],
     tableMerge: isTableMerge(input.tableMerge) ? input.tableMerge : null,
+    tableFormats: Array.isArray(input.tableFormats)
+      ? input.tableFormats.map((format) => (Number.isInteger(format) ? Number(format) : null))
+      : [],
     clientBot: {
       ...defaultTournamentExtras.clientBot,
       ...(typeof input.clientBot === "object" && input.clientBot ? input.clientBot : {}),

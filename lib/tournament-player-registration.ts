@@ -8,6 +8,7 @@ import {
   VIP_REGISTRATION_NUMBER_MIN,
 } from "@/lib/player-registration-number";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { countSeats, readTableFormats, SEATS_PER_TABLE } from "@/lib/tables/seating";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 
 export class TournamentRegistrationCapacityError extends Error {
@@ -50,20 +51,35 @@ export function isRegularRegistrationNumbersExhaustedError(error: unknown) {
 }
 
 export function buildAdminRegistrationFullMessage(registeredPlayersCount: number) {
-  return `Уже зарегистрировано ${registeredPlayersCount} игроков. Мест больше нет`;
+  return `За столами уже ${registeredPlayersCount} игроков — свободных мест нет. Добавьте место за одним из столов`;
 }
 
 export function buildRegularNumbersExhaustedMessage() {
   return `Обычные номера 1–${REGULAR_REGISTRATION_NUMBER_MAX} закончились. Посадите игрока по VIP-билету или освободите номер`;
 }
 
-function getCapacity(settings: TournamentExtras["settings"]) {
-  const tablesCount = Math.max(1, Math.floor(Number(settings.tablesCount ?? 1)));
-  const maxPlayersPerTable = Math.max(1, Math.floor(Number(settings.maxPlayersPerTable ?? 1)));
+/**
+ * Whether the room can take one more player right now.
+ *
+ * The chairs are the ones standing at the tables tonight, in each table's own format, and
+ * they are counted against the players sitting in them. Somebody who busted has left their
+ * chair to the next walk-in, and a walk-in still waiting to be seated has not taken one yet:
+ * their chair is checked when they are sat down, so they cannot turn away a player who is
+ * being given the chair that is still free. The roster itself stops at ten a table,
+ * everybody who played tonight included — the same ceiling the database keeps.
+ */
+function getCapacity(extras: TournamentExtras) {
+  const tablesCount = Math.max(1, Math.floor(Number(extras.settings.tablesCount ?? 1)));
+  const seats = countSeats(
+    readTableFormats(extras.settings.maxPlayersPerTable, extras.tableFormats, tablesCount),
+  );
+  const seatedCount = extras.players.filter(
+    (player) => player.status === "active" && Boolean(player.table) && Boolean(player.seat),
+  ).length;
 
   return {
-    maxNumber: tablesCount * maxPlayersPerTable,
-    maxPlayersPerTable,
+    full: seatedCount >= seats || extras.players.length >= tablesCount * SEATS_PER_TABLE,
+    seatedCount,
     tablesCount,
   };
 }
@@ -142,11 +158,11 @@ export async function appendTournamentPlayerWithRegistrationNumber({
   supabase: SupabaseClient;
   tournamentId: string;
 }) {
-  const { maxNumber, maxPlayersPerTable, tablesCount } = getCapacity(extras.settings);
+  const { full, seatedCount, tablesCount } = getCapacity(extras);
   const tableNumber = Math.max(1, Math.floor(Number(player.table ?? 1)));
 
-  if (extras.players.length >= maxNumber) {
-    throw new TournamentRegistrationCapacityError(extras.players.length);
+  if (full) {
+    throw new TournamentRegistrationCapacityError(seatedCount);
   }
 
   // Re-apply a persistent per-guest display label (matched by nickname) so regular
@@ -161,8 +177,10 @@ export async function appendTournamentPlayerWithRegistrationNumber({
       p_tournament_id: tournamentId,
       p_player: player,
       p_table_number: tableNumber,
+      // The database keeps only the roster's ceiling — tables times ten, everybody tonight
+      // included. The chairs actually standing at the tables were counted above.
       p_tables_count: tablesCount,
-      p_max_players_per_table: maxPlayersPerTable,
+      p_max_players_per_table: SEATS_PER_TABLE,
     });
 
     if (error) {
@@ -216,10 +234,10 @@ export async function appendUnseatedTournamentPlayer({
   redirectTo: string;
   supabase: SupabaseClient;
 }) {
-  const { maxNumber } = getCapacity(extras.settings);
+  const { full, seatedCount } = getCapacity(extras);
 
-  if (extras.players.length >= maxNumber) {
-    throw new TournamentRegistrationCapacityError(extras.players.length);
+  if (full) {
+    throw new TournamentRegistrationCapacityError(seatedCount);
   }
 
   const persistedLabel = getPersistedPlayerLabel(extras.playerLabels, player.name);

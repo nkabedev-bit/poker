@@ -13,7 +13,7 @@ import {
   isTournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import type { TournamentPlayer } from "@/lib/timer/types";
-import { readSeatsPerTable } from "@/lib/tables/seating";
+import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 
 export const dynamic = "force-dynamic";
 
@@ -108,10 +108,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
   }
 
-  // The chair has to exist in the room: the club's tables seat nine or ten, and the
-  // admin says which in the tournament settings.
-  const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
-  if (!Number.isInteger(seatNumber) || seatNumber < 1 || seatNumber > seatsPerTable) {
+  // The chair has to exist in the room: each table is dealt in the format the settings
+  // give it, or the one the desk changed it to tonight.
+  const formats = readTableFormats(extras.settings.maxPlayersPerTable, extras.tableFormats, tablesCount);
+  if (!Number.isInteger(seatNumber) || !isSeatAtTable(formats, tableNumber, seatNumber)) {
     return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
   }
 
@@ -150,7 +150,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (seatTaken) {
     return NextResponse.json(
-      { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${seatTaken.name}` },
+      {
+        error: `Место ${nameSeat(formats, tableNumber, seatNumber)} за столом ${tableNumber} занято: ${seatTaken.name}`,
+      },
       { status: 409 },
     );
   }
@@ -212,7 +214,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } catch (error) {
     if (isTournamentRegistrationCapacityError(error)) {
       return NextResponse.json(
-        { error: buildAdminRegistrationFullMessage(extras.players.length) },
+        {
+          error: buildAdminRegistrationFullMessage(
+            extras.players.filter(
+              (item) => item.status === "active" && Boolean(item.table) && Boolean(item.seat),
+            ).length,
+          ),
+        },
         { status: 409 },
       );
     }

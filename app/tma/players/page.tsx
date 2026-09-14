@@ -10,7 +10,8 @@ import {
   isVipRegistrationNumber,
 } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
-import { isVipTable } from "@/lib/tables/seating";
+import { isVipTable, nameSeat } from "@/lib/tables/seating";
+import { changeTableFormat, readTableFormatsFrom, type TableFormats } from "../table-formats";
 
 // Addon chip amount credited by the TMA admin app: fixed, no manual input — the
 // admin only confirms the "add N chips to player X?" dialog.
@@ -92,9 +93,11 @@ export default function TMAPlayersPage() {
   const [addonEnabled, setAddonEnabled] = useState(false);
   const [maxAddons, setMaxAddons] = useState(1);
   const [tablesCount, setTablesCount] = useState(1);
-  // The club plays on nine- and ten-seat tables, so the plan is drawn with the chairs
-  // the room actually has.
-  const [seatsPerTable, setSeatsPerTable] = useState<number | null>(null);
+  // Each table is drawn in the format it is dealt in tonight, with the chairs the desk
+  // brought over or took away.
+  const [tableFormats, setTableFormats] = useState<TableFormats>(null);
+  // The table whose chairs are being changed, so its buttons wait for the answer.
+  const [changingTable, setChangingTable] = useState<number | null>(null);
   const [tableFilter, setTableFilter] = useState("");
   // Where the admin is sending this player: a chair, not just a table.
   const [moveSeat, setMoveSeat] = useState<SeatChoice | null>(null);
@@ -127,7 +130,7 @@ export default function TMAPlayersPage() {
         setAddonEnabled(Boolean(data.addonEnabled));
         setMaxAddons(Math.max(1, Number(data.maxAddons ?? 1)));
         setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
-        setSeatsPerTable(Number(data.seatsPerTable) > 0 ? Number(data.seatsPerTable) : null);
+        setTableFormats(readTableFormatsFrom(data));
         setReentryAvailable(Boolean(data.reentryEnabled) && data.reentryAvailable !== false);
         setDoubleReentryAvailable(Boolean(data.doubleReentryAvailable));
       }
@@ -141,6 +144,19 @@ export default function TMAPlayersPage() {
     return () => window.clearTimeout(timeout);
   }, [fetchPlayers]);
   useVisiblePolling(() => void fetchPlayers());
+
+  /** Brings a chair to a table or takes one away, and redraws the plan with it. */
+  const handleTableFormat = async (table: number, direction: "add" | "remove") => {
+    if (changingTable !== null) return;
+
+    setChangingTable(table);
+    try {
+      const formats = await changeTableFormat(initData, table, direction);
+      if (formats) setTableFormats(formats);
+    } finally {
+      setChangingTable(null);
+    }
+  };
 
   useEffect(() => {
     const tg = getTelegramWebApp();
@@ -528,14 +544,16 @@ export default function TMAPlayersPage() {
         <div className="space-y-2">
           <p className="text-xs text-[var(--tg-theme-hint-color)]">
             {newSeat
-              ? `Сажаем за стол ${newSeat.table}, место ${newSeat.seat} — игрок сразу получит номер.`
+              ? `Сажаем за стол ${newSeat.table}, место ${nameSeat(tableFormats, newSeat.table, newSeat.seat)} — игрок сразу получит номер.`
               : "Выберите место — игрок сразу получит номер. Можно пропустить: место и номер выдадут вместе с картой."}
           </p>
           <SeatingPicker
+            changingTable={changingTable}
             players={players}
-            seatsPerTable={seatsPerTable}
             selected={newSeat}
+            tableFormats={tableFormats}
             tablesCount={tablesCount}
+            onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
             onSelect={(choice) => {
               getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
               setNewSeat(choice);
@@ -620,7 +638,10 @@ export default function TMAPlayersPage() {
                     {formatPlayerNameWithRegistrationNumber(player)}
                   </span>
                   <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                    {player.seat ? `Ст. ${player.table} · м. ${player.seat}` : "Ждёт посадки"} ·
+                    {player.seat
+                      ? `Ст. ${player.table} · м. ${nameSeat(tableFormats, Number(player.table), player.seat)}`
+                      : "Ждёт посадки"}{" "}
+                    ·
                     Аддоны {Math.max(0, Number(player.addons ?? 0))}/{maxAddons}
                     {available ? "" : " · лимит"}
                   </span>
@@ -674,7 +695,8 @@ export default function TMAPlayersPage() {
         </button>
 
         <h1 className="text-xl font-bold">
-          {selectedPlayer.name} — стол {moveSeat.table}, место {moveSeat.seat}
+          {selectedPlayer.name} — стол {moveSeat.table}, место{" "}
+          {nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}
         </h1>
         <p className="text-sm text-[var(--tg-theme-hint-color)]">
           {hasNumber
@@ -801,7 +823,11 @@ export default function TMAPlayersPage() {
             </div>
             <div>
               <div className="text-[var(--tg-theme-hint-color)]">Место</div>
-              <div className="font-semibold">{selectedPlayer.seat}</div>
+              <div className="font-semibold">
+                {selectedPlayer.seat
+                  ? nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)
+                  : null}
+              </div>
             </div>
           </div>
         </div>
@@ -812,11 +838,13 @@ export default function TMAPlayersPage() {
               Пересадить: нажмите на свободное место
             </p>
             <SeatingPicker
+              changingTable={changingTable}
               ignorePlayerId={selectedPlayer.id}
               players={players}
-              seatsPerTable={seatsPerTable}
               selected={moveSeat}
+              tableFormats={tableFormats}
               tablesCount={tablesCount}
+              onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
               onSelect={(choice) => {
                 getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
                 setMoveSeat(choice);
@@ -835,7 +863,7 @@ export default function TMAPlayersPage() {
             >
               <ArrowRightLeft size={18} />
               {moveSeat
-                ? `Пересадить: стол ${moveSeat.table}, место ${moveSeat.seat}`
+                ? `Пересадить: стол ${moveSeat.table}, место ${nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}`
                 : "Выберите место"}
             </button>
           </div>
@@ -958,7 +986,7 @@ export default function TMAPlayersPage() {
               <div className="min-w-0">
                 <div className="font-semibold">{formatPlayerNameWithRegistrationNumber(p)}</div>
                 <div className="text-xs text-[var(--tg-theme-hint-color)]">
-                  {p.status === "active" ? `Ст. ${p.table} / Место ${p.seat} / Стек: ${p.stack}` : "Выбыл"}
+                  {p.status === "active" ? `Ст. ${p.table} / Место ${p.seat ? nameSeat(tableFormats, Number(p.table), p.seat) : "—"} / Стек: ${p.stack}` : "Выбыл"}
                 </div>
               </div>
             </button>

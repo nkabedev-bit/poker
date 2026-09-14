@@ -64,7 +64,11 @@ const SEATED_ALERT_TIMEOUT_MS = 10_000;
  * Outside Telegram there is no alert to wait on, and the seating still has to finish —
  * so the promise settles on its own rather than hanging the desk.
  */
-export function confirmSeated(name: string, at: { seat: number; table: number }) {
+export function confirmSeated(
+  name: string,
+  // The label is what the dealer calls the chair — "2/3" at a short-handed table.
+  at: { label?: string; seat: number; table: number },
+) {
   const tg = getTelegramWebApp();
   if (!tg?.showAlert) return Promise.resolve();
 
@@ -81,7 +85,7 @@ export function confirmSeated(name: string, at: { seat: number; table: number })
     // seating that actually went through. The wait gives up on its own rather than
     // stranding the queue.
     window.setTimeout(finish, SEATED_ALERT_TIMEOUT_MS);
-    tg.showAlert(`${name} посажен за стол ${at.table}, место ${at.seat}`, finish);
+    tg.showAlert(`${name} посажен за стол ${at.table}, место ${at.label ?? at.seat}`, finish);
   });
 }
 

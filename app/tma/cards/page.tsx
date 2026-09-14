@@ -18,7 +18,13 @@ import {
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
-import { buildSeatingTables, pickRandomSeat } from "@/lib/tables/seating";
+import { nameSeat } from "@/lib/tables/seating";
+import {
+  changeTableFormat,
+  drawSeatOrGrowTable,
+  readTableFormatsFrom,
+  type TableFormats,
+} from "../table-formats";
 import {
   buildCardCodeFromDigits,
   CARD_CODE_PREFIX,
@@ -74,8 +80,10 @@ export default function TMACardsPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [signups, setSignups] = useState<Signup[]>([]);
   const [tablesCount, setTablesCount] = useState(1);
-  // The chairs each table has tonight, so the plan is not drawn with one too many.
-  const [seatsPerTable, setSeatsPerTable] = useState<number | null>(null);
+  // Each table's format tonight, so the plan is not drawn with one chair too many.
+  const [tableFormats, setTableFormats] = useState<TableFormats>(null);
+  // The table whose chairs are being changed, so its buttons wait for the answer.
+  const [changingTable, setChangingTable] = useState<number | null>(null);
   // Who the card is being handed to, waiting for a chair: someone who signed up in the
   // app, or a walk-in already in the roster.
   const [seating, setSeating] = useState<SeatingTarget | null>(null);
@@ -113,7 +121,7 @@ export default function TMACardsPage() {
         const data = await playersRes.json();
         setPlayers(data.players ?? []);
         setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
-        setSeatsPerTable(Number(data.seatsPerTable) || null);
+        setTableFormats(readTableFormatsFrom(data));
       }
 
       if (signupsRes.ok) {
@@ -201,7 +209,10 @@ export default function TMACardsPage() {
       }
 
       tg?.HapticFeedback.notificationOccurred("success");
-      await confirmSeated(player.name, choice);
+      await confirmSeated(player.name, {
+        ...choice,
+        label: nameSeat(tableFormats, choice.table, choice.seat),
+      });
       setSession(null);
       setScannedCode(null);
       setSeating(null);
@@ -256,31 +267,39 @@ export default function TMACardsPage() {
   /**
    * Sends the player to a free seat the club drew for them. The ticket decides the
    * room: a VIP ticket — bought or covered by a VIP pass — belongs at the VIP table,
-   * a regular one at the regular tables.
+   * a regular one at the regular tables. With the room full, the desk is offered a chair
+   * at the emptiest table that can still take one.
    */
-  const seatAtRandom = (target: SeatingTarget) => {
-    const tg = getTelegramWebApp();
+  const seatAtRandom = async (target: SeatingTarget) => {
     const seated =
       target.kind === "player"
         ? players.filter((item) => item.id !== target.player.id)
         : players;
-    const picked = pickRandomSeat(
-      buildSeatingTables(seated, tablesCount, seatsPerTable),
-      ticketType,
-    );
-
-    if (!picked) {
-      tg?.HapticFeedback.notificationOccurred("error");
-      tg?.showAlert(
-        ticketType === "vip"
-          ? "Свободных мест за VIP-столом нет"
-          : "Свободных мест за обычными столами нет",
-      );
-      return;
-    }
+    const picked = await drawSeatOrGrowTable({
+      initData,
+      onFormatsChanged: setTableFormats,
+      players: seated,
+      tableFormats,
+      tablesCount,
+      ticket: ticketType,
+    });
+    if (!picked) return;
 
     setSeatChoice(picked);
     void handOverCard(target, picked);
+  };
+
+  /** Brings a chair to a table or takes one away, and redraws the plan with it. */
+  const handleTableFormat = async (table: number, direction: "add" | "remove") => {
+    if (changingTable !== null) return;
+
+    setChangingTable(table);
+    try {
+      const formats = await changeTableFormat(initData, table, direction);
+      if (formats) setTableFormats(formats);
+    } finally {
+      setChangingTable(null);
+    }
   };
 
   /** Hands the card over, whichever kind of player is on the other side of the desk. */
@@ -319,7 +338,10 @@ export default function TMACardsPage() {
 
       // Said first and waited on: an alert opened while another is still up is dropped by
       // some Telegram clients, and the seat is the one thing the admin came here for.
-      await confirmSeated(signup.name, choice);
+      await confirmSeated(signup.name, {
+        ...choice,
+        label: nameSeat(tableFormats, choice.table, choice.seat),
+      });
 
       // The pass was announced before the seat was picked, so the only thing left to
       // say is when the club could not actually take one — it was spent elsewhere, or
@@ -432,17 +454,19 @@ export default function TMACardsPage() {
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold disabled:opacity-60"
           disabled={busy}
           type="button"
-          onClick={() => seatAtRandom(seating)}
+          onClick={() => void seatAtRandom(seating)}
         >
           <Dices size={18} /> Посадить на случайное место
         </button>
 
         <SeatingPicker
-          seatsPerTable={seatsPerTable}
+          changingTable={changingTable}
           ignorePlayerId={seating.kind === "player" ? seating.player.id : undefined}
           players={players}
           selected={seatChoice}
+          tableFormats={tableFormats}
           tablesCount={tablesCount}
+          onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
           onSelect={(choice) => {
             getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
             setSeatChoice(choice);
@@ -459,7 +483,7 @@ export default function TMACardsPage() {
           onClick={() => seatChoice && void handOverCard(seating, seatChoice)}
         >
           {seatChoice
-            ? `Посадить за стол ${seatChoice.table}, место ${seatChoice.seat}`
+            ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
             : "Выберите место"}
         </button>
 
@@ -604,7 +628,7 @@ export default function TMACardsPage() {
             <p className="text-sm text-[var(--tg-theme-hint-color)]">
               {session.registrationNumber ? `#${session.registrationNumber}` : "без номера"}
               {session.table ? ` · стол ${session.table}` : ""}
-              {session.seat ? ` · место ${session.seat}` : ""}
+              {session.seat ? ` · место ${nameSeat(tableFormats, Number(session.table), session.seat)}` : ""}
             </p>
           </div>
 
@@ -729,7 +753,7 @@ export default function TMACardsPage() {
                     <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                       {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
                       {card.table ? ` · стол ${card.table}` : ""}
-                      {card.seat ? ` · место ${card.seat}` : ""}
+                      {card.seat ? ` · место ${nameSeat(tableFormats, Number(card.table), card.seat)}` : ""}
                       {/* Busted but already settled: the badge slot is taken by the
                           green tick, so the fact still gets said here. */}
                       {card.paid && card.eliminated ? " · выбыл" : ""}
@@ -835,7 +859,7 @@ export default function TMACardsPage() {
                   <span className="block text-xs text-[var(--tg-theme-hint-color)]">
                     {player.registrationNumber ? `#${player.registrationNumber}` : "без номера"}
                     {player.table ? ` · стол ${player.table}` : ""}
-                    {player.seat ? ` · место ${player.seat}` : ""}
+                    {player.seat ? ` · место ${nameSeat(tableFormats, Number(player.table), player.seat)}` : ""}
                   </span>
                 </span>
                 <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />

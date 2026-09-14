@@ -3276,6 +3276,41 @@ p {
   gap: 22px;
 }
 
+.seating-table-block {
+  display: grid;
+  gap: 6px;
+}
+
+/* The table's name and format, with the buttons that bring a chair or take one away. */
+.seating-table__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tg-theme-hint-color);
+}
+
+.seating-table__actions {
+  display: flex;
+  gap: 6px;
+}
+
+.seating-table__actions button {
+  border: none;
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--tg-theme-secondary-bg-color);
+  color: var(--tg-theme-button-color);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.seating-table__actions button:disabled {
+  opacity: 0.4;
+}
+
 .seating-table {
   position: relative;
   width: 100%;
@@ -3314,6 +3349,11 @@ p {
   color: var(--tg-theme-text-color);
   font-size: 14px;
   font-weight: 700;
+}
+
+/* A chair called by two numbers needs smaller type to fit them both. */
+.seating-seat--between {
+  font-size: 12px;
 }
 
 .seating-seat--taken {

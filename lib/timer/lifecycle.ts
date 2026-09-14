@@ -22,6 +22,9 @@ export function getFinishTournamentExtrasPatch(
     raffleHistory: [],
     // A reseating left open at the finish would greet the next tournament on its screens.
     tableMerge: null,
+    // Chairs brought to a table tonight are not tomorrow's: the next game starts from the
+    // format in the settings.
+    tableFormats: [],
     settling: {
       closesAt: new Date(now.getTime() + SETTLING_MS).toISOString(),
       players,

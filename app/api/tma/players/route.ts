@@ -16,7 +16,7 @@ import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
 import { isTicketType } from "@/lib/cards/card-code";
 import { markTonightSignupSeated } from "@/lib/events/store";
 import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
-import { readSeatsPerTable } from "@/lib/tables/seating";
+import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 import type { BlindLevel, TimerState } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
@@ -89,9 +89,14 @@ export async function GET(request: Request) {
     // Wanted Bounty: the admin-configured knockout points for a regular (non-wanted)
     // victim, surfaced so the confirm screen can show the exact award.
     ptsBountyPoints: Math.max(0, Number(extras.pts.bountyPoints) || 0),
-    // The club's tables seat nine or ten depending on the room, and the plan has to be
-    // drawn with the chairs that are actually there.
+    // The plan has to be drawn with the chairs that are actually at each table tonight:
+    // the settings' format, and whatever the desk brought over or took away since.
     seatsPerTable: extras.settings.maxPlayersPerTable,
+    tableFormats: readTableFormats(
+      extras.settings.maxPlayersPerTable,
+      extras.tableFormats,
+      extras.settings.tablesCount,
+    ),
     tablesCount: extras.settings.tablesCount,
     reentryAvailable,
     doubleReentryAvailable,
@@ -130,12 +135,12 @@ export async function POST(request: Request) {
   const tableNumber = Number.isInteger(Number(table)) && Number(table) > 0 ? Number(table) : null;
   const seatNumber = Number.isInteger(Number(seat)) && Number(seat) > 0 ? Number(seat) : null;
   const tablesCount = Math.max(1, Number(extras.settings.tablesCount ?? 1));
-  const seatsPerTable = readSeatsPerTable(extras.settings.maxPlayersPerTable);
+  const formats = readTableFormats(extras.settings.maxPlayersPerTable, extras.tableFormats, tablesCount);
 
   if (tableNumber && tableNumber > tablesCount) {
     return NextResponse.json({ error: "Выберите номер стола" }, { status: 400 });
   }
-  if (seatNumber && seatNumber > seatsPerTable) {
+  if (tableNumber && seatNumber && !isSeatAtTable(formats, tableNumber, seatNumber)) {
     return NextResponse.json({ error: "Выберите место за столом" }, { status: 400 });
   }
 
@@ -148,7 +153,9 @@ export async function POST(request: Request) {
 
     if (seatTaken) {
       return NextResponse.json(
-        { error: `Место ${seatNumber} за столом ${tableNumber} занято: ${seatTaken.name}` },
+        {
+          error: `Место ${nameSeat(formats, tableNumber, seatNumber)} за столом ${tableNumber} занято: ${seatTaken.name}`,
+        },
         { status: 409 },
       );
     }
