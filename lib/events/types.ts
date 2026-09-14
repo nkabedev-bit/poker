@@ -333,3 +333,23 @@ export function isUpcomingEvent(event: TournamentEvent, now: Date) {
   const deadline = new Date(event.lateEntryUntil ?? event.startsAt);
   return deadline.getTime() >= now.getTime();
 }
+
+/**
+ * The posters the desk still works from, and the last game it finished.
+ *
+ * Every evening the club ever announced stayed on the admin's list, and the next game was
+ * found by scrolling past a month of old ones. The game just played stays in sight — its
+ * players are still being settled with — and the ones before it stay in the database, not
+ * on the screen. A draft whose date passed without being published never happened.
+ */
+export function keepLatestPastEvent(events: TournamentEvent[], now: Date) {
+  const latestPast = events
+    .filter((event) => event.isPublished && !isEventOpenForSeating(event, now))
+    .reduce<TournamentEvent | null>(
+      (latest, event) =>
+        !latest || new Date(event.startsAt) > new Date(latest.startsAt) ? event : latest,
+      null,
+    );
+
+  return events.filter((event) => event === latestPast || isEventOpenForSeating(event, now));
+}

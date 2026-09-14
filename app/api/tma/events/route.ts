@@ -3,6 +3,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { countActiveSignups, listEvents, saveEvent } from "@/lib/events/store";
 import { eventInputSchema, EventInputError, toEventDraft } from "@/lib/events/input";
 import { PosterUploadError, uploadEventPosterDataUrl } from "@/lib/events/poster-upload";
+import { keepLatestPastEvent } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +11,8 @@ export async function GET(request: Request) {
   const auth = await requireTmaAuth(request);
   if (auth.error) return auth.error;
 
-  const events = await listEvents(auth.supabase);
+  // Of the games already played only the last one stays on the desk's list.
+  const events = keepLatestPastEvent(await listEvents(auth.supabase), new Date());
   const signupCounts = await countActiveSignups(
     auth.supabase,
     events.map((event) => event.id),

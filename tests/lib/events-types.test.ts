@@ -6,6 +6,7 @@ import {
   isEventOpenForSeating,
   isEventPlayingToday,
   isUpcomingEvent,
+  keepLatestPastEvent,
   mapEventRow,
   mapSignupRow,
   toEventRow,
@@ -229,5 +230,46 @@ describe("holdsTicket", () => {
     expect(holdsTicket("cancelled")).toBe(false);
     expect(holdsTicket(null)).toBe(false);
     expect(holdsTicket(undefined)).toBe(false);
+  });
+});
+
+describe("keepLatestPastEvent", () => {
+  const poster = (id: string, startsAt: string, isPublished = true) =>
+    mapEventRow({ id, is_published: isPublished, starts_at: startsAt, title: id });
+
+  // Monday 14 September, 15:00 in Moscow.
+  const now = new Date("2026-09-14T12:00:00.000Z");
+  const deepStack = poster("deep-stack", "2026-09-08T16:00:00.000Z");
+  const classic = poster("classic-bounty", "2026-09-10T16:00:00.000Z");
+  const freeroll = poster("freeroll", "2026-09-13T16:00:00.000Z");
+  const phoenix = poster("phoenix", "2026-09-15T16:00:00.000Z", false);
+
+  it("keeps only the last game played among the ones already over", () => {
+    const kept = keepLatestPastEvent([deepStack, classic, freeroll, phoenix], now);
+
+    expect(kept.map((event) => event.id)).toEqual(["freeroll", "phoenix"]);
+  });
+
+  it("keeps tonight's game alongside the last finished one", () => {
+    const tonight = poster("tonight", "2026-09-14T16:00:00.000Z");
+
+    const kept = keepLatestPastEvent([classic, freeroll, tonight], now);
+
+    expect(kept.map((event) => event.id)).toEqual(["freeroll", "tonight"]);
+  });
+
+  // A draft whose date went by was never played, so it is not the last game.
+  it("passes over a draft whose date has gone by", () => {
+    const staleDraft = poster("stale-draft", "2026-09-13T18:00:00.000Z", false);
+
+    const kept = keepLatestPastEvent([classic, freeroll, staleDraft], now);
+
+    expect(kept.map((event) => event.id)).toEqual(["freeroll"]);
+  });
+
+  it("shows every poster still ahead when nothing has been played yet", () => {
+    const kept = keepLatestPastEvent([phoenix], now);
+
+    expect(kept).toEqual([phoenix]);
   });
 });
