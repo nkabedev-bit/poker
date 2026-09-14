@@ -21,18 +21,33 @@ function formatDate(value: string | null) {
 export function SeasonsManager({
   gamesBySeason,
   gamesWithoutSeason,
+  notice = null,
   seasons,
 }: {
   gamesBySeason: Record<string, number>;
   gamesWithoutSeason: number;
+  notice?: string | null;
   seasons: Season[];
 }) {
   const [editing, setEditing] = useState<Season | null>(null);
-  const open = seasons.find((season) => season.status === "open") ?? null;
+  const [parallel, setParallel] = useState(false);
+  // The season a new regular one takes over from. Parallel seasons are left running.
+  const openRegular =
+    seasons.find((season) => season.status === "open" && !season.parallel) ?? null;
   const today = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="settings-stack">
+      {notice ? (
+        <p
+          className="poker-panel"
+          role="alert"
+          style={{ borderColor: "var(--color-danger, #c8163f)", margin: 0, padding: "14px 18px" }}
+        >
+          {notice}
+        </p>
+      ) : null}
+
       <form action={openSeason} className="poker-panel">
         <div className="panel-heading">
           <div>
@@ -49,11 +64,29 @@ export function SeasonsManager({
           <input maxLength={80} name="title" placeholder="Осенняя серия" required />
         </label>
 
+        <label className="checkbox-field">
+          <input
+            checked={parallel}
+            name="parallel"
+            type="checkbox"
+            value="yes"
+            onChange={(event) => setParallel(event.target.checked)}
+          />
+          Параллельный зачёт
+        </label>
+
         <div className="events-form-row">
           <label>
             Начало
             <input defaultValue={today} name="startsOn" required type="date" />
           </label>
+          {parallel ? (
+            <label>
+              Конец
+              <input name="endsOn" type="date" />
+              <span className="field-help">Последний день зачёта.</span>
+            </label>
+          ) : null}
           <label>
             Игр в зачёт
             <input inputMode="numeric" name="countedGames" placeholder="все" />
@@ -63,9 +96,15 @@ export function SeasonsManager({
           </label>
         </div>
 
-        {open ? (
+        {parallel ? (
           <p className="field-help">
-            Сейчас открыт «{open.title}». Он будет закрыт и заморожен датой начала нового.
+            Идёт рядом с основным сезоном и ничего не закрывает. В зачёт попадают все
+            рейтинговые игры в датах сезона — даже сыгранные до того, как его открыли.
+          </p>
+        ) : openRegular ? (
+          <p className="field-help">
+            Сейчас открыт «{openRegular.title}». Он будет закрыт и заморожен датой начала
+            нового.
           </p>
         ) : null}
 
@@ -155,6 +194,7 @@ export function SeasonsManager({
                   <tr key={season.id}>
                     <td>
                       <strong>{season.title}</strong>
+                      {season.parallel ? <span className="muted"> · параллельный</span> : null}
                     </td>
                     <td>
                       {formatDate(season.startsOn)} — {formatDate(season.endsOn)}
@@ -171,12 +211,15 @@ export function SeasonsManager({
                         <Pencil size={14} /> Правка
                       </button>
 
-                      <form action={attachGamesByDate}>
-                        <input name="id" type="hidden" value={season.id} />
-                        <SubmitButton className="ghost-button" pendingText="Привязываем...">
-                          <Link2 size={14} /> Привязать игры
-                        </SubmitButton>
-                      </form>
+                      {/* A parallel season takes its games by date; there is nothing to attach. */}
+                      {season.parallel ? null : (
+                        <form action={attachGamesByDate}>
+                          <input name="id" type="hidden" value={season.id} />
+                          <SubmitButton className="ghost-button" pendingText="Привязываем...">
+                            <Link2 size={14} /> Привязать игры
+                          </SubmitButton>
+                        </form>
+                      )}
 
                       {season.status === "open" ? (
                         <form action={closeSeason}>

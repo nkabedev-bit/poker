@@ -5,7 +5,7 @@ import {
   listSeasons,
   readSeasonSnapshot,
 } from "@/lib/seasons/store";
-import type { SeasonStanding } from "@/lib/seasons/season";
+import { arrangeSeasonsForRating, type SeasonStanding } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
@@ -25,13 +25,17 @@ function normalizeNickname(value: string | null | undefined) {
  *
  * A closed season is served from the table it was frozen with — that is what the club
  * announced, and correcting an old game must not quietly move it. An open season is
- * computed live from the games stamped with it, under that season's own scoring rule.
+ * computed live under that season's own scoring rule: a regular one from the games
+ * stamped with it, a parallel one from the rating games played inside its dates.
+ *
+ * Without a season asked for, the regular season is served — the APC cup qualifier runs
+ * beside it as a tab of its own.
  */
 export async function GET(request: Request) {
   const auth = await requireClientTmaAuth(request);
   if (auth.error) return auth.error;
 
-  const seasons = await listSeasons(auth.supabase);
+  const seasons = arrangeSeasonsForRating(await listSeasons(auth.supabase));
 
   if (seasons.length === 0) {
     return NextResponse.json({

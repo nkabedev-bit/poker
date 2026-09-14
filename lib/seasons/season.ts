@@ -6,6 +6,12 @@ export type Season = {
   countedGames: number | null;
   endsOn: string | null;
   id: string;
+  /**
+   * Runs beside the regular season instead of taking over from it — the APC cup
+   * qualifier. It is never stamped on games: it holds every rating game played inside
+   * its own dates.
+   */
+  parallel: boolean;
   startsOn: string;
   status: SeasonStatus;
   title: string;
@@ -35,6 +41,8 @@ export function mapSeasonRow(row: Record<string, unknown>): Season {
         : Number(row.counted_games),
     endsOn: (row.ends_on as string | null) ?? null,
     id: String(row.id),
+    // Missing until migration 202609140001 is applied, which leaves every season regular.
+    parallel: row.parallel === true,
     startsOn: String(row.starts_on),
     status: row.status === "closed" ? "closed" : "open",
     title: String(row.title ?? ""),
@@ -92,6 +100,24 @@ export function buildSeasonStandings(
         a.playerName.localeCompare(b.playerName),
     )
     .map((standing, index) => ({ ...standing, place: index + 1 }));
+}
+
+/**
+ * The seasons in the order the rating screen offers them. The first is the one it opens
+ * on, and the home screen shows its top three.
+ *
+ * Seasons arrive newest first. The regular season leads all the same: a parallel season
+ * starts after the season it runs beside, and by date alone it would push the club's own
+ * rating off the home screen for as long as it ran.
+ */
+export function arrangeSeasonsForRating(seasons: Season[]): Season[] {
+  const regular =
+    seasons.find((season) => season.status === "open" && !season.parallel) ??
+    seasons.find((season) => !season.parallel);
+
+  if (!regular) return seasons;
+
+  return [regular, ...seasons.filter((season) => season.id !== regular.id)];
 }
 
 /** A season covering a date, used to place imported games that predate the stamping. */

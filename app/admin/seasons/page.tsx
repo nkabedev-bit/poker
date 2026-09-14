@@ -7,9 +7,17 @@ export const dynamic = "force-dynamic";
 
 const UNCLAIMED_ROWS_LIMIT = 20000;
 
-export default async function SeasonsPage() {
+export default async function SeasonsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
+  const notice = (await searchParams).error ?? null;
+
   if (!hasPublicEnv())
-    return <SeasonsManager gamesBySeason={{}} gamesWithoutSeason={0} seasons={[]} />;
+    return (
+      <SeasonsManager gamesBySeason={{}} gamesWithoutSeason={0} notice={notice} seasons={[]} />
+    );
 
   const supabase = await createSupabaseServerClient();
   const seasons = await listSeasons(supabase);
@@ -45,10 +53,28 @@ export default async function SeasonsPage() {
   }
   for (const [seasonId, games] of seenGames) gamesBySeason[seasonId] = games.size;
 
+  // A parallel season is never stamped on games: its evenings are the rating games played
+  // inside its dates.
+  for (const season of seasons.filter((item) => item.parallel)) {
+    let query = supabase
+      .from("tournament_results")
+      .select("started_at")
+      .eq("counts_for_rating", true)
+      .gte("played_on", season.startsOn);
+
+    if (season.endsOn) query = query.lte("played_on", season.endsOn);
+
+    const { data } = await query.limit(UNCLAIMED_ROWS_LIMIT);
+    gamesBySeason[season.id] = new Set(
+      (data ?? []).map((row) => String((row as { started_at: string }).started_at)),
+    ).size;
+  }
+
   return (
     <SeasonsManager
       gamesBySeason={gamesBySeason}
       gamesWithoutSeason={gamesWithoutSeason}
+      notice={notice}
       seasons={seasons}
     />
   );

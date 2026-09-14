@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildTournamentResultRows } from "@/lib/results/tournament-results";
-import { getOpenSeason } from "@/lib/seasons/store";
+import { getOpenRegularSeason } from "@/lib/seasons/store";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 import { resolveMedalKey } from "@/lib/client/medals";
 
@@ -69,7 +69,8 @@ export async function saveTournamentResults({
 
   // Games belong to the season that was collecting them, not to whatever period a date
   // could be read as later. With no season open the game is stored outside the rating.
-  const season = await getOpenSeason(supabase);
+  // A parallel season (the APC cup qualifier) is not stamped: it finds the game by date.
+  const season = await getOpenRegularSeason(supabase);
 
   const { eventId, title } = await resolveGameTitle(
     supabase,

@@ -6,7 +6,9 @@ import {
   type SeasonStanding,
 } from "@/lib/seasons/season";
 
-const SEASON_COLUMNS = "id, title, starts_on, ends_on, counted_games, status, closed_at";
+// Every column rather than a list of them: `parallel` arrives with migration 202609140001,
+// and naming it here would break the rating screen for everyone until that is applied.
+const SEASON_COLUMNS = "*";
 
 export async function listSeasons(supabase: SupabaseClient): Promise<Season[]> {
   const { data, error } = await supabase
@@ -19,28 +21,48 @@ export async function listSeasons(supabase: SupabaseClient): Promise<Season[]> {
   return (data ?? []).map((row) => mapSeasonRow(row as Record<string, unknown>));
 }
 
-export async function getOpenSeason(supabase: SupabaseClient): Promise<Season | null> {
+/**
+ * The regular season collecting tonight's game. A parallel season is open beside it, but
+ * it finds its games by date and is never the one a game is stamped with.
+ */
+export async function getOpenRegularSeason(supabase: SupabaseClient): Promise<Season | null> {
   const { data, error } = await supabase
     .from("seasons")
     .select(SEASON_COLUMNS)
-    .eq("status", "open")
-    .maybeSingle();
+    .eq("status", "open");
 
   if (error) throw error;
 
-  return data ? mapSeasonRow(data as Record<string, unknown>) : null;
+  return (
+    (data ?? [])
+      .map((row) => mapSeasonRow(row as Record<string, unknown>))
+      .find((season) => !season.parallel) ?? null
+  );
 }
 
-/** Live standings of a season, computed from the games stamped with it. */
+/**
+ * Live standings of a season. A regular season holds the games stamped with it as they
+ * finished; a parallel one holds every rating game played inside its dates.
+ */
 export async function computeSeasonStandings(
   supabase: SupabaseClient,
   season: Season,
 ): Promise<SeasonStanding[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("tournament_results")
     .select("telegram_id, player_name, points, knockouts")
-    .eq("season_id", season.id)
     .eq("counts_for_rating", true);
+
+  if (season.parallel) {
+    // played_on comes from the moment a game started, so an evening that runs past
+    // midnight stays on the day it was played.
+    query = query.gte("played_on", season.startsOn);
+    if (season.endsOn) query = query.lte("played_on", season.endsOn);
+  } else {
+    query = query.eq("season_id", season.id);
+  }
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
