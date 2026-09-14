@@ -5,6 +5,7 @@ import type { EventSignupWithPlayer } from "@/lib/events/store";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { listReservationsForEvents } from "@/lib/events/reservations";
+import { loadPublishTimes } from "@/lib/events/scheduled-publication";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,11 @@ export default async function EventsPage({
     supabase,
     events.map((event) => event.id),
   );
+  // When the drafts that are scheduled go up by themselves.
+  const publishTimes = await loadPublishTimes(
+    supabase,
+    events.map((event) => event.id),
+  );
   const selectedEventId = query.event ?? null;
   let signups: EventSignupWithPlayer[] = [];
   if (selectedEventId && events.some((event) => event.id === selectedEventId)) {
@@ -57,6 +63,7 @@ export default async function EventsPage({
     <EventsManager
       events={events}
       notice={notice}
+      publishTimes={Object.fromEntries(publishTimes)}
       reservations={reservations}
       selectedEventId={selectedEventId}
       signupCounts={Object.fromEntries(

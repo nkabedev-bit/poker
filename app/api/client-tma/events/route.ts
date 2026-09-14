@@ -1,8 +1,9 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getUserSignups, listEvents } from "@/lib/events/store";
 import { holdsTicket, isUpcomingEvent, waitlistOfferIsLive } from "@/lib/events/types";
 import { findDuoInvitationEventIds } from "@/lib/events/duo";
+import { announcePublishedEvents, publishDueEvents } from "@/lib/events/scheduled-publication";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,13 @@ export async function GET(request: Request) {
   if (auth.error) return auth.error;
 
   const now = new Date();
+  // A draft whose time has come goes up the moment anybody looks, instead of waiting for
+  // the five-minute job; the messages about held tickets go out after the answer.
+  const justPublished = await publishDueEvents(auth.supabase, now);
+  if (justPublished.length > 0) {
+    after(() => announcePublishedEvents(auth.supabase, justPublished));
+  }
+
   const published = await listEvents(auth.supabase, { publishedOnly: true });
   const upcoming = published.filter((event) => isUpcomingEvent(event, now));
 

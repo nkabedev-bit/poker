@@ -41,6 +41,7 @@ const EMPTY_DRAFT = {
   maxPlayers: "",
   maxVipPlayers: "",
   posterUrl: "",
+  publishAt: "",
   rulesText: "",
   startingStack: "",
   startsAt: "",
@@ -52,7 +53,7 @@ const EMPTY_DRAFT = {
 type Draft = typeof EMPTY_DRAFT;
 
 
-function toDraft(event: TournamentEvent): Draft {
+function toDraft(event: TournamentEvent, publishAt?: string): Draft {
   return {
     badge: event.badge ?? "",
     buyIn: event.buyIn ? String(event.buyIn) : "",
@@ -65,6 +66,7 @@ function toDraft(event: TournamentEvent): Draft {
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
     maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterUrl: event.posterUrl ?? "",
+    publishAt: publishAt ? utcISOToMoscowLocal(publishAt) : "",
     rulesText: event.rulesText,
     startingStack: event.startingStack ? String(event.startingStack) : "",
     startsAt: utcISOToMoscowLocal(event.startsAt),
@@ -79,6 +81,7 @@ export type EventsNotice = { kind: "error" | "saved"; text: string };
 export function EventsManager({
   events,
   notice = null,
+  publishTimes = {},
   reservations = {},
   selectedEventId,
   signupCounts,
@@ -88,6 +91,8 @@ export function EventsManager({
   events: TournamentEvent[];
   /** What the last save had to say, if anything. */
   notice?: EventsNotice | null;
+  /** When the scheduled drafts go up by themselves, by poster. */
+  publishTimes?: Record<string, string>;
   /** Tickets the club is holding, by poster. */
   reservations?: Record<string, Reservation[]>;
   selectedEventId: string | null;
@@ -452,6 +457,34 @@ export function EventsManager({
           Показывать игрокам
         </label>
 
+        {/* A draft can go up by itself at a set time; a poster already up has nothing
+            left to wait for. */}
+        {!draft.isPublished ? (
+          <label>
+            Время публикации афиши (МСК)
+            <input
+              name="publishAt"
+              type="datetime-local"
+              value={draft.publishAt}
+              onChange={(event) => update({ publishAt: event.target.value })}
+            />
+            <span className="field-help">
+              {draft.publishAt
+                ? "Афиша сама появится у игроков в это время — с задержкой до 5 минут."
+                : "Оставьте пустым, чтобы опубликовать вручную."}
+            </span>
+            {draft.publishAt ? (
+              <button
+                className="ghost-button"
+                type="button"
+                onClick={() => update({ publishAt: "" })}
+              >
+                Убрать время публикации
+              </button>
+            ) : null}
+          </label>
+        ) : null}
+
         <div className="qr-actions">
           <SubmitButton className="gold-button" pendingText="Сохраняем...">
             {draft.id ? "Сохранить афишу" : "Создать афишу"}
@@ -534,12 +567,18 @@ export function EventsManager({
                         {event.maxPlayers ? ` / ${event.maxPlayers}` : ""}
                       </Link>
                     </td>
-                    <td>{event.isPublished ? "Опубликована" : "Черновик"}</td>
+                    <td>
+                      {event.isPublished
+                        ? "Опубликована"
+                        : publishTimes[event.id]
+                          ? `Черновик · выйдет ${formatEventDayLabel(publishTimes[event.id])}, ${formatEventTimeLabel(publishTimes[event.id])}`
+                          : "Черновик"}
+                    </td>
                     <td className="events-row-actions">
                       <button
                         className="ghost-button"
                         type="button"
-                        onClick={() => setDraft(toDraft(event))}
+                        onClick={() => setDraft(toDraft(event, publishTimes[event.id]))}
                       >
                         <Pencil size={14} /> Правка
                       </button>

@@ -26,6 +26,8 @@ export const eventInputSchema = z.object({
   // Zero means the club opens no VIP table for this one, so it has to survive the form.
   maxVipPlayers: z.coerce.number().int().min(0).nullable().optional().default(null),
   posterUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
+  // When a draft goes up by itself; empty leaves it waiting for the admin.
+  publishAt: z.string().trim().optional().default(""),
   rulesText: z.string().trim().max(2000).optional().default(""),
   startingStack: z.coerce.number().int().positive().nullable().optional().default(null),
   startsAt: z.string().trim().min(1, "Укажите дату и время начала"),
@@ -68,4 +70,30 @@ export function toEventDraft(input: EventInput): Omit<TournamentEvent, "id"> {
     venueAddress: input.venueAddress,
     vipBuyIn: input.vipBuyIn ?? null,
   };
+}
+
+/**
+ * When a draft is to go up by itself, in UTC — or null when it waits for the admin.
+ *
+ * Only a draft can be scheduled: a poster already in front of the players has nothing
+ * left to wait for. A time already gone is refused rather than taken as "now", which
+ * would put the poster up without the admin having asked for that.
+ */
+export function readPublishAt(input: EventInput, now: Date = new Date()): string | null {
+  if (input.isPublished || !input.publishAt) return null;
+
+  let publishAt: string;
+  try {
+    publishAt = moscowLocalToUtcISO(input.publishAt);
+  } catch {
+    throw new EventInputError("Не удалось разобрать время публикации");
+  }
+
+  if (new Date(publishAt).getTime() <= now.getTime()) {
+    throw new EventInputError(
+      "Время публикации уже прошло — укажите будущее или опубликуйте афишу сразу",
+    );
+  }
+
+  return publishAt;
 }

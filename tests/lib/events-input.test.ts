@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { eventInputSchema, EventInputError, toEventDraft } from "@/lib/events/input";
+import {
+  eventInputSchema,
+  EventInputError,
+  readPublishAt,
+  toEventDraft,
+} from "@/lib/events/input";
 
 function parse(overrides: Record<string, unknown> = {}) {
   return eventInputSchema.parse({
@@ -66,5 +71,40 @@ describe("event input", () => {
 
   it("rejects a poster url that is not a url", () => {
     expect(eventInputSchema.safeParse({ posterUrl: "не ссылка", startsAt: "2026-09-01T19:00", title: "Игра" }).success).toBe(false);
+  });
+});
+
+describe("publication time", () => {
+  // Monday 14 September, 15:00 in Moscow.
+  const now = new Date("2026-09-14T12:00:00.000Z");
+
+  it("reads the time a draft goes up as Moscow wall time", () => {
+    const publishAt = readPublishAt(parse({ publishAt: "2026-09-15T10:00" }), now);
+
+    expect(publishAt).toBe("2026-09-15T07:00:00.000Z");
+  });
+
+  it("leaves a draft without a time waiting for the admin", () => {
+    expect(readPublishAt(parse(), now)).toBeNull();
+  });
+
+  // A poster already in front of the players has nothing left to wait for.
+  it("drops the time once the poster is published", () => {
+    const published = parse({ isPublished: true, publishAt: "2026-09-15T10:00" });
+
+    expect(readPublishAt(published, now)).toBeNull();
+  });
+
+  // Taking a time gone by as "now" would put the poster up without anyone asking.
+  it("refuses a time that has already gone", () => {
+    expect(() => readPublishAt(parse({ publishAt: "2026-09-14T14:59" }), now)).toThrow(
+      EventInputError,
+    );
+  });
+
+  it("refuses a time it cannot read", () => {
+    expect(() => readPublishAt(parse({ publishAt: "завтра утром" }), now)).toThrow(
+      EventInputError,
+    );
   });
 });

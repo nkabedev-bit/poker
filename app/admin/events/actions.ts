@@ -6,8 +6,14 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { prepareLogoImage } from "@/lib/admin/logo-upload";
-import { eventInputSchema, toEventDraft } from "@/lib/events/input";
+import {
+  EventInputError,
+  eventInputSchema,
+  readPublishAt,
+  toEventDraft,
+} from "@/lib/events/input";
 import { MAX_POSTER_BYTES, PosterUploadError } from "@/lib/events/poster-upload";
+import { savePublishAt } from "@/lib/events/scheduled-publication";
 import { deleteEvent, saveEvent } from "@/lib/events/store";
 import {
   makeEventTemplate,
@@ -70,6 +76,8 @@ export async function saveTournamentEvent(formData: FormData) {
     duoBuyIn: optionalNumber(formData.get("duoBuyIn")),
     featuresText: formData.get("featuresText"),
     isPublished: formData.get("isPublished") === "yes",
+    // Rendered only while the poster is a draft, so the field may not be in the form.
+    publishAt: formData.get("publishAt") ?? "",
     lateEntryUntil: formData.get("lateEntryUntil"),
     maxDuoTickets: optionalNumber(formData.get("maxDuoTickets")),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
@@ -92,6 +100,8 @@ export async function saveTournamentEvent(formData: FormData) {
   let failure: string | null = null;
 
   try {
+    // Read before the poster is written, so a time already gone saves nothing.
+    const publishAt = readPublishAt(parsed.data);
     const supabase = await createSupabaseServerClient();
     const posterUrl = (await uploadPosterFile(supabase, formData)) ?? parsed.data.posterUrl;
 
@@ -100,13 +110,16 @@ export async function saveTournamentEvent(formData: FormData) {
       ...(id ? { id } : {}),
     });
 
+    // A draft waits for its time; a poster that is up has nothing left to wait for.
+    await savePublishAt(supabase, saved.id, publishAt);
+
     // The poster going up is when a held ticket is announced, and only once — the
     // reservation itself remembers whether its player has been told.
     if (saved.isPublished) await notifyReservedOnPublish(supabase, saved.id);
   } catch (error) {
     console.error("Could not save the event", error);
     failure =
-      error instanceof PosterUploadError
+      error instanceof PosterUploadError || error instanceof EventInputError
         ? error.message
         : "Не удалось сохранить афишу. Попробуйте ещё раз.";
   }
@@ -139,7 +152,11 @@ export async function toggleTournamentEventPublished(formData: FormData) {
       .eq("id", id);
 
     if (error) throw error;
-    if (publish) await notifyReservedOnPublish(supabase, id);
+    if (publish) {
+      // Put up by hand, the poster no longer waits for a time of its own.
+      await savePublishAt(supabase, id, null);
+      await notifyReservedOnPublish(supabase, id);
+    }
   } catch (error) {
     console.error("Could not change what the poster shows", error);
     failure = publish ? "Не удалось опубликовать афишу." : "Не удалось снять афишу.";

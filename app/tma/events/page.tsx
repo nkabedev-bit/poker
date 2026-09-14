@@ -28,7 +28,11 @@ import { describeAnnouncedSeats } from "@/lib/events/seats";
 import type { Reservation } from "@/lib/events/reservations";
 import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 
-type EventRow = TournamentEvent & { signupsCount: number };
+type EventRow = TournamentEvent & {
+  /** When a draft goes up by itself; null when it waits for the admin. */
+  publishAt: string | null;
+  signupsCount: number;
+};
 
 // The fallbacks matter: a Telegram client that sets none of its theme variables leaves
 // the text the colour of whatever is behind it, and the field reads as empty.
@@ -53,6 +57,7 @@ const EMPTY_DRAFT = {
   maxVipPlayers: "",
   posterDataUrl: "",
   posterUrl: "",
+  publishAt: "",
   rulesText: "",
   startingStack: "",
   startsAt: "",
@@ -78,6 +83,7 @@ function toDraft(event: EventRow): Draft {
     maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterDataUrl: "",
     posterUrl: event.posterUrl ?? "",
+    publishAt: event.publishAt ? utcISOToMoscowLocal(event.publishAt) : "",
     rulesText: event.rulesText,
     startingStack: event.startingStack ? String(event.startingStack) : "",
     startsAt: utcISOToMoscowLocal(event.startsAt),
@@ -285,6 +291,8 @@ export default function TMAEventsPage() {
         maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
         posterDataUrl: draft.posterDataUrl || undefined,
         posterUrl: draft.posterUrl,
+        // Only a draft waits for a time of its own.
+        publishAt: draft.isPublished ? "" : draft.publishAt,
         rulesText: draft.rulesText,
         startingStack: draft.startingStack ? Number(draft.startingStack) : null,
         startsAt: draft.startsAt,
@@ -663,6 +671,35 @@ export default function TMAEventsPage() {
           <span className="text-sm">Показывать игрокам</span>
         </label>
 
+        {/* A draft can go up by itself at a set time; a poster already up has nothing
+            left to wait for. */}
+        {!draft.isPublished ? (
+          <div>
+            <FieldLabel title="Время публикации афиши (МСК)" />
+            <input
+              className={textFieldClass}
+              type="datetime-local"
+              value={draft.publishAt}
+              onChange={(event) => update({ publishAt: event.target.value })}
+            />
+            <p className="mt-1 text-xs text-[var(--tg-theme-hint-color)]">
+              {draft.publishAt
+                ? "Афиша сама появится у игроков в это время — с задержкой до 5 минут."
+                : "Оставьте пустым, чтобы опубликовать вручную."}
+            </p>
+            {/* A phone's date picker has no way to empty the field once it is set. */}
+            {draft.publishAt ? (
+              <button
+                className="mt-1 text-xs font-semibold text-[var(--tg-theme-button-color)]"
+                type="button"
+                onClick={() => update({ publishAt: "" })}
+              >
+                Убрать время публикации
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
         <button
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
           disabled={saving}
@@ -755,7 +792,11 @@ export default function TMAEventsPage() {
             </div>
 
             {!event.isPublished ? (
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">Черновик — игроки не видят</p>
+              <p className="text-xs text-[var(--tg-theme-hint-color)]">
+                {event.publishAt
+                  ? `Черновик — опубликуется ${formatEventDayLabel(event.publishAt)} в ${formatEventTimeLabel(event.publishAt)}`
+                  : "Черновик — игроки не видят"}
+              </p>
             ) : null}
           </div>
         ))}
