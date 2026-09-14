@@ -5,12 +5,20 @@ const mocks = vi.hoisted(() => ({
   countActiveSignups: vi.fn(),
   getEvent: vi.fn(),
   getUserSignups: vi.fn(),
+  loadPassHolds: vi.fn(),
   notifyClientUser: vi.fn(),
   requireClientTmaAuth: vi.fn(),
 }));
 
 vi.mock("@/lib/client-tma/require-auth", () => ({
   requireClientTmaAuth: mocks.requireClientTmaAuth,
+}));
+
+// The passes a player promised to other games are read from the database; counting what
+// is left of them stays real.
+vi.mock("@/lib/free-entries/holds", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/free-entries/holds")>()),
+  loadPassHolds: mocks.loadPassHolds,
 }));
 
 vi.mock("@/lib/events/store", () => ({
@@ -73,6 +81,7 @@ function upsertSpy({
   eventFull = false,
   members = [] as Array<{ display_name: string; id: string; telegram_id: number | null }>,
   partnerTaken = false,
+  passHeld = false,
 } = {}) {
   const upsert = vi.fn<(row: unknown, options?: unknown) => Promise<{ error: null }>>(
     async () => ({ error: null }),
@@ -112,6 +121,7 @@ function upsertSpy({
   const rpc = vi.fn(async (fn: string, args: Record<string, unknown>) => {
     if (fn !== "claim_event_signup") return { data: null, error: null };
     if (eventFull) return { data: null, error: { message: "Event is full" } };
+    if (passHeld) return { data: null, error: { message: "Free pass already held" } };
 
     await upsert(
       {
@@ -183,6 +193,7 @@ describe("client sign-up route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    mocks.loadPassHolds.mockResolvedValue([]);
     mocks.getEvent.mockResolvedValue(FUTURE_EVENT);
     mocks.countActiveSignups.mockResolvedValue(taken());
     mocks.getUserSignups.mockResolvedValue([]);
@@ -306,6 +317,87 @@ describe("client sign-up route", () => {
       expect.objectContaining({ use_pass: "none" }),
       { onConflict: "event_id,user_id" },
     );
+  });
+
+  // One pass, one game: the same pass written down for a second evening would leave the
+  // player paying at the door of one of them.
+  it("refuses a pass already promised to another game", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 1, supabase }));
+    mocks.loadPassHolds.mockResolvedValue([
+      { eventId: "event-2", pass: "regular", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
+    ]);
+
+    const response = await postSignup({ usePass: "regular" });
+    const payload = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(payload.error).toBe("pass_held");
+    expect(payload.message).toContain("Phoenix");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pass a sign-up sent again is already holding", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 1, supabase }));
+    mocks.loadPassHolds.mockResolvedValue([
+      {
+        eventId: "event-1",
+        pass: "regular",
+        startsAt: "2999-01-01T16:00:00.000Z",
+        title: "ONE SHOT KNOCKOUT",
+      },
+    ]);
+
+    const response = await postSignup({ usePass: "regular" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ use_pass: "regular" }),
+      { onConflict: "event_id,user_id" },
+    );
+  });
+
+  it("spends a second pass on a second game", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 2, supabase }));
+    mocks.loadPassHolds.mockResolvedValue([
+      { eventId: "event-2", pass: "regular", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
+    ]);
+
+    const response = await postSignup({ usePass: "regular" });
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ use_pass: "regular" }),
+      { onConflict: "event_id,user_id" },
+    );
+  });
+
+  // Quietly signing them up without it would send the player to the door expecting a
+  // free seat.
+  it("tells a player with no pass left to sign up without one", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await postSignup({ usePass: "regular" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "no_pass" });
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // Two sign-ups sent together with one pass both read it as free; the database counts
+  // again under the player's row lock and refuses the second.
+  it("refuses the sign-up that lost the race for the pass", async () => {
+    const { supabase, upsert } = upsertSpy({ passHeld: true });
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 1, supabase }));
+
+    const response = await postSignup({ usePass: "regular" });
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "pass_held" });
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   it("sends a player without a questionnaire to fill it in first", async () => {

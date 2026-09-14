@@ -5,6 +5,7 @@ import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
 import { holdsTicket, isReservableTicket, waitlistOfferIsLive } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
+import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "not_found", message: "Турнир не найден." }, { status: 404 });
   }
 
-  const [signupCounts, mySignups, invitation] = await Promise.all([
+  const [signupCounts, mySignups, invitation, passHolds] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
     getUserSignups(auth.supabase, auth.user.id),
     // Somebody may be waiting on this player to say they are coming as their +1.
     findDuoInvitation(auth.supabase, { eventId: event.id, userId: auth.user.id }),
+    loadPassHolds(auth.supabase, auth.user.id),
   ]);
 
   const mySignup = mySignups.find((signup) => signup.eventId === event.id) ?? null;
@@ -72,10 +74,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         ? { hostName: invitation.hostName }
         : null,
     freeSeats: countFreeSeats(event, taken),
-    freeEntries: {
-      regular: Number(auth.user.free_entries ?? 0),
-      vip: Number(auth.user.vip_free_entries ?? 0),
-    },
+    // The passes the player can still choose for this game: one already promised to
+    // another game is counted out, and named, so the screen can say where it went.
+    freeEntries: countFreePasses(auth.user, passHolds, event.id),
     profileSubmitted: Boolean(auth.user.profile_submitted_at),
   });
 }

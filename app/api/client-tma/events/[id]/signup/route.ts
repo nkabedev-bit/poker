@@ -14,14 +14,16 @@ import {
   readPartnerName,
   resolveDuoPartner,
 } from "@/lib/events/duo";
-import { claimEventSignup } from "@/lib/events/claim-signup";
+import { claimEventSignup, SIGNUP_PASS_HELD } from "@/lib/events/claim-signup";
 import {
+  formatEventDayLabel,
   isEventTicketType,
   isUpcomingEvent,
   passMatchesTicket,
   waitlistOfferIsLive,
 } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
+import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 
 export const dynamic = "force-dynamic";
 
@@ -55,15 +57,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const wantsInvite = body.partnerMode === "invite";
   // Asking to be told when a place comes free, rather than taking one now.
   const wantsWaitlist = body.waitlist === true;
-  // What the player chose to pay with. Nothing is spent here: a pass is only used when
-  // they turn up and are seated, so an intention costs nothing if they never come.
+  // What the player chose to pay with. Nothing is spent here — a pass is only used when
+  // they turn up and are seated — but the sign-up holds it, so the same pass cannot be
+  // written down for another game in the meantime.
   const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
-  const held =
-    requestedPass === "vip"
-      ? Number(auth.user.vip_free_entries ?? 0)
-      : requestedPass === "regular"
-        ? Number(auth.user.free_entries ?? 0)
-        : 0;
 
   const id = (await params).id;
   const event = await getEvent(auth.supabase, id);
@@ -130,13 +127,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  // A pass opens the seat of its own kind only, and one the player still holds. It buys
-  // a single ticket, so it never covers a pair — the "1+1" already has its own price.
+  // A pass opens the seat of its own kind only. It buys a single ticket, so it never
+  // covers a pair — the "1+1" already has its own price. Whether the player still has one
+  // to give is asked below, once the room is known to have a seat for them.
   const usePass =
-    ticketType !== "duo" &&
-    requestedPass !== "none" &&
-    held > 0 &&
-    passMatchesTicket(requestedPass, ticketType)
+    ticketType !== "duo" && requestedPass !== "none" && passMatchesTicket(requestedPass, ticketType)
       ? requestedPass
       : "none";
 
@@ -209,6 +204,34 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
+  // A pass the player no longer has to give — spent already, or promised to another game
+  // still ahead of them — is refused out loud. Writing the sign-up without it would send
+  // them to the door expecting a free seat and asking them to pay there.
+  if (usePass !== "none") {
+    const passes = countFreePasses(
+      auth.user,
+      await loadPassHolds(auth.supabase, auth.user.id),
+      event.id,
+    );
+
+    if (passes[usePass] <= 0) {
+      const promised = passes.heldFor.find((hold) => hold.pass === usePass);
+
+      return NextResponse.json(
+        promised
+          ? {
+              error: "pass_held",
+              message: `Проходка уже закреплена за записью на «${promised.title}» (${formatEventDayLabel(promised.startsAt)}). Отмените ту запись или запишитесь без проходки.`,
+            }
+          : {
+              error: "no_pass",
+              message: "Проходок этого типа не осталось. Запишитесь без проходки.",
+            },
+        { status: 409 },
+      );
+    }
+  }
+
   // Changing the partner starts the invitation over: the player who was asked before is
   // no longer coming, and their half of the ticket goes with them.
   const partnerChanged =
@@ -266,6 +289,18 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             : ticketType === "duo"
               ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
               : "Все места разобрали. Напишите в поддержку.",
+      },
+      { status: 409 },
+    );
+  }
+
+  // The pass went to another of the player's games between the check above and the write.
+  if (claim === SIGNUP_PASS_HELD) {
+    return NextResponse.json(
+      {
+        error: "pass_held",
+        message:
+          "Проходка уже закреплена за другой вашей записью. Отмените ту запись или запишитесь без проходки.",
       },
       { status: 409 },
     );

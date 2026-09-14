@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
+import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { countMedalsFromResults } from "@/lib/players/medal-counts";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
@@ -93,7 +94,10 @@ export async function GET(request: Request) {
     }),
   );
 
-  const history = await getUserSignupsWithEvents(auth.supabase, auth.user.id);
+  const [history, passHolds] = await Promise.all([
+    getUserSignupsWithEvents(auth.supabase, auth.user.id),
+    loadPassHolds(auth.supabase, auth.user.id, now),
+  ]);
   const [active, past] = history.reduce<[typeof history, typeof history]>(
     (split, item) => {
       split[isUpcomingEvent(item.event, now) ? 0 : 1].push(item);
@@ -111,11 +115,9 @@ export async function GET(request: Request) {
     // Stored copy of the Telegram photo, used when the mini-app was opened without one.
     avatarUrl: auth.user.avatar_url,
     // Entries the club gave the player: one covers the ticket of a single tournament,
-    // never a re-entry or an add-on.
-    freeEntries: {
-      regular: Number(auth.user.free_entries ?? 0),
-      vip: Number(auth.user.vip_free_entries ?? 0),
-    },
+    // never a re-entry or an add-on. A pass already promised to a game still ahead is
+    // counted out of what is left and listed with that game.
+    freeEntries: countFreePasses(auth.user, passHolds),
     // The club nickname is what the player is known by at the table, so it wins over
     // whatever Telegram calls them.
     displayName: auth.user.display_name,

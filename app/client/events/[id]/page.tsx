@@ -61,7 +61,15 @@ type EventDetails = TournamentEvent & {
   usePass: FreePassChoice;
 };
 
-type FreeEntries = { regular: number; vip: number };
+/** A pass the player already wrote down for another game they have not played yet. */
+type PassHold = {
+  eventId: string;
+  pass: Exclude<FreePassChoice, "none">;
+  startsAt: string;
+  title: string;
+};
+
+type FreeEntries = { heldFor: PassHold[]; regular: number; vip: number };
 
 type FreeSeats = { duo: number; regular: number | null; vip: number | null };
 
@@ -111,7 +119,7 @@ export default function ClientEventPage() {
   const eventId = params?.id;
 
   const [event, setEvent] = useState<EventDetails | null>(null);
-  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ regular: 0, vip: 0 });
+  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ heldFor: [], regular: 0, vip: 0 });
   const [freeSeats, setFreeSeats] = useState<FreeSeats>({ duo: 0, regular: null, vip: null });
   const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [usePass, setUsePass] = useState<FreePassChoice>("none");
@@ -163,6 +171,7 @@ export default function ClientEventPage() {
           setPartnerName(details.partnerName ?? "");
         }
         setFreeEntries({
+          heldFor: Array.isArray(data.freeEntries?.heldFor) ? data.freeEntries.heldFor : [],
           regular: Number(data.freeEntries?.regular ?? 0),
           vip: Number(data.freeEntries?.vip ?? 0),
         });
@@ -396,6 +405,14 @@ export default function ClientEventPage() {
   // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
   // ticket of its own kind, so choosing one switches the ticket to match.
   const vipSoldOut = freeSeats.vip !== null && freeSeats.vip <= 0;
+  // A pass promised to another game stays on the list, greyed out and naming that game:
+  // one that simply vanished would read as lost rather than taken.
+  const heldNote = (pass: Exclude<FreePassChoice, "none">) => {
+    const hold = freeEntries.heldFor.find((item) => item.pass === pass);
+    return hold ? `Занята записью: ${hold.title}, ${formatEventDayLabel(hold.startsAt)}` : null;
+  };
+  const regularHeldNote = heldNote("regular");
+  const vipHeldNote = heldNote("vip");
   const passOptions: Array<{
     disabled?: boolean;
     note: string | null;
@@ -408,7 +425,14 @@ export default function ClientEventPage() {
           title: PASS_TITLES.regular,
           value: "regular" as const,
         }]
-      : []),
+      : regularHeldNote
+        ? [{
+            disabled: true,
+            note: regularHeldNote,
+            title: PASS_TITLES.regular,
+            value: "regular" as const,
+          }]
+        : []),
     ...(freeEntries.vip > 0 && offersVip
       ? [{
           disabled: vipSoldOut,
@@ -418,7 +442,14 @@ export default function ClientEventPage() {
           title: PASS_TITLES.vip,
           value: "vip" as const,
         }]
-      : []),
+      : offersVip && vipHeldNote
+        ? [{
+            disabled: true,
+            note: vipHeldNote,
+            title: PASS_TITLES.vip,
+            value: "vip" as const,
+          }]
+        : []),
   ];
 
   if (passOptions.length > 0) {
@@ -763,7 +794,8 @@ export default function ClientEventPage() {
         <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
           <Ticket className="shrink-0 text-[#f05a7e]" size={18} />
           <p className="text-sm text-white/80">
-            Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру.
+            Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру, а
+            до тех пор она закреплена за этой записью.
           </p>
         </div>
       ) : null}

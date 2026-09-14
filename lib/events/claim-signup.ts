@@ -19,6 +19,9 @@ export type SignupClaim = {
 /** The poster was full by the time the write reached the room. */
 export const SIGNUP_FULL = "full" as const;
 
+/** The pass the player chose went to another of their games by the time the write landed. */
+export const SIGNUP_PASS_HELD = "pass_held" as const;
+
 function isMissingRpc(error: unknown) {
   if (!error || typeof error !== "object") return false;
 
@@ -32,6 +35,12 @@ function isEventFull(error: unknown) {
   return String((error as { message?: unknown }).message ?? "").includes("Event is full");
 }
 
+function isPassHeld(error: unknown) {
+  if (!error || typeof error !== "object") return false;
+
+  return String((error as { message?: unknown }).message ?? "").includes("Free pass already held");
+}
+
 /**
  * Writes a sign-up, counting the room in the same breath.
  *
@@ -41,12 +50,16 @@ function isEventFull(error: unknown) {
  * The database counts under the poster's own row lock and refuses the loser — the same
  * defence the seating plan already has, so two taps cannot fill one chair.
  *
- * Returns "full" when the room ran out, or null when the write went through.
+ * The pass is counted there as well, under the player's row lock: two sign-ups sent
+ * together with a single pass would otherwise both read it as free.
+ *
+ * Returns "full" when the room ran out, "pass_held" when the pass did, or null when the
+ * write went through.
  */
 export async function claimEventSignup(
   supabase: SupabaseClient,
   claim: SignupClaim,
-): Promise<typeof SIGNUP_FULL | null> {
+): Promise<typeof SIGNUP_FULL | typeof SIGNUP_PASS_HELD | null> {
   const { error } = await supabase.rpc("claim_event_signup", {
     p_duo_confirmed_at: claim.duoConfirmedAt,
     p_duo_invite_token: claim.duoInviteToken,
@@ -62,6 +75,7 @@ export async function claimEventSignup(
 
   if (!error) return null;
   if (isEventFull(error)) return SIGNUP_FULL;
+  if (isPassHeld(error)) return SIGNUP_PASS_HELD;
   // The function is applied by hand, so a deploy can land before it exists. Until then
   // the plain write stands in: the race is rarer than a sign-up that cannot be made.
   if (!isMissingRpc(error)) throw error;
