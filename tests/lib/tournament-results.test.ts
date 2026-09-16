@@ -68,6 +68,36 @@ describe("buildTournamentResultRows", () => {
 
     expect(rows[0].telegramId).toBe(42);
   });
+
+  it("adds the knockout points to the place points in progressive bounty", () => {
+    const rows = buildTournamentResultRows(
+      [
+        player({ finishPlace: 1, mysteryBountyPoints: 150, name: "Первый" }),
+        player({ finishPlace: 2, mysteryBountyPoints: 0, name: "Второй" }),
+      ],
+      { ...PTS, bountyType: "progressive" },
+    );
+
+    expect(rows.map((row) => row.points)).toEqual([250, 80]);
+  });
+
+  it("counts side points for a player below the scoring places", () => {
+    const rows = buildTournamentResultRows(
+      [player({ finishPlace: 40, mysteryBountyPoints: 45.5, name: "Сороковой" })],
+      { ...PTS, bountyType: "mystery" },
+    );
+
+    expect(rows[0].points).toBe(45.5);
+  });
+
+  it("leaves standard bounty as it was: knockouts already sit inside PTS", () => {
+    const rows = buildTournamentResultRows(
+      [player({ bountyCount: 2, finishPlace: 1, mysteryBountyPoints: 999 })],
+      PTS,
+    );
+
+    expect(rows[0].points).toBe(120);
+  });
 });
 
 describe("buildMonthlyStandings", () => {

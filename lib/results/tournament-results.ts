@@ -1,4 +1,4 @@
-import { buildPtsStandingsRows, type PtsSettings } from "@/lib/pts-rating";
+import { buildPtsStandingsRows, isSideBountyPoints, type PtsSettings } from "@/lib/pts-rating";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export type TournamentResultRow = {
@@ -17,6 +17,10 @@ export type TournamentResultRow = {
  * Points come from the PTS standings, which only reach as far down as the scoring
  * places; everyone below still gets a row, with zero points, so a player can always
  * look up where they finished — that history is the whole point of storing this.
+ *
+ * In Mystery, Dealer Revenge, Wanted and Progressive the game sheet keeps knockout
+ * points in a column of their own, but a player's score is both columns added up — the
+ * same sum the history import reads off the sheet.
  */
 export function buildTournamentResultRows(
   players: TournamentPlayer[],
@@ -26,6 +30,8 @@ export function buildTournamentResultRows(
   for (const row of buildPtsStandingsRows(players, pts)) {
     if (row.points !== null) pointsByPlace.set(row.place, row.points);
   }
+
+  const addsSidePoints = isSideBountyPoints(pts.bountyType);
 
   return players
     .filter((player) => Number.isInteger(player.finishPlace) && (player.finishPlace ?? 0) > 0)
@@ -37,7 +43,12 @@ export function buildTournamentResultRows(
         knockouts: Number((player.bountyCount || 0).toFixed(2)),
         place,
         playerName: player.name || "Без имени",
-        points: place ? (pointsByPlace.get(place) ?? 0) : 0,
+        points: Number(
+          (
+            (place ? (pointsByPlace.get(place) ?? 0) : 0) +
+            (addsSidePoints ? Number(player.mysteryBountyPoints) || 0 : 0)
+          ).toFixed(2),
+        ),
         rebuys: Math.max(0, Math.trunc(Number(player.rebuys) || 0)),
         telegramId: Number.isInteger(player.telegramId) ? Number(player.telegramId) : null,
       };
