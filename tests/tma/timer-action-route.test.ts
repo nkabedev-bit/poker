@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  afterResponse: [] as Array<() => unknown>,
   broadcastPublicState: vi.fn(),
+  grantWinnerPass: vi.fn(),
   loadCurrentTournamentContext: vi.fn(),
   requireTmaAuth: vi.fn(),
   saveTournamentExtrasFromContext: vi.fn(),
@@ -20,6 +22,19 @@ vi.mock("@/lib/client-bot/server", () => ({
   saveTournamentExtrasFromContext: mocks.saveTournamentExtrasFromContext,
 }));
 
+vi.mock("@/lib/free-entries/winner-pass", () => ({
+  grantWinnerPass: mocks.grantWinnerPass,
+}));
+
+vi.mock("next/server", () => ({
+  after: (task: () => unknown) => {
+    mocks.afterResponse.push(task);
+  },
+  NextResponse: {
+    json: (body: unknown, init?: ResponseInit) => Response.json(body, init),
+  },
+}));
+
 vi.mock("@/lib/results/store", () => ({
   saveTournamentResults: vi.fn(async () => {}),
 }));
@@ -33,7 +48,7 @@ const timerStateRow = {
   finished_at: "2026-05-19T11:00:00.000Z",
 };
 
-function createSupabaseMock() {
+function createSupabaseMock(status = timerStateRow.status) {
   const timerUpdate = vi.fn((payload: unknown) => ({
     eq: vi.fn(async () => ({ data: payload, error: null })),
   }));
@@ -61,7 +76,7 @@ function createSupabaseMock() {
         return {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
-              single: vi.fn(async () => ({ data: timerStateRow, error: null })),
+              single: vi.fn(async () => ({ data: { ...timerStateRow, status }, error: null })),
             })),
           })),
           update: timerUpdate,
@@ -115,6 +130,7 @@ describe("TMA timer action route", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    mocks.afterResponse.splice(0);
     mocks.loadCurrentTournamentContext.mockResolvedValue(null);
   });
 
@@ -179,5 +195,38 @@ describe("TMA timer action route", () => {
         settling: expect.objectContaining({ players: room }),
       }),
     );
+  });
+
+  it("grants the winner a pass when a running tournament is finished", async () => {
+    const supabase = createSupabaseMock("running");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    const room = [{ id: "player-1", name: "Игрок", status: "active", finishPlace: 1 }];
+    mocks.loadCurrentTournamentContext.mockResolvedValue({ extras: { players: room } });
+
+    const { POST } = await import("@/app/api/tma/timer/[action]/route");
+    await POST(
+      new Request("http://localhost/api/tma/timer/finish", { method: "POST" }),
+      { params: Promise.resolve({ action: "finish" }) },
+    );
+    await Promise.all(mocks.afterResponse.splice(0).map((task) => task()));
+
+    expect(mocks.grantWinnerPass).toHaveBeenCalledWith(supabase, room);
+  });
+
+  it("does not pay the pass again when the tournament was already finished", async () => {
+    const supabase = createSupabaseMock("finished");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadCurrentTournamentContext.mockResolvedValue({
+      extras: { players: [{ id: "player-1", name: "Игрок", finishPlace: 1 }] },
+    });
+
+    const { POST } = await import("@/app/api/tma/timer/[action]/route");
+    await POST(
+      new Request("http://localhost/api/tma/timer/finish", { method: "POST" }),
+      { params: Promise.resolve({ action: "finish" }) },
+    );
+
+    expect(mocks.afterResponse).toHaveLength(0);
+    expect(mocks.grantWinnerPass).not.toHaveBeenCalled();
   });
 });

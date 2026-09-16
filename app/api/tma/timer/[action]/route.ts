@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
+import { grantWinnerPass } from "@/lib/free-entries/winner-pass";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
@@ -195,6 +196,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           });
         } catch (resultsError) {
           console.error("Failed to store tournament results", resultsError);
+        }
+
+        // First place takes a free pass home. A second press on a finished tournament
+        // must not pay it twice, and neither may a finish the last knockout already made.
+        if (stateData.status !== "finished") {
+          const players = context.extras.players;
+          after(() => grantWinnerPass(auth.supabase, players));
         }
 
         // The roster goes, but the desk keeps a copy of it: the room settles up after the

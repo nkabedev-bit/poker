@@ -1030,12 +1030,13 @@ export async function syncFinanceSheetForTournament(
 const FREE_ENTRY_SHEET_NAME = "Проходки";
 const FREE_ENTRY_SHEET_HEADERS = ["Дата", "Игрок", "За что", "Проходка", "Сколько"];
 
-/** The two ways a player wins a pass; passes the owner hands out by name are not events. */
-export type FreeEntrySource = "mystery" | "raffle";
+/** The ways a player wins a pass; passes the owner hands out by name are not events. */
+export type FreeEntrySource = "mystery" | "raffle" | "win";
 
 const FREE_ENTRY_SOURCE_LABELS: Record<FreeEntrySource, string> = {
   mystery: "Мистери баунти",
   raffle: "Розыгрыш",
+  win: "Победа в турнире",
 };
 
 export type FreeEntryGrant = {

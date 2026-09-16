@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   appendFreeEntryGrant: vi.fn(),
   syncTournamentToSheets: vi.fn(),
   broadcastPublicState: vi.fn(),
+  grantWinnerPass: vi.fn(),
   loadTournamentExtras: vi.fn(),
   requireTmaAuth: vi.fn(),
   saveTournamentExtras: vi.fn(),
@@ -18,6 +19,10 @@ vi.mock("@/lib/tma/require-auth", () => ({
 vi.mock("@/lib/google-sheets", () => ({
   appendFreeEntryGrant: mocks.appendFreeEntryGrant,
   syncTournamentToSheets: mocks.syncTournamentToSheets,
+}));
+
+vi.mock("@/lib/free-entries/winner-pass", () => ({
+  grantWinnerPass: mocks.grantWinnerPass,
 }));
 
 vi.mock("@/lib/realtime/broadcast", () => ({
@@ -291,6 +296,48 @@ describe("TMA eliminations route", () => {
     const accumulateOrder = supabase.rpc.mock.invocationCallOrder[accumulateRpcIndex];
     const clearPlayersOrder = mocks.saveTournamentExtras.mock.invocationCallOrder[0];
     expect(accumulateOrder).toBeLessThan(clearPlayersOrder);
+  });
+
+  it("hands the winner a free pass when the final elimination finishes the tournament", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("winner", "Winner"), player("out", "Out")],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out" }),
+      }),
+    );
+
+    expect(mocks.grantWinnerPass).toHaveBeenCalledTimes(1);
+    const [, standings] = mocks.grantWinnerPass.mock.calls[0];
+    expect(standings.find((item: TournamentPlayer) => item.id === "winner")?.finishPlace).toBe(1);
+  });
+
+  it("pays no winner pass for a knockout that leaves the tournament running", async () => {
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player("a", "A"), player("b", "B"), player("out", "Out")],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({ eliminated_id: "out" }),
+      }),
+    );
+
+    expect(mocks.grantWinnerPass).not.toHaveBeenCalled();
   });
 
   it("ignores requested re-entry when re-entry is disabled", async () => {

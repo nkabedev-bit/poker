@@ -19,6 +19,7 @@ import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINT
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { loadTimerContext } from "@/lib/tma/timer-context";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
+import { grantWinnerPass } from "@/lib/free-entries/winner-pass";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -289,6 +290,10 @@ export async function POST(request: Request) {
       } catch (resultsError) {
         console.error("Failed to store tournament results", resultsError);
       }
+
+      // First place takes a free pass home; credited after the response so a slow bot or
+      // sheet does not hold up the last knockout.
+      after(() => grantWinnerPass(auth.supabase, updatedPlayers));
 
       // The roster goes, but the desk keeps a copy of it for the hour it takes the room
       // to settle up.
