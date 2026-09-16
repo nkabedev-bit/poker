@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  getRaffleWeights,
   isRaffle,
   listRaffleEntrants,
   pickRaffleWinner,
   RAFFLE_WIN_MESSAGE,
+  toRaffleEvening,
   type Raffle,
 } from "@/lib/raffle/raffle";
 
@@ -154,5 +156,105 @@ describe("a tournament gets one draw of each kind", () => {
   it("keeps rubbish out of the history", () => {
     expect(isRaffle({ kind: "regular" })).toBe(false);
     expect(isRaffle(null)).toBe(false);
+  });
+});
+
+describe("getRaffleWeights", () => {
+  const win = (playerName: string, playedOn: string, accountId: string | null = null) => ({
+    accountId,
+    playedOn,
+    playerName,
+  });
+
+  it("gives a player who never won the full weight", () => {
+    expect(getRaffleWeights([{ accountId: null, name: "Новичок" }], [], "2026-09-16")).toEqual([1]);
+  });
+
+  // The club's own example: a win costs four fifths of the weight on the evening of it,
+  // and a fifth comes back with every evening the club holds a draw.
+  it("brings a winner's weight back over five evenings with a draw", () => {
+    const wins = [
+      win("Вчерашний", "2026-09-15"),
+      win("Позавчерашний", "2026-09-13"),
+      win("Третий", "2026-09-12"),
+      win("Четвёртый", "2026-09-10"),
+      win("Давний", "2026-09-01"),
+    ];
+    const weights = getRaffleWeights(
+      ["Сегодняшний", "Вчерашний", "Позавчерашний", "Третий", "Четвёртый", "Давний"].map((name) => ({
+        accountId: null,
+        name,
+      })),
+      [...wins, win("Сегодняшний", "2026-09-16")],
+      "2026-09-16",
+    );
+
+    expect(weights).toEqual([0.2, 0.4, 0.6, 0.8, 1, 1]);
+  });
+
+  it("counts a win in either draw, so tonight's pass winner stands low in the VIP draw", () => {
+    expect(getRaffleWeights([{ accountId: null, name: "1$" }], [win("1$", "2026-09-16")], "2026-09-16")).toEqual([0.2]);
+  });
+
+  it("recognises a winner by account even after a new nickname", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: "acc-1", name: "Chura" }],
+      [win("Mr.Fish", "2026-09-15", "acc-1")],
+      "2026-09-16",
+    );
+
+    expect(weight).toBe(0.4);
+  });
+
+  it("matches a ledger win to a nickname however it is capitalised", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: "acc-2", name: "Киберпсих" }],
+      [win("киберпсих", "2026-09-15")],
+      "2026-09-16",
+    );
+
+    expect(weight).toBe(0.4);
+  });
+
+  it("reads the evening on Moscow time", () => {
+    expect(toRaffleEvening(new Date("2026-09-15T22:30:00.000Z"))).toBe("2026-09-16");
+  });
+});
+
+describe("pickRaffleWinner with weights", () => {
+  const entrants = [
+    { accountId: null, name: "A", number: 1, telegramId: null },
+    { accountId: null, name: "B", number: 2, telegramId: null },
+  ];
+
+  it("splits the line by weight", () => {
+    // Total 1.25: A holds [0, 0.25), B holds [0.25, 1.25).
+    expect(pickRaffleWinner(entrants, () => 0.19, [0.25, 1])?.name).toBe("A");
+    expect(pickRaffleWinner(entrants, () => 0.21, [0.25, 1])?.name).toBe("B");
+    expect(pickRaffleWinner(entrants, () => 0.999999999, [0.25, 1])?.name).toBe("B");
+  });
+
+  it("makes a recent winner roughly five times less likely", () => {
+    let seed = 42;
+    const random = () => {
+      seed = (seed * 1103515245 + 12345) % 2 ** 31;
+      return seed / 2 ** 31;
+    };
+    const room = Array.from({ length: 20 }, (_, index) => ({
+      accountId: null,
+      name: `P${index}`,
+      number: index + 1,
+      telegramId: null,
+    }));
+    const weights = room.map((_, index) => (index === 0 ? 0.2 : 1));
+    let recentWins = 0;
+    const draws = 50_000;
+    for (let draw = 0; draw < draws; draw += 1) {
+      if (pickRaffleWinner(room, random, weights)?.name === "P0") recentWins += 1;
+    }
+
+    // 0.2 / 19.2 ≈ 1.04%.
+    expect(recentWins / draws).toBeGreaterThan(0.008);
+    expect(recentWins / draws).toBeLessThan(0.013);
   });
 });

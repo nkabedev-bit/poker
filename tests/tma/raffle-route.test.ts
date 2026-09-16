@@ -63,9 +63,26 @@ type AccountRow = {
   telegram_id: number | null;
 };
 
-function createSupabaseMock(accounts: AccountRow[] = []) {
+type WinnerRow = { account_id: string | null; played_on: string; player_name: string };
+
+function createSupabaseMock(accounts: AccountRow[] = [], pastWinners: WinnerRow[] = []) {
+  const insertedWinners: unknown[] = [];
+
   return {
-    from: vi.fn(() => ({
+    insertedWinners,
+    from: vi.fn((table: string) => table === "raffle_winners"
+      ? {
+        select: vi.fn(() => ({
+          order: vi.fn(() => ({
+            limit: vi.fn(async () => ({ data: pastWinners, error: null })),
+          })),
+        })),
+        insert: vi.fn(async (row: unknown) => {
+          insertedWinners.push(row);
+          return { error: null };
+        }),
+      }
+      : {
       select: vi.fn(() => ({
         limit: vi.fn(() => ({
           single: vi.fn(async () => ({
@@ -76,7 +93,7 @@ function createSupabaseMock(accounts: AccountRow[] = []) {
         // Where the faces on the reel come from.
         not: vi.fn(async () => ({ data: accounts, error: null })),
       })),
-    })),
+    }),
     rpc: vi.fn(async () => ({ data: null, error: null })),
   };
 }
@@ -269,5 +286,61 @@ describe("POST /api/tma/raffle — who stands in the draw", () => {
     const body = await (await POST(request("vip"))).json();
 
     expect(body.raffle.numbers).toEqual([21, 22]);
+  });
+});
+
+describe("POST /api/tma/raffle — sharing the prizes round", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.afterResponse.length = 0;
+    mocks.adjustFreeEntries.mockResolvedValue(null);
+    mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
+  });
+
+  async function drawRoom(players: TournamentPlayer[], pastWinners: WinnerRow[]) {
+    const supabase = createSupabaseMock([], pastWinners);
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players }));
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    const response = await POST(request("regular"));
+
+    return { body: await response.json(), supabase };
+  }
+
+  it("remembers the winner past tonight", async () => {
+    const { body, supabase } = await drawRoom([player(4, { accountId: "account-4", telegramId: 44 })], []);
+
+    expect(supabase.insertedWinners).toEqual([
+      expect.objectContaining({
+        account_id: "account-4",
+        kind: "regular",
+        player_name: "Игрок 4",
+        raffle_id: body.raffle.id,
+        telegram_id: 44,
+      }),
+    ]);
+  });
+
+  it("still holds the draw when past winners cannot be read", async () => {
+    const supabase = createSupabaseMock();
+    supabase.from.mockImplementation(((table: string) =>
+      table === "raffle_winners"
+        ? {
+          select: () => ({
+            order: () => ({ limit: async () => ({ data: null, error: { code: "PGRST205" } }) }),
+          }),
+          insert: async () => ({ error: { code: "PGRST205" } }),
+        }
+        : createSupabaseMock().from(table)) as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [player(4)] }));
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    const response = await POST(request("regular"));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).raffle.winnerNumber).toBe(4);
   });
 });

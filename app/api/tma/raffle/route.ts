@@ -6,19 +6,50 @@ import { loadTournamentExtras } from "@/lib/tournament-extras";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { notifyClientUser } from "@/lib/client-bot/notify";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  getRaffleWeights,
   listRaffleEntrants,
   pickRaffleWinner,
   RAFFLE_SPIN_SECONDS,
   RAFFLE_WIN_MESSAGE,
   RAFFLE_WIN_NOTICE_DELAY_MS,
+  toRaffleEvening,
   type Raffle,
+  type RaffleWinRecord,
 } from "@/lib/raffle/raffle";
 
 export const dynamic = "force-dynamic";
 
 /** The winner's message goes out a minute after the response, so the function stays up. */
 export const maxDuration = 120;
+
+/** Enough past wins to cover the evenings a winner's chance takes to recover, many times over. */
+const RECENT_WINS_LIMIT = 200;
+
+/**
+ * The club's recent winners, or null when they cannot be read.
+ *
+ * The table arrives with migration 202609160001, applied by hand. Until it is there — or
+ * whenever it cannot be read — the draw falls back to every entrant at the same weight:
+ * a draw that runs plain is better than one the room cannot hold at all.
+ */
+async function loadRecentRaffleWins(supabase: SupabaseClient): Promise<RaffleWinRecord[] | null> {
+  const { data, error } = await supabase
+    .from("raffle_winners")
+    .select("account_id, played_on, player_name")
+    .order("played_on", { ascending: false })
+    .limit(RECENT_WINS_LIMIT);
+
+  if (error) {
+    console.error("Failed to read past raffle winners; drawing without weights", error);
+    return null;
+  }
+
+  return ((data ?? []) as Array<{ account_id: string | null; played_on: string; player_name: string }>).map(
+    (row) => ({ accountId: row.account_id, playedOn: row.played_on, playerName: row.player_name }),
+  );
+}
 
 /**
  * Runs a draw on the big screen.
@@ -70,7 +101,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const winner = pickRaffleWinner(entrants, () => randomInt(0, 2 ** 31) / 2 ** 31);
+  // Recent winners stand in the draw at a lower weight, so the prizes go round the room.
+  const drawnAt = new Date();
+  const tonight = toRaffleEvening(drawnAt);
+  const pastWins = await loadRecentRaffleWins(auth.supabase);
+  const weights = pastWins ? getRaffleWeights(entrants, pastWins, tonight) : undefined;
+  const winner = pickRaffleWinner(entrants, () => randomInt(0, 2 ** 31) / 2 ** 31, weights);
   if (!winner) return NextResponse.json({ error: "Не удалось выбрать победителя" }, { status: 500 });
 
   // The faces travel with the draw rather than being looked up by the screen: the reel
@@ -91,7 +127,7 @@ export async function POST(request: Request) {
     // entry, credited below once the draw itself is safely written down.
     prize: kind === "vip" ? "none" : "manual",
     spinSeconds: RAFFLE_SPIN_SECONDS,
-    startedAt: new Date().toISOString(),
+    startedAt: drawnAt.toISOString(),
     winnerName: winner.name,
     winnerNumber: winner.number,
   };
@@ -123,6 +159,19 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+
+  // The win is remembered past tonight: the history above is wiped at the finish, and
+  // the next evening's draw needs to know who has already won. A failure costs only the
+  // weighting of later draws, never this one.
+  const { error: winLogError } = await auth.supabase.from("raffle_winners").insert({
+    account_id: winner.accountId,
+    kind: raffle.kind,
+    played_on: tonight,
+    player_name: winner.name,
+    raffle_id: raffle.id,
+    telegram_id: winner.telegramId,
+  });
+  if (winLogError) console.error("Failed to remember the raffle winner", winLogError);
 
   // The free entry goes to the winner's profile, which exists for anyone seated from a
   // sign-up — through the bot or through the web. A player the admin added by hand has

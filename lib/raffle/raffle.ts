@@ -1,4 +1,5 @@
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export type RaffleKind = "regular" | "vip";
@@ -134,15 +135,103 @@ export function listRaffleEntrants(
     .sort((a, b) => a.number - b.number);
 }
 
+/** A past win, as the club remembers it between evenings. */
+export type RaffleWinRecord = {
+  accountId: string | null;
+  /** The Moscow date of the evening the draw was held on, "2026-09-15". */
+  playedOn: string;
+  playerName: string;
+};
+
+/**
+ * How many evenings with a draw a winner's chance takes to come back in full.
+ *
+ * The club wants the prizes to go round the room. A winner is not shut out — a player
+ * who won yesterday can still win tonight — but they stand in the draw at a fifth of
+ * everyone else's weight on the evening of the win, and gain a fifth back with every
+ * evening the club holds a draw: 0.2, 0.4, 0.6, 0.8, and from the fifth evening on the
+ * same as a player who never won.
+ */
+export const RAFFLE_RECOVERY_EVENINGS = 5;
+
+/** The Moscow date an evening belongs to, which is how draws are grouped into evenings. */
+export function toRaffleEvening(date: Date) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(date);
+}
+
+/**
+ * Each entrant's weight in tonight's draw, in the entrants' order.
+ *
+ * Wins of both kinds count: a player who took the free pass tonight stands in the VIP
+ * draw at a fifth of the weight, which is the point — one guest collecting both prizes
+ * is exactly what the club wants to be rare. Evenings are counted as the club holds
+ * them, not as the player attends: a regular who skips a week comes back recovered.
+ *
+ * A win is matched to the entrant by account, and by nickname for the wins that have no
+ * account behind them — the ones carried over from the ledger, or a guest added by hand.
+ */
+export function getRaffleWeights(
+  entrants: Array<Pick<RaffleEntrant, "accountId" | "name">>,
+  wins: RaffleWinRecord[],
+  tonight: string,
+) {
+  const evenings = [...new Set([...wins.map((win) => win.playedOn), tonight])].sort();
+
+  return entrants.map((entrant) => {
+    const nicknameKey = buildNicknameKey(entrant.name);
+    const lastWin = wins
+      .filter(
+        (win) =>
+          (entrant.accountId && win.accountId === entrant.accountId) ||
+          (nicknameKey !== "" && buildNicknameKey(win.playerName) === nicknameKey),
+      )
+      .map((win) => win.playedOn)
+      .sort()
+      .at(-1);
+
+    if (!lastWin) return 1;
+
+    const eveningsSince = evenings.filter((evening) => evening > lastWin && evening <= tonight).length;
+    return Math.min(1, (eveningsSince + 1) / RAFFLE_RECOVERY_EVENINGS);
+  });
+}
+
 /**
  * Draws one entrant. `random` is the caller's source — the server passes a
  * cryptographic one, so the result cannot be steered from a browser.
+ *
+ * Without weights every entrant is equally likely; with them, an entrant's chance is
+ * their weight over the room's total.
  */
-export function pickRaffleWinner(entrants: RaffleEntrant[], random: () => number) {
+export function pickRaffleWinner(
+  entrants: RaffleEntrant[],
+  random: () => number,
+  weights?: number[],
+) {
   if (entrants.length === 0) return null;
 
-  const index = Math.min(entrants.length - 1, Math.floor(random() * entrants.length));
-  return entrants[index];
+  const usable = entrants.map((_, index) => {
+    const weight = weights?.[index] ?? 1;
+    return Number.isFinite(weight) && weight > 0 ? weight : 0;
+  });
+  const total = usable.reduce((sum, weight) => sum + weight, 0);
+
+  if (total <= 0) {
+    const index = Math.min(entrants.length - 1, Math.floor(random() * entrants.length));
+    return entrants[index];
+  }
+
+  let point = random() * total;
+  for (let index = 0; index < entrants.length; index += 1) {
+    point -= usable[index];
+    if (point < 0 && usable[index] > 0) return entrants[index];
+  }
+
+  // Rounding can leave the point a hair past the end; the last weighted entrant takes it.
+  for (let index = entrants.length - 1; index >= 0; index -= 1) {
+    if (usable[index] > 0) return entrants[index];
+  }
+  return entrants[entrants.length - 1];
 }
 
 export function isRaffle(value: unknown): value is Raffle {
