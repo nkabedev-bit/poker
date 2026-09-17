@@ -2,7 +2,7 @@ import { after, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
-import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
+import { appendFreeEntryGrant, syncAttendanceSheet, syncTournamentToSheets } from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward, resolveEffectiveBigBlind } from "@/lib/timer/calculate";
@@ -290,6 +290,16 @@ export async function POST(request: Request) {
       } catch (resultsError) {
         console.error("Failed to store tournament results", resultsError);
       }
+
+      // Same recount as the timer's finish: the knockout that ends the game is the other
+      // way an evening closes. After the response, failures swallowed.
+      after(async () => {
+        try {
+          await syncAttendanceSheet(auth.supabase);
+        } catch (attendanceError) {
+          console.error("Non-critical attendance sheet sync error:", attendanceError);
+        }
+      });
 
       // First place takes a free pass home; credited after the response so a slow bot or
       // sheet does not hold up the last knockout.

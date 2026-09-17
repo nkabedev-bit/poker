@@ -5,6 +5,7 @@ import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
+import { syncAttendanceSheet } from "@/lib/google-sheets";
 import {
   loadCurrentTournamentContext,
   saveTournamentExtrasFromContext,
@@ -198,11 +199,24 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           console.error("Failed to store tournament results", resultsError);
         }
 
-        // First place takes a free pass home. A second press on a finished tournament
-        // must not pay it twice, and neither may a finish the last knockout already made.
+        // First place takes a free pass home, and the club's attendance tab is recounted
+        // now the evening is on record. A second press on a finished tournament must not
+        // pay the pass twice, and neither may a finish the last knockout already made —
+        // that knockout recounted the attendance itself, and /visits rebuilds the tab on
+        // demand if this write never lands.
         if (stateData.status !== "finished") {
           const players = context.extras.players;
           after(() => grantWinnerPass(auth.supabase, players));
+
+          // After the response and swallowed on failure: a slow or rate-limited
+          // spreadsheet must not hold up — or undo — the finish itself.
+          after(async () => {
+            try {
+              await syncAttendanceSheet(auth.supabase);
+            } catch (attendanceError) {
+              console.error("Non-critical attendance sheet sync error:", attendanceError);
+            }
+          });
         }
 
         // The roster goes, but the desk keeps a copy of it: the room settles up after the

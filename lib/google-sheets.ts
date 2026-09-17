@@ -12,6 +12,7 @@ import {
   formatClientBotBirthDateForSheet,
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
+import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
@@ -740,6 +741,139 @@ function blankIfZero(value: number): string | number {
 // on the house — is written as 0, so the row does not read as if he never re-entered.
 function sumIfBought(line: ChargeLine): string | number {
   return line.count > 0 ? line.sum : "";
+}
+
+// ---------------------------------------------------------------------------
+// "Посещения": how many evenings each player of the club has behind them — one tab kept
+// next to the questionnaire, so the desk can see the whole club at a glance.
+//
+// Recomputed from the database and rewritten whole, never incremented. An increment is
+// lost for good the one time a write fails and counted twice the one time it runs twice;
+// a recount is right however often it runs, and a single successful sync repairs a tab
+// that fell behind.
+// ---------------------------------------------------------------------------
+
+const ATTENDANCE_SHEET_NAME = "посещения";
+const ATTENDANCE_SHEET_HEADERS = ["Игрок", "Посещений", "Первая игра", "Последняя игра"];
+
+export function buildAttendanceSheetGrid(rows: AttendanceRow[]): (string | number)[][] {
+  return [
+    ATTENDANCE_SHEET_HEADERS,
+    ...padRowsToClearTail(
+      rows.map((row) => [row.player, row.visits, row.firstGame, row.lastGame]),
+      ATTENDANCE_SHEET_HEADERS.length,
+      0,
+    ),
+  ];
+}
+
+/**
+ * Create the tab if it is missing, directly after "анкеты" — where the club asked for it.
+ * The position is only ever set at creation: a tab someone has already moved by hand stays
+ * where they put it.
+ */
+async function ensureAttendanceSheetExists(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+) {
+  const meta = await sheets.spreadsheets.get({ spreadsheetId });
+  const tabs = meta.data.sheets ?? [];
+
+  if (tabs.some((tab) => tab.properties?.title === ATTENDANCE_SHEET_NAME)) return;
+
+  const profileIndex = tabs.find(
+    (tab) => tab.properties?.title === PROFILE_SHEET_NAME,
+  )?.properties?.index;
+
+  try {
+    await withRateLimitRetry(() =>
+      sheets.spreadsheets.batchUpdate({
+        spreadsheetId,
+        requestBody: {
+          requests: [
+            {
+              addSheet: {
+                properties: {
+                  title: ATTENDANCE_SHEET_NAME,
+                  // No questionnaire tab (a fresh spreadsheet): let Sheets append it.
+                  ...(typeof profileIndex === "number" ? { index: profileIndex + 1 } : {}),
+                },
+              },
+            },
+          ],
+        },
+      }),
+    );
+  } catch {
+    console.log("Attendance sheet creation race condition handled");
+  }
+}
+
+/** How many players the tab lists today. */
+async function countAttendanceSheetPlayers(
+  sheets: sheets_v4.Sheets,
+  spreadsheetId: string,
+) {
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${ATTENDANCE_SHEET_NAME}'!A2:A`,
+  });
+
+  return ((existing.data.values ?? []) as unknown[][]).filter(
+    (row) => String(row[0] ?? "").trim().length > 0,
+  ).length;
+}
+
+export type AttendanceSyncResult = {
+  playerCount: number;
+  sheetName: string;
+  /** Why nothing was written, when nothing was. */
+  skipped: string | null;
+};
+
+/**
+ * Rewrites the attendance tab from the database. One write, called once a game is over —
+ * never during play, where the club's sixty writes a minute are already spoken for.
+ *
+ * The list of players can only grow, so a count that came back smaller than what the tab
+ * already holds means the read was short, not that the club shrank: the write is refused
+ * rather than allowed to blank a populated tab, which is the failure that cost the VIP tab
+ * its history on 2026-06-07.
+ */
+export async function syncAttendanceSheet(
+  supabase: SupabaseClient,
+): Promise<AttendanceSyncResult | null> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
+
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const rows = await readAttendanceRows(supabase);
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  await ensureAttendanceSheetExists(sheets, spreadsheetId);
+
+  const storedPlayers = await countAttendanceSheetPlayers(sheets, spreadsheetId);
+  if (rows.length < storedPlayers) {
+    return {
+      playerCount: rows.length,
+      sheetName: ATTENDANCE_SHEET_NAME,
+      skipped: `в листе ${storedPlayers} игроков, а посчитали ${rows.length} — лист не тронут`,
+    };
+  }
+
+  const values = buildAttendanceSheetGrid(rows);
+
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${ATTENDANCE_SHEET_NAME}'!A1:${getSheetColumnName(ATTENDANCE_SHEET_HEADERS.length)}${values.length}`,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    }),
+  );
+
+  return { playerCount: rows.length, sheetName: ATTENDANCE_SHEET_NAME, skipped: null };
 }
 
 export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {

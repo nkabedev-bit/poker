@@ -309,6 +309,47 @@ bot.command("clearsheet", async (ctx) => {
   }
 });
 
+// Rebuild the club's attendance tab on demand. The tab is rewritten on its own after every
+// finish, so this is the first load (before any game has ended under the new code) and the
+// repair when a finish happened while Google Sheets was unavailable. Reads only.
+bot.command("visits", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  const { data: admin } = await supabase
+    .from("tma_admins")
+    .select("telegram_id")
+    .eq("telegram_id", adminId)
+    .maybeSingle();
+
+  if (!admin) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    const { syncAttendanceSheet } = await import("@/lib/google-sheets");
+    const result = await syncAttendanceSheet(supabase);
+
+    if (!result) {
+      return ctx.reply("Google Sheets не настроен: нет GOOGLE_SHEET_ID или GOOGLE_SERVICE_ACCOUNT_KEY.");
+    }
+
+    if (result.skipped) {
+      return ctx.reply(`Лист «${result.sheetName}» не переписан: ${result.skipped}.`);
+    }
+
+    await ctx.reply(
+      `Лист «${result.sheetName}» пересобран из базы.\n`
+      + `Игроков: ${result.playerCount}`,
+    );
+  } catch (err: unknown) {
+    console.error("Error in /visits command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Ошибка при сборке листа посещений: ${message}`);
+  }
+});
+
 // Rebuild the current game's sheet from bounty_log. The per-elimination sync runs in the
 // background and its failures are swallowed, so a Google Sheets outage (a write-quota burst
 // during rapid knockouts, most of all) silently leaves the sheet behind the database. The
