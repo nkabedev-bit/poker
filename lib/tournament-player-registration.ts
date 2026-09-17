@@ -144,6 +144,35 @@ export function assignRegistrationNumber(player: TournamentPlayer, players: Tour
   };
 }
 
+/**
+ * Раздвигает уже выданные места, когда турнир принимает опоздавшего.
+ *
+ * Место за вылет — это число игроков, ещё стоявших за столами. Пока ростер не растёт,
+ * лестница идёт вниз без пропусков: 24, 23, 22… Игрок, пришедший после того, как кто-то
+ * уже вылетел, добавляет в вечер человека, которого те вылеты не считали: каждого из них
+ * обошли на одного больше, и их места сдвигаются на шаг вниз таблицы.
+ *
+ * Без этого следующий вылет метит в место, которое уже занято, и запись вылета уводит
+ * игрока в первый свободный слот — на самое дно таблицы. Так 15.09.2026 Vera получила
+ * 25-е место вместо 17-го: опоздавший сел за стол между её вылетом и предыдущим.
+ *
+ * Победителя это не касается: первое место выдаётся только вместе с концом турнира, и
+ * дописывать игроков в законченную игру уже нечего.
+ */
+export function shiftFinishPlacesForLateRegistration(players: TournamentPlayer[]) {
+  const places = players
+    .map((player) => Number(player.finishPlace))
+    .filter((place) => Number.isInteger(place) && place > 0);
+
+  if (places.length === 0 || places.includes(1)) return players;
+
+  return players.map((player) =>
+    Number.isInteger(player.finishPlace) && Number(player.finishPlace) > 0
+      ? { ...player, finishPlace: Number(player.finishPlace) + 1 }
+      : player,
+  );
+}
+
 export async function appendTournamentPlayerWithRegistrationNumber({
   extras,
   player,
@@ -205,7 +234,7 @@ export async function appendTournamentPlayerWithRegistrationNumber({
   const nextPlayer = assignRegistrationNumber({ ...player, table: tableNumber }, extras.players);
 
   await saveTournamentExtras(
-    { players: [...extras.players, nextPlayer] },
+    { players: [...shiftFinishPlacesForLateRegistration(extras.players), nextPlayer] },
     redirectTo,
     supabase,
   );
@@ -249,7 +278,11 @@ export async function appendUnseatedTournamentPlayer({
     table: null,
   };
 
-  await saveTournamentExtras({ players: [...extras.players, seated] }, redirectTo, supabase);
+  await saveTournamentExtras(
+    { players: [...shiftFinishPlacesForLateRegistration(extras.players), seated] },
+    redirectTo,
+    supabase,
+  );
 
   return seated;
 }

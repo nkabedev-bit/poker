@@ -68,7 +68,17 @@ export function getTargetedEliminationRollbackPlayers(
   const mysteryPointsByPlayerId = new Map<string, number>(mysteryPointsEntries);
   const usedReentry = Boolean(log.uses_reentry) || log.finish_place === null;
   const usedDoubleReentry = usedReentry && Boolean(log.reentry_double);
-  const restoredFinishPlace = Number(log.finish_place);
+  // Место, которое освобождается, — то, что стоит на игроке сейчас, а не то, что записал
+  // журнал час назад: поздняя регистрация сдвигает всю лестницу мест вниз, и снимок из
+  // журнала после неё указывает на чужую ступень. Журнал остаётся запасным вариантом —
+  // ре-энтри места не занимает, и на игроке его нет.
+  const rosterFinishPlace = Number(
+    players.find((player) => player.id === log.eliminated_id)?.finishPlace ?? Number.NaN,
+  );
+  const restoredFinishPlace =
+    Number.isInteger(rosterFinishPlace) && rosterFinishPlace > 0
+      ? rosterFinishPlace
+      : Number(log.finish_place);
 
   return players.map((player) => {
     let restored =
@@ -102,7 +112,7 @@ export function getTargetedEliminationRollbackPlayers(
       };
     }
 
-    if (log.finish_place === 2 && restored.finishPlace === 1) {
+    if (restoredFinishPlace === 2 && restored.finishPlace === 1) {
       restored = { ...restored, finishPlace: null };
     }
 
