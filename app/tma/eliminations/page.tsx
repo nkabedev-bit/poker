@@ -633,8 +633,11 @@ export default function TMAEliminationsPage() {
                   <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🔥 Голова игрока</div>
                   <div className="text-xl font-bold text-yellow-400">
                     {selectedKillers.length > 1
-                      ? `по ${Number((getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts) / selectedKillers.length).toFixed(2))} PTS каждому`
-                      : `+${getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts)} PTS`}
+                      ? `по ${Number((getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts) / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
+                      : `+${getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts)} PTS + 2ББ в стек`}
+                  </div>
+                  <div className="text-[var(--tg-theme-hint-color)] text-xs mt-1">
+                    После последней паузы — 1ББ
                   </div>
                 </div>
               )}

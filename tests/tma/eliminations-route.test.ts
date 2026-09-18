@@ -1058,10 +1058,56 @@ describe("TMA eliminations route", () => {
     );
 
     expect(response.status).toBe(200);
-    // Base head price, and no big-blind stack reward in this mode.
+    // Base head price, plus the 2-big-blind stack reward every knockout pays here:
+    // 100 BB × 2 (no break before the current level) = 200 chips.
     expect(supabase.rpc).toHaveBeenCalledWith(
       "record_player_elimination",
-      expect.objectContaining({ p_bounty_chip_award: 0, p_mystery_points: 30, p_progressive: true }),
+      expect.objectContaining({ p_bounty_chip_award: 200, p_mystery_points: 30, p_progressive: true }),
+    );
+  });
+
+  it("progressive bounty: the stack reward is split between the killers of one knockout", async () => {
+    const supabase = createSupabaseMock({ blindLevelRows: bigBlindLevelRows });
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player("killer", "Killer"),
+          player("second", "Second"),
+          player("other", "Other"),
+          player("out", "Out"),
+        ],
+        settings: { isBounty: true, bountyType: "progressive" },
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/eliminations/route");
+    const response = await POST(
+      new Request("http://localhost/api/tma/eliminations", {
+        method: "POST",
+        body: JSON.stringify({
+          eliminated_id: "out",
+          bounty_split: true,
+          killers: [
+            { id: "killer", name: "Killer", share: 0.5 },
+            { id: "second", name: "Second", share: 0.5 },
+          ],
+        }),
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    // The award is one 2-big-blind reward for the knockout, halved by the shares.
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "record_player_elimination",
+      expect.objectContaining({
+        p_bounty_chip_award: 200,
+        p_killers: [
+          expect.objectContaining({ id: "killer", bountyChips: 100 }),
+          expect.objectContaining({ id: "second", bountyChips: 100 }),
+        ],
+        p_progressive: true,
+      }),
     );
   });
 

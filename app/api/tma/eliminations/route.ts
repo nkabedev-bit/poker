@@ -196,15 +196,16 @@ export async function POST(request: Request) {
       timerState,
     });
     const currentTimerState = getEffectiveTimerState(timerState, blindLevels, now);
-    // The big-blind stack reward for a knockout applies in STANDARD bounty (with the
-    // usual 2x-before-break / 1x-after formula), in Wanted Bounty for every knockout
-    // (3 big blinds for a wanted victim, 2 for a regular one, on top of the side points)
-    // and in Dealer Revenge for knocking out the dealer (3 big blinds on top of the side
+    // The big-blind stack reward for a knockout applies in STANDARD bounty and in
+    // Progressive Bounty (both with the usual 2x-before-break / 1x-after formula, and in
+    // Progressive on top of the head points), in Wanted Bounty for every knockout (3 big
+    // blinds for a wanted victim, 2 for a regular one, on top of the side points) and in
+    // Dealer Revenge for knocking out the dealer (3 big blinds on top of the side
     // points). In Mystery — and for non-dealer victims in Dealer Revenge — the knockout
     // reward is the side points only, so the killer's stack is left untouched.
     const bountyChipAward =
       isBounty && sanitizedKillers.length > 0
-        ? extras.settings.bountyType === "standard"
+        ? extras.settings.bountyType === "standard" || isProgressiveBounty
           ? getBountyChipAward(blindLevels, currentTimerState.currentLevelIndex)
           : isWantedBounty
             ? getWantedBountyChipAward(blindLevels, currentTimerState.currentLevelIndex, eliminatedIsWanted)
