@@ -646,3 +646,142 @@ describe("TMAEliminationsPage", () => {
     );
   });
 });
+
+describe("TMAEliminationsPage — Mystery Bounty Joker", () => {
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    delete window.Telegram;
+  });
+
+  /** Seats a victim and a killer, and walks the dealer to the prize deck. */
+  async function openPrizeDeck() {
+    let mainButtonClick: (() => void) | null = null;
+    vi.mocked(window.Telegram!.WebApp!.MainButton.onClick).mockImplementation((callback) => {
+      mainButtonClick = callback;
+    });
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input) === "/api/tma/players") {
+        return Response.json({
+          bountyType: "mystery",
+          isBounty: true,
+          reentryAvailable: false,
+          players: [
+            { id: "victim", name: "Жертва", status: "active" },
+            { id: "killer", name: "Киллер", status: "active" },
+          ],
+        });
+      }
+
+      if (String(input) === "/api/tma/eliminations" && init?.method === "POST") {
+        return Response.json({ elimination: { id: "elim-1" } });
+      }
+
+      return Response.json({ ok: true });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<TMAEliminationsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /жертва/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /киллер/i }));
+
+    return {
+      fetchMock,
+      submit: async () => {
+        await waitFor(() => expect(mainButtonClick).toBeTypeOf("function"));
+        await act(async () => {
+          mainButtonClick?.();
+        });
+      },
+    };
+  }
+
+  it("asks the dealer to confirm before dealing a Joker", async () => {
+    await openPrizeDeck();
+
+    fireEvent.click(await screen.findByRole("button", { name: /джокер/i }));
+
+    expect(screen.getByText(/на карте точно/i)).toBeTruthy();
+    // Nothing is dealt until the dealer says so.
+    expect(screen.queryByRole("button", { name: /большой блайнд/i })).toBeNull();
+  });
+
+  it("lets the dealer take the Joker back", async () => {
+    await openPrizeDeck();
+
+    fireEvent.click(await screen.findByRole("button", { name: /джокер/i }));
+    fireEvent.click(screen.getByRole("button", { name: /нет, вернуться/i }));
+
+    expect(screen.getByRole("button", { name: /большой блайнд/i })).toBeTruthy();
+    expect(screen.queryByText(/приз 1 из 2/i)).toBeNull();
+  });
+
+  // The point of the card: one knockout, two prizes, sent as one Joker.
+  it("collects two prizes and sends them as one Joker", async () => {
+    const { fetchMock, submit } = await openPrizeDeck();
+
+    fireEvent.click(await screen.findByRole("button", { name: /джокер/i }));
+    fireEvent.click(screen.getByRole("button", { name: /да, джокер/i }));
+
+    expect(screen.getByText(/приз 1 из 2/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /большой блайнд/i }));
+    fireEvent.click(screen.getByRole("button", { name: "2 ББ" }));
+
+    // Back on the deck for the second half, and the first one is named.
+    expect(screen.getByText(/приз 2 из 2/i)).toBeTruthy();
+    expect(screen.getByText(/2 ББ в стек/)).toBeTruthy();
+    // A Joker never draws another Joker.
+    expect(screen.queryByRole("button", { name: /🃏 джокер/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /рейтинговые очки/i }));
+    fireEvent.click(screen.getByRole("button", { name: "40" }));
+
+    await submit();
+
+    const call = fetchMock.mock.calls.find(
+      ([input, init]) => String(input) === "/api/tma/eliminations" && init?.method === "POST",
+    );
+    const body = JSON.parse(String(call?.[1]?.body));
+
+    expect(body.mystery_prizes).toEqual([
+      {
+        killerId: "killer",
+        prize: {
+          kind: "joker",
+          prizes: [
+            { amount: 2, kind: "bigBlinds" },
+            { amount: 40, kind: "points" },
+          ],
+        },
+      },
+    ]);
+  });
+
+  it("gives back one half of a Joker at a time", async () => {
+    await openPrizeDeck();
+
+    fireEvent.click(await screen.findByRole("button", { name: /джокер/i }));
+    fireEvent.click(screen.getByRole("button", { name: /да, джокер/i }));
+    fireEvent.click(screen.getByRole("button", { name: /рейтинговые очки/i }));
+    fireEvent.click(screen.getByRole("button", { name: "20" }));
+
+    expect(screen.getByText(/приз 2 из 2/i)).toBeTruthy();
+
+    // One step back drops the card just dealt, and the Joker is still being dealt.
+    fireEvent.click(screen.getByRole("button", { name: /назад/i }));
+    expect(screen.getByText(/приз 1 из 2/i)).toBeTruthy();
+
+    // Another leaves the Joker altogether.
+    fireEvent.click(screen.getByRole("button", { name: /назад/i }));
+    expect(screen.queryByText(/приз 1 из 2/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /🃏 джокер/i })).toBeTruthy();
+  });
+});

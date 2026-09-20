@@ -8,6 +8,8 @@ import {
   describeMysteryPrize,
   MYSTERY_BIG_BLIND_AMOUNTS,
   MYSTERY_POINT_AMOUNTS,
+  MYSTERY_JOKER_PRIZES,
+  type MysteryBasePrize,
   type MysteryPrize,
 } from "@/lib/mystery/prizes";
 import { useVisiblePolling } from "../use-visible-polling";
@@ -28,7 +30,9 @@ type PlayersResponse = {
 };
 
 // The prize deck the dealer reads off the card, in the order the questions are asked.
-type PrizeStage = "kind" | "bigBlinds" | "points" | "pass";
+// "jokerConfirm" stands between the Joker and the two cards it pays: it is the one card
+// that doubles a knockout, and a misread of it cannot be taken back at the table.
+type PrizeStage = "kind" | "bigBlinds" | "points" | "pass" | "jokerConfirm";
 
 type MysteryPassNote = { nickname: string; vip: boolean };
 
@@ -75,6 +79,9 @@ export default function TMAEliminationsPage() {
   const [mysteryPrizes, setMysteryPrizes] = useState<Record<string, MysteryPrize>>({});
   const [prizeKillerIndex, setPrizeKillerIndex] = useState(0);
   const [prizeStage, setPrizeStage] = useState<PrizeStage>("kind");
+  // The cards a Joker has paid so far. Null while no Joker is being dealt; a list — even
+  // an empty one — means the dealer is working through its two cards.
+  const [jokerDraft, setJokerDraft] = useState<MysteryBasePrize[] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [lastElimId, setLastElimId] = useState<string | null>(null);
   const [lastElimPlayerName, setLastElimPlayerName] = useState<string | null>(null);
@@ -161,6 +168,7 @@ export default function TMAEliminationsPage() {
     setMysteryPrizes({});
     setPrizeKillerIndex(0);
     setPrizeStage("kind");
+    setJokerDraft(null);
     clientRequestIdRef.current = null;
     // The "who knocked them out" step is only shown when the knockout can actually pay:
     // Dealer Revenge — only when the eliminated player carries the dealer label. In
@@ -180,6 +188,7 @@ export default function TMAEliminationsPage() {
     setMysteryPrizes({});
     setPrizeKillerIndex(0);
     setPrizeStage("kind");
+    setJokerDraft(null);
     clientRequestIdRef.current = null;
   }, []);
 
@@ -191,6 +200,7 @@ export default function TMAEliminationsPage() {
       if (isBounty && bountyType === "mystery") {
         setPrizeKillerIndex(0);
         setPrizeStage("kind");
+        setJokerDraft(null);
         setStep(4); // Ask what the killer drew from the prize deck
       } else {
         setStep(2); // Go straight to confirm
@@ -259,6 +269,7 @@ export default function TMAEliminationsPage() {
         setMysteryPrizes({});
         setPrizeKillerIndex(0);
         setPrizeStage("kind");
+        setJokerDraft(null);
         clientRequestIdRef.current = null;
         void fetchPlayers();
 
@@ -427,6 +438,7 @@ export default function TMAEliminationsPage() {
           if (bountyType === "mystery") {
             setPrizeKillerIndex(0);
             setPrizeStage("kind");
+            setJokerDraft(null);
             setStep(4); // Ask what each killer drew from the prize deck
           } else {
             setStep(2);
@@ -768,8 +780,11 @@ export default function TMAEliminationsPage() {
     const prizeKiller = selectedKillers[prizeKillerIndex];
     if (!prizeKiller) return null;
 
-    const savePrize = (prize: MysteryPrize) => {
+    // What the killer ends up with. Called once a card is settled — for a Joker, once
+    // both of its cards are.
+    const commitPrize = (prize: MysteryPrize) => {
       setMysteryPrizes((current) => ({ ...current, [prizeKiller.id]: prize }));
+      setJokerDraft(null);
       getTelegramWebApp()?.HapticFeedback?.impactOccurred?.("light");
 
       // Each killer draws their own card, so the question repeats until every one of
@@ -783,10 +798,39 @@ export default function TMAEliminationsPage() {
       setStep(2);
     };
 
+    /**
+     * One ordinary card tapped.
+     *
+     * Outside a Joker it is the whole prize. Inside one it is half of it: the first
+     * card is kept and the question asked again, and the second settles the Joker.
+     */
+    const savePrize = (prize: MysteryBasePrize) => {
+      if (!jokerDraft) {
+        commitPrize(prize);
+        return;
+      }
+
+      const drawn = [...jokerDraft, prize];
+      if (drawn.length < MYSTERY_JOKER_PRIZES) {
+        setJokerDraft(drawn);
+        setPrizeStage("kind");
+        getTelegramWebApp()?.HapticFeedback?.impactOccurred?.("light");
+        return;
+      }
+
+      commitPrize({ kind: "joker", prizes: drawn });
+    };
+
     const goBack = () => {
       if (isSubmitting) return;
+      // Inside a card's own question (how many blinds, which pass) — back to the deck.
       if (prizeStage !== "kind") {
         setPrizeStage("kind");
+        return;
+      }
+      // Working through a Joker: give back its last card, or the Joker itself.
+      if (jokerDraft) {
+        setJokerDraft(jokerDraft.length > 0 ? jokerDraft.slice(0, -1) : null);
         return;
       }
       if (prizeKillerIndex > 0) {
@@ -821,6 +865,14 @@ export default function TMAEliminationsPage() {
                 : ""}
             </div>
             <div className="text-xl font-bold">{prizeKiller.name}</div>
+            {/* Which half of the Joker the dealer is on, so nobody loses count. */}
+            {jokerDraft ? (
+              <div className="mt-2 text-sm font-semibold text-[var(--tg-theme-button-color)]">
+                🃏 Джокер · приз {Math.min(jokerDraft.length + 1, MYSTERY_JOKER_PRIZES)} из{" "}
+                {MYSTERY_JOKER_PRIZES}
+                {jokerDraft.length > 0 ? `: уже ${describeMysteryPrize(jokerDraft[0])}` : ""}
+              </div>
+            ) : null}
           </div>
 
           {prizeStage === "kind" && (
@@ -834,8 +886,44 @@ export default function TMAEliminationsPage() {
               <button className={optionClass} type="button" onClick={() => setPrizeStage("pass")}>
                 Проходка
               </button>
+              {/* A Joker inside a Joker is not a card this club deals, so while one is
+                  being dealt the deck shows the four ordinary cards only. */}
+              {jokerDraft ? null : (
+                <button
+                  className={optionClass}
+                  type="button"
+                  onClick={() => setPrizeStage("jokerConfirm")}
+                >
+                  🃏 Джокер
+                </button>
+              )}
               <button className={optionClass} type="button" onClick={() => savePrize({ kind: "other" })}>
                 Другое
+              </button>
+            </div>
+          )}
+
+          {prizeStage === "jokerConfirm" && (
+            <div className="space-y-3">
+              <div className="text-center text-[var(--tg-theme-text-color)]">
+                На карте точно <span className="font-bold">Джокер</span>?
+              </div>
+              <div className="text-center text-sm text-[var(--tg-theme-hint-color)]">
+                {prizeKiller.name} получит два приза — их нужно будет отметить по очереди.
+              </div>
+              <button
+                className={`${optionClass} !bg-[var(--tg-theme-button-color)] !text-[var(--tg-theme-button-text-color)]`}
+                type="button"
+                onClick={() => {
+                  setJokerDraft([]);
+                  setPrizeStage("kind");
+                  getTelegramWebApp()?.HapticFeedback?.impactOccurred?.("medium");
+                }}
+              >
+                Да, Джокер
+              </button>
+              <button className={optionClass} type="button" onClick={() => setPrizeStage("kind")}>
+                Нет, вернуться
               </button>
             </div>
           )}

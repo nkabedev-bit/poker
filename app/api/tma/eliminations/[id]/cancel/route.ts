@@ -3,7 +3,7 @@ import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
-import { getMysteryPrizePass, parseMysteryPrize } from "@/lib/mystery/prizes";
+import { getMysteryPrizePasses, parseMysteryPrize } from "@/lib/mystery/prizes";
 import { getProgressiveKnockoutsBefore, getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -52,37 +52,38 @@ async function revokeMysteryPasses(
   for (const killer of Array.isArray(log.killers) ? log.killers : []) {
     const item = killer as { id?: unknown; name?: unknown; prize?: unknown };
     const prize = parseMysteryPrize(item.prize);
-    const pass = prize ? getMysteryPrizePass(prize) : null;
-    if (!pass) continue;
-
     const killerId = String(item.id ?? "");
     const nickname = String(item.name ?? "");
     const owner = players.find((player) => player.id === killerId) ?? null;
     const accountId = owner?.accountId ?? null;
     const telegramId = owner?.telegramId ?? null;
-    // A player who joined through the web has no Telegram id, and the pass hangs on
-    // their account like anybody else's.
-    if (accountId || telegramId) {
+
+    // Both halves of a Joker go back, and a card that paid no pass gives nothing back.
+    for (const pass of prize ? getMysteryPrizePasses(prize) : []) {
+      // A player who joined through the web has no Telegram id, and the pass hangs on
+      // their account like anybody else's.
+      if (accountId || telegramId) {
+        try {
+          await adjustFreeEntries(supabase, {
+            delta: -1,
+            holder: { accountId, telegramId },
+            vip: pass === "vip",
+          });
+        } catch (error) {
+          console.error("Failed to take the mystery bounty pass back", error);
+        }
+      }
+
       try {
-        await adjustFreeEntries(supabase, {
-          delta: -1,
-          holder: { accountId, telegramId },
+        await appendFreeEntryGrant({
+          count: -1,
+          nickname,
+          source: "mystery",
           vip: pass === "vip",
         });
-      } catch (error) {
-        console.error("Failed to take the mystery bounty pass back", error);
+      } catch (sheetError) {
+        console.error("Failed to log the cancelled mystery bounty pass", sheetError);
       }
-    }
-
-    try {
-      await appendFreeEntryGrant({
-        count: -1,
-        nickname,
-        source: "mystery",
-        vip: pass === "vip",
-      });
-    } catch (sheetError) {
-      console.error("Failed to log the cancelled mystery bounty pass", sheetError);
     }
   }
 }

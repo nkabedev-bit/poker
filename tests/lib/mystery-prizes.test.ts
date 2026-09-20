@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   describeMysteryPrize,
   getMysteryPrizeChips,
-  getMysteryPrizePass,
+  getMysteryPrizePasses,
   getMysteryPrizePoints,
   parseMysteryPrize,
   parseMysteryPrizes,
@@ -62,8 +62,8 @@ describe("what a card pays", () => {
   it("keeps points and passes apart from chips", () => {
     expect(getMysteryPrizePoints({ amount: 60, kind: "points" })).toBe(60);
     expect(getMysteryPrizePoints({ kind: "other" })).toBe(0);
-    expect(getMysteryPrizePass({ kind: "pass", pass: "regular" })).toBe("regular");
-    expect(getMysteryPrizePass({ amount: 1, kind: "bigBlinds" })).toBeNull();
+    expect(getMysteryPrizePasses({ kind: "pass", pass: "regular" })).toEqual(["regular"]);
+    expect(getMysteryPrizePasses({ amount: 1, kind: "bigBlinds" })).toEqual([]);
   });
 
   it("says out loud what the dealer drew", () => {
@@ -71,5 +71,84 @@ describe("what a card pays", () => {
     expect(describeMysteryPrize({ amount: 40, kind: "points" })).toBe("40 PTS");
     expect(describeMysteryPrize({ kind: "pass", pass: "vip" })).toBe("VIP проходка");
     expect(describeMysteryPrize({ kind: "other" })).toBe("Другое");
+  });
+});
+
+describe("the Joker", () => {
+  const joker = {
+    kind: "joker" as const,
+    prizes: [
+      { amount: 2, kind: "bigBlinds" as const },
+      { amount: 40, kind: "points" as const },
+    ],
+  };
+
+  it("reads a Joker that pays two ordinary cards", () => {
+    expect(parseMysteryPrize(joker)).toEqual(joker);
+  });
+
+  // A Joker inside a Joker would let one knockout pay without limit.
+  it("refuses a Joker nested inside a Joker", () => {
+    expect(
+      parseMysteryPrize({
+        kind: "joker",
+        prizes: [joker, { amount: 20, kind: "points" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses a Joker that does not pay exactly two cards", () => {
+    expect(parseMysteryPrize({ kind: "joker", prizes: [{ kind: "other" }] })).toBeNull();
+    expect(
+      parseMysteryPrize({
+        kind: "joker",
+        prizes: [{ kind: "other" }, { kind: "other" }, { kind: "other" }],
+      }),
+    ).toBeNull();
+    expect(parseMysteryPrize({ kind: "joker" })).toBeNull();
+  });
+
+  // One bad half must not pay out the good one: the card is refused whole.
+  it("refuses a Joker whose half is not on any card", () => {
+    expect(
+      parseMysteryPrize({
+        kind: "joker",
+        prizes: [{ amount: 2, kind: "bigBlinds" }, { amount: 999, kind: "points" }],
+      }),
+    ).toBeNull();
+  });
+
+  it("pays the chips and the points of both halves", () => {
+    expect(getMysteryPrizeChips(joker, 400)).toBe(800);
+    expect(getMysteryPrizePoints(joker)).toBe(40);
+  });
+
+  it("adds up two halves of the same kind", () => {
+    const doubleChips = {
+      kind: "joker" as const,
+      prizes: [
+        { amount: 2, kind: "bigBlinds" as const },
+        { amount: 3, kind: "bigBlinds" as const },
+      ],
+    };
+
+    expect(getMysteryPrizeChips(doubleChips, 400)).toBe(2000);
+  });
+
+  // Two passes are two entries, and a regular one never covers a VIP seat.
+  it("pays both passes a Joker turns up", () => {
+    const twoPasses = {
+      kind: "joker" as const,
+      prizes: [
+        { kind: "pass" as const, pass: "regular" as const },
+        { kind: "pass" as const, pass: "vip" as const },
+      ],
+    };
+
+    expect(getMysteryPrizePasses(twoPasses)).toEqual(["regular", "vip"]);
+  });
+
+  it("names both halves for the dealer and the log", () => {
+    expect(describeMysteryPrize(joker)).toBe("Джокер: 2 ББ в стек + 40 PTS");
   });
 });

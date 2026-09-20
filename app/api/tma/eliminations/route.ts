@@ -9,7 +9,7 @@ import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState,
 import {
   describeMysteryPrize,
   getMysteryPrizeChips,
-  getMysteryPrizePass,
+  getMysteryPrizePasses,
   getMysteryPrizePoints,
   parseMysteryPrizes,
   type MysteryPrize,
@@ -333,12 +333,13 @@ export async function POST(request: Request) {
     // The passes are credited once the knockout itself is safely recorded.
     const mysteryPasses: MysteryPassResult[] = [];
     for (const killer of killersWithBountyChips) {
-      const pass = killer.prize ? getMysteryPrizePass(killer.prize) : null;
-      if (!pass) continue;
-
-      mysteryPasses.push(
-        await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers, pass === "vip"),
-      );
+      // A Joker can turn up two passes, and both are the killer's — one regular and one
+      // VIP are different entries, so each is credited on its own.
+      for (const pass of killer.prize ? getMysteryPrizePasses(killer.prize) : []) {
+        mysteryPasses.push(
+          await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers, pass === "vip"),
+        );
+      }
     }
 
     // Insert to bounty_log
