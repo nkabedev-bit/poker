@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays } from "lucide-react";
 import { useClientTMA } from "../layout";
-import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
+import { LoadingScreen, NoEventsCard, PageTitle } from "../_components/ui";
 import { EventCard, type EventCardData } from "../_components/event-card";
 
 export default function ClientTournamentsPage() {
@@ -37,13 +36,7 @@ export default function ClientTournamentsPage() {
       <PageTitle>Турниры</PageTitle>
 
       {events.length === 0 ? (
-        <GlassCard className="py-8 text-center">
-          <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
-          <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
-          <p className="mt-1.5 text-sm text-white/45">
-            Как только появится новая игра, она возникнет здесь.
-          </p>
-        </GlassCard>
+        <NoEventsCard />
       ) : (
         events.map((event) => <EventCard key={event.id} event={event} />)
       )}

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import {
-  CalendarDays,
   ChevronRight,
   ClipboardList,
   LifeBuoy,
@@ -12,7 +11,13 @@ import {
   Spade,
 } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "./layout";
-import { GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_components/ui";
+import {
+  GlassCard,
+  LoadingScreen,
+  NoEventsCard,
+  PrimaryButton,
+  SectionHeader,
+} from "./_components/ui";
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
@@ -202,13 +207,7 @@ export default function ClientHomePage() {
       {nextEvent ? (
         <EventCard event={nextEvent} featured />
       ) : (
-        <GlassCard className="py-8 text-center">
-          <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
-          <p className="text-[17px] font-bold">Ближайших турниров пока нет</p>
-          <p className="mt-1.5 text-sm text-white/45">
-            Как только появится новая игра, она возникнет здесь.
-          </p>
-        </GlassCard>
+        <NoEventsCard />
       )}
 
       {laterEvents.length > 0 ? (

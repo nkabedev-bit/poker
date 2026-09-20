@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { CalendarDays, ChevronRight, Loader2 } from "lucide-react";
 
 /** Panel used for every block that is not a poster: soft, dark, barely lit. */
 export function GlassCard({
@@ -113,6 +113,16 @@ export function ScreenMessage({
       </div>
       {action ? <div className="w-full max-w-xs pt-2">{action}</div> : null}
     </div>
+  );
+}
+
+/** Shown wherever the upcoming-games list is empty: the schedule is simply not out yet. */
+export function NoEventsCard() {
+  return (
+    <GlassCard className="py-8 text-center">
+      <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
+      <p className="text-[17px] font-bold">Опубликуем расписание в понедельник в 19:00</p>
+    </GlassCard>
   );
 }
 
