@@ -2,7 +2,12 @@ import { after, NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
-import { appendFreeEntryGrant, syncAttendanceSheet, syncTournamentToSheets } from "@/lib/google-sheets";
+import {
+  appendFreeEntryGrant,
+  syncAttendanceSheet,
+  syncCancellationsSheet,
+  syncTournamentToSheets,
+} from "@/lib/google-sheets";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState, getWantedBountyChipAward, resolveEffectiveBigBlind } from "@/lib/timer/calculate";
@@ -299,6 +304,9 @@ export async function POST(request: Request) {
       after(async () => {
         try {
           await syncAttendanceSheet(auth.supabase);
+          // Rebuilt with attendance: both tabs describe the club rather than the game,
+          // and the finish is the moment the club pays for a write.
+          await syncCancellationsSheet(auth.supabase);
         } catch (attendanceError) {
           console.error("Non-critical attendance sheet sync error:", attendanceError);
         }

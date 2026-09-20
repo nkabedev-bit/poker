@@ -129,6 +129,53 @@ bot.command("cancel", async (ctx) => {
   }
 });
 
+// Bars a player from signing up for a week, and takes the bar off again. The club's
+// answer to seats held and given back at the last minute; the door itself stays open.
+async function changeSignupBan(ctx: Context, banned: boolean) {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  if (!(await isTournamentAdmin(supabase, adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  const { banPlayerSignups, buildBanReply, parseBanCommand, unbanPlayerSignups } = await import(
+    "@/lib/admin-bot/signup-ban-command"
+  );
+
+  const nickname = parseBanCommand(ctx.message?.text || "");
+  if (!nickname) {
+    return ctx.reply(banned ? "Использование: /ban <ник>" : "Использование: /unban <ник>");
+  }
+
+  try {
+    if (!banned) {
+      const lifted = await unbanPlayerSignups(supabase, nickname);
+      return ctx.reply(
+        lifted.ok
+          ? `«${lifted.displayName}» снова может записываться на игры. Игроку написали в бот.`
+          : lifted.error,
+      );
+    }
+
+    const outcome = await banPlayerSignups(supabase, nickname);
+    return ctx.reply(outcome.ok ? buildBanReply(outcome) : outcome.error);
+  } catch (err: unknown) {
+    console.error("Error in /ban command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return ctx.reply(`Не удалось изменить запрет: ${message}`);
+  }
+}
+
+bot.command("ban", async (ctx) => {
+  await changeSignupBan(ctx, true);
+});
+
+bot.command("unban", async (ctx) => {
+  await changeSignupBan(ctx, false);
+});
+
 // Registers the command list with Telegram so new commands show up in the "/" menu
 // without a manual trip to BotFather.
 bot.command("setupmenu", async (ctx) => {
@@ -351,8 +398,17 @@ bot.command("visits", async (ctx) => {
   }
 
   try {
-    const { syncAttendanceSheet } = await import("@/lib/google-sheets");
+    const { syncAttendanceSheet, syncCancellationsSheet } = await import("@/lib/google-sheets");
     const result = await syncAttendanceSheet(supabase);
+
+    // The cancellations tab is read beside attendance and rebuilt with it, so /visits
+    // is the one command that brings both up to date.
+    let cancellations: Awaited<ReturnType<typeof syncCancellationsSheet>> = null;
+    try {
+      cancellations = await syncCancellationsSheet(supabase);
+    } catch (cancelError) {
+      console.error("Failed to rebuild the cancellations sheet", cancelError);
+    }
 
     if (!result) {
       return ctx.reply("Google Sheets не настроен: нет GOOGLE_SHEET_ID или GOOGLE_SERVICE_ACCOUNT_KEY.");
@@ -364,7 +420,10 @@ bot.command("visits", async (ctx) => {
 
     await ctx.reply(
       `Лист «${result.sheetName}» пересобран из базы.\n`
-      + `Игроков: ${result.playerCount}`,
+      + `Игроков: ${result.playerCount}`
+      + (cancellations
+        ? `\nЛист «${cancellations.sheetName}»: ${cancellations.playerCount}`
+        : "\nЛист «отмены» пересобрать не удалось."),
     );
   } catch (err: unknown) {
     console.error("Error in /visits command:", err);

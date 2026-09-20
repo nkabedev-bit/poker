@@ -13,6 +13,7 @@ import {
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
 import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance";
+import { readCancellationRows, type CancellationRow } from "@/lib/players/cancellations";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { hasRegistrationNumber, isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
@@ -874,6 +875,76 @@ export async function syncAttendanceSheet(
   );
 
   return { playerCount: rows.length, sheetName: ATTENDANCE_SHEET_NAME, skipped: null };
+}
+
+// ---------------------------------------------------------------------------
+// "Отмены": who signs up and then drops out, and how often. The club reads it to decide
+// who to bar from signing up for a week — the seats they hold and give back late are
+// seats the waiting list never gets.
+// ---------------------------------------------------------------------------
+
+const CANCELLATIONS_SHEET_NAME = "отмены";
+const CANCELLATIONS_SHEET_HEADERS = ["Игрок", "Отмен", "Последняя отмена"];
+
+/** The day as the club writes it down; the hour is nobody's business here. */
+function formatCancellationDay(iso: string) {
+  const date = new Date(iso);
+  if (!Number.isFinite(date.getTime())) return "";
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: MOSCOW_TIME_ZONE,
+    year: "numeric",
+  }).format(date);
+}
+
+export function buildCancellationsSheetGrid(rows: CancellationRow[]): (string | number)[][] {
+  return [
+    CANCELLATIONS_SHEET_HEADERS,
+    ...padRowsToClearTail(
+      rows.map((row) => [row.player, row.cancellations, formatCancellationDay(row.lastCancelledAt)]),
+      CANCELLATIONS_SHEET_HEADERS.length,
+      0,
+    ),
+  ];
+}
+
+/**
+ * Rewrites the cancellations tab from the database.
+ *
+ * Runs beside the attendance tab, for the same reason and at the same moments: one
+ * write, once the evening is over, never while the room is being dealt to.
+ *
+ * Unlike attendance this one may legitimately shrink — a ban served and forgiven does
+ * not erase history, but a cancellation can be struck off by hand — so no count check
+ * guards it; the tab is the database's to own.
+ */
+export async function syncCancellationsSheet(
+  supabase: SupabaseClient,
+): Promise<AttendanceSyncResult | null> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
+
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const rows = await readCancellationRows(supabase);
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+
+  await ensureSheetExists(sheets, spreadsheetId, CANCELLATIONS_SHEET_NAME);
+
+  const values = buildCancellationsSheetGrid(rows);
+
+  await withRateLimitRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${CANCELLATIONS_SHEET_NAME}'!A1:${getSheetColumnName(CANCELLATIONS_SHEET_HEADERS.length)}${values.length}`,
+      valueInputOption: "RAW",
+      requestBody: { values },
+    }),
+  );
+
+  return { playerCount: rows.length, sheetName: CANCELLATIONS_SHEET_NAME, skipped: null };
 }
 
 export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {

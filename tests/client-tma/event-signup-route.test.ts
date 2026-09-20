@@ -77,6 +77,18 @@ function taken({
  * A stand-in for the tables this route writes to: sign-ups are upserted, and looking a
  * partner up by nickname reads the accounts.
  */
+/** An account read that answers with a ban running until the given moment. */
+function bannedAccounts(until: string) {
+  const chain = {
+    eq: vi.fn(() => chain),
+    limit: vi.fn(async () => ({ data: [], error: null })),
+    maybeSingle: vi.fn(async () => ({ data: { signup_banned_until: until }, error: null })),
+    select: vi.fn(() => chain),
+  };
+
+  return chain;
+}
+
 function upsertSpy({
   eventFull = false,
   members = [] as Array<{ display_name: string; id: string; telegram_id: number | null }>,
@@ -98,6 +110,8 @@ function upsertSpy({
   const accounts = {
     eq: vi.fn(() => accounts),
     limit: vi.fn(async () => ({ data: members, error: null })),
+    // Whether the club has barred this player from signing up; nobody here is barred.
+    maybeSingle: vi.fn(async () => ({ data: { signup_banned_until: null }, error: null })),
     select: vi.fn(() => accounts),
   };
 
@@ -213,6 +227,67 @@ describe("client sign-up route", () => {
     expect(response.status).toBe(409);
     expect(payload.error).toBe("full");
     expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // Barred for a week after holding seats and giving them back late.
+  it("turns away a player the club has barred from signing up", async () => {
+    const { supabase, upsert } = upsertSpy();
+    const banned = {
+      ...supabase,
+      from: vi.fn((table: string) =>
+        table === "client_bot_users"
+          ? bannedAccounts("2099-01-01T00:00:00.000Z")
+          : (supabase as { from: (table: string) => unknown }).from(table),
+      ),
+    };
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase: banned }));
+
+    const response = await postSignup();
+    const payload = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toBe("signup_banned");
+    expect(payload.message).toContain("часто отменяли запись");
+    expect(payload.message).toContain("живой очереди");
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // The waiting list is a seat too, and leaving it open would make the ban a formality.
+  it("keeps a barred player out of the waiting list as well", async () => {
+    const { supabase, upsert } = upsertSpy({ eventFull: true });
+    const banned = {
+      ...supabase,
+      from: vi.fn((table: string) =>
+        table === "client_bot_users"
+          ? bannedAccounts("2099-01-01T00:00:00.000Z")
+          : (supabase as { from: (table: string) => unknown }).from(table),
+      ),
+    };
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase: banned }));
+
+    const response = await postSignup({ waitlist: true });
+
+    expect(response.status).toBe(403);
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
+  // A ban whose date has passed is no ban.
+  it("lets a player sign up once the ban has run out", async () => {
+    const { supabase, upsert } = upsertSpy();
+    const expired = {
+      ...supabase,
+      from: vi.fn((table: string) =>
+        table === "client_bot_users"
+          ? bannedAccounts("2020-01-01T00:00:00.000Z")
+          : (supabase as { from: (table: string) => unknown }).from(table),
+      ),
+    };
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase: expired }));
+
+    const response = await postSignup();
+
+    expect(response.status).toBe(200);
+    expect(upsert).toHaveBeenCalled();
   });
 
   it("records a sign-up for a player who filled in the questionnaire", async () => {

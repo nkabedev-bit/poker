@@ -1,4 +1,5 @@
 import { CANCELLED_SIGNUP_DAYS } from "@/lib/admin-bot/cancellations";
+import { SIGNUP_BAN_DAYS } from "@/lib/client-bot/signup-ban";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
 
 // Only what a line needs. Keeping it to this lets the same formatter serve whatever
@@ -50,6 +51,8 @@ export const ADMIN_BOT_MENU_COMMANDS = [
   { command: "info", description: "Список команд" },
   { command: "birthday", description: "Дни рождения на ближайший месяц" },
   { command: "cancel", description: "Кто отменил запись за последние дни" },
+  { command: "ban", description: "Закрыть игроку запись на игры: <ник>" },
+  { command: "unban", description: "Снять запрет на запись: <ник>" },
   { command: "clearsheet", description: "Очистить лист сегодняшней игры" },
   { command: "resync", description: "Переписать лист игры из базы" },
   { command: "visits", description: "Пересобрать лист «посещения»" },
@@ -68,6 +71,9 @@ export const ADMIN_BOT_COMMANDS_MESSAGE = [
   "/info — этот список команд",
   `/birthday — дни рождения игроков на ближайшие ${UPCOMING_BIRTHDAY_DAYS} дн.`,
   `/cancel — кто отменил запись на игру за последние ${CANCELLED_SIGNUP_DAYS} дн.`,
+  `/ban <ник> — закрыть игроку запись на игры на ${SIGNUP_BAN_DAYS} дней за частые отмены.`,
+  "Записи на ближайшие игры снимаются, места уходят в лист ожидания; живая очередь остаётся.",
+  "/unban <ник> — снять запрет досрочно",
   "/clearsheet — очистить лист сегодняшней игры в таблице",
   "/resync — переписать лист игры заново из базы (если таблица отстала)",
   "/visits — пересобрать лист «посещения» (все игроки и число вечеров)",

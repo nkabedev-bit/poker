@@ -17,6 +17,7 @@ import {
 import { claimEventSignup, SIGNUP_PASS_HELD } from "@/lib/events/claim-signup";
 import {
   formatEventDayLabel,
+  holdsTicket,
   isEventTicketType,
   isUpcomingEvent,
   passMatchesTicket,
@@ -24,6 +25,12 @@ import {
 } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
+import {
+  buildSignupBanMessage,
+  isSignupBanned,
+  readSignupBan,
+  recordSignupCancellation,
+} from "@/lib/client-bot/signup-ban";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +74,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
   if (!event || !event.isPublished) {
     return NextResponse.json({ error: "not_found", message: "Турнир не найден." }, { status: 404 });
+  }
+
+  // Barred for a week for holding seats and giving them back late. This covers the
+  // waiting list too: a place offered from the queue is a place, and leaving that door
+  // open would make the ban a formality.
+  const bannedUntil = await readSignupBan(auth.supabase, auth.user.id);
+  if (isSignupBanned(bannedUntil)) {
+    return NextResponse.json(
+      { error: "signup_banned", message: buildSignupBanMessage(bannedUntil as string) },
+      { status: 403 },
+    );
   }
 
   if (!isUpcomingEvent(event, new Date())) {
@@ -352,6 +370,26 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     .eq("user_id", auth.user.id);
 
   if (error) throw error;
+
+  // Written down as its own line, because the sign-up row forgets: signing up again
+  // turns it back into a live ticket and the cancellation would leave no trace. Only a
+  // ticket that was actually held counts — dropping out of the queue costs the club
+  // nothing, and the club bans nobody for it.
+  if (mine && holdsTicket(mine.status)) {
+    const cancelled = await getEvent(auth.supabase, id);
+
+    try {
+      await recordSignupCancellation(auth.supabase, {
+        eventId: id,
+        eventStartsAt: cancelled?.startsAt ?? null,
+        eventTitle: cancelled?.title ?? "",
+        userId: auth.user.id,
+      });
+    } catch (logError) {
+      // The player has cancelled either way; the club is only out one line of history.
+      console.error("Failed to write down the cancellation", logError);
+    }
+  }
 
   // A pair falls together. Whichever half cancels, the other is left holding nothing:
   // the ticket was one, and the club has to hear about it from the app, not at the door.

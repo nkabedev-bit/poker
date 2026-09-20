@@ -140,6 +140,8 @@ export default function ClientEventPage() {
   const [inviteLinks, setInviteLinks] = useState<DuoInviteLinks | null>(null);
   const [partnerMatches, setPartnerMatches] = useState<PartnerMatch[]>([]);
   const [invite, setInvite] = useState<{ hostName: string } | null>(null);
+  // Set while the club has barred this player from signing up; carries its own wording.
+  const [signupBan, setSignupBan] = useState<{ message: string } | null>(null);
   // Who is coming, and — once the cards are in the air — where everybody is sitting.
   const [signups, setSignups] = useState<{ players: SignupListEntry[]; waitlist: SignupListEntry[] }>(
     { players: [], waitlist: [] },
@@ -193,6 +195,7 @@ export default function ClientEventPage() {
           vip: data.freeSeats?.vip ?? null,
         });
         setInvite(data.duoInvite ?? null);
+        setSignupBan(data.signupBan ?? null);
       }
     } finally {
       setLoading(false);
@@ -895,7 +898,13 @@ export default function ClientEventPage() {
         </PrimaryButton>
       ) : null}
 
-      {event.signedUp ? (
+      {signupBan ? (
+        // Said before they tap rather than after: the player is not signing up tonight,
+        // and the screen owes them the reason and the date it ends.
+        <div className="rounded-2xl border border-[#c8163f]/40 bg-[#c8163f]/10 px-4 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-[#f05a7e]">
+          {signupBan.message}
+        </div>
+      ) : event.signedUp ? (
         <div className="space-y-3">
           <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
             Вы записаны · {TICKET_TITLES[event.ticketType]} билет

@@ -5,7 +5,7 @@ import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
-import { syncAttendanceSheet } from "@/lib/google-sheets";
+import { syncAttendanceSheet, syncCancellationsSheet } from "@/lib/google-sheets";
 import {
   loadCurrentTournamentContext,
   saveTournamentExtrasFromContext,
@@ -213,6 +213,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
           after(async () => {
             try {
               await syncAttendanceSheet(auth.supabase);
+              // Rebuilt with attendance: both tabs describe the club rather than the
+              // game, and the finish is the moment the club pays for a write.
+              await syncCancellationsSheet(auth.supabase);
             } catch (attendanceError) {
               console.error("Non-critical attendance sheet sync error:", attendanceError);
             }
