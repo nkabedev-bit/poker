@@ -37,9 +37,9 @@ export function buildSignupBanMessage(bannedUntil: string | Date) {
   const until = bannedUntil instanceof Date ? bannedUntil : new Date(bannedUntil);
 
   return (
-    "Извините, вы часто отменяли запись на игры. " +
-    `До ${banDateFormat.format(until)} вы не можете регистрироваться на игры, ` +
-    "но будем рады видеть вас в порядке живой очереди"
+    "К сожалению, вы часто отменяли запись на игры. " +
+    `До ${banDateFormat.format(until)} вы не сможете регистрироваться на игры, ` +
+    "но мы будем рады видеть вас в порядке живой очереди"
   );
 }
 
