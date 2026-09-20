@@ -3634,3 +3634,83 @@ p {
   border-radius: 12px;
   object-fit: cover;
 }
+
+/* Somebody is out. The board belongs to this for five seconds: the room is watching the
+   tables, and an announcement it has to squint at is one nobody reads. */
+.public-knockout-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 4vh, 48px);
+  padding: 4vh 4vw;
+  text-align: center;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(139 21 21 / 0.6), transparent 64%),
+    rgba(4 0 0 / 0.97);
+  animation: public-break-overlay-in 320ms ease-out;
+}
+
+/* The names sit on one line and wrap together with their faces on a narrow screen. */
+.public-knockout__line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(12px, 2.5vw, 44px);
+  max-width: 94vw;
+}
+
+.public-knockout__face {
+  display: flex;
+  align-items: center;
+  gap: clamp(8px, 1.4vw, 24px);
+}
+
+.public-knockout__avatar {
+  width: clamp(56px, 13vh, 190px);
+  height: clamp(56px, 13vh, 190px);
+  border: 3px solid rgba(201 168 76 / 0.55);
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 36px rgba(139 21 21 / 0.7);
+}
+
+/* A player the club has no photo of wears their initial, as they do everywhere else. */
+.public-knockout__avatar--letter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #b8163c, #5d0a1c);
+  color: #fff;
+  font-size: clamp(28px, 6.5vh, 92px);
+  font-weight: 900;
+}
+
+.public-knockout__name {
+  color: #fff;
+  font-size: clamp(30px, 7.5vh, 128px);
+  font-weight: 900;
+  line-height: 1.02;
+  text-shadow: 0 0 34px rgba(139 21 21 / 0.85);
+}
+
+.public-knockout__verb {
+  color: #c9a84c;
+  font-size: clamp(18px, 3.6vh, 56px);
+  font-style: normal;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.public-knockout__outcome {
+  color: rgba(255 255 255 / 0.9);
+  font-size: clamp(26px, 6vh, 96px);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}

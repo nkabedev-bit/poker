@@ -6,6 +6,7 @@ import {
   normalizePtsPlaceTemplates,
 } from "@/lib/pts-rating";
 import { isEventTemplate } from "@/lib/events/templates";
+import { isKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
 import { isRaffle } from "@/lib/raffle/raffle";
 import { isTableMerge } from "@/lib/timer/table-merge";
 import type { ScheduleVersion, TournamentExtras } from "@/lib/timer/types";
@@ -47,6 +48,7 @@ export type TournamentExtrasPatch = Partial<
 export const defaultTournamentExtras: TournamentExtras = {
   blindTemplates: [],
   eventTemplates: [],
+  knockouts: [],
   raffle: null,
   raffleHistory: [],
   tableMerge: null,
@@ -133,6 +135,11 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       ? input.raffleHistory.filter(isRaffle)
       : [],
     tableMerge: isTableMerge(input.tableMerge) ? input.tableMerge : null,
+    // Only ever the last few: the screen announces what it has not announced yet, and
+    // an evening's worth of them would ride along in every copy of the extras.
+    knockouts: Array.isArray(input.knockouts)
+      ? input.knockouts.filter(isKnockoutBanner).slice(-KNOCKOUT_BANNER_HISTORY)
+      : [],
     tableFormats: Array.isArray(input.tableFormats)
       ? input.tableFormats.map((format) => (Number.isInteger(format) ? Number(format) : null))
       : [],

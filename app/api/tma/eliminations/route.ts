@@ -23,6 +23,8 @@ import { grantWinnerPass } from "@/lib/free-entries/winner-pass";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
+import { buildKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
+import { loadPlayerAvatars } from "@/lib/players/avatars";
 
 type Killer = {
   id: string;
@@ -354,6 +356,41 @@ export async function POST(request: Request) {
       recorded_by: auth.userId,
       uses_reentry: usesReentry,
       reentry_double: reentryDouble,
+    });
+
+    // Tell the hall. After the response: the admin at the door is tapping through a
+    // queue of players, and the screen's announcement must not make them wait for it.
+    after(async () => {
+      try {
+        const avatars = await loadPlayerAvatars(auth.supabase);
+        const banner = buildKnockoutBanner({
+          findAvatar: (player) => avatars.find(player).url,
+          killers: killersWithBountyChips.map((killer) => {
+            const seated = extras.players.find((item) => item.id === killer.id);
+            return { name: killer.name || seated?.name || "", telegramId: seated?.telegramId };
+          }),
+          place: finishPlace,
+          playerName: eliminatedPlayer.name,
+          reentryDouble,
+          usesReentry,
+        });
+
+        const { error: bannerError } = await auth.supabase.rpc("push_tournament_knockout", {
+          p_tournament_id: t.id,
+          p_knockout: banner,
+          p_keep: KNOCKOUT_BANNER_HISTORY,
+        });
+
+        if (bannerError) throw bannerError;
+
+        // The draw does the same as soon as it is written down: the screens hear about
+        // it at once instead of on their next pulse, which can be ten seconds away.
+        await broadcastPublicState(t.public_token);
+      } catch (bannerError) {
+        // The knockout itself is recorded; the hall simply misses one announcement. Most
+        // likely cause is migration 202609200002 not being applied yet.
+        console.error("Non-critical knockout banner error:", bannerError);
+      }
     });
 
     // Sync to Sheets asynchronously in the background

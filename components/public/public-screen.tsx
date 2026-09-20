@@ -28,6 +28,7 @@ import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { TABLE_MERGE_NOTICE } from "@/lib/timer/table-merge";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
+import { KnockoutOverlay } from "@/components/public/knockout-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
 import { isTournamentUnderway, useStatePulse } from "@/components/public/use-state-pulse";
 
@@ -1059,6 +1060,9 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <span className="public-break-overlay__clock">{formatClock(remainingSeconds)}</span>
         </div>
       ) : null}
+      {/* Last, and so on top of everything: a player going out is the newest thing that
+          has happened in the room, and it holds the board for five seconds. */}
+      <KnockoutOverlay banners={state.extras.knockouts} />
     </main>
   );
 }

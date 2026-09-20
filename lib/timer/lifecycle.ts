@@ -22,6 +22,8 @@ export function getFinishTournamentExtrasPatch(
     raffleHistory: [],
     // A reseating left open at the finish would greet the next tournament on its screens.
     tableMerge: null,
+    // The last knockouts of the evening belong to it; the next game announces its own.
+    knockouts: [],
     // Chairs brought to a table tonight are not tomorrow's: the next game starts from the
     // format in the settings.
     tableFormats: [],
