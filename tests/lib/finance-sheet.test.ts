@@ -45,6 +45,30 @@ describe("finance sheet", () => {
   });
 
   // A pass covers the seat, so the sheet must not ask for the ticket a second time.
+  // A sign-up is not a ticket: somebody who never came has no number and owes nothing.
+  it("leaves out a player who signed up and never got a number", () => {
+    const rows = buildFinanceSheetRows(
+      [
+        player(1, "Пришёл"),
+        { ...player(2, "Не пришёл"), registrationNumber: null, table: null },
+      ],
+      prices,
+    );
+
+    expect(rows.map((row) => row[1])).toEqual(["Пришёл", "ИТОГО"]);
+    // The totals line counts only the players the evening saw.
+    expect(rows[1]?.[10]).toBe("0 из 1");
+  });
+
+  it("writes an empty sheet when nobody out of those who signed up turned up", () => {
+    const rows = buildFinanceSheetRows(
+      [{ ...player(1, "Не пришёл"), registrationNumber: null, table: null }],
+      prices,
+    );
+
+    expect(rows).toEqual([]);
+  });
+
   it("writes no entry money for a player who came in on a free pass", () => {
     const rows = buildFinanceSheetRows(
       [player(3, "Проходка", { addons: 1, freePass: "regular", rebuys: 1 })],

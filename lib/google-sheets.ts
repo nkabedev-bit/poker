@@ -14,7 +14,7 @@ import {
 } from "@/lib/client-bot/registration";
 import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
-import { isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { hasRegistrationNumber, isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import { getFinanceRoster } from "@/lib/timer/lifecycle";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
@@ -878,10 +878,7 @@ export async function syncAttendanceSheet(
 
 export function buildPlayerOrderRows(players: TournamentPlayer[]): (string | number)[][] {
   return players
-    .filter((player) => {
-      const value = Number(player.registrationNumber);
-      return Number.isInteger(value) && value > 0;
-    })
+    .filter(hasRegistrationNumber)
     .sort((a, b) => Number(a.registrationNumber) - Number(b.registrationNumber))
     .map((player) => {
       const doubleRebuys = Math.max(0, Number(player.doubleRebuys) || 0);
@@ -1032,20 +1029,20 @@ export function buildFinanceSheetRows(
   options: { freeEntry?: boolean } = {},
 ): (string | number)[][] {
   const freeEntry = Boolean(options.freeEntry);
-  const rows = [...players]
-    .sort((a, b) => {
-      const left = Number(a.registrationNumber) || Number.MAX_SAFE_INTEGER;
-      const right = Number(b.registrationNumber) || Number.MAX_SAFE_INTEGER;
-      return left - right;
-    })
+  const rows = players
+    // Only the players the evening actually saw. A sign-up is not a ticket: somebody who
+    // asked for a seat and never came owes the club nothing, and their row made the desk
+    // settle up against a total that counted them. The number is handed out at the door
+    // with the ticket, so holding one is what says a player was here.
+    .filter(hasRegistrationNumber)
+    .sort((a, b) => Number(a.registrationNumber) - Number(b.registrationNumber))
     .map((player) => {
       // The same sum the admin reads off the card at the door — one calculation, so the
       // sheet and the desk can never disagree.
       const charge = buildPlayerCharge(player, prices, { freeroll: freeEntry });
-      const registrationNumber = Number(player.registrationNumber);
 
       return [
-        Number.isInteger(registrationNumber) && registrationNumber > 0 ? registrationNumber : "",
+        Number(player.registrationNumber),
         player.name || "",
         charge.ticket.free ? "" : charge.ticket.sum,
         blankIfZero(charge.reentries.count),

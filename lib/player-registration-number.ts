@@ -59,3 +59,15 @@ export function formatPlayerNameWithRegistrationNumber(player: PlayerWithRegistr
 
   return `#${registrationNumber} ${player.name}`;
 }
+
+/**
+ * Whether the club has called this player by a number tonight.
+ *
+ * The number is handed out at the door together with the ticket, so it is what tells a
+ * player who came from one who only signed up: somebody who never turned up stays on
+ * the roster without one.
+ */
+export function hasRegistrationNumber(player: PlayerWithRegistrationNumber) {
+  const registrationNumber = Number(player.registrationNumber);
+  return Number.isInteger(registrationNumber) && registrationNumber > 0;
+}
