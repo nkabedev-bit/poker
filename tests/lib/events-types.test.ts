@@ -4,7 +4,6 @@ import {
   formatEventTimeLabel,
   holdsTicket,
   isEventEveningOpen,
-  isEventOnClientBoard,
   isEventOpenForSeating,
   isEventPlayingToday,
   isUpcomingEvent,
@@ -220,7 +219,6 @@ describe("what the desk is still working", () => {
 
     expect(isEventPlayingToday(evening, halfPastOne)).toBe(false);
     expect(isEventEveningOpen(evening, halfPastOne)).toBe(true);
-    expect(isEventOnClientBoard(evening, halfPastOne)).toBe(true);
   });
 
   it("lets the evening go by the time the club opens again", () => {
@@ -230,12 +228,6 @@ describe("what the desk is still working", () => {
     expect(isEventEveningOpen(evening, at("2026-09-04T09:00:00.000Z"))).toBe(true);
     // 14:00 the next day, and it belongs to the results rather than the board.
     expect(isEventEveningOpen(evening, at("2026-09-04T11:00:00.000Z"))).toBe(false);
-  });
-
-  it("keeps the games still to come on the players' board", () => {
-    const thursday = event("2026-09-05T16:00:00.000Z");
-
-    expect(isEventOnClientBoard(thursday, at("2026-09-03T18:00:00.000Z"))).toBe(true);
   });
 
   it("is open for a game that has not started", () => {

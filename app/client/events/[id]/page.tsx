@@ -26,6 +26,7 @@ import {
   formatEventDayLabel,
   formatEventTimeLabel,
   isEventEveningOpen,
+  isUpcomingEvent,
   type TournamentEvent,
 } from "@/lib/events/types";
 import { LiveTables } from "../../_components/live-tables";
@@ -240,6 +241,9 @@ export default function ClientEventPage() {
   // a clock to follow, and only then does this screen ask the club for anything — and
   // it keeps following it past midnight, until the desk finishes the tournament.
   const playingToday = event ? isEventEveningOpen(event, new Date()) : false;
+  // Whether this evening is still ahead of the club: a poster whose game has been
+  // played is history, and "кто идёт" reads as a lie under it.
+  const stillAhead = event ? isUpcomingEvent(event, new Date()) : false;
   const { live } = useLiveTournament({ enabled: playingToday, initData });
   const activePlayers = live?.activePlayers ?? null;
 
@@ -598,7 +602,7 @@ export default function ClientEventPage() {
         </section>
       ) : null}
 
-      {signups.players.length > 0 || signups.waitlist.length > 0 ? (
+      {(stillAhead || live) && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
         <section className="space-y-2">
           <h2 className="text-[19px] font-bold tracking-tight">
             Кто идёт

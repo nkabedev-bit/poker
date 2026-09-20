@@ -350,14 +350,6 @@ export function isEventEveningOpen(event: TournamentEvent, now: Date) {
 }
 
 /**
- * The posters a player has any business seeing: the games still to come, and the one
- * being played — until its evening is over.
- */
-export function isEventOnClientBoard(event: TournamentEvent, now: Date) {
-  return isUpcomingEvent(event, now) || isEventEveningOpen(event, now);
-}
-
-/**
  * Whether the desk should still be working this event: tonight's game, and every poster
  * still ahead of it.
  *

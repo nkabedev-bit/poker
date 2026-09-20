@@ -1,7 +1,12 @@
 import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getUserSignups, listEvents } from "@/lib/events/store";
-import { holdsTicket, isEventOnClientBoard, waitlistOfferIsLive } from "@/lib/events/types";
+import {
+  holdsTicket,
+  isEventEveningOpen,
+  isUpcomingEvent,
+  waitlistOfferIsLive,
+} from "@/lib/events/types";
 import { findDuoInvitationEventIds } from "@/lib/events/duo";
 import { announcePublishedEvents, publishDueEvents } from "@/lib/events/scheduled-publication";
 import { readClientLiveState } from "@/lib/client-tma/live-state";
@@ -21,14 +26,8 @@ export async function GET(request: Request) {
   }
 
   const published = await listEvents(auth.supabase, { publishedOnly: true });
-  // The evening being played stays on the list beside the posters still to come. Late
-  // entry closing means the club takes no more sign-ups, not that the game is over —
-  // and a player who wants to see how it is going has to have something to open, right
-  // up to the last hand, which at this club is well past midnight.
-  const upcoming = published.filter((event) => isEventOnClientBoard(event, now));
 
-  const [signupCounts, mySignups, live] = await Promise.all([
-    countActiveSignups(auth.supabase, upcoming.map((event) => event.id)),
+  const [mySignups, live] = await Promise.all([
     getUserSignups(auth.supabase, auth.user.id),
     // Carried with the screen it is drawn on: a card for the game under way would
     // otherwise cost every phone an extra round trip the moment the app opens. The
@@ -39,6 +38,19 @@ export async function GET(request: Request) {
       return null;
     }),
   ]);
+
+  // The posters still to come, and — while the cards are in the air — the one being
+  // played. A game that has begun stays up only as long as it is actually being played:
+  // the clock says when it is over, and once the desk finishes it the evening belongs
+  // to the results rather than to a board still offering seats at it.
+  const upcoming = published.filter(
+    (event) => isUpcomingEvent(event, now) || (live !== null && isEventEveningOpen(event, now)),
+  );
+
+  const signupCounts = await countActiveSignups(
+    auth.supabase,
+    upcoming.map((event) => event.id),
+  );
 
   const mineByEvent = new Map(mySignups.map((signup) => [signup.eventId, signup]));
   // Somebody may be waiting on this player at one of these evenings, or the club may be
