@@ -128,8 +128,8 @@ describe("what the card says the player owes", () => {
     expect(session.charge.total).toBe(2500);
   });
 
-  it("charges no entry at a freeroll", () => {
-    const session = buildCardSession(player(), "MJ-014", prices, { freeroll: true });
+  it("charges the entry the settings price it at", () => {
+    const session = buildCardSession(player(), "MJ-014", { ...prices, buyIn: 0 });
 
     expect(session.charge.total).toBe(0);
   });

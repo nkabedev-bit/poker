@@ -263,3 +263,62 @@ describe("re-entry settings UI", () => {
     expect(nextLevels.map((level) => level.levelOrder)).toEqual([1, 2, 3]);
   });
 });
+
+// A freeroll is free because its ticket is priced at nothing — nothing else makes it
+// free any more. Picking the preset has to zero the price, or the admin who forgot
+// would have billed a free game.
+describe("the freeroll preset", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  function renderSettings(extras = defaultTournamentExtras) {
+    render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={extras}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+  }
+
+  it("zeroes the ordinary ticket and leaves the VIP price alone", () => {
+    const extras = {
+      ...defaultTournamentExtras,
+      settings: { ...defaultTournamentExtras.settings, buyIn: 1250, vipBuyIn: 1000 },
+    };
+    renderSettings(extras);
+
+    const buyIn = screen.getByLabelText("Цена билета") as HTMLInputElement;
+    const vipBuyIn = screen.getByLabelText("Цена VIP билета") as HTMLInputElement;
+    expect(buyIn.value).toBe("1250");
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
+
+    expect(buyIn.value).toBe("0");
+    expect(vipBuyIn.value).toBe("1000");
+  });
+
+  it("leaves the price alone for the kinds of game the club prices itself", () => {
+    const extras = {
+      ...defaultTournamentExtras,
+      settings: { ...defaultTournamentExtras.settings, buyIn: 1250 },
+    };
+    renderSettings(extras);
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "deepstack" } });
+
+    expect((screen.getByLabelText("Цена билета") as HTMLInputElement).value).toBe("1250");
+  });
+
+  it("still lets the admin type a price over the preset", () => {
+    renderSettings();
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
+    const buyIn = screen.getByLabelText("Цена билета") as HTMLInputElement;
+    fireEvent.change(buyIn, { target: { value: "500" } });
+
+    expect(buyIn.value).toBe("500");
+  });
+});

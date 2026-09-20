@@ -36,6 +36,14 @@ type BountyMode = "off" | BountyType;
 type TournamentPreset = {
   addonEnabled: boolean;
   bountyMode: BountyMode;
+  /**
+   * What the ordinary ticket costs at this kind of game, where the kind decides it.
+   *
+   * Only the freeroll does: its entry is free, and nothing else about the game says so
+   * — the sheet and the desk price every ticket straight from these settings. Left
+   * unset everywhere else, where the price is the club's to name.
+   */
+  buyIn?: number;
   label: string;
   maxAddons: number;
   maxReentries: number;
@@ -94,6 +102,9 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   freeroll: {
     addonEnabled: true,
     bountyMode: "off",
+    // The VIP seat keeps whatever price the club put on the poster: a freeroll here is
+    // a free ordinary ticket beside a paid VIP one.
+    buyIn: 0,
     label: "Фриролл",
     maxAddons: 1,
     maxReentries: 2,
@@ -144,6 +155,9 @@ export function SettingsForm({
     settings.isBounty ? settings.bountyType : "off",
   );
   const [startingStack, setStartingStack] = useState(tournament.startingStack);
+  // Controlled so that picking "Фриролл" can zero it: the price is what makes an entry
+  // free now, and an admin who forgot to clear it would have billed a free game.
+  const [buyIn, setBuyIn] = useState(settings.buyIn);
   // The picked type is saved with the tournament: it names the game (and so the medal its
   // winner earns), while the fields below stay free to edit afterwards.
   const [presetName, setPresetName] = useState<string>(settings.tournamentPreset ?? "");
@@ -160,6 +174,7 @@ export function SettingsForm({
     setReentryEnabled(true);
     setStartingStack(preset.startingStack);
     setTournamentFormat(preset.tournamentFormat);
+    if (preset.buyIn !== undefined) setBuyIn(preset.buyIn);
   }
 
   function updateLogoUpload(file: File | undefined) {
@@ -381,11 +396,12 @@ export function SettingsForm({
           Билет, ₽
           <input
             aria-label="Цена билета"
-            defaultValue={settings.buyIn}
             inputMode="numeric"
             min={0}
             name="buyIn"
             type="number"
+            value={buyIn}
+            onChange={(event) => setBuyIn(Number(event.target.value) || 0)}
           />
         </label>
         <label>

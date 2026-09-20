@@ -1026,9 +1026,7 @@ export type { FinancePrices };
 export function buildFinanceSheetRows(
   players: TournamentPlayer[],
   prices: FinancePrices,
-  options: { freeEntry?: boolean } = {},
 ): (string | number)[][] {
-  const freeEntry = Boolean(options.freeEntry);
   const rows = players
     // Only the players the evening actually saw. A sign-up is not a ticket: somebody who
     // asked for a seat and never came owes the club nothing, and their row made the desk
@@ -1039,7 +1037,7 @@ export function buildFinanceSheetRows(
     .map((player) => {
       // The same sum the admin reads off the card at the door — one calculation, so the
       // sheet and the desk can never disagree.
-      const charge = buildPlayerCharge(player, prices, { freeroll: freeEntry });
+      const charge = buildPlayerCharge(player, prices);
 
       return [
         Number(player.registrationNumber),
@@ -1067,7 +1065,7 @@ export function buildFinanceSheetRows(
     [
       "",
       FINANCE_TOTALS_LABEL,
-      freeEntry ? "" : sumColumn(2),
+      sumColumn(2),
       sumColumn(3),
       sumColumn(4),
       sumColumn(5),
@@ -1084,11 +1082,10 @@ export function buildFinanceSheetRows(
 export function buildFinanceSheetGrid(
   players: TournamentPlayer[],
   prices: FinancePrices,
-  options: { freeEntry?: boolean } = {},
 ): (string | number)[][] {
   return [
     FINANCE_SHEET_HEADERS,
-    ...padRowsToClearTail(buildFinanceSheetRows(players, prices, options), FINANCE_SHEET_HEADERS.length, 0),
+    ...padRowsToClearTail(buildFinanceSheetRows(players, prices), FINANCE_SHEET_HEADERS.length, 0),
   ];
 }
 
@@ -1107,9 +1104,7 @@ export async function syncFinanceSheet(
   const sheets = google.sheets({ version: "v4", auth });
   await ensureSheetExists(sheets, spreadsheetId, sheetName);
 
-  const values = buildFinanceSheetGrid(players, getFinancePrices(settings), {
-    freeEntry: settings.tournamentFormat === "freeroll",
-  });
+  const values = buildFinanceSheetGrid(players, getFinancePrices(settings));
 
   await withRateLimitRetry(() =>
     sheets.spreadsheets.values.update({

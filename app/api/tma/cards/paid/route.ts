@@ -55,7 +55,6 @@ export async function POST(request: Request) {
   }
 
   const prices = getFinancePrices(extras.settings);
-  const freeroll = extras.settings.tournamentFormat === "freeroll";
 
   // Once the evening is over the room is empty and the desk is working from the copy;
   // the tick belongs there, and the live-roster function does not know about it.
@@ -102,7 +101,7 @@ export async function POST(request: Request) {
     });
 
     return NextResponse.json({
-      session: buildCardSession(settled, player.cardCode ?? "", prices, { freeroll }),
+      session: buildCardSession(settled, player.cardCode ?? "", prices),
     });
   }
 
@@ -142,6 +141,6 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({
-    session: buildCardSession(data, player.cardCode ?? "", prices, { freeroll }),
+    session: buildCardSession(data, player.cardCode ?? "", prices),
   });
 }

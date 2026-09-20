@@ -296,9 +296,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       });
     }
 
-    session = buildCardSession(carded, cardCode, getFinancePrices(extras.settings), {
-      freeroll: extras.settings.tournamentFormat === "freeroll",
-    });
+    session = buildCardSession(carded, cardCode, getFinancePrices(extras.settings));
   }
 
   await auth.supabase.from("event_signups").update(seatedUpdate).eq("id", id);

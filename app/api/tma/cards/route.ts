@@ -40,7 +40,6 @@ export async function GET(request: Request) {
 
   const extras = await loadTournamentExtras(t.id, auth.supabase);
   const prices = getFinancePrices(extras.settings);
-  const freeroll = extras.settings.tournamentFormat === "freeroll";
   // Tournaments saved before the setting existed were played with cards.
   const cardsEnabled = extras.settings.cardsEnabled !== false;
 
@@ -57,7 +56,7 @@ export async function GET(request: Request) {
         // on the list too: dropping them meant a tick pressed by mistake erased the
         // player from the app for good, with no card left to scan to get back to them.
         .filter((item) => (cardsEnabled ? Boolean(item.cardCode) : Boolean(item.table)))
-        .map((item) => buildCardSession(item, String(item.cardCode ?? ""), prices, { freeroll }))
+        .map((item) => buildCardSession(item, String(item.cardCode ?? ""), prices))
         .sort(compareSettlingCards),
     });
   }
@@ -70,7 +69,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     cardCode,
-    session: buildCardSession(player, cardCode, prices, { freeroll }),
+    session: buildCardSession(player, cardCode, prices),
   });
 }
 
@@ -165,9 +164,7 @@ export async function POST(request: Request) {
     if (!player) return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
 
     return NextResponse.json({
-      session: buildCardSession(player, "", getFinancePrices(seated.settings), {
-        freeroll: seated.settings.tournamentFormat === "freeroll",
-      }),
+      session: buildCardSession(player, "", getFinancePrices(seated.settings)),
     });
   }
 
@@ -195,9 +192,7 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({
-    session: buildCardSession(data, cardCode, getFinancePrices(extras.settings), {
-      freeroll: extras.settings.tournamentFormat === "freeroll",
-    }),
+    session: buildCardSession(data, cardCode, getFinancePrices(extras.settings)),
   });
 }
 

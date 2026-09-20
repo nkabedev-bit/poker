@@ -58,10 +58,14 @@ const VENUE_OWNER_NICKNAME = "киберпсих";
 /**
  * What a player owes for the evening.
  *
- * The entry is free when the club gave them a pass or the tournament is a freeroll;
- * re-entries and add-ons are always paid for, since a pass covers the seat only, and a
- * "1+1" halves the entry alone for the same reason. The venue's owner alone pays for
- * nothing at all.
+ * Every ticket is priced from the settings, whatever the tournament is called. A
+ * freeroll is a game whose entry costs nothing — so its entry is set to nothing — and
+ * not a rule that overrides the prices: the club runs freerolls with a paid VIP seat,
+ * and a rule that knew better than the settings billed those guests nothing.
+ *
+ * The entry is free only when the club gave the player a pass. Re-entries and add-ons
+ * are always paid for, since a pass covers the seat alone, and a "1+1" halves the entry
+ * for the same reason. The venue's owner alone pays for nothing at all.
  */
 export function buildPlayerCharge(
   player: Pick<
@@ -70,7 +74,6 @@ export function buildPlayerCharge(
   > &
     Partial<Pick<TournamentPlayer, "name">>,
   prices: FinancePrices,
-  options: { freeroll?: boolean } = {},
 ): PlayerCharge {
   const doubleReentries = toCount(player.doubleRebuys);
   // `rebuys` counts every re-entry, doubles included, and the two are priced apart.
@@ -80,8 +83,7 @@ export function buildPlayerCharge(
   const onTheHouse = String(player.name ?? "").trim().toLowerCase() === VENUE_OWNER_NICKNAME;
   const charged = (price: number) => (onTheHouse ? 0 : price);
 
-  const paidWithPass = player.freePass === "regular" || player.freePass === "vip";
-  const free = paidWithPass || Boolean(options.freeroll);
+  const free = player.freePass === "regular" || player.freePass === "vip";
   // A "1+1" is one ticket for two, and the pair splits what it costs: each of them owes
   // half, whichever of the two bought it.
   const ticketPrice = player.duoTicket

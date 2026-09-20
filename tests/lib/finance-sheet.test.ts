@@ -89,14 +89,22 @@ describe("finance sheet", () => {
     expect(rows[1]?.[2]).toBe(2000);
   });
 
-  it("charges no entry in a FREEROLL but still counts re-entries and addons", () => {
+  // The club's freeroll sells a paid VIP seat, and the poster says its price: the sheet
+  // bills the VIP guest and lets the free seat through at nothing.
+  it("bills a FREEROLL from the prices the settings carry", () => {
+    const freerollPrices = { ...prices, buyIn: 0 };
     const rows = buildFinanceSheetRows(
-      [player(1, "Иван", { addons: 1, rebuys: 1, ticketType: "vip" })],
-      prices,
-      { freeEntry: true },
+      [
+        player(1, "Обычный", { addons: 1, rebuys: 1 }),
+        player(21, "ВИП", { ticketType: "vip" }),
+      ],
+      freerollPrices,
     );
 
-    expect(rows[0]).toEqual([1, "Иван", "", 1, 1250, "", "", 1, 1250, 2500, "Нет"]);
+    expect(rows[0]).toEqual([1, "Обычный", 0, 1, 1250, "", "", 1, 1250, 2500, "Нет"]);
+    expect(rows[1]).toEqual([21, "ВИП", 2000, "", "", "", "", "", "", 2000, "Нет"]);
+    // And the totals line adds the tickets up rather than leaving the column blank.
+    expect(rows[2]?.[2]).toBe(2000);
   });
 
   it("sums every category in the totals row", () => {

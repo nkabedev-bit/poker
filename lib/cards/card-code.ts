@@ -67,7 +67,6 @@ export function buildCardSession(
   player: TournamentPlayer,
   cardCode: string,
   prices: FinancePrices,
-  options: { freeroll?: boolean } = {},
 ): CardSession {
   const rebuys = Math.max(0, Number(player.rebuys ?? 0));
   const doubleRebuys = Math.max(0, Number(player.doubleRebuys ?? 0));
@@ -77,7 +76,7 @@ export function buildCardSession(
     cardCode,
     eliminated: player.status === "eliminated",
     playerId: player.id,
-    charge: buildPlayerCharge(player, prices, options),
+    charge: buildPlayerCharge(player, prices),
     // `rebuys` counts every re-entry including the doubles, and the two are reported
     // apart so the desk can tell one from the other.
     doubleReentries: doubleRebuys,

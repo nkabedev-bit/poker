@@ -32,10 +32,11 @@ describe("the 1+1 ticket", () => {
     expect(charge.total).toBe(1000 + 1250 + 1250);
   });
 
-  it("gives way to a freeroll, where nobody pays for the entry", () => {
-    const charge = buildPlayerCharge(player({ duoTicket: true }), prices, { freeroll: true });
+  // A freeroll is a game whose entry is priced at nothing, not a rule above the prices.
+  it("costs nothing when the club prices the pair at nothing", () => {
+    const charge = buildPlayerCharge(player({ duoTicket: true }), { ...prices, duoBuyIn: 0 });
 
-    expect(charge.ticket).toMatchObject({ free: true, sum: 0 });
+    expect(charge.ticket).toMatchObject({ free: false, sum: 0 });
   });
 });
 
@@ -107,11 +108,20 @@ describe("buildPlayerCharge", () => {
     expect(charge.total).toBe(1250 + 1250);
   });
 
-  it("charges no entry at a freeroll", () => {
-    const charge = buildPlayerCharge(player(), prices, { freeroll: true });
+  // The club runs freerolls with a paid VIP table: the entry that is set to nothing
+  // costs nothing, and the one that is priced is still billed.
+  it("bills each ticket at the price the settings give it", () => {
+    const freerollPrices = { ...prices, buyIn: 0 };
+
+    expect(buildPlayerCharge(player(), freerollPrices).total).toBe(0);
+    expect(buildPlayerCharge(player({ ticketType: "vip" }), freerollPrices).total).toBe(2000);
+  });
+
+  // A pass is the one thing that still overrides the price.
+  it("charges nothing to a player who came in on a pass", () => {
+    const charge = buildPlayerCharge(player({ freePass: "vip", ticketType: "vip" }), prices);
 
     expect(charge.ticket).toMatchObject({ free: true, sum: 0 });
-    expect(charge.total).toBe(0);
   });
 
   it("survives a broken counter", () => {
