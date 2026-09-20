@@ -25,8 +25,15 @@ import {
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
+  isEventEveningOpen,
   type TournamentEvent,
 } from "@/lib/events/types";
+import { LiveTables } from "../../_components/live-tables";
+import { SignupList } from "../../_components/signup-list";
+import { LiveTournamentCard } from "../../_components/live-tournament-card";
+import { useLiveTournament } from "../../_components/use-live-tournament";
+import type { LiveTable } from "@/lib/tables/live-tables";
+import type { SignupListEntry } from "@/lib/events/signup-list";
 
 type FreePassChoice = "none" | "regular" | "vip";
 
@@ -133,6 +140,11 @@ export default function ClientEventPage() {
   const [inviteLinks, setInviteLinks] = useState<DuoInviteLinks | null>(null);
   const [partnerMatches, setPartnerMatches] = useState<PartnerMatch[]>([]);
   const [invite, setInvite] = useState<{ hostName: string } | null>(null);
+  // Who is coming, and — once the cards are in the air — where everybody is sitting.
+  const [signups, setSignups] = useState<{ players: SignupListEntry[]; waitlist: SignupListEntry[] }>(
+    { players: [], waitlist: [] },
+  );
+  const [tables, setTables] = useState<LiveTable[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [answering, setAnswering] = useState(false);
@@ -187,10 +199,32 @@ export default function ClientEventPage() {
     }
   }, [eventId, initData]);
 
+  const loadSignups = useCallback(async () => {
+    if (!eventId) return;
+
+    try {
+      const res = await fetch(`/api/client-tma/events/${eventId}/signups`, {
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      if (!res.ok) return;
+
+      const data = (await res.json()) as {
+        players?: SignupListEntry[];
+        waitlist?: SignupListEntry[];
+      };
+      setSignups({ players: data.players ?? [], waitlist: data.waitlist ?? [] });
+    } catch {
+      // The list of names is the least of what this screen is for.
+    }
+  }, [eventId, initData]);
+
   useEffect(() => {
-    const timeout = window.setTimeout(() => void load(), 0);
+    const timeout = window.setTimeout(() => {
+      void load();
+      void loadSignups();
+    }, 0);
     return () => window.clearTimeout(timeout);
-  }, [load]);
+  }, [load, loadSignups]);
 
   useEffect(
     () => () => {
@@ -198,6 +232,37 @@ export default function ClientEventPage() {
     },
     [],
   );
+
+  // The game this poster announced is the one being played tonight. Only then is there
+  // a clock to follow, and only then does this screen ask the club for anything — and
+  // it keeps following it past midnight, until the desk finishes the tournament.
+  const playingToday = event ? isEventEveningOpen(event, new Date()) : false;
+  const { live } = useLiveTournament({ enabled: playingToday, initData });
+  const activePlayers = live?.activePlayers ?? null;
+
+  const loadTables = useCallback(async () => {
+    try {
+      const res = await fetch("/api/client-tma/live/tables", {
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      if (!res.ok) return;
+
+      const data = (await res.json()) as { tables?: LiveTable[] };
+      setTables(data.tables ?? []);
+    } catch {
+      // The seating is a bonus on this screen; the ticket is what it is for.
+    }
+  }, [initData]);
+
+  // The roster is the heavy half of the state, so it is fetched when the room actually
+  // changes — somebody busting moves the count of survivors, and the light beat carries
+  // that — rather than on a timer of its own.
+  useEffect(() => {
+    if (activePlayers === null) return;
+
+    const timeout = window.setTimeout(() => void loadTables(), 0);
+    return () => window.clearTimeout(timeout);
+  }, [activePlayers, loadTables]);
 
   // Members are looked up by nickname as the buyer types; anything typed that matches
   // nobody is taken as a guest's name, so a friend from outside the club still gets in.
@@ -521,6 +586,26 @@ export default function ClientEventPage() {
           <div className="mt-auto">{event.badge ? <Badge>{event.badge}</Badge> : null}</div>
         </div>
       </div>
+
+      {live ? (
+        <section className="space-y-2">
+          <LiveTournamentCard live={live} />
+          <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
+          <LiveTables tables={tables} />
+        </section>
+      ) : null}
+
+      {signups.players.length > 0 || signups.waitlist.length > 0 ? (
+        <section className="space-y-2">
+          <h2 className="text-[19px] font-bold tracking-tight">
+            Кто идёт
+            <span className="ml-2 text-[15px] font-semibold text-white/35">
+              {signups.players.length}
+            </span>
+          </h2>
+          <SignupList players={signups.players} waitlist={signups.waitlist} />
+        </section>
+      ) : null}
 
       {event.venueAddress ? (
         <section className="space-y-2">

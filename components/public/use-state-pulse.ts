@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
-import type { TimerStatus } from "@/lib/timer/types";
 
 /** How often a screen with a tournament under way asks whether anything has changed. */
 export const STATE_PULSE_INTERVAL_MS = 10_000;
 
-/**
- * A tournament is under way from the first level to the finish, breaks and pauses
- * included — a draw is as likely to be run in a break as during play.
- */
-export function isTournamentUnderway(status: TimerStatus) {
-  return status === "running" || status === "paused" || status === "break";
-}
+// Lives with the rest of the clock now that the client app asks the same question;
+// re-exported so the screen's imports stay where they were.
+export { isTournamentUnderway } from "@/lib/timer/calculate";
 
 /**
  * Keeps the screen in step with the room while a tournament is under way.

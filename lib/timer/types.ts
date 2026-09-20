@@ -1,4 +1,5 @@
 import type { EventTemplate } from "@/lib/events/templates";
+import type { KnockoutBanner } from "@/lib/knockouts/banner";
 import type { Raffle } from "@/lib/raffle/raffle";
 
 export type TimerStatus =
@@ -46,6 +47,17 @@ export type BlindLevel = {
 };
 
 export type BlindTemplateLevel = Omit<BlindLevel, "id">;
+
+/**
+ * As much of a level as the clock needs to count it down.
+ *
+ * The client mini-app is served a narrower level than the screen in the hall — a phone
+ * has no use for re-entry rules — and the same countdown has to work off both.
+ */
+export type TimerLevel = Pick<
+  BlindLevel,
+  "breakDurationSeconds" | "durationSeconds" | "isBreak"
+>;
 
 export type BlindTemplate = {
   id: string;
@@ -135,6 +147,13 @@ export type TournamentExtras = {
   raffle: Raffle | null;
   /** Set while the room is being reseated, so every screen says so and the clock waits. */
   tableMerge: TableMerge | null;
+  /**
+   * The last few knockouts, newest last, for the hall's screen to announce.
+   *
+   * Kept as a short list rather than a single slot: two players can go out between one
+   * refresh and the next, and the room should hear about both.
+   */
+  knockouts: KnockoutBanner[];
   /**
    * The format each table is dealt in, where the desk changed it tonight: one entry per
    * table, null (or missing) where the table still follows `settings.maxPlayersPerTable`.

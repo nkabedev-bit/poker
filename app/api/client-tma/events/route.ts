@@ -1,9 +1,10 @@
 import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getUserSignups, listEvents } from "@/lib/events/store";
-import { holdsTicket, isUpcomingEvent, waitlistOfferIsLive } from "@/lib/events/types";
+import { holdsTicket, isEventOnClientBoard, waitlistOfferIsLive } from "@/lib/events/types";
 import { findDuoInvitationEventIds } from "@/lib/events/duo";
 import { announcePublishedEvents, publishDueEvents } from "@/lib/events/scheduled-publication";
+import { readClientLiveState } from "@/lib/client-tma/live-state";
 
 export const dynamic = "force-dynamic";
 
@@ -20,11 +21,23 @@ export async function GET(request: Request) {
   }
 
   const published = await listEvents(auth.supabase, { publishedOnly: true });
-  const upcoming = published.filter((event) => isUpcomingEvent(event, now));
+  // The evening being played stays on the list beside the posters still to come. Late
+  // entry closing means the club takes no more sign-ups, not that the game is over —
+  // and a player who wants to see how it is going has to have something to open, right
+  // up to the last hand, which at this club is well past midnight.
+  const upcoming = published.filter((event) => isEventOnClientBoard(event, now));
 
-  const [signupCounts, mySignups] = await Promise.all([
+  const [signupCounts, mySignups, live] = await Promise.all([
     countActiveSignups(auth.supabase, upcoming.map((event) => event.id)),
     getUserSignups(auth.supabase, auth.user.id),
+    // Carried with the screen it is drawn on: a card for the game under way would
+    // otherwise cost every phone an extra round trip the moment the app opens. The
+    // blind grid rides along once, and the countdown then runs on the phone.
+    readClientLiveState(auth.supabase, { includeLevels: true }).catch((error) => {
+      // The posters are the point of this screen; a missing card is not worth losing them.
+      console.error("Failed to read the live tournament state", error);
+      return null;
+    }),
   ]);
 
   const mineByEvent = new Map(mySignups.map((signup) => [signup.eventId, signup]));
@@ -36,6 +49,8 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({
+    // The game being played right now, or null when the room is quiet.
+    live,
     events: upcoming.map((event) => {
       const mine = mineByEvent.get(event.id);
       const status = mine?.status;

@@ -1,6 +1,15 @@
-import type { BlindLevel, TimerState } from "@/lib/timer/types";
+import type { BlindLevel, TimerLevel, TimerState, TimerStatus } from "@/lib/timer/types";
 
-export function getLevelDuration(level: BlindLevel | null): number {
+/**
+ * A tournament is under way from the first level to the finish, breaks and pauses
+ * included — a draw is as likely to be run in a break as during play, and a phone
+ * showing the round is as right to keep showing it while the room is on a break.
+ */
+export function isTournamentUnderway(status: TimerStatus) {
+  return status === "running" || status === "paused" || status === "break";
+}
+
+export function getLevelDuration(level: TimerLevel | null): number {
   if (!level) return 0;
   if (level.isBreak) return level.breakDurationSeconds ?? level.durationSeconds;
   return level.durationSeconds;
@@ -8,7 +17,7 @@ export function getLevelDuration(level: BlindLevel | null): number {
 
 export function getEffectiveTimerState(
   state: TimerState,
-  levels: BlindLevel[],
+  levels: readonly TimerLevel[],
   now: Date,
 ): { currentLevelIndex: number; remainingSeconds: number } {
   if (state.status === "finished") {
@@ -72,7 +81,7 @@ export function isReentryAvailable(
 
 export function calculateRemainingSeconds(
   state: TimerState,
-  levels: BlindLevel[],
+  levels: readonly TimerLevel[],
   now: Date,
 ): number {
   return getEffectiveTimerState(state, levels, now).remainingSeconds;

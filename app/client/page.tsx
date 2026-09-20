@@ -16,10 +16,16 @@ import { GlassCard, LoadingScreen, PrimaryButton, SectionHeader } from "./_compo
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
+import { LiveTournamentCard } from "./_components/live-tournament-card";
+import { useLiveTournament } from "./_components/use-live-tournament";
 import { pickPlayerPhoto } from "@/lib/players/photo";
+import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
+import { isEventEveningOpen } from "@/lib/events/types";
 
 type EventsResponse = {
   events: EventCardData[];
+  /** The game being played right now; null when the room is quiet. */
+  live: ClientLiveState | null;
   player: {
     avatarIsCustom?: boolean;
     avatarUrl?: string | null;
@@ -83,10 +89,22 @@ export default function ClientHomePage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  const events = data?.events ?? [];
+  // Nothing is asked of the club away from game days: the card can only appear on the
+  // evening of a game, so that is the only time a phone watches for it. Once a game is
+  // on, the hook keeps watching it until it finishes, whatever the hour.
+  const playsToday = events.some((event) => isEventEveningOpen(event, new Date()));
+  const { live } = useLiveTournament({
+    enabled: Boolean(data) && (Boolean(data?.live) || playsToday),
+    initData,
+    initial: data?.live ?? null,
+  });
+
   if (loading) return <LoadingScreen />;
 
-  const events = data?.events ?? [];
   const [nextEvent, ...laterEvents] = events;
+  // Which poster the game under way belongs to, so tapping the card opens its tables.
+  const playingEvent = events.find((event) => isEventEveningOpen(event, new Date()));
   const playerName = data?.player.displayName?.trim() || telegramUser?.first_name || "Гость";
   const address = events.find((event) => event.venueAddress)?.venueAddress ?? "";
   const photoUrl = pickPlayerPhoto({
@@ -172,6 +190,13 @@ export default function ClientHomePage() {
             </p>
           </GlassCard>
         </a>
+      ) : null}
+
+      {live ? (
+        <LiveTournamentCard
+          href={playingEvent ? `/client/events/${playingEvent.id}` : undefined}
+          live={live}
+        />
       ) : null}
 
       {nextEvent ? (

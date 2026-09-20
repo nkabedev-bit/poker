@@ -289,6 +289,31 @@ export function formatEventWeekdayLabel(iso: string) {
  */
 const SEATING_HOURS_AFTER_START = 6;
 
+/**
+ * How long the game stays on the players' own screens.
+ *
+ * Longer than the desk's window, and for a different reason. The club plays from seven
+ * in the evening until one in the morning, and sometimes past it — the desk stops
+ * seating long before the last hand, but the phones in the room are following the game
+ * itself, and it is over when the clock says so, not when a window expires.
+ *
+ * What actually takes the card away is the tournament being finished; this only decides
+ * how long a poster is worth watching for. Wide enough that an evening running late
+ * never hits it, and short enough that yesterday's game is gone by the time the club
+ * opens again.
+ */
+const EVENING_HOURS_AFTER_START = 18;
+
+function isWithinHoursOfStart(event: TournamentEvent, now: Date, hours: number) {
+  const started = new Date(event.startsAt);
+  if (moscowDay(started) === moscowDay(now)) return true;
+
+  // Past midnight the day no longer matches, and the game is still going. Only ever
+  // forwards: an evening still to come has not begun.
+  const since = now.getTime() - started.getTime();
+  return since >= 0 && since < hours * 60 * 60 * 1000;
+}
+
 const moscowDayFormat = new Intl.DateTimeFormat("en-CA", {
   day: "2-digit",
   month: "2-digit",
@@ -309,13 +334,27 @@ function moscowDay(time: Date) {
  * five — or at eleven — is seated from the same list.
  */
 export function isEventPlayingToday(event: TournamentEvent, now: Date) {
-  const started = new Date(event.startsAt);
-  if (moscowDay(started) === moscowDay(now)) return true;
+  return isWithinHoursOfStart(event, now, SEATING_HOURS_AFTER_START);
+}
 
-  // Past midnight the day no longer matches, and the game is still going. Only ever
-  // forwards: an evening still to come has not begun.
-  const since = now.getTime() - started.getTime();
-  return since >= 0 && since < SEATING_HOURS_AFTER_START * 60 * 60 * 1000;
+/**
+ * Whether this poster is the game the club's phones should still be following.
+ *
+ * The desk's window closes six hours in, which is one in the morning for a game that
+ * started at seven — exactly when the last table is often still playing. A player
+ * watching the clock would have lost it mid-hand. This one holds the evening open
+ * until the morning; what ends the card is the tournament finishing.
+ */
+export function isEventEveningOpen(event: TournamentEvent, now: Date) {
+  return isWithinHoursOfStart(event, now, EVENING_HOURS_AFTER_START);
+}
+
+/**
+ * The posters a player has any business seeing: the games still to come, and the one
+ * being played — until its evening is over.
+ */
+export function isEventOnClientBoard(event: TournamentEvent, now: Date) {
+  return isUpcomingEvent(event, now) || isEventEveningOpen(event, now);
 }
 
 /**
