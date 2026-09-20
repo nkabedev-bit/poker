@@ -106,6 +106,29 @@ bot.command("birthday", async (ctx) => {
   }
 });
 
+// Who dropped out and when, so the desk knows whether a seat came free — and which
+// evening it came free from. Reads only.
+bot.command("cancel", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    const { buildCancelledSignupsMessage, readCancelledSignups } = await import(
+      "@/lib/admin-bot/cancellations"
+    );
+
+    await ctx.reply(buildCancelledSignupsMessage(await readCancelledSignups(getAdminSupabase())));
+  } catch (err: unknown) {
+    console.error("Error in /cancel command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Не удалось прочитать отмены: ${message}`);
+  }
+});
+
 // Registers the command list with Telegram so new commands show up in the "/" menu
 // without a manual trip to BotFather.
 bot.command("setupmenu", async (ctx) => {

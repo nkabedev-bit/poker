@@ -1,3 +1,4 @@
+import { CANCELLED_SIGNUP_DAYS } from "@/lib/admin-bot/cancellations";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
 
 // Only what a line needs. Keeping it to this lets the same formatter serve whatever
@@ -48,6 +49,7 @@ export const ADMIN_BOT_MENU_COMMANDS = [
   { command: "start", description: "Панель управления турниром" },
   { command: "info", description: "Список команд" },
   { command: "birthday", description: "Дни рождения на ближайший месяц" },
+  { command: "cancel", description: "Кто отменил запись за последние дни" },
   { command: "clearsheet", description: "Очистить лист сегодняшней игры" },
   { command: "resync", description: "Переписать лист игры из базы" },
   { command: "visits", description: "Пересобрать лист «посещения»" },
@@ -65,6 +67,7 @@ export const ADMIN_BOT_COMMANDS_MESSAGE = [
   "/start — открыть панель управления турниром",
   "/info — этот список команд",
   `/birthday — дни рождения игроков на ближайшие ${UPCOMING_BIRTHDAY_DAYS} дн.`,
+  `/cancel — кто отменил запись на игру за последние ${CANCELLED_SIGNUP_DAYS} дн.`,
   "/clearsheet — очистить лист сегодняшней игры в таблице",
   "/resync — переписать лист игры заново из базы (если таблица отстала)",
   "/visits — пересобрать лист «посещения» (все игроки и число вечеров)",
