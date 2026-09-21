@@ -7,7 +7,7 @@ import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { mergeMedalCounts } from "@/lib/client/medals";
-import { countMedalsFromResults } from "@/lib/players/medal-counts";
+import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-counts";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +68,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   }
 
   const stats = await buildPlayerStats(auth.supabase, played);
-  const [labels, games, medalsFromResults] = await Promise.all([
+  const [labels, games, medalsFromResults, archiveMedals] = await Promise.all([
     loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
     countGamesByNickname(auth.supabase, [nickname]),
     // The club's own record of what this player won before any of it was stored is on
@@ -77,6 +77,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
       nickname,
       telegramId: record?.telegram_id ?? null,
     }),
+    // Турниры, которых клуб больше не проводит: их медали не из игр, а из колонки.
+    readArchiveMedals(auth.supabase, record?.id ?? null),
   ]);
 
   return NextResponse.json({
@@ -87,6 +89,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
         place: game.place,
         startedAt: game.startedAt,
       })),
+      archiveMedals,
       isMe: record?.id === auth.user.id,
       medals: mergeMedalCounts(
         record?.medals as Record<string, unknown> | null,

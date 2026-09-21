@@ -26,11 +26,35 @@ import {
   Wand2,
   Waves,
   Zap,
-  type LucideIcon,
 } from "lucide-react";
+import type { ComponentType } from "react";
 import type { AchievementIcon as AchievementIconName } from "@/lib/client/achievements";
 
-const ICONS: Record<AchievementIconName, LucideIcon> = {
+type IconProps = { className?: string; size?: number; strokeWidth?: number };
+
+/**
+ * Пистолет для Dealer Revenge: в lucide оружия нет, поэтому свой контур — та же
+ * сетка 24×24, та же толщина линии и скруглённые концы, чтобы он не выбивался из
+ * ряда остальных медалей.
+ */
+const Pistol = ({ size = 24, ...props }: IconProps) => (
+  <svg
+    fill="none"
+    height={size}
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    viewBox="0 0 24 24"
+    width={size}
+    xmlns="http://www.w3.org/2000/svg"
+    {...props}
+  >
+    <path d="M3 7h17v4h-6l-2 6H8l-1-6H3z" />
+    <path d="M13 11c0 1.7-1.3 3-3 3" />
+  </svg>
+);
+
+const ICONS: Record<AchievementIconName, ComponentType<IconProps>> = {
   briefcase: Briefcase,
   check: Check,
   clock: Clock,
@@ -45,6 +69,7 @@ const ICONS: Record<AchievementIconName, LucideIcon> = {
   medal: Medal,
   megaphone: Megaphone,
   message: MessageCircleHeart,
+  pistol: Pistol,
   rocket: Rocket,
   shark: Fish,
   shield: Shield,

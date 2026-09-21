@@ -5,7 +5,7 @@ import { getUserSignupsWithEvents } from "@/lib/events/store";
 import { isUpcomingEvent } from "@/lib/events/types";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
-import { countMedalsFromResults } from "@/lib/players/medal-counts";
+import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-counts";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
@@ -94,6 +94,10 @@ export async function GET(request: Request) {
     }),
   );
 
+  // Турниры, которых клуб больше не проводит: считать их из игр нечем, и они живут
+  // своей колонкой — на экране идут отдельной секцией под действующими.
+  const archiveMedals = await readArchiveMedals(auth.supabase, auth.user.id);
+
   const [history, passHolds] = await Promise.all([
     getUserSignupsWithEvents(auth.supabase, auth.user.id),
     loadPassHolds(auth.supabase, auth.user.id, now),
@@ -149,6 +153,8 @@ export async function GET(request: Request) {
     },
     // One counter per tournament type the player has won; the medals screen reads it.
     medals,
+    // The same, for the tournaments the club has stopped running.
+    archiveMedals,
     tier,
     tablesCount,
     username: auth.user.username,

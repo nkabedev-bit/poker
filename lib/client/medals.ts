@@ -14,15 +14,24 @@ export const MEDAL_KEYS = [
 
 export type MedalKey = (typeof MEDAL_KEYS)[number];
 
+// Турниры, которые клуб больше не проводит. Медаль за них неоткуда посчитать: часть
+// этих вечеров сыграна до того, как игры начали записываться, и ни одной строки в
+// результатах о них нет. Клуб помнит их сам — они лежат в client_bot_users.archive_medals
+// и показываются отдельной секцией, не трогая счётчик действующих медалей.
+export const ARCHIVE_MEDAL_KEYS = ["mttclassic", "wanted", "dealer"] as const;
+
+export type ArchiveMedalKey = (typeof ARCHIVE_MEDAL_KEYS)[number];
+
 export type Medal = {
   count: number;
   description: string;
   icon: AchievementIcon;
-  key: MedalKey;
+  key: MedalKey | ArchiveMedalKey;
   title: string;
 };
 
 export const MEDAL_DESCRIPTION = "Выиграй турнир, чтобы получить медаль";
+export const ARCHIVE_MEDAL_DESCRIPTION = "Медаль за архивный турнир";
 
 const MEDALS: { icon: AchievementIcon; key: MedalKey; title: string }[] = [
   { icon: "flame", key: "phoenix", title: "PHOENIX" },
@@ -34,9 +43,15 @@ const MEDALS: { icon: AchievementIcon; key: MedalKey; title: string }[] = [
   { icon: "clock", key: "lastchance", title: "LAST CHANCE" },
 ];
 
+const ARCHIVE_MEDALS: { icon: AchievementIcon; key: ArchiveMedalKey; title: string }[] = [
+  { icon: "crown", key: "mttclassic", title: "MTT CLASSIC" },
+  { icon: "star", key: "wanted", title: "WANTED BOUNTY" },
+  { icon: "pistol", key: "dealer", title: "DEALER REVENGE" },
+];
+
 export const MEDALS_TOTAL = MEDALS.length;
 
-function readCount(counts: Partial<Record<string, unknown>>, key: MedalKey) {
+function readCount(counts: Partial<Record<string, unknown>>, key: MedalKey | ArchiveMedalKey) {
   const count = Math.floor(Number(counts[key] ?? 0));
   return Number.isFinite(count) && count > 0 ? count : 0;
 }
@@ -47,6 +62,26 @@ export function getMedals(counts: Partial<Record<string, unknown>> | null | unde
   return MEDALS.map((medal) => ({
     count: readCount(source, medal.key),
     description: MEDAL_DESCRIPTION,
+    icon: medal.icon,
+    key: medal.key,
+    title: medal.title,
+  }));
+}
+
+/**
+ * Архивные медали игрока.
+ *
+ * Показываются все три, выигранные и нет, — как и действующие: закрытая карточка
+ * говорит, что такой турнир в клубе был, и ты его не брал.
+ */
+export function getArchiveMedals(
+  counts: Partial<Record<string, unknown>> | null | undefined,
+): Medal[] {
+  const source = counts ?? {};
+
+  return ARCHIVE_MEDALS.map((medal) => ({
+    count: readCount(source, medal.key),
+    description: ARCHIVE_MEDAL_DESCRIPTION,
     icon: medal.icon,
     key: medal.key,
     title: medal.title,

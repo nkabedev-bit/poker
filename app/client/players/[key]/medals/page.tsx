@@ -6,7 +6,14 @@ import { Medal as MedalIcon } from "lucide-react";
 import { useClientTMA } from "../../../layout";
 import { LoadingScreen, PageTitle } from "../../../_components/ui";
 import { MedalCard } from "../../../_components/award-cards";
-import { countEarnedMedals, getMedals, MEDALS_TOTAL, type Medal } from "@/lib/client/medals";
+import {
+  countEarnedMedals,
+  getArchiveMedals,
+  getMedals,
+  MEDALS_TOTAL,
+  type Medal,
+} from "@/lib/client/medals";
+import { ArchiveMedals } from "../../../_components/archive-medals";
 
 /** Another player's medals, on the same screen their own would use. */
 export default function PlayerMedalsPage() {
@@ -16,6 +23,7 @@ export default function PlayerMedalsPage() {
 
   const [name, setName] = useState("");
   const [medals, setMedals] = useState<Medal[] | null>(null);
+  const [archive, setArchive] = useState<Medal[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -29,6 +37,7 @@ export default function PlayerMedalsPage() {
         const data = await res.json();
         setName(String(data.player?.name ?? ""));
         setMedals(getMedals(data.player?.medals));
+        setArchive(getArchiveMedals(data.player?.archiveMedals));
       }
     } finally {
       setLoading(false);
@@ -56,6 +65,8 @@ export default function PlayerMedalsPage() {
           <MedalCard key={medal.key} medal={medal} />
         ))}
       </div>
+
+      <ArchiveMedals medals={archive ?? getArchiveMedals({})} />
     </div>
   );
 }

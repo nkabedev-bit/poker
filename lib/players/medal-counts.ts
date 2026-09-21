@@ -5,6 +5,44 @@ import { buildPlayerResultsFilter } from "@/lib/results/player-stats";
 import { isMedalKey } from "@/lib/client/medals";
 
 /**
+ * Медали за турниры, которых клуб больше не проводит.
+ *
+ * Считать их из игр нельзя: часть этих вечеров сыграна до того, как результаты начали
+ * записываться. Клуб помнит их сам, и колонка — единственный источник.
+ *
+ * Читается отдельным запросом: колонка приезжает миграцией 202609210002, и пока её не
+ * применили, профиль обязан открыться без архивной секции, а не упасть целиком.
+ */
+export async function readArchiveMedals(
+  supabase: SupabaseClient,
+  accountId: string | null,
+): Promise<Record<string, number>> {
+  if (!accountId) return {};
+
+  const { data, error } = await supabase
+    .from("client_bot_users")
+    .select("archive_medals")
+    .eq("id", accountId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("Archive medals are unavailable", error.message);
+    return {};
+  }
+
+  const source = (data as { archive_medals?: Record<string, unknown> | null } | null)
+    ?.archive_medals;
+  const counts: Record<string, number> = {};
+
+  for (const [key, value] of Object.entries(source ?? {})) {
+    const count = Math.floor(Number(value));
+    if (Number.isFinite(count) && count > 0) counts[key] = count;
+  }
+
+  return counts;
+}
+
+/**
  * The medals the stored results account for: one per tournament this player won, by the
  * kind of tournament it was.
  *

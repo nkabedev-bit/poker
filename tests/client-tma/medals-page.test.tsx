@@ -10,8 +10,8 @@ vi.mock("@/app/client/layout", () => ({
 
 const { default: ClientMedalsPage } = await import("@/app/client/medals/page");
 
-function respondWithMedals(medals: Record<string, number>) {
-  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ medals, stats: {} })));
+function respondWithMedals(medals: Record<string, number>, archiveMedals: Record<string, number> = {}) {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json({ archiveMedals, medals, stats: {} })));
 }
 
 describe("client mini-app: медали", () => {
@@ -44,8 +44,8 @@ describe("client mini-app: медали", () => {
     render(<ClientMedalsPage />);
 
     expect(await screen.findByText("x2")).toBeTruthy();
-    // The other six stay at zero.
-    expect(screen.getAllByText("x0")).toHaveLength(6);
+    // The other six stay at zero, and so do the three archive tournaments below them.
+    expect(screen.getAllByText("x0")).toHaveLength(9);
   });
 
   it("counts the distinct medals in the header", async () => {
@@ -62,5 +62,25 @@ describe("client mini-app: медали", () => {
     render(<ClientMedalsPage />);
 
     await waitFor(() => expect(screen.getByText(/0 \/ 7/)).toBeTruthy());
+  });
+
+  it("shows the archive tournaments under their own heading", async () => {
+    respondWithMedals({}, { dealer: 1 });
+
+    render(<ClientMedalsPage />);
+
+    expect(await screen.findByText("Медали за архивные турниры")).toBeTruthy();
+
+    for (const title of ["MTT CLASSIC", "WANTED BOUNTY", "DEALER REVENGE"]) {
+      expect(await screen.findByText(title)).toBeTruthy();
+    }
+  });
+
+  it("leaves the counter of the medals still to be won alone", async () => {
+    respondWithMedals({}, { dealer: 1, mttclassic: 1, wanted: 1 });
+
+    render(<ClientMedalsPage />);
+
+    expect(await screen.findByText(/0 \/ 7/)).toBeTruthy();
   });
 });

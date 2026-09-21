@@ -5,11 +5,19 @@ import { Medal as MedalIcon } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { LoadingScreen } from "../_components/ui";
 import { MedalCard } from "../_components/award-cards";
-import { countEarnedMedals, getMedals, MEDALS_TOTAL, type Medal } from "@/lib/client/medals";
+import {
+  countEarnedMedals,
+  getArchiveMedals,
+  getMedals,
+  MEDALS_TOTAL,
+  type Medal,
+} from "@/lib/client/medals";
+import { ArchiveMedals } from "../_components/archive-medals";
 
 export default function ClientMedalsPage() {
   const { initData } = useClientTMA();
   const [medals, setMedals] = useState<Medal[] | null>(null);
+  const [archive, setArchive] = useState<Medal[] | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -20,6 +28,7 @@ export default function ClientMedalsPage() {
       if (res.ok) {
         const data = await res.json();
         setMedals(getMedals(data.medals));
+        setArchive(getArchiveMedals(data.archiveMedals));
       }
     } finally {
       setLoading(false);
@@ -68,6 +77,8 @@ export default function ClientMedalsPage() {
           <MedalCard key={medal.key} medal={medal} />
         ))}
       </div>
+
+      <ArchiveMedals medals={archive ?? getArchiveMedals({})} />
     </div>
   );
 }

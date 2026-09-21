@@ -34,6 +34,7 @@ export type AchievementIcon =
   | "medal"
   | "megaphone"
   | "message"
+  | "pistol"
   | "rocket"
   | "shark"
   | "shield"
