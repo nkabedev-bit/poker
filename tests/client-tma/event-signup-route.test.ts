@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   notifyClientUser: vi.fn(),
   offerFreedSeats: vi.fn(),
   requireClientTmaAuth: vi.fn(),
+  syncCancellationsSheet: vi.fn(),
 }));
 
 vi.mock("@/lib/client-tma/require-auth", () => ({
@@ -35,6 +36,12 @@ vi.mock("@/lib/client-bot/notify", () => ({
 // A seat given back moves the queue; which of the waiting gets it is the queue's own test.
 vi.mock("@/lib/events/waitlist-offers", () => ({
   offerFreedSeats: mocks.offerFreedSeats,
+}));
+
+// The club's cancellations tab lives in Google Sheets; what it is rewritten to is the
+// sheet's own test.
+vi.mock("@/lib/google-sheets", () => ({
+  syncCancellationsSheet: mocks.syncCancellationsSheet,
 }));
 
 vi.mock("next/server", () => ({
@@ -928,6 +935,11 @@ describe("giving a ticket back", () => {
     mocks.getUserSignups.mockResolvedValue([mySignup("signed_up")]);
     mocks.notifyClientUser.mockResolvedValue(true);
     mocks.offerFreedSeats.mockResolvedValue([]);
+    mocks.syncCancellationsSheet.mockResolvedValue({
+      playerCount: 1,
+      sheetName: "отмены",
+      skipped: null,
+    });
   });
 
   it("lets a ticket go back before the game begins", async () => {
@@ -943,6 +955,36 @@ describe("giving a ticket back", () => {
       expect.objectContaining({ event_title: "ONE SHOT KNOCKOUT", user_id: "account-host" }),
     );
     expect(mocks.offerFreedSeats).toHaveBeenCalledWith(supabase, FUTURE_EVENT);
+  });
+
+  // The club decides bans from that tab, so it grows the moment a ticket is given back
+  // rather than waiting for the finish.
+  it("rewrites the club's cancellations tab once the ticket is given back", async () => {
+    const { supabase } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    await cancelSignup();
+
+    await vi.waitFor(() => expect(mocks.syncCancellationsSheet).toHaveBeenCalledWith(supabase));
+  });
+
+  it("keeps the cancellation when the spreadsheet cannot be written", async () => {
+    const { supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.syncCancellationsSheet.mockRejectedValue(new Error("quota exceeded"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    await vi.waitFor(() =>
+      expect(logged).toHaveBeenCalledWith(
+        "Failed to rewrite the cancellations sheet",
+        expect.any(Error),
+      ),
+    );
+    logged.mockRestore();
   });
 
   // Stuck on the road with the cards already in the air: the seat goes back to the room
@@ -975,6 +1017,7 @@ describe("giving a ticket back", () => {
     expect(update).not.toHaveBeenCalled();
     expect(insert).not.toHaveBeenCalled();
     expect(mocks.offerFreedSeats).not.toHaveBeenCalled();
+    expect(mocks.syncCancellationsSheet).not.toHaveBeenCalled();
   });
 
   it("refuses them whatever the clock says, even before the start", async () => {
@@ -999,6 +1042,8 @@ describe("giving a ticket back", () => {
 
     expect(response.status).toBe(200);
     expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    // Leaving the queue is not a cancellation the club counts, so the tab stays as it is.
     expect(insert).not.toHaveBeenCalled();
+    expect(mocks.syncCancellationsSheet).not.toHaveBeenCalled();
   });
 });

@@ -395,6 +395,18 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
         eventTitle: cancelled?.title ?? "",
         userId: auth.user.id,
       });
+
+      // The club's list grows with it, after the answer: the player is not kept waiting
+      // on a spreadsheet, and a write that fails is healed by the next one or the finish.
+      // Loaded here rather than up top so a sign-up never pays for the Sheets client.
+      after(async () => {
+        try {
+          const { syncCancellationsSheet } = await import("@/lib/google-sheets");
+          await syncCancellationsSheet(auth.supabase);
+        } catch (sheetError) {
+          console.error("Failed to rewrite the cancellations sheet", sheetError);
+        }
+      });
     } catch (logError) {
       // The player has cancelled either way; the club is only out one line of history.
       console.error("Failed to write down the cancellation", logError);

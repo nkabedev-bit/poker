@@ -913,8 +913,10 @@ export function buildCancellationsSheetGrid(rows: CancellationRow[]): (string | 
 /**
  * Rewrites the cancellations tab from the database.
  *
- * Runs beside the attendance tab, for the same reason and at the same moments: one
- * write, once the evening is over, never while the room is being dealt to.
+ * Rewritten the moment a player gives a ticket back — the club decides bans from this
+ * list and wants it current, and cancellations are rare enough that their one write each
+ * never troubles the quota — and again beside the attendance tab at the finish and on
+ * /visits, which heal a write that failed.
  *
  * Unlike attendance this one may legitimately shrink — a ban served and forgiven does
  * not erase history, but a cancellation can be struck off by hand — so no count check
