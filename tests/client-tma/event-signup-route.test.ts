@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getUserSignups: vi.fn(),
   loadPassHolds: vi.fn(),
   notifyClientUser: vi.fn(),
+  offerFreedSeats: vi.fn(),
   requireClientTmaAuth: vi.fn(),
 }));
 
@@ -29,6 +30,11 @@ vi.mock("@/lib/events/store", () => ({
 
 vi.mock("@/lib/client-bot/notify", () => ({
   notifyClientUser: mocks.notifyClientUser,
+}));
+
+// A seat given back moves the queue; which of the waiting gets it is the queue's own test.
+vi.mock("@/lib/events/waitlist-offers", () => ({
+  offerFreedSeats: mocks.offerFreedSeats,
 }));
 
 vi.mock("next/server", () => ({
@@ -98,6 +104,8 @@ function upsertSpy({
   const upsert = vi.fn<(row: unknown, options?: unknown) => Promise<{ error: null }>>(
     async () => ({ error: null }),
   );
+  // Only the cancellation log inserts: a ticket given back is written down on its own line.
+  const insert = vi.fn(async () => ({ error: null }));
   const update = vi.fn(() => {
     const chain = {
       eq: vi.fn(() => chain),
@@ -123,6 +131,7 @@ function upsertSpy({
       data: partnerTaken ? [{ telegram_id: 111 }] : [],
       error: null,
     })),
+    insert,
     neq: vi.fn(() => signups),
     select: vi.fn(() => signups),
     update,
@@ -157,6 +166,7 @@ function upsertSpy({
   });
 
   return {
+    insert,
     rpc,
     supabase: {
       from: vi.fn((table: string) => (table === "client_bot_users" ? accounts : signups)),
@@ -199,6 +209,14 @@ async function postSignup(body?: Record<string, unknown>) {
       headers: { "Content-Type": "application/json" },
       method: "POST",
     }),
+    { params: Promise.resolve({ id: "event-1" }) },
+  );
+}
+
+async function cancelSignup() {
+  const { DELETE } = await import("@/app/api/client-tma/events/[id]/signup/route");
+  return DELETE(
+    new Request("http://localhost/api/client-tma/events/event-1/signup", { method: "DELETE" }),
     { params: Promise.resolve({ id: "event-1" }) },
   );
 }
@@ -879,5 +897,108 @@ describe("the 1+1 ticket", () => {
     // The nickname route refuses an empty partner; the link route is the partner.
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalled();
+  });
+});
+
+describe("giving a ticket back", () => {
+  // Tonight's game, whose cards went in the air before the test ran.
+  const STARTED_EVENT = mapEventRow({
+    buy_in: 1250,
+    id: "event-1",
+    is_published: true,
+    starts_at: "2020-01-01T16:00:00.000Z",
+    title: "DEEP STACK",
+  });
+
+  const mySignup = (status: string) => ({
+    duoConfirmedAt: null,
+    duoHostUserId: null,
+    duoPartnerName: null,
+    duoPartnerUserId: null,
+    eventId: "event-1",
+    status,
+    ticketType: "regular",
+    userId: "account-host",
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    mocks.getEvent.mockResolvedValue(FUTURE_EVENT);
+    mocks.getUserSignups.mockResolvedValue([mySignup("signed_up")]);
+    mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.offerFreedSeats.mockResolvedValue([]);
+  });
+
+  it("lets a ticket go back before the game begins", async () => {
+    const { insert, supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    // Written down against the player, and the freed seat goes to the queue.
+    expect(insert).toHaveBeenCalledWith(
+      expect.objectContaining({ event_title: "ONE SHOT KNOCKOUT", user_id: "account-host" }),
+    );
+    expect(mocks.offerFreedSeats).toHaveBeenCalledWith(supabase, FUTURE_EVENT);
+  });
+
+  // Stuck on the road with the cards already in the air: the seat goes back to the room
+  // and, while late entry is open, to the queue.
+  it("still lets a player nobody has sat down yet give it back mid-game", async () => {
+    const { insert, supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.getEvent.mockResolvedValue(STARTED_EVENT);
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    expect(insert).toHaveBeenCalledWith(expect.objectContaining({ event_title: "DEEP STACK" }));
+    expect(mocks.offerFreedSeats).toHaveBeenCalledWith(supabase, STARTED_EVENT);
+  });
+
+  // A player who busted at ten was offered "Отменить запись" under the tables, and taking
+  // it would have logged a late cancellation and offered the queue a chair nobody left.
+  it("refuses a player the desk has sat down — at a table or out already", async () => {
+    const { insert, supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.getEvent.mockResolvedValue(STARTED_EVENT);
+    mocks.getUserSignups.mockResolvedValue([mySignup("seated")]);
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: "already_seated" });
+    expect(update).not.toHaveBeenCalled();
+    expect(insert).not.toHaveBeenCalled();
+    expect(mocks.offerFreedSeats).not.toHaveBeenCalled();
+  });
+
+  it("refuses them whatever the clock says, even before the start", async () => {
+    const { supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.getUserSignups.mockResolvedValue([mySignup("seated")]);
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(409);
+    expect(update).not.toHaveBeenCalled();
+  });
+
+  // Stepping out of the queue takes nothing from the room and stays open all evening.
+  it("still lets a player leave the queue once the game has begun", async () => {
+    const { insert, supabase, update } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.getEvent.mockResolvedValue(STARTED_EVENT);
+    mocks.getUserSignups.mockResolvedValue([mySignup("waitlist")]);
+
+    const response = await cancelSignup();
+
+    expect(response.status).toBe(200);
+    expect(update).toHaveBeenCalledWith({ status: "cancelled" });
+    expect(insert).not.toHaveBeenCalled();
   });
 });

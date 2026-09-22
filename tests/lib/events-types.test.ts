@@ -3,6 +3,7 @@ import {
   formatEventDayLabel,
   formatEventTimeLabel,
   holdsTicket,
+  isCancellationClosed,
   isEventEveningOpen,
   isEventOpenForSeating,
   isEventPlayingToday,
@@ -252,6 +253,27 @@ describe("holdsTicket", () => {
     expect(holdsTicket("cancelled")).toBe(false);
     expect(holdsTicket(null)).toBe(false);
     expect(holdsTicket(undefined)).toBe(false);
+  });
+});
+
+describe("isCancellationClosed", () => {
+  // Stuck on the road with the game under way: saying so frees the seat for the queue.
+  it("lets a ticket go back until the desk sits the player down, game or no game", () => {
+    expect(isCancellationClosed("signed_up")).toBe(false);
+  });
+
+  // A player who busted at ten was still offered "Отменить запись" under the tables.
+  // Busting never touches the sign-up, so the mark covers those already out too.
+  it("closes it once the player is at a table, or already out", () => {
+    expect(isCancellationClosed("seated")).toBe(true);
+  });
+
+  // Stepping out of the queue, or turning down a held seat, takes nothing from the room.
+  it("leaves everything that is not a ticket open", () => {
+    expect(isCancellationClosed("waitlist")).toBe(false);
+    expect(isCancellationClosed("reserved")).toBe(false);
+    expect(isCancellationClosed("no_show")).toBe(false);
+    expect(isCancellationClosed(null)).toBe(false);
   });
 });
 

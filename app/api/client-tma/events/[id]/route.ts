@@ -3,10 +3,17 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
 import { findDuoInvitation } from "@/lib/events/duo";
-import { holdsTicket, isReservableTicket, waitlistOfferIsLive } from "@/lib/events/types";
+import {
+  holdsTicket,
+  isCancellationClosed,
+  isEventEveningOpen,
+  isReservableTicket,
+  waitlistOfferIsLive,
+} from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { buildSignupBanMessage, isSignupBanned, readSignupBan } from "@/lib/client-bot/signup-ban";
+import { readClientLiveState } from "@/lib/client-tma/live-state";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +28,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "not_found", message: "Турнир не найден." }, { status: 404 });
   }
 
-  const [signupCounts, mySignups, invitation, passHolds, bannedUntil] = await Promise.all([
+  const now = new Date();
+  const [signupCounts, mySignups, invitation, passHolds, bannedUntil, live] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
     getUserSignups(auth.supabase, auth.user.id),
     // Somebody may be waiting on this player to say they are coming as their +1.
@@ -30,6 +38,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Said on the screen rather than only in answer to a tap: a player barred from
     // signing up should read why before they try, not after.
     readSignupBan(auth.supabase, auth.user.id),
+    // The game under way rides along with its own poster, as it does with the board: the
+    // page would otherwise draw the evening as a quiet one until the phone's next beat, a
+    // minute after it opened. Only tonight's poster asks — no other has a game to follow.
+    isEventEveningOpen(event, now)
+      ? readClientLiveState(auth.supabase, { includeLevels: true }).catch((error) => {
+          // The poster is the point of this screen; a missing card is not worth losing it.
+          console.error("Failed to read the live tournament state", error);
+          return null;
+        })
+      : null,
   ]);
 
   const mySignup = mySignups.find((signup) => signup.eventId === event.id) ?? null;
@@ -49,6 +67,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       partnerName: mySignup?.duoPartnerName ?? null,
       // Asked by name, so a status added later cannot fall through as a ticket.
       signedUp: holdsTicket(mySignup?.status),
+      // The desk has sat them down — they may be out already: the seat is being played
+      // in, and the screen stops offering to give it back.
+      cancellationClosed: isCancellationClosed(mySignup?.status),
       // Their place went to somebody in the queue. Said out loud on the screen: the
       // player is neither signed up nor free to sign up again while the room is full.
       seatGivenAway: mySignup?.status === "no_show",
@@ -64,7 +85,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       // right beside it.
       waitlistOfferExpiresAt:
         mySignup?.status === "waitlist" &&
-        waitlistOfferIsLive(mySignup.waitlistOfferExpiresAt, new Date())
+        waitlistOfferIsLive(mySignup.waitlistOfferExpiresAt, now)
           ? mySignup.waitlistOfferExpiresAt
           : null,
       signupsCount: taken?.total ?? 0,
@@ -86,5 +107,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // another game is counted out, and named, so the screen can say where it went.
     freeEntries: countFreePasses(auth.user, passHolds, event.id),
     profileSubmitted: Boolean(auth.user.profile_submitted_at),
+    // The game being played tonight, or null when this poster has none to follow.
+    live,
   });
 }

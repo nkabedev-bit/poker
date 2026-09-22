@@ -5,6 +5,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LiveTournamentCard } from "@/app/client/_components/live-tournament-card";
 import { LiveTables } from "@/app/client/_components/live-tables";
+import type { LiveTablePlayer } from "@/lib/tables/live-tables";
 import { SignupList } from "@/app/client/_components/signup-list";
 import type { LiveTournament } from "@/app/client/_components/use-live-tournament";
 
@@ -73,49 +74,70 @@ describe("LiveTournamentCard", () => {
 });
 
 describe("LiveTables", () => {
-  it("shows each table, who is still in at it and who went out from it", () => {
+  const seat = (overrides: Partial<LiveTablePlayer> & { id: string; name: string }) => ({
+    avatarUrl: null,
+    finishPlace: null,
+    isMe: false,
+    registrationNumber: 4,
+    seat: 2,
+    status: "active" as const,
+    ...overrides,
+  });
+
+  it("shows each table with who is still in at it, and the knocked-out after them", () => {
     render(
       <LiveTables
+        eliminated={[
+          seat({
+            finishPlace: 9,
+            id: "b",
+            name: "Выбыл",
+            registrationNumber: 7,
+            seat: null,
+            status: "eliminated",
+          }),
+        ]}
         tables={[
-          {
-            activeCount: 1,
-            number: 1,
-            players: [
-              {
-                avatarUrl: null,
-                finishPlace: null,
-                id: "a",
-                isMe: false,
-                name: "Играет",
-                registrationNumber: 4,
-                seat: 2,
-                status: "active",
-              },
-              {
-                avatarUrl: null,
-                finishPlace: 9,
-                id: "b",
-                isMe: false,
-                name: "Выбыл",
-                registrationNumber: 7,
-                seat: 5,
-                status: "eliminated",
-              },
-            ],
-          },
+          { number: 1, players: [seat({ id: "a", name: "Играет" })] },
+          { number: 2, players: [seat({ id: "c", name: "За вторым", registrationNumber: 5, seat: 6 })] },
         ]}
       />,
     );
 
     expect(screen.getByText("Стол 1")).toBeTruthy();
-    expect(screen.getByText("1 из 2")).toBeTruthy();
-    expect(screen.getByText("Играет")).toBeTruthy();
+    expect(screen.getByText("Стол 2")).toBeTruthy();
     expect(screen.getByText("#4 · место 2")).toBeTruthy();
-    expect(screen.getByText("9 место")).toBeTruthy();
+    expect(screen.getByText("#5 · место 6")).toBeTruthy();
+    expect(screen.getByText("Вылетели")).toBeTruthy();
+    expect(screen.getByText("вылетел")).toBeTruthy();
+    expect(screen.getByText("#7")).toBeTruthy();
+
+    // The busted come last, after every table, rather than inside the one they left.
+    const names = screen.getAllByText(/^(Играет|За вторым|Выбыл)$/).map((node) => node.textContent);
+    expect(names).toEqual(["Играет", "За вторым", "Выбыл"]);
+  });
+
+  it("greys out the knocked-out and leaves those still in as they are", () => {
+    render(
+      <LiveTables
+        eliminated={[seat({ id: "b", name: "Выбыл", seat: null, status: "eliminated" })]}
+        tables={[{ number: 1, players: [seat({ id: "a", name: "Играет" })] }]}
+      />,
+    );
+
+    expect(screen.getByText("Выбыл").className).toContain("text-white/40");
+    expect(screen.getByText("Играет").className).not.toContain("text-white/40");
+  });
+
+  it("draws no list of the knocked-out while everybody is still in", () => {
+    render(<LiveTables eliminated={[]} tables={[{ number: 1, players: [seat({ id: "a", name: "Играет" })] }]} />);
+
+    expect(screen.queryByText("Вылетели")).toBeNull();
+    expect(screen.queryByText("вылетел")).toBeNull();
   });
 
   it("says plainly when nobody has sat down yet", () => {
-    render(<LiveTables tables={[]} />);
+    render(<LiveTables eliminated={[]} tables={[]} />);
 
     expect(screen.getByText("Игроков за столами пока нет.")).toBeTruthy();
   });

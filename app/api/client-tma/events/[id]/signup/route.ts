@@ -18,6 +18,7 @@ import { claimEventSignup, SIGNUP_PASS_HELD } from "@/lib/events/claim-signup";
 import {
   formatEventDayLabel,
   holdsTicket,
+  isCancellationClosed,
   isEventTicketType,
   isUpcomingEvent,
   passMatchesTicket,
@@ -362,6 +363,15 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
   const mine = (await getUserSignups(auth.supabase, auth.user.id)).find(
     (signup) => signup.eventId === id,
   );
+
+  // Asked of the server too, not only hidden on the screen: a page opened before the
+  // desk sat the player down still carries the button.
+  if (isCancellationClosed(mine?.status)) {
+    return NextResponse.json(
+      { error: "already_seated", message: "Вы уже в турнире — отменить запись нельзя." },
+      { status: 409 },
+    );
+  }
 
   const { error } = await auth.supabase
     .from("event_signups")

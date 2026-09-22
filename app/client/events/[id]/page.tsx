@@ -33,8 +33,9 @@ import { LiveTables } from "../../_components/live-tables";
 import { SignupList } from "../../_components/signup-list";
 import { LiveTournamentCard } from "../../_components/live-tournament-card";
 import { useLiveTournament } from "../../_components/use-live-tournament";
-import type { LiveTable } from "@/lib/tables/live-tables";
+import type { LiveRoom } from "@/lib/tables/live-tables";
 import type { SignupListEntry } from "@/lib/events/signup-list";
+import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
 
 type FreePassChoice = "none" | "regular" | "vip";
 
@@ -46,6 +47,8 @@ type HeldTicket = TicketType | "duo_plus_one";
 type DuoInviteLinks = { telegram: string | null; web: string | null };
 
 type EventDetails = TournamentEvent & {
+  /** The desk has sat them down (they may be out already): the ticket is no longer theirs to give back. */
+  cancellationClosed: boolean;
   /** The two ways to open the "1+1" invitation, while nobody has taken it up. */
   inviteLinks?: DuoInviteLinks;
   inviteToken?: string | null;
@@ -147,7 +150,11 @@ export default function ClientEventPage() {
   const [signups, setSignups] = useState<{ players: SignupListEntry[]; waitlist: SignupListEntry[] }>(
     { players: [], waitlist: [] },
   );
-  const [tables, setTables] = useState<LiveTable[]>([]);
+  // Null until the room has been read once, so an empty room is never drawn in its place.
+  const [room, setRoom] = useState<LiveRoom | null>(null);
+  // The game under way as the page was served with it, so the card and the tables are
+  // there on the first paint rather than a beat later.
+  const [servedLive, setServedLive] = useState<ClientLiveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [answering, setAnswering] = useState(false);
@@ -197,6 +204,7 @@ export default function ClientEventPage() {
         });
         setInvite(data.duoInvite ?? null);
         setSignupBan(data.signupBan ?? null);
+        setServedLive(data.live ?? null);
       }
     } finally {
       setLoading(false);
@@ -244,7 +252,7 @@ export default function ClientEventPage() {
   // Whether this evening is still ahead of the club: a poster whose game has been
   // played is history, and "кто идёт" reads as a lie under it.
   const stillAhead = event ? isUpcomingEvent(event, new Date()) : false;
-  const { live } = useLiveTournament({ enabled: playingToday, initData });
+  const { live } = useLiveTournament({ enabled: playingToday, initData, initial: servedLive });
   const activePlayers = live?.activePlayers ?? null;
 
   const loadTables = useCallback(async () => {
@@ -254,8 +262,8 @@ export default function ClientEventPage() {
       });
       if (!res.ok) return;
 
-      const data = (await res.json()) as { tables?: LiveTable[] };
-      setTables(data.tables ?? []);
+      const data = (await res.json()) as Partial<LiveRoom>;
+      setRoom({ eliminated: data.eliminated ?? [], tables: data.tables ?? [] });
     } catch {
       // The seating is a bonus on this screen; the ticket is what it is for.
     }
@@ -594,15 +602,19 @@ export default function ClientEventPage() {
         </div>
       </div>
 
+      {/* Once the cards are in the air the room takes the place of the sign-up list: who
+          is still in, table by table, and who has already gone out. */}
       {live ? (
         <section className="space-y-2">
           <LiveTournamentCard live={live} />
-          <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
-          <LiveTables tables={tables} />
+          {room ? (
+            <>
+              <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
+              <LiveTables eliminated={room.eliminated} tables={room.tables} />
+            </>
+          ) : null}
         </section>
-      ) : null}
-
-      {(stillAhead || live) && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
+      ) : stillAhead && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
         <section className="space-y-2">
           <h2 className="text-[19px] font-bold tracking-tight">
             Кто идёт
@@ -923,17 +935,22 @@ export default function ClientEventPage() {
               </span>
             ) : null}
           </div>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Отменить запись
-          </GhostButton>
-          {needsPartner ? (
-            <p className="px-2 text-center text-xs text-white/40">
-              Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
-            </p>
-          ) : (
-            <p className="px-2 text-center text-xs text-white/40">
-              Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
-            </p>
+          {/* Sat down at a table, or out already: the seat is being played in. */}
+          {event.cancellationClosed ? null : (
+            <>
+              <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+                Отменить запись
+              </GhostButton>
+              {needsPartner ? (
+                <p className="px-2 text-center text-xs text-white/40">
+                  Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
+                </p>
+              ) : (
+                <p className="px-2 text-center text-xs text-white/40">
+                  Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
+                </p>
+              )}
+            </>
           )}
         </div>
       ) : event.reservedTicket ? (

@@ -56,6 +56,20 @@ export function holdsTicket(status: EventSignupStatus | null | undefined) {
 }
 
 /**
+ * Whether it is too late for the player to give back the ticket they hold.
+ *
+ * Only once the desk has sat them down. From then on the seat is being played in — and
+ * a player who has already gone out keeps the mark, since busting never touches the
+ * sign-up — so giving it back would write a late cancellation against them and offer
+ * the queue a chair nobody left. Until then the ticket stays theirs to give back, even
+ * with the game under way: a player stuck on the road who says so frees the seat for
+ * somebody in the queue while late entry is still open.
+ */
+export function isCancellationClosed(status: EventSignupStatus | null | undefined) {
+  return status === "seated";
+}
+
+/**
  * Whether the club is holding a freed place for this player right now.
  *
  * The queue moves one at a time: a seat that comes free is offered to whoever has

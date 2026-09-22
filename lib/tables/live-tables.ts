@@ -9,15 +9,23 @@ export type LiveTablePlayer = {
   isMe: boolean;
   name: string;
   registrationNumber: number | null;
+  /** Null once they are out: the chair is somebody else's to take. */
   seat: number | null;
   status: "active" | "eliminated";
 };
 
 export type LiveTable = {
-  activeCount: number;
   /** Null for the players whose table nobody wrote down. */
   number: number | null;
+  /** Those still in at it, in seat order. */
   players: LiveTablePlayer[];
+};
+
+/** The room as a player in it sees it: who is still in at each table, and who is out. */
+export type LiveRoom = {
+  /** Everyone knocked out, the last one first. They no longer sit anywhere. */
+  eliminated: LiveTablePlayer[];
+  tables: LiveTable[];
 };
 
 type RosterPlayer = Pick<TournamentPlayer, "id" | "name" | "status"> & {
@@ -34,36 +42,34 @@ function optionalNumber(value: unknown) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
+/** A table reads the way it looks from the door: seat by seat. */
+function compareSeats(a: LiveTablePlayer, b: LiveTablePlayer) {
+  return (a.seat ?? Number.MAX_SAFE_INTEGER) - (b.seat ?? Number.MAX_SAFE_INTEGER);
+}
+
 /**
- * Where a player sits in their table's list.
- *
- * Those still playing come first, in seat order, so the table reads the way it looks
- * from the door. The knocked-out follow in the order they went out, the last one first
- * — that is the news, and the player who busted an hour ago is the footnote.
+ * The knocked-out in the order they went out, the last one first: that is the news, and
+ * the player who busted an hour ago is the footnote. The finishing place says it — the
+ * later a player went out, the better the place.
  */
-function compareTablePlayers(a: LiveTablePlayer, b: LiveTablePlayer) {
-  if (a.status !== b.status) return a.status === "active" ? -1 : 1;
-
-  if (a.status === "active") {
-    return (a.seat ?? Number.MAX_SAFE_INTEGER) - (b.seat ?? Number.MAX_SAFE_INTEGER);
-  }
-
+function compareKnockouts(a: LiveTablePlayer, b: LiveTablePlayer) {
   return (a.finishPlace ?? Number.MAX_SAFE_INTEGER) - (b.finishPlace ?? Number.MAX_SAFE_INTEGER);
 }
 
 /**
- * The room as a player in it sees it: every table, who is still in at it, and who went
- * out from it.
+ * The room as a player in it sees it: every table with who is still in at it, and
+ * everybody already out listed after them all.
  *
- * A knocked-out player keeps the table they were sitting at — the roster never clears
- * it — so the evening can be read back table by table rather than as one long list of
- * names. Somebody moved between tables is shown at the last one they sat at, which is
- * the only one the roster remembers.
+ * The question a player looks up from their own table to ask is who is still playing
+ * and where. A knocked-out player is no longer at any table — the roster remembers the
+ * chair they left, but somebody else may already be sitting in it — so they go to the
+ * end of the list rather than disappearing: the room would otherwise get shorter with
+ * nothing to show for it.
  *
  * Only players the club called by a number are here: a sign-up that never turned into
  * a ticket is not somebody anyone in the room could point at.
  */
-export function buildLiveTables(
+export function buildLiveRoom(
   players: RosterPlayer[],
   {
     findAvatar,
@@ -72,40 +78,48 @@ export function buildLiveTables(
     findAvatar?: (player: RosterPlayer) => string | null;
     isMe?: (player: RosterPlayer) => boolean;
   } = {},
-): LiveTable[] {
+): LiveRoom {
   const tables = new Map<number | null, LiveTablePlayer[]>();
+  const eliminated: LiveTablePlayer[] = [];
 
   for (const player of players) {
     const registrationNumber = optionalNumber(player.registrationNumber);
     if (registrationNumber === null) continue;
 
-    const table = optionalNumber(player.table);
-    const seated: LiveTablePlayer = {
+    const playing = player.status === "active";
+    const listed: LiveTablePlayer = {
       avatarUrl: findAvatar?.(player) ?? null,
       finishPlace: optionalNumber(player.finishPlace),
       id: player.id,
       isMe: isMe?.(player) ?? false,
       name: player.name,
       registrationNumber,
-      seat: optionalNumber(player.seat),
-      status: player.status === "active" ? "active" : "eliminated",
+      seat: playing ? optionalNumber(player.seat) : null,
+      status: playing ? "active" : "eliminated",
     };
 
-    const existing = tables.get(table);
-    if (existing) {
-      existing.push(seated);
+    if (!playing) {
+      eliminated.push(listed);
       continue;
     }
 
-    tables.set(table, [seated]);
+    const table = optionalNumber(player.table);
+    const seated = tables.get(table);
+    if (seated) {
+      seated.push(listed);
+      continue;
+    }
+
+    tables.set(table, [listed]);
   }
 
-  return [...tables.entries()]
-    .map(([number, seated]) => ({
-      activeCount: seated.filter((player) => player.status === "active").length,
-      number,
-      players: [...seated].sort(compareTablePlayers),
-    }))
-    // Tables in their own order, and the players nobody sat down last of all.
-    .sort((a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER));
+  return {
+    eliminated: eliminated.sort(compareKnockouts),
+    tables: [...tables.entries()]
+      .map(([number, seated]) => ({ number, players: seated.sort(compareSeats) }))
+      // Tables in their own order, and the players nobody sat down last of all.
+      .sort(
+        (a, b) => (a.number ?? Number.MAX_SAFE_INTEGER) - (b.number ?? Number.MAX_SAFE_INTEGER),
+      ),
+  };
 }
