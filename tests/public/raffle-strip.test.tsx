@@ -5,6 +5,7 @@ import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import type { Raffle } from "@/lib/raffle/raffle";
+import type { ReelKeyframe, ReelMotion } from "@/lib/raffle/reel-motion";
 
 const PHOTO = "https://club.example/faces/1.jpg";
 
@@ -197,5 +198,94 @@ describe("RaffleStrip", () => {
     expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
     expect(screen.getByText("Победил номер")).toBeTruthy();
     expect(screen.getByText("Бесплатная проходка на следующую игру")).toBeTruthy();
+  });
+});
+
+describe("RaffleStrip — how the reel runs", () => {
+  const CLICKS: ReelMotion = {
+    direction: "left",
+    firstStopCells: 3,
+    landingShift: 0.1,
+    style: "clicks",
+    travelCells: 40,
+  };
+
+  let animate: ReturnType<typeof vi.fn>;
+
+  /** Lets the faces load and the reel start. */
+  const startReel = () =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(100);
+    });
+
+  const animation = () =>
+    animate.mock.calls[0] as unknown as [ReelKeyframe[], { duration: number; fill: string }];
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    // jsdom has no animation engine; the browser on the hall's laptop does.
+    animate = vi.fn(() => ({ cancel: vi.fn() }));
+    Object.defineProperty(HTMLElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+      writable: true,
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    delete (HTMLElement.prototype as { animate?: unknown }).animate;
+  });
+
+  it("runs the draw's own motion for as long as the draw says", async () => {
+    stubPictures("loads");
+
+    render(<RaffleStrip raffle={{ ...DRAW, motion: CLICKS, spinSeconds: 12 }} />);
+    await startReel();
+
+    expect(animate).toHaveBeenCalledTimes(1);
+    const [keyframes, options] = animation();
+    // Off at speed, then three clicks, each after a pause on the card before.
+    expect(keyframes).toHaveLength(8);
+    expect(options).toEqual({ duration: 12_000, fill: "forwards" });
+  });
+
+  // Draws taken before there were five carry no motion.
+  it("runs an older draw the way the reel always ran", async () => {
+    stubPictures("loads");
+
+    render(<RaffleStrip raffle={DRAW} />);
+    await startReel();
+
+    const [keyframes, options] = animation();
+    expect(keyframes).toHaveLength(2);
+    expect(keyframes[0].easing).toBe("cubic-bezier(0.12, 0.72, 0.06, 1)");
+    expect(options.duration).toBe(10_000);
+  });
+
+  it("mirrors the reel for a draw run the other way", () => {
+    stubPictures("loads");
+
+    const { container } = render(
+      <RaffleStrip raffle={{ ...DRAW, motion: { ...CLICKS, direction: "right" } }} />,
+    );
+
+    expect(container.querySelector(".raffle-strip--reverse")).not.toBeNull();
+  });
+
+  it("stops the reel when the draw is taken off the screen", async () => {
+    const cancel = vi.fn();
+    animate.mockReturnValue({ cancel });
+    stubPictures("loads");
+
+    const { unmount } = render(<RaffleStrip raffle={DRAW} />);
+    await startReel();
+    unmount();
+
+    expect(cancel).toHaveBeenCalled();
   });
 });

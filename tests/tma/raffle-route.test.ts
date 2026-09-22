@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import { RAFFLE_WIN_MESSAGE, RAFFLE_WIN_NOTICE_DELAY_MS } from "@/lib/raffle/raffle";
+import {
+  MAX_REEL_SPIN_SECONDS,
+  readReelMotion,
+  REEL_STYLES,
+  type ReelMotion,
+} from "@/lib/raffle/reel-motion";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 const mocks = vi.hoisted(() => ({
@@ -11,8 +17,18 @@ const mocks = vi.hoisted(() => ({
   broadcastPublicState: vi.fn(),
   loadTournamentExtras: vi.fn(),
   notifyClientUser: vi.fn(),
+  /** The draw's own randomness: real, unless a test pins it. */
+  randomInt: vi.fn(),
+  realRandomInt: null as null | ((min: number, max: number) => number),
   requireTmaAuth: vi.fn(),
 }));
+
+vi.mock("crypto", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("crypto")>();
+  mocks.realRandomInt = (min, max) => actual.randomInt(min, max);
+  mocks.randomInt.mockImplementation(mocks.realRandomInt);
+  return { ...actual, randomInt: mocks.randomInt };
+});
 
 vi.mock("@/lib/tma/require-auth", () => ({ requireTmaAuth: mocks.requireTmaAuth }));
 vi.mock("@/lib/tournament-extras", () => ({ loadTournamentExtras: mocks.loadTournamentExtras }));
@@ -117,7 +133,11 @@ async function runDraw(kind: "regular" | "vip", only: TournamentPlayer, accounts
   return { body: await response.json(), response, supabase };
 }
 
-type StoredDraw = { faces?: Array<{ avatarUrl: string | null; name: string; number: number }> };
+type StoredDraw = {
+  faces?: Array<{ avatarUrl: string | null; name: string; number: number }>;
+  motion?: ReelMotion;
+  spinSeconds?: number;
+};
 
 /** The draw as it was written down, which is what the screen will run. */
 function storedDraw(supabase: ReturnType<typeof createSupabaseMock>): StoredDraw {
@@ -251,6 +271,60 @@ describe("POST /api/tma/raffle — the faces on the reel", () => {
     expect(storedDraw(supabase).faces).toEqual([
       { avatarUrl: null, name: "Игрок 9", number: 9 },
     ]);
+  });
+});
+
+describe("POST /api/tma/raffle — how the reel runs", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.adjustFreeEntries.mockResolvedValue({ after: 1, before: 0 });
+    mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    if (mocks.realRandomInt) mocks.randomInt.mockImplementation(mocks.realRandomInt);
+  });
+
+  // Picked with the result, so every screen in the hall plays the same run.
+  it("writes down how the reel travels with the draw", async () => {
+    const { supabase } = await runDraw("regular", player(4));
+    const stored = storedDraw(supabase);
+
+    expect(stored.motion).toBeDefined();
+    expect(readReelMotion(stored.motion)).toEqual(stored.motion);
+    expect(stored.spinSeconds).toBeLessThanOrEqual(MAX_REEL_SPIN_SECONDS);
+  });
+
+  // Pinned randomness picks the first run on the list; the regular draw already ran it.
+  it("never runs tonight's second draw the way the first one ran", async () => {
+    mocks.randomInt.mockImplementation(() => 0);
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [player(23)],
+        raffleHistory: [
+          {
+            id: "tonight-regular",
+            kind: "regular",
+            motion: { style: REEL_STYLES[0] },
+            numbers: [23],
+            prize: "granted",
+            spinSeconds: 10,
+            startedAt: "2026-09-22T19:30:00.000Z",
+            winnerName: "Игрок 23",
+            winnerNumber: 23,
+          },
+        ],
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    const response = await POST(request("vip"));
+
+    expect(response.status).toBe(200);
+    expect(storedDraw(supabase).motion?.style).not.toBe(REEL_STYLES[0]);
   });
 });
 

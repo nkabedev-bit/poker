@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import { buildRaffleReel, type Raffle, type RaffleFace } from "@/lib/raffle/raffle";
+import { buildReelKeyframes, readReelMotion } from "@/lib/raffle/reel-motion";
 
 /**
  * Long enough for the club's faces to arrive over the hall's wifi, short enough that
@@ -16,7 +17,8 @@ const PRELOAD_TIMEOUT_MS = 1500;
  * The winner was decided on the server; the reel is an animation that lands on it, so
  * the room sees one result and it cannot be argued with. Faces run past a needle in the
  * middle and stop with the winner under it — a player with no photo rides past as their
- * nickname, which is how the hall knows them anyway.
+ * nickname, which is how the hall knows them anyway. How the reel gets there — which way,
+ * how far, with which stops on the way — came with the draw, so every screen runs alike.
  *
  * Each draw gets a reel of its own. The screen refreshes its state while the reel is
  * turning — a poll, somebody knocked out at another table — and every refresh hands
@@ -32,7 +34,6 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
   // changes afterwards, and a copy that arrives mid-spin must not restart it.
   const [raffle] = useState(initialRaffle);
   const [settled, setSettled] = useState(false);
-  const [offset, setOffset] = useState(0);
   // Photos that were here before the reel moved. Only these ride as faces: one still on
   // its way — or one that never comes — rides past as the nickname, because a picture
   // appearing mid-flight reads as a broken screen.
@@ -53,10 +54,12 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
     [raffle.faces, raffle.numbers],
   );
 
+  // A draw taken before there were five runs the reel it always had.
+  const motion = useMemo(() => readReelMotion(raffle.motion), [raffle.motion]);
   const winnerIndex = Math.max(0, faces.findIndex((face) => face.number === raffle.winnerNumber));
   const reel = useMemo(
-    () => buildRaffleReel(faces.length, winnerIndex),
-    [faces.length, winnerIndex],
+    () => buildRaffleReel(faces.length, winnerIndex, motion.travelCells),
+    [faces.length, motion.travelCells, winnerIndex],
   );
   const cells = useMemo(
     () =>
@@ -70,17 +73,39 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
   useEffect(() => {
     let cancelled = false;
     let started = false;
+    let animation: Animation | null = null;
     const timers: number[] = [];
 
     const start = () => {
       const wrap = wrapRef.current;
-      const cell = stripRef.current?.children[reel.landingIndex] as HTMLElement | undefined;
-      if (cancelled || !wrap || !cell) return;
+      const strip = stripRef.current;
+      const cell = strip?.children[reel.landingIndex] as HTMLElement | undefined;
+      if (cancelled || !wrap || !strip || !cell) return;
 
-      // Measured off the winning cell itself. A width worked out from the stylesheet
-      // puts the needle beside the winner the day a gap or a font changes, and the room
-      // reads the face under the needle, not the panel underneath.
-      setOffset(cell.offsetLeft + cell.offsetWidth / 2 - wrap.clientWidth / 2);
+      // Measured off the cells themselves. A width worked out from the stylesheet puts
+      // the needle beside the winner the day a gap or a font changes, and the room reads
+      // the face under the needle, not the panel underneath. The needle stops wherever
+      // inside the winner's card the draw said — never on its edge.
+      const first = strip.children[0] as HTMLElement;
+      const second = strip.children[1] as HTMLElement | undefined;
+      const pitch = second ? Math.abs(second.offsetLeft - first.offsetLeft) : cell.offsetWidth;
+      const to = -(
+        cell.offsetLeft +
+        cell.offsetWidth * (0.5 + motion.landingShift) -
+        wrap.clientWidth / 2
+      );
+      const keyframes = buildReelKeyframes(motion, { pitch, seconds: raffle.spinSeconds, to });
+
+      if (typeof strip.animate === "function") {
+        animation = strip.animate(keyframes, {
+          duration: raffle.spinSeconds * 1000,
+          fill: "forwards",
+        });
+      } else {
+        // A browser without the animation engine is simply shown where the reel stops.
+        strip.style.transform = keyframes[keyframes.length - 1].transform;
+      }
+
       timers.push(
         window.setTimeout(() => setSettled(true), raffle.spinSeconds * 1000 + 200),
       );
@@ -121,9 +146,10 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
 
     return () => {
       cancelled = true;
+      animation?.cancel();
       timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [faces, raffle.spinSeconds, reel.landingIndex]);
+  }, [faces, motion, raffle.spinSeconds, reel.landingIndex]);
 
   return (
     <div className="raffle-overlay">
@@ -134,13 +160,13 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
 
         <div className="raffle-strip-wrap" ref={wrapRef}>
           <span className="raffle-needle" />
+          {/* Run the other way, the reel is mirrored: it starts where it stands either way,
+              and the same run lands on the same card. */}
           <div
-            className="raffle-strip"
+            className={
+              motion.direction === "right" ? "raffle-strip raffle-strip--reverse" : "raffle-strip"
+            }
             ref={stripRef}
-            style={{
-              transform: `translate3d(${-offset}px, 0, 0)`,
-              transitionDuration: `${raffle.spinSeconds}s`,
-            }}
           >
             {cells.map((face, index) => {
               const photo =

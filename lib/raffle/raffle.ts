@@ -1,5 +1,6 @@
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { CLASSIC_TRAVEL_CELLS, type ReelMotion } from "@/lib/raffle/reel-motion";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export type RaffleKind = "regular" | "vip";
@@ -36,6 +37,11 @@ export type Raffle = {
   /** A new id per spin, so a screen that reloads mid-spin does not replay the old one. */
   id: string;
   kind: RaffleKind;
+  /**
+   * How the reel travels to the winner, picked with the result so every screen plays the
+   * same run. Missing on draws taken before there were five, which run the classic reel.
+   */
+  motion?: ReelMotion;
   numbers: number[];
   prize: RafflePrize;
   spinSeconds: number;
@@ -44,47 +50,43 @@ export type Raffle = {
   winnerNumber: number;
 };
 
-/** The reel runs for this long before the needle settles. */
-export const RAFFLE_SPIN_SECONDS = 10;
-
 /**
  * How long after the draw the winner hears about it from the bot.
  *
  * The message must not beat the reel. A screen whose live connection is down picks the
  * draw up only on its 45-second poll, then waits up to a second and a half for the faces
- * and turns for ten more: a minute lets the room see the winner before their phone does.
+ * and turns for up to `MAX_REEL_SPIN_SECONDS` more: a minute lets the room see the winner
+ * before their phone does.
  */
 export const RAFFLE_WIN_NOTICE_DELAY_MS = 60_000;
 
-/**
- * How far the reel runs before it settles, counted in faces.
- *
- * Far enough that the first seconds are a blur, and no further: every cell past this is
- * one more the laptop driving the television has to draw, and the run is a ten-second
- * ease-out — a longer reel does not read as a longer spin, only as a faster one.
- */
-const REEL_TRAVEL_CELLS = 45;
-
-/** What is left to the right of the needle when it stops, so the screen is not half bare. */
+/** What is left beyond the needle when it stops, so the screen is not half bare. */
 const REEL_TAIL_CELLS = 10;
 
 /**
  * How the reel is built: which face it starts on, how many cells long it is, and which
  * one the needle stops over.
  *
- * The run is the same length whoever wins and however big the club is. Rather than
- * lengthening the reel until it reaches the winner's copy, it is started at whichever
- * face puts the winner under the needle — the list order means nothing to the room, and
- * a reel that grows with the guest list is one the laptop has to draw.
+ * The run is as long as the draw's motion asks, whoever wins and however big the club
+ * is. Rather than lengthening the reel until it reaches the winner's copy, it is started
+ * at whichever face puts the winner under the needle — the list order means nothing to
+ * the room, and a reel that grows with the guest list is one the laptop has to draw.
+ *
+ * A reel run the other way across the screen is the same reel mirrored, so it is built
+ * the same way.
  */
-export function buildRaffleReel(faces: number, winnerIndex: number) {
+export function buildRaffleReel(
+  faces: number,
+  winnerIndex: number,
+  travelCells: number = CLASSIC_TRAVEL_CELLS,
+) {
   const total = Math.max(1, faces);
 
   return {
-    landingIndex: REEL_TRAVEL_CELLS,
-    length: REEL_TRAVEL_CELLS + REEL_TAIL_CELLS,
-    passes: Math.ceil((REEL_TRAVEL_CELLS + REEL_TAIL_CELLS) / total),
-    startOffset: (((winnerIndex - REEL_TRAVEL_CELLS) % total) + total) % total,
+    landingIndex: travelCells,
+    length: travelCells + REEL_TAIL_CELLS,
+    passes: Math.ceil((travelCells + REEL_TAIL_CELLS) / total),
+    startOffset: (((winnerIndex - travelCells) % total) + total) % total,
   };
 }
 

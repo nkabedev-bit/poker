@@ -3480,12 +3480,17 @@ p {
   background: linear-gradient(270deg, #0a0608, rgb(10 6 8 / 0));
 }
 
+/* Moved by the draw's own keyframes (lib/raffle/reel-motion.ts), not by a transition. */
 .raffle-strip {
   display: flex;
   gap: clamp(8px, 1vw, 18px);
   will-change: transform;
-  transition-property: transform;
-  transition-timing-function: cubic-bezier(0.12, 0.72, 0.06, 1);
+}
+
+/* The reel run the other way across the screen: laid out from the right edge, so it
+   starts where it stands and travels right. */
+.raffle-strip--reverse {
+  flex-direction: row-reverse;
 }
 
 .raffle-cell {

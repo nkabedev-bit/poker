@@ -11,13 +11,13 @@ import {
   getRaffleWeights,
   listRaffleEntrants,
   pickRaffleWinner,
-  RAFFLE_SPIN_SECONDS,
   RAFFLE_WIN_MESSAGE,
   RAFFLE_WIN_NOTICE_DELAY_MS,
   toRaffleEvening,
   type Raffle,
   type RaffleWinRecord,
 } from "@/lib/raffle/raffle";
+import { pickReelMotion } from "@/lib/raffle/reel-motion";
 
 export const dynamic = "force-dynamic";
 
@@ -114,6 +114,14 @@ export async function POST(request: Request) {
   // seated by the time it stops turning.
   const avatars = await loadPlayerAvatars(auth.supabase);
 
+  // How the reel travels to the winner, drawn with the result so every screen plays the
+  // same run — and never the way tonight's other draw ran.
+  const previousDraw = extras.raffleHistory[extras.raffleHistory.length - 1];
+  const { motion, spinSeconds } = pickReelMotion(
+    () => randomInt(0, 2 ** 31) / 2 ** 31,
+    previousDraw?.motion?.style ?? null,
+  );
+
   const raffle: Raffle = {
     faces: entrants.map((entrant) => ({
       avatarUrl: avatars.find({ name: entrant.name, telegramId: entrant.telegramId }).url,
@@ -122,11 +130,12 @@ export async function POST(request: Request) {
     })),
     id: crypto.randomUUID(),
     kind,
+    motion,
     numbers: entrants.map((entrant) => entrant.number),
     // A VIP prize is a certificate handed over at the table; a regular one is a free
     // entry, credited below once the draw itself is safely written down.
     prize: kind === "vip" ? "none" : "manual",
-    spinSeconds: RAFFLE_SPIN_SECONDS,
+    spinSeconds,
     startedAt: drawnAt.toISOString(),
     winnerName: winner.name,
     winnerNumber: winner.number,

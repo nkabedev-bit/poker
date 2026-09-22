@@ -41,6 +41,21 @@ describe("the reel the room watches", () => {
     expect(buildRaffleReel(4, 0).passes).toBeGreaterThan(buildRaffleReel(30, 0).passes);
   });
 
+  // Each draw runs a few cards further or shorter than the last; it still ends on the winner.
+  it("runs as far as the draw's motion says and still stops on the winner", () => {
+    for (const travel of [38, 45, 52]) {
+      const reel = buildRaffleReel(25, 7, travel);
+
+      expect(reel.landingIndex).toBe(travel);
+      expect((reel.landingIndex + reel.startOffset) % 25).toBe(7);
+      expect(reel.length - reel.landingIndex).toBeGreaterThanOrEqual(10);
+    }
+  });
+
+  it("stays short enough for the laptop on the longest run", () => {
+    expect(buildRaffleReel(30, 0, 52).length).toBeLessThan(70);
+  });
+
   it("survives a draw with nobody in it", () => {
     expect(() => buildRaffleReel(0, 0)).not.toThrow();
     expect(buildRaffleReel(0, 0).length).toBeGreaterThan(0);
