@@ -18,6 +18,7 @@ import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../layou
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { pickPlayerPhoto } from "@/lib/players/photo";
+import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
@@ -99,12 +100,17 @@ export default function ClientProfilePage() {
     setAvatarBusy(true);
 
     try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onerror = () => reject(new Error("read failed"));
-        reader.onload = () => resolve(String(reader.result ?? ""));
-        reader.readAsDataURL(file);
-      });
+      // Sent small: a camera photo runs to several megabytes, and a request over 4.5 MB
+      // is turned away before it reaches the club. One the browser cannot open goes as
+      // it is, and the server says what is wrong with it.
+      const dataUrl =
+        (await shrinkPhoto(file)) ??
+        (await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onerror = () => reject(new Error("read failed"));
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.readAsDataURL(file);
+        }));
 
       const res = await fetch("/api/client-tma/avatar", {
         method: "POST",
@@ -114,7 +120,13 @@ export default function ClientProfilePage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        showClientAlert(data?.error ?? "Не удалось сохранить фото");
+        // A 413 comes from Vercel rather than from us, so it carries no message of ours.
+        showClientAlert(
+          data?.error ??
+            (res.status === 413
+              ? "Фото слишком большое — выберите другое"
+              : "Не удалось сохранить фото"),
+        );
         return;
       }
 
