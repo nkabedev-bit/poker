@@ -27,6 +27,7 @@ import {
 import { describeAnnouncedSeats } from "@/lib/events/seats";
 import type { Reservation } from "@/lib/events/reservations";
 import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
+import { shrinkPhoto } from "@/lib/media/shrink-photo";
 
 type EventRow = TournamentEvent & {
   /** When a draft goes up by itself; null when it waits for the admin. */
@@ -38,6 +39,16 @@ type EventRow = TournamentEvent & {
 // the text the colour of whatever is behind it, and the field reads as empty.
 const textFieldClass =
   "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color,#fff)] p-3 text-[var(--tg-theme-text-color,#111)] placeholder:text-[var(--tg-theme-hint-color,#707579)] outline-none";
+
+/**
+ * The longest side of a poster sent. The server keeps no more than this anyway
+ * (LOGO_MAX_DIMENSION in lib/admin/logo-upload.ts — not imported: it pulls in sharp).
+ */
+const POSTER_MAX_SIDE = 1200;
+/** A shade higher than a profile photo's: the poster is shown full width. */
+const POSTER_QUALITY = 0.9;
+/** A 413 is Vercel's answer, not ours, so it carries no message of its own. */
+const POSTER_TOO_BIG = "Картинка афиши слишком большая — выберите файл поменьше";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
@@ -251,7 +262,9 @@ export default function TMAEventsPage() {
       const data = await res.json().catch(() => null);
 
       if (!res.ok) {
-        tg?.showAlert(data?.error ?? "Не удалось сохранить шаблон");
+        tg?.showAlert(
+          data?.error ?? (res.status === 413 ? POSTER_TOO_BIG : "Не удалось сохранить шаблон"),
+        );
         return;
       }
 
@@ -262,7 +275,16 @@ export default function TMAEventsPage() {
     }
   };
 
-  const pickPoster = (file: File) => {
+  const pickPoster = async (file: File) => {
+    // Shrunk on the phone: a poster straight from a camera or a designer runs to several
+    // megabytes, and a request over 4.5 MB is turned away before it reaches the club. A
+    // picture the browser cannot open goes as it is, and the server says what is wrong.
+    const shrunk = await shrinkPhoto(file, { maxSide: POSTER_MAX_SIDE, quality: POSTER_QUALITY });
+    if (shrunk) {
+      update({ posterDataUrl: shrunk });
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => update({ posterDataUrl: String(reader.result ?? "") });
     reader.readAsDataURL(file);
@@ -316,7 +338,9 @@ export default function TMAEventsPage() {
 
       const data = await res.json().catch(() => null);
       tg?.HapticFeedback.notificationOccurred("error");
-      tg?.showAlert(data?.error ?? "Не удалось сохранить афишу");
+      tg?.showAlert(
+        data?.error ?? (res.status === 413 ? POSTER_TOO_BIG : "Не удалось сохранить афишу"),
+      );
     } finally {
       setSaving(false);
     }
@@ -537,7 +561,7 @@ export default function TMAEventsPage() {
           type="file"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) pickPoster(file);
+            if (file) void pickPoster(file);
           }}
         />
         <button

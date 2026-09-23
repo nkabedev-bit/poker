@@ -67,6 +67,17 @@ describe("shrinkPhoto", () => {
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:photo");
   });
 
+  // A poster is kept larger than a profile photo, and a shade sharper.
+  it("draws a poster to the size and quality it asks for", async () => {
+    const dataUrl = await shrinkPhoto(new Blob(["poster"], { type: "image/png" }), {
+      maxSide: 1200,
+      quality: 0.9,
+    });
+
+    expect(dataUrl).toBe("data:image/jpeg;base64,1200x900");
+    expect(HTMLCanvasElement.prototype.toDataURL).toHaveBeenCalledWith("image/jpeg", 0.9);
+  });
+
   // The caller then sends the file as it is, and the server says what is wrong with it.
   it("hands back nothing when the browser cannot open the photo", async () => {
     opens = false;
