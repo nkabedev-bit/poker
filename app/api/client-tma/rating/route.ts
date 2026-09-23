@@ -68,11 +68,18 @@ export async function GET(request: Request) {
   const labels = (await loadCurrentTournamentContext(auth.supabase))?.extras.playerLabels;
 
   const myNickname = normalizeNickname(auth.user.display_name);
+  // One line is the player's own. The one with their Telegram id, when there is one; by
+  // nickname only when there is not — a web sign-in has no Telegram id, and games typed
+  // in by hand may carry none — and then never a line another account owns. Matching on
+  // either at once marked two lines "ВЫ" the evening two accounts were swapped.
+  const hasOwnLine = standings.some((standing) =>
+    isSameTelegramAccount(auth.user.telegram_id, standing.telegramId),
+  );
   const players = standings.map((standing) => {
     const nickname = normalizeNickname(standing.playerName);
-    const isMe =
-      isSameTelegramAccount(auth.user.telegram_id, standing.telegramId) ||
-      (Boolean(myNickname) && nickname === myNickname);
+    const isMe = hasOwnLine
+      ? isSameTelegramAccount(auth.user.telegram_id, standing.telegramId)
+      : !standing.telegramId && Boolean(myNickname) && nickname === myNickname;
 
     return {
       avatarUrl: isMe

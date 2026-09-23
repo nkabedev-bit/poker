@@ -41,6 +41,37 @@ export async function getOpenRegularSeason(supabase: SupabaseClient): Promise<Se
 }
 
 /**
+ * The nickname each account goes by today, by Telegram id — what a line in the table is
+ * called. A failure costs only the names: the table then stands on the nicknames its
+ * games were played under, which is what it always did.
+ */
+async function readAccountNames(
+  supabase: SupabaseClient,
+  telegramIds: Array<number | null>,
+): Promise<Map<number, string>> {
+  const ids = [...new Set(telegramIds.filter((id): id is number => Boolean(id)))];
+  if (ids.length === 0) return new Map();
+
+  const { data, error } = await supabase
+    .from("client_bot_users")
+    .select("telegram_id, display_name")
+    .in("telegram_id", ids);
+
+  if (error) {
+    console.error("Failed to read the players' current nicknames", error);
+    return new Map();
+  }
+
+  const names = new Map<number, string>();
+  for (const row of (data ?? []) as Array<{ display_name: string | null; telegram_id: number | null }>) {
+    const name = row.display_name?.trim();
+    if (row.telegram_id && name) names.set(row.telegram_id, name);
+  }
+
+  return names;
+}
+
+/**
  * Live standings of a season. A regular season holds the games stamped with it as they
  * finished; a parallel one holds every rating game played inside its dates.
  */
@@ -51,7 +82,9 @@ export async function computeSeasonStandings(
   let query = supabase
     .from("tournament_results")
     .select("telegram_id, player_name, points, knockouts")
-    .eq("counts_for_rating", true);
+    .eq("counts_for_rating", true)
+    // Oldest first: a line without an account name falls back to its latest game's.
+    .order("started_at");
 
   if (season.parallel) {
     // played_on comes from the moment a game started, so an evening that runs past
@@ -66,23 +99,26 @@ export async function computeSeasonStandings(
 
   if (error) throw error;
 
-  return buildSeasonStandings(
-    (data ?? []).map((row) => {
-      const record = row as {
-        knockouts: number | string | null;
-        player_name: string;
-        points: number | string | null;
-        telegram_id: number | null;
-      };
+  const rows = (data ?? []).map((row) => {
+    const record = row as {
+      knockouts: number | string | null;
+      player_name: string;
+      points: number | string | null;
+      telegram_id: number | null;
+    };
 
-      return {
-        knockouts: Number(record.knockouts ?? 0),
-        playerName: record.player_name,
-        points: Number(record.points ?? 0),
-        telegramId: record.telegram_id,
-      };
-    }),
+    return {
+      knockouts: Number(record.knockouts ?? 0),
+      playerName: record.player_name,
+      points: Number(record.points ?? 0),
+      telegramId: record.telegram_id,
+    };
+  });
+
+  return buildSeasonStandings(
+    rows,
     season.countedGames,
+    await readAccountNames(supabase, rows.map((row) => row.telegramId)),
   );
 }
 

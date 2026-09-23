@@ -56,10 +56,17 @@ export function mapSeasonRow(row: Record<string, unknown>): Season {
  * best games, a long one eight or all of them — because counting every game in a
  * two-month season rewards turning up over playing well, and counting five in a short
  * one throws most of it away.
+ *
+ * `rows` come oldest first. A line is one account, named the way the account is named
+ * now (`accountNames`, by Telegram id); without one it keeps the nickname of its latest
+ * game. Naming it after whichever game came back last once put a stranger's name on a
+ * player's line: two accounts were swapped for one evening, and the table showed the
+ * other player's nickname with this one's points.
  */
 export function buildSeasonStandings(
   rows: SeasonResultRow[],
   countedGames: number | null,
+  accountNames: ReadonlyMap<number, string> = new Map(),
 ): SeasonStanding[] {
   const byPlayer = new Map<string, SeasonResultRow[]>();
 
@@ -86,7 +93,7 @@ export function buildSeasonStandings(
         playerRows.reduce((total, row) => total + Math.max(0, row.knockouts), 0).toFixed(2),
       ),
       place: 0,
-      playerName: latest.playerName,
+      playerName: (latest.telegramId && accountNames.get(latest.telegramId)) || latest.playerName,
       points: Number(counted.reduce((total, row) => total + row.points, 0).toFixed(2)),
       telegramId: latest.telegramId,
     };

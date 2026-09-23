@@ -60,6 +60,23 @@ describe("buildSeasonStandings", () => {
     expect(standings[0]).toMatchObject({ games: 2, playerName: "Новый ник", points: 80 });
   });
 
+  // A line is the account, so it wears the account's nickname — not the name on
+  // whichever of its games happens to be the latest.
+  it("names an account's line by the nickname the account goes by now", () => {
+    const standings = buildSeasonStandings(
+      [
+        result(250, { playerName: "1$", telegramId: 887638103 }),
+        result(90, { playerName: "Mers cls 055", telegramId: 887638103 }),
+      ],
+      null,
+      new Map([[887638103, "1$"]]),
+    );
+
+    expect(standings).toEqual([
+      expect.objectContaining({ playerName: "1$", points: 340, telegramId: 887638103 }),
+    ]);
+  });
+
   it("tracks a guest without an account by name", () => {
     const standings = buildSeasonStandings(
       [

@@ -1,44 +1,88 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { mapSeasonRow } from "@/lib/seasons/season";
 import { computeSeasonStandings, getOpenRegularSeason } from "@/lib/seasons/store";
 
 type Filter = [operator: string, column: string, value: unknown];
 type Rows = Array<Record<string, unknown>>;
 
+type Answer = { data: Rows | null; error: unknown };
+
 type QuerySpy = {
   eq(column: string, value: unknown): QuerySpy;
   gte(column: string, value: unknown): QuerySpy;
+  in(column: string, values: unknown[]): QuerySpy;
   lte(column: string, value: unknown): QuerySpy;
+  order(column: string): QuerySpy;
   select(columns: string): QuerySpy;
-  then<T>(resolve: (result: { data: Rows; error: null }) => T): Promise<T>;
+  then<T>(resolve: (result: Answer) => T): Promise<T>;
 };
 
-/** One table: answers with the rows it is given and remembers how it was filtered. */
-function supabaseSpy(rows: Rows) {
-  const filters: Filter[] = [];
+/** A table that answers with what it is given and tells `record` how it was asked. */
+function tableSpy(answer: Answer, record: (step: Filter) => void) {
   const query: QuerySpy = {
     eq(column, value) {
-      filters.push(["eq", column, value]);
+      record(["eq", column, value]);
       return query;
     },
     gte(column, value) {
-      filters.push(["gte", column, value]);
+      record(["gte", column, value]);
+      return query;
+    },
+    in(column, values) {
+      record(["in", column, values]);
       return query;
     },
     lte(column, value) {
-      filters.push(["lte", column, value]);
+      record(["lte", column, value]);
+      return query;
+    },
+    order(column) {
+      record(["order", column, undefined]);
       return query;
     },
     select() {
       return query;
     },
     then(resolve) {
-      return Promise.resolve({ data: rows, error: null }).then(resolve);
+      return Promise.resolve(answer).then(resolve);
     },
   };
 
-  return { filters, supabase: { from: () => query } as unknown as SupabaseClient };
+  return query;
+}
+
+/**
+ * The games table answers with `rows` and remembers how it was filtered; the accounts
+ * table answers with `accounts`, for the nicknames the lines are named by.
+ */
+function supabaseSpy(
+  rows: Rows,
+  { accounts = [], accountsError = null }: { accounts?: Rows; accountsError?: unknown } = {},
+) {
+  const filters: Filter[] = [];
+  const orderedBy: string[] = [];
+  const accountLookups: unknown[] = [];
+
+  const games = tableSpy({ data: rows, error: null }, ([operator, column, value]) => {
+    if (operator === "order") orderedBy.push(column);
+    else filters.push([operator, column, value]);
+  });
+  const accountsTable = tableSpy(
+    accountsError ? { data: null, error: accountsError } : { data: accounts, error: null },
+    ([operator, , value]) => {
+      if (operator === "in") accountLookups.push(value);
+    },
+  );
+
+  return {
+    accountLookups,
+    filters,
+    orderedBy,
+    supabase: {
+      from: (table: string) => (table === "client_bot_users" ? accountsTable : games),
+    } as unknown as SupabaseClient,
+  };
 }
 
 const apc = mapSeasonRow({
@@ -102,6 +146,65 @@ describe("computeSeasonStandings", () => {
       ["eq", "counts_for_rating", true],
       ["eq", "season_id", "autumn"],
     ]);
+  });
+});
+
+describe("computeSeasonStandings — naming the lines", () => {
+  // A line falls back to its latest game's nickname, so "latest" has to mean something.
+  it("asks for the games oldest first", async () => {
+    const { orderedBy, supabase } = supabaseSpy([]);
+
+    await computeSeasonStandings(supabase, apc);
+
+    expect(orderedBy).toEqual(["started_at"]);
+  });
+
+  // 15.09.2026: two accounts were swapped for one evening, and the table put the other
+  // player's nickname on 1$'s line.
+  it("names each line after the nickname its account goes by now", async () => {
+    const { accountLookups, supabase } = supabaseSpy(
+      [
+        { knockouts: 2, player_name: "1$", points: 250, telegram_id: 887638103 },
+        { knockouts: 0, player_name: "Mers cls 055", points: 90, telegram_id: 887638103 },
+      ],
+      { accounts: [{ display_name: "1$", telegram_id: 887638103 }] },
+    );
+
+    const standings = await computeSeasonStandings(supabase, apc);
+
+    expect(accountLookups).toEqual([[887638103]]);
+    expect(standings).toEqual([
+      { games: 2, knockouts: 2, place: 1, playerName: "1$", points: 340, telegramId: 887638103 },
+    ]);
+  });
+
+  it("keeps a guest without an account under the name they played under", async () => {
+    const { accountLookups, supabase } = supabaseSpy([
+      { knockouts: 0, player_name: "Гость Вася", points: 40, telegram_id: null },
+    ]);
+
+    const standings = await computeSeasonStandings(supabase, apc);
+
+    expect(accountLookups).toEqual([]);
+    expect(standings[0]).toMatchObject({ playerName: "Гость Вася", telegramId: null });
+  });
+
+  // The names are a courtesy; the table itself must still stand.
+  it("falls back to the latest game's nickname when the accounts cannot be read", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const { supabase } = supabaseSpy(
+      [
+        { knockouts: 0, player_name: "Старый ник", points: 50, telegram_id: 7 },
+        { knockouts: 0, player_name: "kabedev", points: 30, telegram_id: 7 },
+      ],
+      { accountsError: { message: "permission denied" } },
+    );
+
+    const standings = await computeSeasonStandings(supabase, apc);
+
+    expect(standings[0]).toMatchObject({ playerName: "kabedev", points: 80 });
+    expect(logged).toHaveBeenCalled();
+    logged.mockRestore();
   });
 });
 
