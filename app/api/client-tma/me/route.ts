@@ -144,6 +144,8 @@ export async function GET(request: Request) {
       bestMissStreak: stats.bestMissStreak,
       bestTop9Streak: stats.bestTop9Streak,
       bestTournamentBounty: stats.bestTournamentBounty,
+      cleanPodiums: stats.cleanPodiums,
+      comebackWins: stats.comebackWins,
       eliminations: stats.eliminations,
       games: stats.games,
       lastPlace,
