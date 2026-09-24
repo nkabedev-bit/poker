@@ -163,6 +163,30 @@ export function countEarnedAchievements(achievements: Achievement[]) {
   return achievements.filter((achievement) => achievement.earned).length;
 }
 
+/** The achievement behind an address, or null for one the club does not hand out. */
+export function findAchievement(id: string) {
+  return getAchievements(EMPTY_PLAYER_STATS).find((achievement) => achievement.id === id) ?? null;
+}
+
+/** How many of the club's players hold each achievement, out of everyone who has played. */
+export type AchievementRarity = { holders: Record<string, number>; players: number };
+
+/** Share of the club's players holding an achievement, as Steam and PlayStation show it. */
+export function formatRarityPercent(holders: number, players: number) {
+  const percent = players > 0 ? (holders / players) * 100 : 0;
+
+  // One holder among thousands still holds it; rounding them away to 0% would say otherwise.
+  if (holders > 0 && percent < 0.1) return "<0,1%";
+
+  return `${percent.toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
+}
+
+export function formatAchievementRarity(holders: number, players: number) {
+  return holders > 0 && players > 0
+    ? `Есть у ${formatRarityPercent(holders, players)} игроков`
+    : "Пока ни у кого";
+}
+
 export const ACHIEVEMENTS_TOTAL = ACHIEVEMENT_SECTIONS.reduce(
   (total, section) => total + section.items.length,
   0,

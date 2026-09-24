@@ -5,6 +5,7 @@ import { Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { LoadingScreen } from "../_components/ui";
 import { AchievementCard } from "../_components/award-cards";
+import { useAchievementRarity } from "../_components/use-achievement-rarity";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
@@ -16,6 +17,7 @@ export default function ClientAchievementsPage() {
   const { initData } = useClientTMA();
   const [stats, setStats] = useState<PlayerStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const rarity = useAchievementRarity(initData);
 
   const load = useCallback(async () => {
     try {
@@ -71,7 +73,7 @@ export default function ClientAchievementsPage() {
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {section.achievements.map((achievement) => (
-              <AchievementCard key={achievement.id} achievement={achievement} />
+              <AchievementCard key={achievement.id} achievement={achievement} rarity={rarity} />
             ))}
           </div>
         </section>

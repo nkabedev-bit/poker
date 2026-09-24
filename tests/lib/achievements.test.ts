@@ -3,6 +3,9 @@ import {
   ACHIEVEMENTS_TOTAL,
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
+  findAchievement,
+  formatAchievementRarity,
+  formatRarityPercent,
   getAchievementSections,
   getAchievements,
   type PlayerStats,
@@ -109,5 +112,33 @@ describe("achievements", () => {
 
     expect(all.some((item) => item.title === "Лицо Majestic")).toBe(true);
     expect(all.some((item) => item.title.includes("Magnum"))).toBe(false);
+  });
+
+  it("finds an achievement by its address, and nothing for one the club does not have", () => {
+    expect(findAchievement("title-collector")).toMatchObject({
+      description: "3 победы",
+      goal: 3,
+      title: "Коллекционер титулов",
+    });
+    expect(findAchievement("free-drinks")).toBeNull();
+  });
+});
+
+describe("achievement rarity", () => {
+  it("reads as a share of the club's players, with a decimal comma", () => {
+    expect(formatAchievementRarity(1, 8)).toBe("Есть у 12,5% игроков");
+    expect(formatAchievementRarity(10, 100)).toBe("Есть у 10% игроков");
+    expect(formatAchievementRarity(1, 3)).toBe("Есть у 33,3% игроков");
+    expect(formatAchievementRarity(7, 7)).toBe("Есть у 100% игроков");
+  });
+
+  it("says nobody holds it yet rather than showing 0%", () => {
+    expect(formatAchievementRarity(0, 120)).toBe("Пока ни у кого");
+    expect(formatAchievementRarity(0, 0)).toBe("Пока ни у кого");
+  });
+
+  it("never rounds a real holder away to nothing", () => {
+    expect(formatRarityPercent(1, 5000)).toBe("<0,1%");
+    expect(formatRarityPercent(0, 5000)).toBe("0%");
   });
 });
