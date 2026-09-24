@@ -1,19 +1,32 @@
 /**
- * The first VIP number, and the whole of what makes a number a VIP one.
+ * The numbers of one evening, which are the players it can hold.
  *
- * The range has no upper end. It used to be 21-30 — ten numbers for the ten chairs of a
- * VIP table — and that ceiling turned out to be the wrong shape twice over: the club
- * plays some evenings on nine-seat tables, and a VIP ticket sat at a regular table takes
- * a VIP number too, so the ten ran out while VIP chairs stood empty and the guest could
- * not be seated at all.
+ * A number is spoken for by whoever held it tonight — a player who busted is still in the
+ * draw and on the club's sheet — so an evening runs through its numbers as players come
+ * and go, not as chairs empty. The club sits 27 at a time, but busted players are
+ * replaced by latecomers and the waiting list, and more than thirty pass through in a
+ * night. So:
  *
- * Everything above 20 is VIP now, and there is always another number. Which holds
- * because the regular range is closed at 20 below.
+ *   regular tickets — 1 to 20, and 36 to 40 once those are gone;
+ *   VIP tickets     — 21 to 35;
+ *
+ * forty numbers, and forty players an evening at most. VIP is still "21 and up" the way
+ * the room has always read it; the regular overflow sits above the VIP range rather than
+ * inside it. The database hands out the same numbers (append_tournament_player).
  */
-export const VIP_REGISTRATION_NUMBER_MIN = 21;
+export const REGULAR_REGISTRATION_NUMBER_RANGES = [
+  [1, 20],
+  [36, 40],
+] as const;
 
-/** The last number a regular ticket may take: 1 to 20 is the whole of the regular range. */
-export const REGULAR_REGISTRATION_NUMBER_MAX = 20;
+export const VIP_REGISTRATION_NUMBER_RANGE = [21, 35] as const;
+
+export const VIP_REGISTRATION_NUMBER_MIN = VIP_REGISTRATION_NUMBER_RANGE[0];
+
+export const VIP_REGISTRATION_NUMBER_MAX = VIP_REGISTRATION_NUMBER_RANGE[1];
+
+/** Every number there is: nobody past the fortieth player can be called by one. */
+export const REGISTRATION_NUMBERS_PER_EVENING = 40;
 
 /** The club seats its VIP guests at the last of the three tables. */
 export const VIP_TABLE_NUMBER = 3;
@@ -39,7 +52,11 @@ export function shouldTakeVipNumber(
 
 export function isVipRegistrationNumber(registrationNumber?: number | null) {
   const value = Number(registrationNumber);
-  return Number.isInteger(value) && value >= VIP_REGISTRATION_NUMBER_MIN;
+  return (
+    Number.isInteger(value) &&
+    value >= VIP_REGISTRATION_NUMBER_MIN &&
+    value <= VIP_REGISTRATION_NUMBER_MAX
+  );
 }
 
 export function getPlayerCategory(registrationNumber?: number | null): PlayerCategory {

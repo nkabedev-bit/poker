@@ -9,9 +9,13 @@ vi.mock("@/lib/tournament-extras", () => ({
 }));
 
 const {
+  appendTournamentPlayerWithRegistrationNumber,
   appendUnseatedTournamentPlayer,
   applySeatingTicket,
+  buildNumbersExhaustedMessage,
+  buildRegistrationFullMessage,
   isRegularRegistrationNumbersExhaustedError,
+  isVipRegistrationNumbersExhaustedError,
   reissueRegistrationNumberForTicket,
 } = await import("@/lib/tournament-player-registration");
 
@@ -165,8 +169,8 @@ describe("seating a walk-in on the ticket they asked for", () => {
     expect(numbered?.registrationNumber).toBe(1);
   });
 
-  // The club keeps 21 to 30 for the VIP table, which is the whole reason the number
-  // waits for the ticket.
+  // The club keeps 21 to 35 for VIP tickets, which is the whole reason the number waits
+  // for the ticket.
   it("hands out a VIP number for a VIP ticket", async () => {
     const numbered = await applySeatingTicket({
       extras: extras({ players: [player({ table: 1 })] }),
@@ -313,8 +317,10 @@ describe("VIP numbers on a nine-seat night", () => {
     expect(numbered?.registrationNumber).toBe(22);
   });
 
-  it("refuses a twenty-first regular ticket in words the desk can act on", async () => {
-    const full = extras({
+  // Busted players keep their numbers, so a long evening runs past 1–20: the next regular
+  // ticket goes above the VIP range rather than into it.
+  it("gives the twenty-first regular ticket number 36", async () => {
+    const crowded = extras({
       players: [
         ...Array.from({ length: 20 }, (_, index) =>
           player({ id: `regular-${index}`, registrationNumber: index + 1, ticketType: "regular" }),
@@ -323,15 +329,63 @@ describe("VIP numbers on a nine-seat night", () => {
       ],
     });
 
-    await expect(
-      applySeatingTicket({
-        extras: full,
-        playerId: "walk-in",
-        redirectTo: "/tma/players",
-        supabase,
-        ticketType: "regular",
-      }),
-    ).rejects.toSatisfy(isRegularRegistrationNumbersExhaustedError);
+    const numbered = await applySeatingTicket({
+      extras: crowded,
+      playerId: "walk-in",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "regular",
+    });
+
+    expect(numbered?.registrationNumber).toBe(36);
+  });
+
+  it("refuses a regular ticket once 1–20 and 36–40 are all out, in words the desk can act on", async () => {
+    const full = extras({
+      players: [
+        ...[...Array.from({ length: 20 }, (_, index) => index + 1), 36, 37, 38, 39, 40].map(
+          (number) => player({ id: `regular-${number}`, registrationNumber: number, ticketType: "regular" }),
+        ),
+        player({ table: 1 }),
+      ],
+    });
+
+    const refusal = applySeatingTicket({
+      extras: full,
+      playerId: "walk-in",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "regular",
+    });
+
+    await expect(refusal).rejects.toSatisfy(isRegularRegistrationNumbersExhaustedError);
+    expect(buildNumbersExhaustedMessage(await refusal.catch((error) => error))).toBe(
+      "Обычные номера 1–20 и 36–40 закончились. Посадите игрока по VIP-билету или освободите номер",
+    );
+  });
+
+  it("refuses a sixteenth VIP ticket, sending the desk to a regular number", async () => {
+    const full = extras({
+      players: [
+        ...Array.from({ length: 15 }, (_, index) =>
+          player({ id: `vip-${index}`, registrationNumber: index + 21, ticketType: "vip" }),
+        ),
+        player({ table: 1 }),
+      ],
+    });
+
+    const refusal = applySeatingTicket({
+      extras: full,
+      playerId: "walk-in",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "vip",
+    });
+
+    await expect(refusal).rejects.toSatisfy(isVipRegistrationNumbersExhaustedError);
+    expect(buildNumbersExhaustedMessage(await refusal.catch((error) => error))).toBe(
+      "VIP-номера 21–35 закончились. Посадите игрока по обычному билету или освободите номер",
+    );
   });
 });
 
@@ -383,8 +437,8 @@ describe("a player who changes tickets mid-evening", () => {
       tournamentId: "tournament-1",
     });
 
-    // Every regular number but the one just given back is taken, so the next regular
-    // ticket has nothing left — rather than being handed number 1 a second time.
+    // Every number of 1–20 but the one just given back is taken, so the next regular
+    // ticket moves on to 36 — rather than being handed number 1 a second time.
     const crowded = extras({
       players: [
         upgraded!,
@@ -395,15 +449,15 @@ describe("a player who changes tickets mid-evening", () => {
       ],
     });
 
-    await expect(
-      applySeatingTicket({
-        extras: crowded,
-        playerId: "next",
-        redirectTo: "/tma/players",
-        supabase,
-        ticketType: "regular",
-      }),
-    ).rejects.toSatisfy(isRegularRegistrationNumbersExhaustedError);
+    const next = await applySeatingTicket({
+      extras: crowded,
+      playerId: "next",
+      redirectTo: "/tma/players",
+      supabase,
+      ticketType: "regular",
+    });
+
+    expect(next?.registrationNumber).toBe(36);
   });
 
   // Sitting a VIP guest at a regular table is not a change of ticket, and their number
@@ -439,5 +493,76 @@ describe("a player who changes tickets mid-evening", () => {
 
     expect(numbered?.registrationNumber).toBe(21);
     expect(numbered?.previousRegistrationNumbers).toEqual([]);
+  });
+});
+
+describe("an evening that has run through its numbers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.saveTournamentExtras.mockResolvedValue(undefined);
+  });
+
+  // Chairs stand empty — most of the forty have busted — but every number of the evening
+  // has been called, and a forty-first player could not be called by any.
+  it("refuses the forty-first player of the evening, whatever chairs stand empty", async () => {
+    const evening = extras({
+      players: Array.from({ length: 40 }, (_, index) =>
+        player({
+          id: `player-${index}`,
+          registrationNumber: index + 1,
+          status: index < 30 ? "eliminated" : "active",
+        }),
+      ),
+    });
+
+    const refusal = appendUnseatedTournamentPlayer({
+      extras: evening,
+      player: player({ id: "late" }),
+      redirectTo: "/tma/players",
+      supabase,
+    });
+
+    await expect(refusal).rejects.toMatchObject({ reason: "evening" });
+    expect(buildRegistrationFullMessage(await refusal.catch((error) => error), 0)).toBe(
+      "За вечер уже 40 игроков — номеров больше нет",
+    );
+    expect(mocks.saveTournamentExtras).not.toHaveBeenCalled();
+  });
+
+  it("reads the database's own ceiling as the evening's", async () => {
+    // supabase-js hands back its errors as Error instances.
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: new Error("Tournament capacity reached: 40 players registered"),
+    }));
+
+    await expect(
+      appendTournamentPlayerWithRegistrationNumber({
+        extras: extras(),
+        player: player({ table: 1 }),
+        publicToken: "token",
+        redirectTo: "/tma/players",
+        supabase: { rpc } as never,
+        tournamentId: "tournament-1",
+      }),
+    ).rejects.toMatchObject({ reason: "evening", registeredPlayersCount: 40 });
+  });
+
+  it("passes on the database's refusal of a sixteenth VIP ticket", async () => {
+    const rpc = vi.fn(async () => ({
+      data: null,
+      error: { message: "VIP registration numbers exhausted" },
+    }));
+
+    await expect(
+      appendTournamentPlayerWithRegistrationNumber({
+        extras: extras(),
+        player: player({ table: 1, ticketType: "vip" }),
+        publicToken: "token",
+        redirectTo: "/tma/players",
+        supabase: { rpc } as never,
+        tournamentId: "tournament-1",
+      }),
+    ).rejects.toSatisfy(isVipRegistrationNumbersExhaustedError);
   });
 });

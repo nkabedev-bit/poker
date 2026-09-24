@@ -6,9 +6,9 @@ import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
   appendUnseatedTournamentPlayer,
-  buildAdminRegistrationFullMessage,
-  buildRegularNumbersExhaustedMessage,
-  isRegularRegistrationNumbersExhaustedError,
+  buildNumbersExhaustedMessage,
+  buildRegistrationFullMessage,
+  isRegistrationNumbersExhaustedError,
   isTournamentRegistrationCapacityError,
   TournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
@@ -244,13 +244,13 @@ export async function POST(request: Request) {
         : extras.players.length;
 
       return NextResponse.json(
-        { error: buildAdminRegistrationFullMessage(registeredPlayersCount) },
+        { error: buildRegistrationFullMessage(error, registeredPlayersCount) },
         { status: 409 },
       );
     }
 
-    if (isRegularRegistrationNumbersExhaustedError(error)) {
-      return NextResponse.json({ error: buildRegularNumbersExhaustedMessage() }, { status: 409 });
+    if (isRegistrationNumbersExhaustedError(error)) {
+      return NextResponse.json({ error: buildNumbersExhaustedMessage(error) }, { status: 409 });
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";

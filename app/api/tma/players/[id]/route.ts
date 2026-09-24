@@ -3,8 +3,8 @@ import { removePlayerFromVipSheet, syncTournamentToSheets, syncVipSheet } from "
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { isSeatAtTable, isVipTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 import {
-  buildRegularNumbersExhaustedMessage,
-  isRegularRegistrationNumbersExhaustedError,
+  buildNumbersExhaustedMessage,
+  isRegistrationNumbersExhaustedError,
   reissueRegistrationNumberForTicket,
 } from "@/lib/tournament-player-registration";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
@@ -389,11 +389,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         tournamentId: t.id,
       });
     } catch (error) {
-      if (!isRegularRegistrationNumbersExhaustedError(error)) throw error;
+      if (!isRegistrationNumbersExhaustedError(error)) throw error;
 
       // The chair is already theirs; only the number could not be changed.
       return NextResponse.json(
-        { error: buildRegularNumbersExhaustedMessage(), player: seated },
+        { error: buildNumbersExhaustedMessage(error), player: seated },
         { status: 409 },
       );
     }

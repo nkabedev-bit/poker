@@ -21,18 +21,19 @@ describe("player registration number formatting", () => {
 });
 
 describe("VIP player category", () => {
-  it("marks every number above 20 as VIP", () => {
+  it("marks the numbers of the VIP range as VIP", () => {
     expect(getPlayerCategory(21)).toBe("VIP");
     expect(getPlayerCategory(25)).toBe("VIP");
     expect(getPlayerCategory(30)).toBe("VIP");
   });
 
-  // The old ceiling of 30 was ten numbers for a table the club sometimes plays with nine
-  // chairs — and a VIP ticket at a regular table takes one too. The eleventh VIP guest
-  // could not be seated at all; now there is always a next number.
-  it("keeps going past the ten the VIP table used to hold", () => {
-    expect(getPlayerCategory(31)).toBe("VIP");
-    expect(getPlayerCategory(48)).toBe("VIP");
+  // VIP runs 21 to 35, and the regular tickets that did not fit into 1–20 take 36 to 40:
+  // a regular guest past the twentieth must not be read as VIP for the draw or the sheet.
+  it("reads 21 to 35 as VIP and the regular overflow above it as Normal", () => {
+    expect(getPlayerCategory(21)).toBe("VIP");
+    expect(getPlayerCategory(35)).toBe("VIP");
+    expect(getPlayerCategory(36)).toBe("Normal");
+    expect(getPlayerCategory(40)).toBe("Normal");
   });
 
   it("leaves the regular range Normal", () => {

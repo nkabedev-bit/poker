@@ -10,8 +10,8 @@ import {
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import {
   applySeatingTicket,
-  buildRegularNumbersExhaustedMessage,
-  isRegularRegistrationNumbersExhaustedError,
+  buildNumbersExhaustedMessage,
+  isRegistrationNumbersExhaustedError,
 } from "@/lib/tournament-player-registration";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
 import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
@@ -150,9 +150,9 @@ export async function POST(request: Request) {
   } catch (error) {
     // The chair above is already written and stays written — same as a clashing card.
     // The desk is told which range ran dry so it can seat them on the other ticket.
-    if (!isRegularRegistrationNumbersExhaustedError(error)) throw error;
+    if (!isRegistrationNumbersExhaustedError(error)) throw error;
 
-    return NextResponse.json({ error: buildRegularNumbersExhaustedMessage() }, { status: 409 });
+    return NextResponse.json({ error: buildNumbersExhaustedMessage(error) }, { status: 409 });
   }
 
   if (!cardCode) {

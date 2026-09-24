@@ -182,7 +182,7 @@ function isVipPlayer(player: TournamentPlayer) {
   return isVipRegistrationNumber(player.registrationNumber);
 }
 
-// Names of players who registered as VIP (registration number 21-30 / table 3),
+// Names of players who registered as VIP (registration number 21–35 / table 3),
 // in registration order, de-duplicated.
 export function getVipPlayersForGame(players: TournamentPlayer[]) {
   const seen = new Set<string>();
