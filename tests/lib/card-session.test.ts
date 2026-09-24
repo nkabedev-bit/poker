@@ -73,4 +73,20 @@ describe("the card the desk works from", () => {
     // Printed on the desk's screen: a value no clock can read must not reach it.
     expect(buildCardSession(player({ paid: true, paidAt: "вчера" }), "", PRICES).paidAt).toBeNull();
   });
+
+  // The desk opens the questionnaire by the account to call a player who left owing.
+  it("carries the account the questionnaire is found by", () => {
+    const session = buildCardSession(
+      player({ accountId: "account-1", telegramId: 555 }),
+      "",
+      PRICES,
+    );
+
+    expect(session.accountId).toBe("account-1");
+    expect(session.telegramId).toBe(555);
+    expect(buildCardSession(player(), "", PRICES)).toMatchObject({
+      accountId: null,
+      telegramId: null,
+    });
+  });
 });

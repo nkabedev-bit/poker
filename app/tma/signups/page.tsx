@@ -24,6 +24,7 @@ import {
   type TableFormats,
 } from "../table-formats";
 import type { TournamentPlayer } from "@/lib/timer/types";
+import { ClientProfileCard } from "../client-profile-card";
 
 type Signup = {
   id: string;
@@ -41,20 +42,6 @@ type Signup = {
   usePass: "none" | "regular" | "vip";
   /** The account behind the sign-up, which is who the player is on either door. */
   userId: string;
-  username: string | null;
-};
-
-type Profile = {
-  agreementAccepted: boolean;
-  birthDate: string;
-  discoverySource: string;
-  displayName: string | null;
-  freeEntries: { regular: number; vip: number };
-  fullName: string;
-  notificationsConsent: boolean;
-  phone: string;
-  ratingConsent: boolean;
-  submittedAt: string | null;
   username: string | null;
 };
 
@@ -114,8 +101,6 @@ export default function TMASignupsPage() {
   const [seatingId, setSeatingId] = useState<string | null>(null);
   // The sign-up the admin opened: first their questionnaire, then the seating plan.
   const [opened, setOpened] = useState<Signup | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [seatChoice, setSeatChoice] = useState<SeatChoice | null>(null);
   const [seatingOpen, setSeatingOpen] = useState(false);
@@ -157,30 +142,14 @@ export default function TMASignupsPage() {
   useVisiblePolling(() => void load());
 
   /** Opens one sign-up: the questionnaire the player filled in when they joined. */
-  const openSignup = async (signup: Signup) => {
+  const openSignup = (signup: Signup) => {
     setOpened(signup);
-    setProfile(null);
     setSeatChoice(null);
     setSeatingOpen(false);
-    setProfileLoading(true);
-
-    try {
-      const res = await fetch(`/api/tma/client-profile?userId=${signup.userId}`, {
-        headers: { "X-Telegram-Init-Data": initData },
-      });
-
-      if (res.ok) {
-        const payload = await res.json();
-        setProfile(payload.profile ?? null);
-      }
-    } finally {
-      setProfileLoading(false);
-    }
   };
 
   const closeSignup = () => {
     setOpened(null);
-    setProfile(null);
     setSeatChoice(null);
     setSeatingOpen(false);
   };
@@ -551,52 +520,11 @@ export default function TMASignupsPage() {
           ) : null}
         </div>
 
-        {profileLoading ? (
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">Открываем анкету…</p>
-        ) : profile ? (
-          <div className="space-y-2 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-            <ProfileRow label="Имя и фамилия" value={profile.fullName} />
-            <ProfileRow label="Ник в клубе" value={profile.displayName ?? ""} />
-            <ProfileRow label="Телефон" value={profile.phone} />
-            <ProfileRow label="Дата рождения" value={profile.birthDate} />
-            <ProfileRow label="Откуда узнал" value={profile.discoverySource} />
-            <ProfileRow
-              label="Telegram"
-              value={
-                profile.username
-                  ? `@${profile.username}`
-                  : opened.telegramId
-                    ? `id ${opened.telegramId}`
-                    : "нет — вход через Яндекс"
-              }
-            />
-            <ProfileRow label="Согласие на рейтинг" value={profile.ratingConsent ? "Да" : "Нет"} />
-            <ProfileRow
-              label="Согласие на рассылку"
-              value={profile.notificationsConsent ? "Да" : "Нет"}
-            />
-            <ProfileRow
-              label="Проходки"
-              value={
-                profile.freeEntries.regular + profile.freeEntries.vip > 0
-                  ? `обычных ${profile.freeEntries.regular}, VIP ${profile.freeEntries.vip}`
-                  : "нет"
-              }
-            />
-            <ProfileRow
-              label="Анкета заполнена"
-              value={
-                profile.submittedAt
-                  ? new Date(profile.submittedAt).toLocaleDateString("ru-RU")
-                  : "—"
-              }
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">
-            Анкета не найдена — игрок регистрировался до появления анкет.
-          </p>
-        )}
+        <ClientProfileCard
+          accountId={opened.userId}
+          className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4"
+          telegramId={opened.telegramId}
+        />
 
         {opened.seated ? (
           <p className="flex items-center gap-2 text-sm text-green-500">
@@ -758,7 +686,7 @@ export default function TMASignupsPage() {
             key={signup.id}
             className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left"
             type="button"
-            onClick={() => void openSignup(signup)}
+            onClick={() => openSignup(signup)}
           >
             <span className="min-w-0">
               <span className="block truncate font-semibold">{signup.name}</span>
@@ -814,7 +742,7 @@ export default function TMASignupsPage() {
             key={signup.id}
             className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left opacity-60"
             type="button"
-            onClick={() => void openSignup(signup)}
+            onClick={() => openSignup(signup)}
           >
             <span className="min-w-0">
               <span className="block truncate font-semibold line-through">{signup.name}</span>
@@ -844,18 +772,6 @@ export default function TMASignupsPage() {
             ))}
         </section>
       ) : null}
-    </div>
-  );
-}
-
-/** One line of the questionnaire, left out when the player never answered it. */
-function ProfileRow({ label, value }: { label: string; value: string }) {
-  if (!value.trim()) return null;
-
-  return (
-    <div className="flex items-baseline justify-between gap-3 text-sm">
-      <span className="text-[var(--tg-theme-hint-color)]">{label}</span>
-      <span className="text-right font-semibold">{value}</span>
     </div>
   );
 }

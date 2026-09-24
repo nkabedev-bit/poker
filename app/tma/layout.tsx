@@ -21,6 +21,8 @@ export type TelegramWebApp = {
     callback: (text: string) => boolean | void,
   ) => void;
   closeScanQrPopup?: () => void;
+  // Opens a t.me link inside Telegram — a player's chat — without closing the app.
+  openTelegramLink?: (url: string) => void;
   HapticFeedback: {
     impactOccurred: (style: string) => void;
     notificationOccurred: (type: string) => void;

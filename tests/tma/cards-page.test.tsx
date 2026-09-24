@@ -200,9 +200,10 @@ describe("the settling list", () => {
     );
   }
 
-  function stubSettling(issued: CardSession[]) {
+  function stubSettling(issued: CardSession[], profile: unknown = null) {
     const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.startsWith("/api/tma/client-profile")) return Response.json({ profile });
       if (url.startsWith("/api/tma/cards?")) return Response.json({ session: null });
       if (url.startsWith("/api/tma/cards")) return Response.json({ cardsEnabled: true, issued });
       if (url.startsWith("/api/tma/event-signups")) return Response.json({ signups: [] });
@@ -268,5 +269,56 @@ describe("the settling list", () => {
     render(<TMACardsPage />);
 
     expect(await screen.findByText(/оплатил в 21:43/)).toBeTruthy();
+  });
+
+  // A player who busted and left owing has to be called back, and the desk used to have
+  // no way to find their number in the app.
+  it("opens the questionnaire of a player tapped in the list", async () => {
+    const fetchMock = stubSettling(
+      [card({ accountId: "account-1", name: "Ушёл", status: "eliminated" }, "MJ-008")],
+      {
+        birthDate: "14.06.1990",
+        discoverySource: "Друзья",
+        displayName: "Ушёл",
+        freeEntries: { regular: 0, vip: 0 },
+        fullName: "Иван Иванов",
+        notificationsConsent: true,
+        phone: "+7 (911) 000-00-00",
+        ratingConsent: true,
+        submittedAt: "2026-08-01T10:00:00.000Z",
+        telegramId: 555,
+        username: "ace",
+      },
+    );
+    const openTelegramLink = vi.fn();
+    window.Telegram!.WebApp!.openTelegramLink = openTelegramLink;
+
+    render(<TMACardsPage />);
+    fireEvent.click(await screen.findByText("Ушёл"));
+
+    await screen.findByText("Иван Иванов");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/client-profile?userId=account-1",
+      expect.anything(),
+    );
+    expect(
+      screen.getByRole("link", { name: "+7 (911) 000-00-00" }).getAttribute("href"),
+    ).toBe("tel:+79110000000");
+
+    fireEvent.click(screen.getByRole("button", { name: "@ace" }));
+    expect(openTelegramLink).toHaveBeenCalledWith("https://t.me/ace");
+  });
+
+  // A walk-in the desk typed in by hand may have no club account to look up.
+  it("says so when the player has no account to open", async () => {
+    const fetchMock = stubSettling([card({ name: "Гость" }, "MJ-009")]);
+
+    render(<TMACardsPage />);
+    fireEvent.click(await screen.findByText("Гость"));
+
+    expect(await screen.findByText(/анкеты нет/)).toBeTruthy();
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).startsWith("/api/tma/client-profile")),
+    ).toBe(false);
   });
 });

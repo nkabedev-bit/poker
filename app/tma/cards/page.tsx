@@ -16,6 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
+import { ClientProfileCard } from "../client-profile-card";
 import { formatEventTimeLabel } from "@/lib/events/types";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
@@ -674,6 +675,20 @@ export default function TMACardsPage() {
             />
           </div>
 
+          {/* Opened from the list rather than scanned: the player may be long gone, and
+              the questionnaire is where the phone and the Telegram they gave the club
+              are. A scanned card is someone standing at the desk, so it stays short. */}
+          {!scannedCode ? (
+            <div className="space-y-2">
+              <p className="text-sm font-semibold">Анкета</p>
+              <ClientProfileCard
+                accountId={session.accountId}
+                className="rounded-lg bg-[var(--tg-theme-bg-color)] p-3"
+                telegramId={session.telegramId}
+              />
+            </div>
+          ) : null}
+
           {/* Which way out depends on how the bill was opened, not on whether the player
               holds a card: a scan is the desk taking the card back, a tap is the desk
               looking something up and returning to the list. */}
@@ -728,8 +743,9 @@ export default function TMACardsPage() {
                 }`}
               >
                 {/* The row opens the bill behind the number: the desk is asked "за что
-                    столько?" across the table and should not have to remember. The paid
-                    toggle stays outside it, so settling up is still one tap. */}
+                    столько?" across the table and should not have to remember. The
+                    player's questionnaire opens under it, to reach whoever has left. The
+                    paid toggle stays outside it, so settling up is still one tap. */}
                 <button
                   className="flex w-full items-baseline justify-between gap-3 text-left"
                   type="button"

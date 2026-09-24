@@ -9,6 +9,11 @@ export type TicketType = "regular" | "vip";
  * off the screen and takes payment at the desk.
  */
 export type CardSession = {
+  /**
+   * The club account behind the seat, which is how the desk opens the questionnaire to
+   * reach a player who left without settling. Null for a walk-in with no account.
+   */
+  accountId: string | null;
   addons: number;
   /** Empty on an evening played without cards; the player is found by name instead. */
   cardCode: string;
@@ -31,6 +36,8 @@ export type CardSession = {
   /** The chair the player was given, so the desk can point at it. */
   seat: number | null;
   table: number | null;
+  /** The questionnaire is found by the account first; this is the fallback. */
+  telegramId: number | null;
   ticketType: TicketType;
 };
 
@@ -84,6 +91,7 @@ export function buildCardSession(
   const doubleRebuys = Math.max(0, Number(player.doubleRebuys ?? 0));
 
   return {
+    accountId: player.accountId ?? null,
     addons: Math.max(0, Number(player.addons ?? 0)),
     cardCode,
     eliminated: player.status === "eliminated",
@@ -101,6 +109,7 @@ export function buildCardSession(
     registrationNumber: player.registrationNumber ?? null,
     seat: player.seat ?? null,
     table: player.table ?? null,
+    telegramId: player.telegramId ?? null,
     ticketType: player.ticketType === "vip" ? "vip" : "regular",
   };
 }
