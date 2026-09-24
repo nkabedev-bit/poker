@@ -266,7 +266,7 @@ describe("syncTournamentToSheets block layout", () => {
 
     const raw = calls.find((call) => call.method === "values.batchUpdate:RAW");
     expect(raw?.ranges?.[0]).toBe(`'${SHEET}'!A1:E1`);
-    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:I31`);
+    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:I41`);
     expect(raw?.ranges?.[2]).toStrictEqual(expect.stringContaining(`'${SHEET}'!K1:O`));
   });
 
@@ -274,7 +274,7 @@ describe("syncTournamentToSheets block layout", () => {
     await syncTournamentToSheets(fakeSupabase(extrasWith(roster, "mystery"), []), "t1");
 
     const raw = calls.find((call) => call.method === "values.batchUpdate:RAW");
-    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:J31`);
+    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:J41`);
     expect(raw?.ranges?.[2]).toStrictEqual(expect.stringContaining(`'${SHEET}'!L1:P`));
   });
 
@@ -282,7 +282,7 @@ describe("syncTournamentToSheets block layout", () => {
     await syncTournamentToSheets(fakeSupabase(extrasWith(roster, "progressive"), []), "t1");
 
     const raw = calls.find((call) => call.method === "values.batchUpdate:RAW");
-    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:J31`);
+    expect(raw?.ranges?.[1]).toBe(`'${SHEET}'!F1:J41`);
     expect(raw?.ranges?.[2]).toStrictEqual(expect.stringContaining(`'${SHEET}'!L1:P`));
   });
 

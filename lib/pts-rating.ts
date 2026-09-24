@@ -1,6 +1,12 @@
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
+import { REGISTRATION_NUMBERS_PER_EVENING } from "@/lib/player-registration-number";
 
-export const PTS_PLACE_COUNT = 30;
+/**
+ * How many places the points scale and the game sheet's table run to: one for every
+ * player an evening can hold. A scale saved when it ran to thirty reads the new places as
+ * zero points until they are set.
+ */
+export const PTS_PLACE_COUNT = REGISTRATION_NUMBERS_PER_EVENING;
 
 // Dealer Revenge: knocking out a player marked with the dealer label awards this many
 // points (split by killer shares, so a 50/50 knockout gives 50 each) plus a 3-big-blind
