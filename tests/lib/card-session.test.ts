@@ -62,4 +62,15 @@ describe("the card the desk works from", () => {
     expect(buildCardSession(player({ paid: true }), "", PRICES).paid).toBe(true);
     expect(buildCardSession(player(), "", PRICES).paid).toBe(false);
   });
+
+  // The settled block is ordered by it, and a tick taken back owes again from scratch.
+  it("keeps the payment time only while the player has paid", () => {
+    const paidAt = "2026-09-25T18:43:00.000Z";
+
+    expect(buildCardSession(player({ paid: true, paidAt }), "", PRICES).paidAt).toBe(paidAt);
+    expect(buildCardSession(player({ paid: false, paidAt }), "", PRICES).paidAt).toBeNull();
+    expect(buildCardSession(player({ paid: true }), "", PRICES).paidAt).toBeNull();
+    // Printed on the desk's screen: a value no clock can read must not reach it.
+    expect(buildCardSession(player({ paid: true, paidAt: "вчера" }), "", PRICES).paidAt).toBeNull();
+  });
 });

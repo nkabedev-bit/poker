@@ -23,6 +23,8 @@ export type CardSession = {
   freePass: boolean;
   /** The player has settled up for the evening. */
   paid: boolean;
+  /** When they settled, for the order of the list; null while they owe. */
+  paidAt: string | null;
   name: string;
   registrationNumber: number | null;
   reentries: number;
@@ -63,6 +65,16 @@ export function isTicketType(value: unknown): value is TicketType {
   return value === "regular" || value === "vip";
 }
 
+/**
+ * When the player settled, if they have. An unreadable time counts as none: the desk's
+ * list is sorted and printed by it, and one bad value must not take the screen down.
+ */
+function readPaidAt(player: TournamentPlayer) {
+  if (player.paid !== true || typeof player.paidAt !== "string") return null;
+
+  return Number.isFinite(Date.parse(player.paidAt)) ? player.paidAt : null;
+}
+
 export function buildCardSession(
   player: TournamentPlayer,
   cardCode: string,
@@ -83,6 +95,7 @@ export function buildCardSession(
     // A pass covers the entry only: re-entries and add-ons are still paid for.
     freePass: player.freePass === "regular" || player.freePass === "vip",
     paid: player.paid === true,
+    paidAt: readPaidAt(player),
     name: player.name,
     reentries: Math.max(0, rebuys - doubleRebuys),
     registrationNumber: player.registrationNumber ?? null,

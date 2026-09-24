@@ -258,4 +258,15 @@ describe("the settling list", () => {
 
     expect(await screen.findByText("· не оплатили 1")).toBeTruthy();
   });
+
+  // The settled block is ordered by the time of payment, so the row says it.
+  it("says when a settled player paid, in Moscow time", async () => {
+    stubSettling([
+      card({ name: "Оплатил", paid: true, paidAt: "2026-09-25T18:43:00.000Z" }, "MJ-007"),
+    ]);
+
+    render(<TMACardsPage />);
+
+    expect(await screen.findByText(/оплатил в 21:43/)).toBeTruthy();
+  });
 });

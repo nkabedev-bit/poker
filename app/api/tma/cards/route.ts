@@ -18,14 +18,26 @@ import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating"
 
 export const dynamic = "force-dynamic";
 
+/** A payment without a time sorts as the oldest one. */
+function paidAtTime(card: CardSession) {
+  return card.paidAt ? Date.parse(card.paidAt) : 0;
+}
+
 /**
  * The order the desk works the list down. Whoever busted is already reaching for their
  * coat and has to be caught before they walk out, so they come first; the ones who have
  * settled sink to the bottom, still on screen to be corrected but out of the way.
+ *
+ * Among the settled the latest payment leads: the player the admin has just ticked lands
+ * right under those who still owe instead of somewhere in the middle of the block.
  */
 function compareSettlingCards(a: CardSession, b: CardSession) {
   if (a.paid !== b.paid) return a.paid ? 1 : -1;
   if (!a.paid && a.eliminated !== b.eliminated) return a.eliminated ? -1 : 1;
+  if (a.paid) {
+    const byPayment = paidAtTime(b) - paidAtTime(a);
+    if (byPayment !== 0) return byPayment;
+  }
 
   return (a.registrationNumber ?? 0) - (b.registrationNumber ?? 0);
 }

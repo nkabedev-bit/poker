@@ -16,6 +16,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
+import { formatEventTimeLabel } from "@/lib/events/types";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { nameSeat } from "@/lib/tables/seating";
@@ -717,7 +718,7 @@ export default function TMACardsPage() {
                 key={card.playerId}
                 /* Three states the desk reads at a glance, in the order the list is
                    sorted: red — busted and still owing, catch them; plain — playing on;
-                   green — settled, parked at the bottom. */
+                   green — settled, parked at the bottom, the latest payment first. */
                 className={`space-y-2 rounded-lg p-3 ${
                   card.paid
                     ? "bg-green-500/10 ring-1 ring-green-500/30"
@@ -757,6 +758,11 @@ export default function TMACardsPage() {
                       {/* Busted but already settled: the badge slot is taken by the
                           green tick, so the fact still gets said here. */}
                       {card.paid && card.eliminated ? " · выбыл" : ""}
+                      {/* The time is what the settled block is ordered by, so the order
+                          explains itself. */}
+                      {card.paid && card.paidAt
+                        ? ` · оплатил в ${formatEventTimeLabel(card.paidAt)}`
+                        : ""}
                     </span>
                   </span>
                   <span

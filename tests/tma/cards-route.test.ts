@@ -134,6 +134,75 @@ describe("GET /api/tma/cards — the list the desk settles from", () => {
     ]);
   });
 
+  // The admin ticks a payment and loses the player in the green block: the one just
+  // marked has to be right under those who still owe, the earlier ones below.
+  it("puts the latest payment first among those who paid", async () => {
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player({
+            cardCode: "MJ-001",
+            id: "a",
+            name: "Оплатил первым",
+            paid: true,
+            paidAt: "2026-09-25T18:05:00.000Z",
+            registrationNumber: 1,
+          }),
+          player({ cardCode: "MJ-002", id: "b", name: "Должен", registrationNumber: 2 }),
+          player({
+            cardCode: "MJ-003",
+            id: "c",
+            name: "Оплатил последним",
+            paid: true,
+            paidAt: "2026-09-25T19:40:00.000Z",
+            registrationNumber: 3,
+          }),
+          player({
+            cardCode: "MJ-004",
+            id: "d",
+            name: "Оплатил вторым",
+            paid: true,
+            paidAt: "2026-09-25T18:30:00.000Z",
+            registrationNumber: 4,
+          }),
+        ],
+      }),
+    );
+
+    expect((await readIssued()).map((card) => card.name)).toEqual([
+      "Должен",
+      "Оплатил последним",
+      "Оплатил вторым",
+      "Оплатил первым",
+    ]);
+  });
+
+  // Payments ticked before the time was kept have none: they stay below, by number.
+  it("keeps payments without a time below, in registration order", async () => {
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: [
+          player({ cardCode: "MJ-005", id: "e", name: "Старый 5", paid: true, registrationNumber: 5 }),
+          player({
+            cardCode: "MJ-009",
+            id: "i",
+            name: "Со временем",
+            paid: true,
+            paidAt: "2026-09-25T18:00:00.000Z",
+            registrationNumber: 9,
+          }),
+          player({ cardCode: "MJ-001", id: "a", name: "Старый 1", paid: true, registrationNumber: 1 }),
+        ],
+      }),
+    );
+
+    expect((await readIssued()).map((card) => card.name)).toEqual([
+      "Со временем",
+      "Старый 1",
+      "Старый 5",
+    ]);
+  });
+
   // A card that was never handed over is not the desk's business tonight.
   it("leaves out players without a card while the club hands them out", async () => {
     mocks.loadTournamentExtras.mockResolvedValue(

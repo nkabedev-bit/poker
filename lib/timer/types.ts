@@ -127,6 +127,12 @@ export type TournamentPlayer = {
    * re-entries and add-ons, so nothing is bought after it and the bill cannot change.
    */
   paid?: boolean;
+  /**
+   * When the desk ticked the payment, as an ISO string; cleared when the tick is taken
+   * back. The settling list puts the latest payment first, so the player just marked is
+   * where the admin is looking. Players who paid before it was kept have none.
+   */
+  paidAt?: string | null;
 };
 
 export type ScheduleVersion = { effectiveFrom: string; text: string };
