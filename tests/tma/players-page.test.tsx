@@ -261,18 +261,14 @@ describe("TMAPlayersPage", () => {
     );
   });
 
-  it("refreshes the players list every 5 seconds", async () => {
+  it("reloads the players list when another phone at the desk changes it", async () => {
     vi.useFakeTimers();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          players: [
-            { id: "player-1", name: "Deleted Elsewhere", table: 1, seat: 1, stack: 1000, status: "active" },
-          ],
-        }),
-      )
-      .mockResolvedValue(Response.json({ players: [] }));
+    let players = [
+      { id: "player-1", name: "Deleted Elsewhere", table: 1, seat: 1, stack: 1000, status: "active" },
+    ];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/tma/pulse" ? Response.json({ version: "v2" }) : Response.json({ players }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TMAPlayersPage />);
@@ -283,12 +279,18 @@ describe("TMAPlayersPage", () => {
     });
     expect(screen.getByText("Deleted Elsewhere")).toBeTruthy();
 
+    players = [];
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
 
     expect(screen.queryByText("Deleted Elsewhere")).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    // A fingerprint first; the roster is read again only because it moved.
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      "/api/tma/players",
+      "/api/tma/pulse",
+      "/api/tma/players",
+    ]);
   });
 
   it("shows the server capacity message when adding a player fails", async () => {

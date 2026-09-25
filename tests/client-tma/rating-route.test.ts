@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mapSeasonRow, type SeasonStanding } from "@/lib/seasons/season";
 
 const mocks = vi.hoisted(() => ({
@@ -70,6 +70,9 @@ async function openRating(
 describe("the rating — which line is the player's own", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // The route keeps a season's table for a minute; every test starts from a server
+    // that has counted nothing yet.
+    vi.resetModules();
     mocks.listSeasons.mockResolvedValue([APC]);
     mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null, url: null }) });
     mocks.countGamesByNickname.mockResolvedValue(new Map());
@@ -104,5 +107,60 @@ describe("the rating — which line is the player's own", () => {
     ]);
 
     expect(players[0].isMe).toBe(false);
+  });
+});
+
+describe("the rating — one count a minute for everyone", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-09-25T22:00:00.000Z"));
+    mocks.listSeasons.mockResolvedValue([APC]);
+    mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null, url: null }) });
+    mocks.countGamesByNickname.mockResolvedValue(new Map());
+    mocks.loadCurrentTournamentContext.mockResolvedValue(null);
+    mocks.computeSeasonStandings.mockResolvedValue([
+      line({ place: 1, playerName: "Kabedev", points: 400, telegramId: 7 }),
+      line({ place: 2, playerName: "Chura", points: 300, telegramId: 8 }),
+    ]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function openAs(telegramId: number) {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase: {},
+      user: { avatar_thumb_url: null, avatar_url: null, display_name: "", telegram_id: telegramId },
+    });
+    const { GET } = await import("@/app/api/client-tma/rating/route");
+    const response = await GET(new Request("http://localhost/api/client-tma/rating?season=apc"));
+    return (await response.json()) as { players: Array<{ isMe: boolean; name: string }> };
+  }
+
+  // After a game the whole room opens the table at once.
+  it("counts the season once for everyone who opens it within the minute", async () => {
+    const first = await openAs(7);
+    const second = await openAs(8);
+
+    expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(1);
+    expect(first.players.map((player) => player.isMe)).toEqual([true, false]);
+    expect(second.players.map((player) => player.isMe)).toEqual([false, true]);
+  });
+
+  it("counts it again once the minute is over, so a finished game shows up", async () => {
+    await openAs(7);
+    vi.setSystemTime(new Date("2026-09-25T22:01:01.000Z"));
+    await openAs(7);
+
+    expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the accounts' Telegram ids off the wire", async () => {
+    const { players } = await openAs(7);
+
+    expect(players.every((player) => !("telegramId" in player))).toBe(true);
   });
 });

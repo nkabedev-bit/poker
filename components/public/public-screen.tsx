@@ -30,7 +30,10 @@ import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
-import { isTournamentUnderway, useStatePulse } from "@/components/public/use-state-pulse";
+import { statePulseInterval, useStatePulse } from "@/components/public/use-state-pulse";
+
+/** How often the screen re-reads its whole state regardless of the pulse. */
+const FULL_REFRESH_INTERVAL_MS = 60 * 60_000;
 
 type PublicScreenProps = {
   initialState: PublicTournamentState;
@@ -519,7 +522,8 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   }, [token]);
 
   useStatePulse({
-    enabled: !isDemo && isTournamentUnderway(state.timerState.status),
+    enabled: !isDemo,
+    intervalMs: statePulseInterval(state.timerState.status, state.extras.players.length),
     refresh,
     token,
     versionRef,
@@ -620,9 +624,11 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
   useEffect(() => {
     // In demo mode, we poll frequently since there's no websocket.
-    // In production, we poll every 45 seconds as a fallback: Realtime pushes changes when
-    // it gets through, and while a tournament is under way the pulse checks every 10 s.
-    const pollInterval = isDemo ? 5000 : 45000;
+    // In production the pulse notices every change and Realtime pushes them when it gets
+    // through, so the whole state is re-read only once an hour, for anything neither of
+    // them would see. It used to be every 45 seconds, around the clock, and that alone
+    // was a steady share of the club's server time.
+    const pollInterval = isDemo ? 5000 : FULL_REFRESH_INTERVAL_MS;
     const poll = window.setInterval(() => {
       refresh().catch(() => undefined);
     }, pollInterval);

@@ -590,16 +590,12 @@ describe("TMAEliminationsPage", () => {
     expect(screen.queryByText(/кто выбил/i)).toBeNull();
   });
 
-  it("refreshes the eliminations list every 5 seconds on the list step", async () => {
+  it("reloads the eliminations list when the desk's state changes, on the list step", async () => {
     vi.useFakeTimers();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(
-        Response.json({
-          players: [{ id: "player-1", name: "Eliminated Elsewhere", status: "active" }],
-        }),
-      )
-      .mockResolvedValue(Response.json({ players: [] }));
+    let players = [{ id: "player-1", name: "Eliminated Elsewhere", status: "active" }];
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/tma/pulse" ? Response.json({ version: "v2" }) : Response.json({ players }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TMAEliminationsPage />);
@@ -610,12 +606,17 @@ describe("TMAEliminationsPage", () => {
     });
     expect(screen.getByRole("button", { name: /eliminated elsewhere/i })).toBeTruthy();
 
+    players = [];
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
 
     expect(screen.queryByRole("button", { name: /eliminated elsewhere/i })).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls.map(([input]) => String(input))).toEqual([
+      "/api/tma/players",
+      "/api/tma/pulse",
+      "/api/tma/players",
+    ]);
   });
 
   it("asks to confirm undo with the eliminated player name", async () => {

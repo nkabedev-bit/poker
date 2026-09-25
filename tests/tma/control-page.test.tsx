@@ -99,19 +99,12 @@ describe("TMAControlPage", () => {
     expect(screen.queryByText(/МБ:/i)).toBeNull();
   });
 
-  it("refreshes timer controls every 5 seconds", async () => {
+  it("reloads the timer controls when the desk's state changes", async () => {
     vi.useFakeTimers();
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(Response.json({ timerState: pausedTimerState }))
-      .mockResolvedValue(
-        Response.json({
-          timerState: {
-            ...pausedTimerState,
-            status: "running",
-          },
-        }),
-      );
+    let timerState = pausedTimerState;
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/tma/pulse" ? Response.json({ version: "v2" }) : Response.json({ timerState }),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     render(<TMAControlPage />);
@@ -122,11 +115,14 @@ describe("TMAControlPage", () => {
     });
     expect(screen.getByRole("button", { name: /воспроизведение/i })).toBeTruthy();
 
+    timerState = { ...pausedTimerState, status: "running" };
     await act(async () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
 
     expect(screen.getByRole("button", { name: /пауза/i })).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const asked = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(asked.filter((url) => url === "/api/tma/pulse")).toHaveLength(1);
+    expect(asked).toHaveLength(3);
   });
 });

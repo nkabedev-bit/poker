@@ -4,8 +4,10 @@
 import { renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  IDLE_STATE_PULSE_INTERVAL_MS,
   isTournamentUnderway,
   STATE_PULSE_INTERVAL_MS,
+  statePulseInterval,
   useStatePulse,
 } from "@/components/public/use-state-pulse";
 
@@ -134,5 +136,55 @@ describe("isTournamentUnderway", () => {
   it("does not count the time before the start or after the finish", () => {
     expect(isTournamentUnderway("not_started")).toBe(false);
     expect(isTournamentUnderway("finished")).toBe(false);
+  });
+});
+
+describe("useStatePulse — away from a game", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    fetchMock.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("asks once a minute when told to", async () => {
+    answer("v1");
+    renderHook(() =>
+      useStatePulse({
+        enabled: true,
+        intervalMs: IDLE_STATE_PULSE_INTERVAL_MS,
+        refresh: async () => undefined,
+        token: "token-1",
+        versionRef: { current: "v1" },
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(STATE_PULSE_INTERVAL_MS * 5);
+    expect(fetchMock).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(IDLE_STATE_PULSE_INTERVAL_MS - STATE_PULSE_INTERVAL_MS * 5);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("statePulseInterval", () => {
+  it("keeps a quick watch while a game is under way", () => {
+    for (const status of ["running", "paused", "break"] as const) {
+      expect(statePulseInterval(status, 0)).toBe(STATE_PULSE_INTERVAL_MS);
+    }
+  });
+
+  // The desk registers players before the start; they have to reach the board at once.
+  it("keeps a quick watch while players are being registered for the next game", () => {
+    expect(statePulseInterval("not_started", 3)).toBe(STATE_PULSE_INTERVAL_MS);
+  });
+
+  it("slows to once a minute with nothing to watch", () => {
+    expect(statePulseInterval("not_started", 0)).toBe(IDLE_STATE_PULSE_INTERVAL_MS);
+    expect(statePulseInterval("finished", 30)).toBe(IDLE_STATE_PULSE_INTERVAL_MS);
   });
 });

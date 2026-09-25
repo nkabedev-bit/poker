@@ -5,19 +5,98 @@ import {
   listSeasons,
   readSeasonSnapshot,
 } from "@/lib/seasons/store";
-import { arrangeSeasonsForRating, type SeasonStanding } from "@/lib/seasons/season";
+import { arrangeSeasonsForRating, type Season } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
 import { countGamesByNickname } from "@/lib/players/games-played";
-import { resolvePlayerTier } from "@/lib/players/tier";
+import { resolvePlayerTier, type PlayerTier } from "@/lib/players/tier";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * How long a season's table is reused for everyone who opens it.
+ *
+ * Four screens ask for the table — the home page's top three among them, on every open —
+ * and each ask recounted the whole season, every face and every player's evenings. After
+ * a game the whole room opens it at once; now it is counted once a minute, and a finished
+ * game reaches the table within that minute.
+ */
+const RATING_CACHE_MS = 60_000;
+
+/** One line of a season's table as everybody sees it; "ВЫ" is put on per player. */
+type SharedLine = {
+  avatarUrl: string | null;
+  eliminations: number;
+  games: number;
+  name: string;
+  place: number | null;
+  points: number | null;
+  telegramId: number | null;
+  tier: PlayerTier | null;
+  top9: number;
+};
+
+const tables = new Map<string, { lines: Promise<SharedLine[]>; readAt: number }>();
+
 function normalizeNickname(value: string | null | undefined) {
   return buildNicknameKey(value ?? "");
+}
+
+async function readSeasonTable(supabase: SupabaseClient, season: Season): Promise<SharedLine[]> {
+  const standings =
+    season.status === "closed"
+      ? await readSeasonSnapshot(supabase, season.id)
+      : await computeSeasonStandings(supabase, season);
+
+  // Faces come from the accounts: by id where a game recorded one, by nickname for the
+  // seasons imported from the club's sheets, which know names only. The table draws them
+  // 34 pixels across, so it is served thumbnails rather than whole profile pictures.
+  // Tiers are earned over the club's whole history, not within one season, so the count
+  // comes from every game a player has behind them.
+  const [avatars, gamesByNickname, context] = await Promise.all([
+    loadPlayerAvatars(supabase),
+    countGamesByNickname(
+      supabase,
+      standings.map((standing) => standing.playerName),
+    ),
+    loadCurrentTournamentContext(supabase),
+  ]);
+  const labels = context?.extras.playerLabels;
+
+  return standings.map((standing) => ({
+    avatarUrl: avatars.find({ name: standing.playerName, telegramId: standing.telegramId })
+      .thumbUrl,
+    eliminations: Math.round(standing.knockouts),
+    games: standing.games,
+    name: standing.playerName,
+    place: standing.place,
+    points: standing.points,
+    telegramId: standing.telegramId,
+    tier: resolvePlayerTier({
+      games: gamesByNickname.get(buildNicknameKey(standing.playerName)) ?? 0,
+      label: getPersistedPlayerLabel(labels, standing.playerName),
+    }),
+    top9: 0,
+  }));
+}
+
+/** The season's table, from the last minute's count when there is one. */
+function cachedSeasonTable(supabase: SupabaseClient, season: Season) {
+  const cached = tables.get(season.id);
+  if (cached && Date.now() - cached.readAt < RATING_CACHE_MS) return cached.lines;
+
+  const lines = readSeasonTable(supabase, season);
+  tables.set(season.id, { lines, readAt: Date.now() });
+  // A failed count is not kept: the next player to open the table asks again.
+  lines.catch(() => {
+    if (tables.get(season.id)?.lines === lines) tables.delete(season.id);
+  });
+
+  return lines;
 }
 
 /**
@@ -49,53 +128,25 @@ export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("season");
   const season = seasons.find((item) => item.id === requested) ?? seasons[0];
 
-  const standings: SeasonStanding[] =
-    season.status === "closed"
-      ? await readSeasonSnapshot(auth.supabase, season.id)
-      : await computeSeasonStandings(auth.supabase, season);
-
-  // Faces come from the accounts: by id where a game recorded one, by nickname for the
-  // seasons imported from the club's sheets, which know names only. The table draws them
-  // 34 pixels across, so it is served thumbnails rather than whole profile pictures.
-  const avatars = await loadPlayerAvatars(auth.supabase);
-
-  // Tiers are earned over the club's whole history, not within one season, so the
-  // count comes from every game a player has behind them.
-  const gamesByNickname = await countGamesByNickname(
-    auth.supabase,
-    standings.map((standing) => standing.playerName),
-  );
-  const labels = (await loadCurrentTournamentContext(auth.supabase))?.extras.playerLabels;
+  const lines = await cachedSeasonTable(auth.supabase, season);
 
   const myNickname = normalizeNickname(auth.user.display_name);
   // One line is the player's own. The one with their Telegram id, when there is one; by
   // nickname only when there is not — a web sign-in has no Telegram id, and games typed
   // in by hand may carry none — and then never a line another account owns. Matching on
   // either at once marked two lines "ВЫ" the evening two accounts were swapped.
-  const hasOwnLine = standings.some((standing) =>
-    isSameTelegramAccount(auth.user.telegram_id, standing.telegramId),
+  const hasOwnLine = lines.some((line) =>
+    isSameTelegramAccount(auth.user.telegram_id, line.telegramId),
   );
-  const players = standings.map((standing) => {
-    const nickname = normalizeNickname(standing.playerName);
+  const players = lines.map(({ telegramId, ...line }) => {
     const isMe = hasOwnLine
-      ? isSameTelegramAccount(auth.user.telegram_id, standing.telegramId)
-      : !standing.telegramId && Boolean(myNickname) && nickname === myNickname;
+      ? isSameTelegramAccount(auth.user.telegram_id, telegramId)
+      : !telegramId && Boolean(myNickname) && normalizeNickname(line.name) === myNickname;
 
     return {
-      avatarUrl: isMe
-        ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null)
-        : avatars.find({ name: standing.playerName, telegramId: standing.telegramId }).thumbUrl,
-      eliminations: Math.round(standing.knockouts),
-      tier: resolvePlayerTier({
-        games: gamesByNickname.get(buildNicknameKey(standing.playerName)) ?? 0,
-        label: getPersistedPlayerLabel(labels, standing.playerName),
-      }),
-      games: standing.games,
+      ...line,
+      avatarUrl: isMe ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null) : line.avatarUrl,
       isMe,
-      name: standing.playerName,
-      place: standing.place,
-      points: standing.points,
-      top9: 0,
     };
   });
 

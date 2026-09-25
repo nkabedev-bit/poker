@@ -89,31 +89,10 @@ function firstStamp(value: Stamp | Stamp[] | null | undefined) {
   return (Array.isArray(value) ? value[0] : value)?.updated_at ?? "";
 }
 
-/**
- * A fingerprint of everything the screen draws, cheap enough to ask for every few
- * seconds.
- *
- * The database stamps `updated_at` on every write to the tournament, its timer, its
- * blind levels and its extras — the roster, the draw, the settings — so anything a
- * screen should show moves it, and a screen whose fingerprint still matches has nothing
- * to fetch. The level count catches a level taken away, which leaves no stamp behind.
- * Null when there is no screen by that token.
- */
-export async function loadPublicStateVersion(
-  supabase: SupabaseClient,
-  token: string,
-): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("tournaments")
-    .select(
-      "updated_at, timer_state(updated_at), tournament_extras(updated_at), blind_levels(updated_at)",
-    )
-    .eq("public_token", token)
-    .maybeSingle();
+const VERSION_COLUMNS =
+  "updated_at, timer_state(updated_at), tournament_extras(updated_at), blind_levels(updated_at)";
 
-  if (error) throw new Error(error.message);
-  if (!data) return null;
-
+function versionOf(data: unknown) {
   const row = data as Stamp & {
     blind_levels: Stamp[] | null;
     timer_state: Stamp | Stamp[] | null;
@@ -131,6 +110,42 @@ export async function loadPublicStateVersion(
     firstStamp(row.tournament_extras),
     `${levels.length}:${latestLevel}`,
   ].join("|");
+}
+
+/**
+ * A fingerprint of everything the screen draws, cheap enough to ask for every few
+ * seconds.
+ *
+ * The database stamps `updated_at` on every write to the tournament, its timer, its
+ * blind levels and its extras — the roster, the draw, the settings — so anything a
+ * screen should show moves it, and a screen whose fingerprint still matches has nothing
+ * to fetch. The level count catches a level taken away, which leaves no stamp behind.
+ * Null when there is no screen by that token.
+ */
+export async function loadPublicStateVersion(
+  supabase: SupabaseClient,
+  token: string,
+): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select(VERSION_COLUMNS)
+    .eq("public_token", token)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? versionOf(data) : null;
+}
+
+/** The same fingerprint for the club's one tournament, as the desk's screens see it. */
+export async function loadTournamentVersion(supabase: SupabaseClient): Promise<string | null> {
+  const { data, error } = await supabase
+    .from("tournaments")
+    .select(VERSION_COLUMNS)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(error.message);
+  return data ? versionOf(data) : null;
 }
 
 export async function loadPublicState(

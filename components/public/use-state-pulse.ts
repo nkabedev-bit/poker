@@ -1,13 +1,32 @@
 "use client";
 
 import { useEffect, type RefObject } from "react";
+import { isTournamentUnderway } from "@/lib/timer/calculate";
+import type { TimerStatus } from "@/lib/timer/types";
 
-/** How often a screen with a tournament under way asks whether anything has changed. */
+/**
+ * How often a screen asks whether anything has changed: every ten seconds while a
+ * tournament is on or players are being registered for one, once a minute otherwise.
+ */
 export const STATE_PULSE_INTERVAL_MS = 10_000;
+export const IDLE_STATE_PULSE_INTERVAL_MS = 60_000;
 
 // Lives with the rest of the clock now that the client app asks the same question;
 // re-exported so the screen's imports stay where they were.
 export { isTournamentUnderway } from "@/lib/timer/calculate";
+
+/**
+ * How often a screen asks: quickly while the room has something to watch — a game under
+ * way, or players being registered for the next one, who have to reach the board as the
+ * desk types them in — and once a minute otherwise, which still catches the evening's
+ * first registration soon.
+ */
+export function statePulseInterval(status: TimerStatus, registeredPlayers: number) {
+  const live =
+    isTournamentUnderway(status) || (status === "not_started" && registeredPlayers > 0);
+
+  return live ? STATE_PULSE_INTERVAL_MS : IDLE_STATE_PULSE_INTERVAL_MS;
+}
 
 /**
  * Keeps the screen in step with the room while a tournament is under way.
@@ -23,11 +42,13 @@ export { isTournamentUnderway } from "@/lib/timer/calculate";
  */
 export function useStatePulse({
   enabled,
+  intervalMs = STATE_PULSE_INTERVAL_MS,
   refresh,
   token,
   versionRef,
 }: {
   enabled: boolean;
+  intervalMs?: number;
   refresh: () => Promise<void>;
   token: string;
   versionRef: RefObject<string | undefined>;
@@ -54,8 +75,8 @@ export function useStatePulse({
       } finally {
         busy = false;
       }
-    }, STATE_PULSE_INTERVAL_MS);
+    }, intervalMs);
 
     return () => window.clearInterval(pulse);
-  }, [enabled, refresh, token, versionRef]);
+  }, [enabled, intervalMs, refresh, token, versionRef]);
 }
