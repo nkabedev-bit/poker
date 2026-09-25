@@ -18,14 +18,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const dynamic = "force-dynamic";
 
 /**
- * How long a season's table is reused for everyone who opens it.
+ * How long a season's table stands while the results stay as they were.
  *
  * Four screens ask for the table — the home page's top three among them, on every open —
- * and each ask recounted the whole season, every face and every player's evenings. After
- * a game the whole room opens it at once; now it is counted once a minute, and a finished
- * game reaches the table within that minute.
+ * and each ask recounted the whole season, every face and every player's evenings. The
+ * table only moves when the results do, so it is counted again as soon as they change —
+ * a finished game writes its rows — and otherwise once a day, for what leaves the
+ * results' fingerprint as it was: a new nickname or photo, a player's tier, a place
+ * corrected in the admin.
  */
-const RATING_CACHE_MS = 60_000;
+const RATING_CACHE_MS = 24 * 60 * 60_000;
 
 /** One line of a season's table as everybody sees it; "ВЫ" is put on per player. */
 type SharedLine = {
@@ -40,7 +42,10 @@ type SharedLine = {
   top9: number;
 };
 
-const tables = new Map<string, { lines: Promise<SharedLine[]>; readAt: number }>();
+const tables = new Map<
+  string,
+  { lines: Promise<SharedLine[]>; readAt: number; results: string | null }
+>();
 
 function normalizeNickname(value: string | null | undefined) {
   return buildNicknameKey(value ?? "");
@@ -84,16 +89,50 @@ async function readSeasonTable(supabase: SupabaseClient, season: Season): Promis
   }));
 }
 
-/** The season's table, from the last minute's count when there is one. */
-function cachedSeasonTable(supabase: SupabaseClient, season: Season) {
-  const cached = tables.get(season.id);
-  if (cached && Date.now() - cached.readAt < RATING_CACHE_MS) return cached.lines;
+/**
+ * A short fingerprint of the stored results: how many rows there are and when the newest
+ * was written. A finished game adds its rows and moves it at once. Costs one row and a
+ * count; null when it cannot be read.
+ */
+async function readResultsStamp(supabase: SupabaseClient): Promise<string | null> {
+  try {
+    const { count, data, error } = await supabase
+      .from("tournament_results")
+      .select("created_at", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    if (error) return null;
+    return `${count ?? 0}:${(data?.[0] as { created_at?: string } | undefined)?.created_at ?? ""}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The season's table: counted again when the results have changed or the day is out,
+ * and otherwise the same count for everyone. A fingerprint that cannot be read keeps the
+ * count it has rather than recounting on every open.
+ */
+async function cachedSeasonTable(supabase: SupabaseClient, season: Season) {
+  // Closing a season or changing its rule makes it another table.
+  const key = `${season.id}:${season.status}:${season.countedGames ?? ""}`;
+  const results = await readResultsStamp(supabase);
+  const cached = tables.get(key);
+
+  if (
+    cached &&
+    Date.now() - cached.readAt < RATING_CACHE_MS &&
+    (results === null || results === cached.results)
+  ) {
+    return cached.lines;
+  }
 
   const lines = readSeasonTable(supabase, season);
-  tables.set(season.id, { lines, readAt: Date.now() });
+  tables.set(key, { lines, readAt: Date.now(), results });
   // A failed count is not kept: the next player to open the table asks again.
   lines.catch(() => {
-    if (tables.get(season.id)?.lines === lines) tables.delete(season.id);
+    if (tables.get(key)?.lines === lines) tables.delete(key);
   });
 
   return lines;

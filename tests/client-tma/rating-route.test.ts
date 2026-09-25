@@ -110,12 +110,27 @@ describe("the rating — which line is the player's own", () => {
   });
 });
 
-describe("the rating — one count a minute for everyone", () => {
+describe("the rating — counted again only when the results change", () => {
+  /** The results table's fingerprint: its row count and newest row, as the route reads it. */
+  const results = { count: 100, newest: "2026-09-24T22:30:00.000Z" };
+  const supabase = {
+    from: () => {
+      const query = {
+        limit: async () => ({ count: results.count, data: [{ created_at: results.newest }], error: null }),
+        order: () => query,
+        select: () => query,
+      };
+      return query;
+    },
+  };
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-09-25T22:00:00.000Z"));
+    results.count = 100;
+    results.newest = "2026-09-24T22:30:00.000Z";
     mocks.listSeasons.mockResolvedValue([APC]);
     mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null, url: null }) });
     mocks.countGamesByNickname.mockResolvedValue(new Map());
@@ -132,7 +147,7 @@ describe("the rating — one count a minute for everyone", () => {
 
   async function openAs(telegramId: number) {
     mocks.requireClientTmaAuth.mockResolvedValue({
-      supabase: {},
+      supabase,
       user: { avatar_thumb_url: null, avatar_url: null, display_name: "", telegram_id: telegramId },
     });
     const { GET } = await import("@/app/api/client-tma/rating/route");
@@ -140,9 +155,10 @@ describe("the rating — one count a minute for everyone", () => {
     return (await response.json()) as { players: Array<{ isMe: boolean; name: string }> };
   }
 
-  // After a game the whole room opens the table at once.
-  it("counts the season once for everyone who opens it within the minute", async () => {
+  // The whole room opens the table after a game, and it is the same table for all.
+  it("counts the season once for everyone while the results stay as they were", async () => {
     const first = await openAs(7);
+    vi.setSystemTime(new Date("2026-09-26T12:00:00.000Z"));
     const second = await openAs(8);
 
     expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(1);
@@ -150,9 +166,19 @@ describe("the rating — one count a minute for everyone", () => {
     expect(second.players.map((player) => player.isMe)).toEqual([false, true]);
   });
 
-  it("counts it again once the minute is over, so a finished game shows up", async () => {
+  it("counts it again as soon as a finished game writes its results", async () => {
     await openAs(7);
-    vi.setSystemTime(new Date("2026-09-25T22:01:01.000Z"));
+    results.count = 130;
+    results.newest = "2026-09-25T22:05:00.000Z";
+    await openAs(7);
+
+    expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(2);
+  });
+
+  // A new nickname or photo, a tier, a place corrected in the admin: none moves the count.
+  it("counts it again once a day even when the results have not moved", async () => {
+    await openAs(7);
+    vi.setSystemTime(new Date("2026-09-26T22:00:01.000Z"));
     await openAs(7);
 
     expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(2);
