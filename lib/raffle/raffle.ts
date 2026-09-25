@@ -1,6 +1,7 @@
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { CLASSIC_TRAVEL_CELLS, type ReelMotion } from "@/lib/raffle/reel-motion";
+import { CLASSIC_TRAVEL_CELLS } from "@/lib/raffle/reel-motion";
+import type { RaffleMotion } from "@/lib/raffle/raffle-scenes";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export type RaffleKind = "regular" | "vip";
@@ -38,10 +39,11 @@ export type Raffle = {
   id: string;
   kind: RaffleKind;
   /**
-   * How the reel travels to the winner, picked with the result so every screen plays the
-   * same run. Missing on draws taken before there were five, which run the classic reel.
+   * How the draw runs — one of the reel's five ways or one of the three scenes — picked
+   * with the result so every screen plays the same run. Missing on draws taken before
+   * there was a choice, which run the classic reel.
    */
-  motion?: ReelMotion;
+  motion?: RaffleMotion;
   numbers: number[];
   prize: RafflePrize;
   spinSeconds: number;

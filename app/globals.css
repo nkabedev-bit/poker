@@ -3586,6 +3586,379 @@ p {
   color: rgb(255 255 255 / 0.6);
 }
 
+/* The scenes (components/public/raffle-scenes.tsx) share the reel's title and result.
+   Their result reads on one line, number beside name, so the room gets the height. */
+.raffle-stage--scene .raffle-result {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 2.4vw, 48px);
+}
+
+.raffle-stage--scene .raffle-result__lead {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+.raffle-stage--scene .raffle-result__number {
+  margin: 0;
+  font-size: clamp(48px, 12vh, 150px);
+}
+
+.raffle-stage--scene .raffle-result__who {
+  min-width: 0;
+  max-width: 50vw;
+}
+
+.raffle-stage--scene .raffle-result__name {
+  margin: 0;
+}
+
+.raffle-scene {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.2vh;
+}
+
+.raffle-status {
+  margin: 0;
+  min-height: 1.3em;
+  font-size: clamp(16px, 2.6vh, 32px);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-align: center;
+  color: rgb(255 255 255 / 0.62);
+}
+
+/* The room as a table of faces: the final table and the spotlight play on it. */
+.raffle-grid {
+  --raffle-gap: clamp(6px, 0.8vw, 14px);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: var(--raffle-gap);
+  width: min(94vw, 1800px);
+  height: 60vh;
+}
+
+/* Each card is a container: what is inside it is sized off the card, however many
+   cards share the screen. */
+.raffle-face {
+  container-type: size;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6vh;
+  width: calc((100% - (var(--cols) - 1) * var(--raffle-gap)) / var(--cols));
+  height: calc((100% - (var(--rows) - 1) * var(--raffle-gap)) / var(--rows));
+  max-width: 36vh;
+  max-height: 44vh;
+  padding: 0.6vh;
+  border: 1px solid rgb(255 255 255 / 0.07);
+  border-radius: clamp(10px, 1.2vw, 20px);
+  background: linear-gradient(180deg, #241017, #150a0f);
+  transition: opacity 0.45s ease, filter 0.45s ease, transform 0.45s ease,
+    border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.raffle-face__photo,
+.raffle-face__initial {
+  flex-shrink: 0;
+  width: min(50cqh, 72cqw);
+  height: min(50cqh, 72cqw);
+  border-radius: 50%;
+}
+
+.raffle-face__photo {
+  object-fit: cover;
+}
+
+.raffle-face__initial {
+  display: grid;
+  place-items: center;
+  font-size: min(20cqh, 30cqw);
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(180deg, #b8163c, #7d0d26);
+}
+
+.raffle-face__name {
+  max-width: 92%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: min(15cqh, 12.5cqw);
+  font-weight: 700;
+  color: #fff;
+}
+
+.raffle-face__number {
+  position: absolute;
+  top: 5cqh;
+  left: 7cqw;
+  font-size: min(11cqh, 10cqw);
+  font-weight: 800;
+  color: rgb(255 255 255 / 0.5);
+}
+
+.raffle-face--out {
+  opacity: 0.28;
+  filter: grayscale(1);
+  transform: scale(0.93);
+}
+
+.raffle-face--out::after {
+  content: "выбыл";
+  position: absolute;
+  top: 5cqh;
+  right: 7cqw;
+  font-size: min(8.5cqh, 8cqw);
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #ff5d73;
+}
+
+.raffle-face--hu {
+  border-color: rgb(233 192 122 / 0.8);
+  box-shadow: 0 0 24px rgb(233 192 122 / 0.35);
+}
+
+.raffle-face--win {
+  z-index: 2;
+  border-color: rgb(233 192 122 / 0.9);
+  box-shadow: 0 0 0 2px rgb(233 192 122 / 0.5), 0 0 42px rgb(233 192 122 / 0.45);
+  transform: scale(1.06);
+}
+
+/* The spotlight: the room in the dark, one face lit. The light jumps rather than
+   glides — a quick fade per hop costs the laptop nothing. */
+.raffle-grid--dark .raffle-face {
+  opacity: 0.16;
+  transition-duration: 0.12s;
+}
+
+.raffle-grid--dark .raffle-face--lit {
+  opacity: 1;
+  border-color: rgb(233 192 122 / 0.95);
+  box-shadow: 0 0 0 2px rgb(233 192 122 / 0.45), 0 0 60px 14px rgb(255 226 170 / 0.3);
+}
+
+/* The one-armed bandit: two drums for the winning number, and the numbers still in it. */
+.raffle-slot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(32px, 7vw, 140px);
+  min-height: 60vh;
+}
+
+.raffle-slot__machine {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.4vh;
+  padding: 1.8vh 2.4vh 2.4vh;
+  border: 0.4vh solid #e9c07a;
+  border-radius: 3vh;
+  background: linear-gradient(180deg, #8d0f2b, #4a0716);
+}
+
+.raffle-slot__marquee {
+  margin: 0;
+  padding: 0.4vh 1.1vh 0.4vh 1.8vh;
+  border: 1px solid rgb(233 192 122 / 0.5);
+  border-radius: 0.9vh;
+  background: #2a0710;
+  font-size: 2.8vh;
+  font-weight: 900;
+  letter-spacing: 0.45em;
+  text-transform: uppercase;
+  color: #e9c07a;
+}
+
+.raffle-slot__reels {
+  position: relative;
+  display: flex;
+  gap: 1.4vh;
+  padding: 1.4vh;
+  border: 0.25vh solid rgb(233 192 122 / 0.5);
+  border-radius: 1.8vh;
+  background: #0d0609;
+}
+
+.raffle-slot__reel {
+  position: relative;
+  width: 17vh;
+  height: 42vh;
+  overflow: hidden;
+  border-radius: 1.2vh;
+  background: linear-gradient(180deg, #d9d0c2, #fffaf2 50%, #d9d0c2);
+}
+
+.raffle-slot__reel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    180deg,
+    rgb(0 0 0 / 0.5),
+    transparent 32%,
+    transparent 68%,
+    rgb(0 0 0 / 0.5)
+  );
+}
+
+/* Moved by the draw's own keyframes, in shares of the strip, so no cell is measured. */
+.raffle-slot__strip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.raffle-slot__digit {
+  display: grid;
+  place-items: center;
+  height: 14vh;
+  font-size: 10.5vh;
+  font-weight: 900;
+  color: #7d0d26;
+  font-variant-numeric: tabular-nums;
+}
+
+.raffle-slot__payline {
+  position: absolute;
+  top: 50%;
+  left: 0.7vh;
+  right: 0.7vh;
+  height: 14.4vh;
+  transform: translateY(-50%);
+  border-top: 0.3vh solid #e9c07a;
+  border-bottom: 0.3vh solid #e9c07a;
+  pointer-events: none;
+}
+
+.raffle-slot__lever {
+  position: absolute;
+  top: 11vh;
+  right: -4.6vh;
+  width: 1.6vh;
+  height: 23vh;
+  border-radius: 0.65vh;
+  background: linear-gradient(90deg, #8d939b, #eef0f3, #8d939b);
+  transform-origin: 50% 100%;
+  animation: raffle-lever 0.8s ease-in-out both;
+}
+
+.raffle-slot__knob {
+  position: absolute;
+  top: -2.4vh;
+  left: 50%;
+  width: 4.8vh;
+  height: 4.8vh;
+  margin-left: -2.4vh;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ff7a93, #c8163f 55%, #6d0a20);
+}
+
+@keyframes raffle-lever {
+  0% { transform: none; }
+  40% { transform: scaleY(-0.55); }
+  100% { transform: none; }
+}
+
+.raffle-slot__board {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6vh;
+  width: min(70vh, 44vw);
+}
+
+.raffle-slot__head {
+  margin: 0;
+  font-size: clamp(18px, 3.4vh, 40px);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: #e9c07a;
+}
+
+.raffle-slot__pills {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 0.7vh;
+}
+
+.raffle-slot__pill {
+  display: grid;
+  place-items: center;
+  height: 5.6vh;
+  border-radius: 1vh;
+  background: rgb(255 255 255 / 0.07);
+  font-size: 2.7vh;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.raffle-slot__rows {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.8vh;
+}
+
+/* Rises in once; "backwards" so the fade to the losers' dim still applies after it. */
+.raffle-slot__row {
+  display: flex;
+  align-items: center;
+  gap: 1.2vh;
+  min-width: 0;
+  padding: 1.3vh 1.6vh;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1.4vh;
+  background: rgb(255 255 255 / 0.06);
+  font-size: 2.9vh;
+  font-weight: 700;
+  color: #fff;
+  transition: opacity 0.4s ease, border-color 0.3s ease, background 0.3s ease;
+  animation: raffle-rise 0.35s ease backwards;
+}
+
+.raffle-slot__row b {
+  min-width: 5vh;
+  font-size: 3.3vh;
+  color: #e9c07a;
+  font-variant-numeric: tabular-nums;
+}
+
+.raffle-slot__row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.raffle-slot__row--out {
+  opacity: 0.22;
+}
+
+.raffle-slot__row--win {
+  border-color: #e9c07a;
+  background: rgb(233 192 122 / 0.16);
+}
+
+@keyframes raffle-rise {
+  from { opacity: 0; transform: translateY(1vh); }
+  to { opacity: 1; transform: none; }
+}
+
 /* Club tiers are worn as the colour of the name; only the champion gets a mark. */
 .public-player-crown {
   flex-shrink: 0;

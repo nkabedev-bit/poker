@@ -124,6 +124,14 @@ export function pickReelMotion(
   const styles = REEL_STYLES.filter((style) => style !== previous);
   const style = styles[Math.min(styles.length - 1, Math.floor(random() * styles.length))];
 
+  return buildReelMotion(random, style);
+}
+
+/** The run of one chosen way: its direction, length, landing point and duration. */
+export function buildReelMotion(
+  random: () => number,
+  style: ReelStyle,
+): { motion: ReelMotion; spinSeconds: number } {
   const motion: ReelMotion = {
     direction: random() < 0.5 ? "left" : "right",
     firstStopCells: pickWholeNumber(random, FIRST_STOP_CELLS[style]),

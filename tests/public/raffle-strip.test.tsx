@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { act, cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import type { Raffle } from "@/lib/raffle/raffle";
@@ -287,5 +287,154 @@ describe("RaffleStrip — how the reel runs", () => {
     unmount();
 
     expect(cancel).toHaveBeenCalled();
+  });
+});
+
+describe("RaffleStrip — the scenes", () => {
+  const ROOM: Raffle = {
+    faces: [1, 2, 3, 4, 5].map((number) => ({
+      avatarUrl: null,
+      name: `Игрок ${number}`,
+      number,
+    })),
+    id: "scene-1",
+    kind: "regular",
+    numbers: [1, 2, 3, 4, 5],
+    prize: "manual",
+    spinSeconds: 11,
+    startedAt: "2026-09-25T19:30:00.000Z",
+    winnerName: "Игрок 3",
+    winnerNumber: 3,
+  };
+
+  const run = (ms: number) =>
+    act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+
+  const face = (container: HTMLElement, number: number) =>
+    container.querySelector(`[data-number="${number}"]`)?.className ?? "";
+
+  beforeEach(() => {
+    vi.useFakeTimers({
+      toFake: ["setTimeout", "clearTimeout", "requestAnimationFrame", "cancelAnimationFrame"],
+    });
+    stubPictures("loads");
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("knocks the room out in the draw's own order and leaves the winner standing", async () => {
+    const { container } = render(
+      <RaffleStrip raffle={{ ...ROOM, motion: { order: [5, 1, 4, 2], style: "finalTable" } }} />,
+    );
+    await run(0);
+    expect(screen.getByText("Осталось 5")).toBeTruthy();
+
+    await run(1000);
+    expect(face(container, 5)).toContain("raffle-face--out");
+    expect(face(container, 1)).not.toContain("raffle-face--out");
+    expect(screen.getByText("Осталось 4")).toBeTruthy();
+
+    await run(2800);
+    // Named in seat order: which name comes first says nothing about who wins.
+    expect(screen.getByText("Хедз-ап: Игрок 2 против Игрок 3")).toBeTruthy();
+    expect(face(container, 2)).toContain("raffle-face--hu");
+    expect(face(container, 3)).toContain("raffle-face--hu");
+
+    await run(2000);
+    expect(face(container, 2)).toContain("raffle-face--out");
+    expect(face(container, 3)).toContain("raffle-face--win");
+    expect(container.querySelector(".raffle-result--shown")).toBeNull();
+
+    await run(800);
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
+  });
+
+  it("stops the tens first, then picks the number out of that decade", async () => {
+    const decadeRoom: Raffle = {
+      ...ROOM,
+      faces: [3, 12, 21, 22, 27, 35].map((number) => ({
+        avatarUrl: null,
+        name: `Игрок ${number}`,
+        number,
+      })),
+      motion: { from: [0, 0], style: "slotMachine" },
+      numbers: [3, 12, 21, 22, 27, 35],
+      winnerName: "Игрок 27",
+      winnerNumber: 27,
+    };
+    const { container } = render(<RaffleStrip raffle={decadeRoom} />);
+
+    expect(screen.getByText("В барабане 6 номеров")).toBeTruthy();
+    // No animation engine here, so the drums are simply shown where they stop: the
+    // tens on 2, a round before the end of their strip.
+    const [tens] = container.querySelectorAll<HTMLElement>(".raffle-slot__strip");
+    expect(tens.style.transform).toBe(`translateY(${(-41 * 100) / 60}%)`);
+
+    await run(5000);
+    expect(screen.getByText("Десяток 2: номера 21–27")).toBeTruthy();
+    expect(screen.queryByText("Игрок 35")).toBeNull();
+
+    await run(5600);
+    expect(screen.getByText("Номер 27")).toBeTruthy();
+    const rows = within(container.querySelector<HTMLElement>(".raffle-slot__rows")!);
+    expect(rows.getByText("Игрок 27").parentElement?.className).toContain("raffle-slot__row--win");
+    expect(rows.getByText("Игрок 21").parentElement?.className).toContain("raffle-slot__row--out");
+
+    await run(500);
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
+  });
+
+  it("hops the light over the draw's faces and rests it on the winner", async () => {
+    const { container } = render(
+      <RaffleStrip raffle={{ ...ROOM, motion: { hops: [1, 4, 2, 5, 3], style: "spotlight" } }} />,
+    );
+    await run(0);
+    await run(0);
+    expect(container.querySelector(".raffle-grid--dark")).not.toBeNull();
+
+    await run(700);
+    expect(face(container, 1)).toContain("raffle-face--lit");
+
+    await run(80);
+    expect(face(container, 4)).toContain("raffle-face--lit");
+    expect(face(container, 1)).not.toContain("raffle-face--lit");
+
+    await run(320);
+    expect(face(container, 3)).toContain("raffle-face--lit");
+
+    await run(650);
+    expect(container.querySelector(".raffle-grid--dark")).toBeNull();
+    expect(face(container, 3)).toContain("raffle-face--win");
+
+    await run(700);
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
+  });
+
+  it("plays a scene to the end when the screen refreshes mid-run", async () => {
+    const draw: Raffle = { ...ROOM, motion: { order: [5, 1, 4, 2], style: "finalTable" } };
+    const { container, rerender } = render(<RaffleStrip raffle={draw} />);
+    await run(0);
+    await run(3000);
+
+    rerender(<RaffleStrip raffle={structuredClone(draw)} />);
+    await run(4000);
+
+    expect(container.querySelector(".raffle-result--shown")).not.toBeNull();
+  });
+
+  // A screen that has not been reloaded since the scenes arrived keeps the reel it knows;
+  // this one meets a scene from some later version.
+  it("runs the reel for a scene it does not know", () => {
+    const { container } = render(
+      <RaffleStrip raffle={{ ...ROOM, motion: { style: "roulette" } as unknown as Raffle["motion"] }} />,
+    );
+
+    expect(container.querySelector(".raffle-strip")).not.toBeNull();
   });
 });

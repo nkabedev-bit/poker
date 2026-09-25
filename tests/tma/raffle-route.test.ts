@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import { RAFFLE_WIN_MESSAGE, RAFFLE_WIN_NOTICE_DELAY_MS } from "@/lib/raffle/raffle";
+import { MAX_REEL_SPIN_SECONDS, REEL_STYLES } from "@/lib/raffle/reel-motion";
 import {
-  MAX_REEL_SPIN_SECONDS,
-  readReelMotion,
-  REEL_STYLES,
-  type ReelMotion,
-} from "@/lib/raffle/reel-motion";
+  planFinalTable,
+  RAFFLE_STYLES,
+  readRaffleMotion,
+  type RaffleMotion,
+} from "@/lib/raffle/raffle-scenes";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 const mocks = vi.hoisted(() => ({
@@ -135,8 +136,10 @@ async function runDraw(kind: "regular" | "vip", only: TournamentPlayer, accounts
 
 type StoredDraw = {
   faces?: Array<{ avatarUrl: string | null; name: string; number: number }>;
-  motion?: ReelMotion;
+  motion?: RaffleMotion;
+  numbers?: number[];
   spinSeconds?: number;
+  winnerNumber?: number;
 };
 
 /** The draw as it was written down, which is what the screen will run. */
@@ -287,13 +290,35 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
   });
 
   // Picked with the result, so every screen in the hall plays the same run.
-  it("writes down how the reel travels with the draw", async () => {
+  it("writes down how the draw runs with the draw", async () => {
     const { supabase } = await runDraw("regular", player(4));
     const stored = storedDraw(supabase);
 
     expect(stored.motion).toBeDefined();
-    expect(readReelMotion(stored.motion)).toEqual(stored.motion);
+    expect(readRaffleMotion(stored.motion, { numbers: [4], winnerNumber: 4 })).toEqual(
+      stored.motion,
+    );
     expect(stored.spinSeconds).toBeLessThanOrEqual(MAX_REEL_SPIN_SECONDS);
+  });
+
+  // Pinned randomness lands on the final table, the sixth way on the list.
+  it("writes the final table's knockouts down with the draw", async () => {
+    const pinned = Math.floor((5.5 / RAFFLE_STYLES.length) * 2 ** 31);
+    mocks.randomInt.mockImplementation(() => pinned);
+    const supabase = createSupabaseMock();
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({ players: [player(4), player(5), player(6)] }),
+    );
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    await POST(request("regular"));
+    const stored = storedDraw(supabase);
+
+    expect(stored.motion?.style).toBe("finalTable");
+    const order = stored.motion?.style === "finalTable" ? stored.motion.order : [];
+    expect([...order, stored.winnerNumber].sort()).toEqual([4, 5, 6]);
+    expect(stored.spinSeconds).toBe(planFinalTable(3).totalMs / 1000);
   });
 
   // Pinned randomness picks the first run on the list; the regular draw already ran it.

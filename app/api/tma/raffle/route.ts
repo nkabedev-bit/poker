@@ -17,7 +17,7 @@ import {
   type Raffle,
   type RaffleWinRecord,
 } from "@/lib/raffle/raffle";
-import { pickReelMotion } from "@/lib/raffle/reel-motion";
+import { pickRaffleMotion } from "@/lib/raffle/raffle-scenes";
 
 export const dynamic = "force-dynamic";
 
@@ -114,12 +114,13 @@ export async function POST(request: Request) {
   // seated by the time it stops turning.
   const avatars = await loadPlayerAvatars(auth.supabase);
 
-  // How the reel travels to the winner, drawn with the result so every screen plays the
-  // same run — and never the way tonight's other draw ran.
+  // How the draw runs to the winner — a reel or one of the scenes — drawn with the result
+  // so every screen plays the same run, and never the way tonight's other draw ran.
   const previousDraw = extras.raffleHistory[extras.raffleHistory.length - 1];
-  const { motion, spinSeconds } = pickReelMotion(
+  const { motion, spinSeconds } = pickRaffleMotion(
     () => randomInt(0, 2 ** 31) / 2 ** 31,
     previousDraw?.motion?.style ?? null,
+    { numbers: entrants.map((entrant) => entrant.number), winnerNumber: winner.number },
   );
 
   const raffle: Raffle = {

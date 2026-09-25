@@ -1,61 +1,77 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
-import { buildRaffleReel, type Raffle, type RaffleFace } from "@/lib/raffle/raffle";
-import { buildReelKeyframes, readReelMotion } from "@/lib/raffle/reel-motion";
-
-/**
- * Long enough for the club's faces to arrive over the hall's wifi, short enough that
- * the room is not left looking at a still reel while they load.
- */
-const PRELOAD_TIMEOUT_MS = 1500;
+import {
+  FinalTableScene,
+  SlotMachineScene,
+  SpotlightScene,
+} from "@/components/public/raffle-scenes";
+import {
+  photoUrls,
+  preloadPhotos,
+  RaffleStage,
+  useRaffleFaces,
+} from "@/components/public/raffle-stage";
+import { buildRaffleReel, type Raffle } from "@/lib/raffle/raffle";
+import { readRaffleMotion } from "@/lib/raffle/raffle-scenes";
+import { buildReelKeyframes, type ReelMotion } from "@/lib/raffle/reel-motion";
 
 /**
  * The draw, over the whole screen.
  *
- * The winner was decided on the server; the reel is an animation that lands on it, so
- * the room sees one result and it cannot be argued with. Faces run past a needle in the
- * middle and stop with the winner under it — a player with no photo rides past as their
- * nickname, which is how the hall knows them anyway. How the reel gets there — which way,
- * how far, with which stops on the way — came with the draw, so every screen runs alike.
+ * The winner was decided on the server; what the room watches is an animation that
+ * lands on it, so the room sees one result and it cannot be argued with. Which one — a
+ * reel of faces running past a needle, or one of the scenes — came with the draw, so
+ * every screen runs alike.
  *
- * Each draw gets a reel of its own. The screen refreshes its state while the reel is
- * turning — a poll, somebody knocked out at another table — and every refresh hands
- * over a new copy of the same draw; a reel that restarted on those would lose the timer
- * that shows the result, and the room would never be told who won.
+ * Each draw gets a run of its own. The screen refreshes its state while it plays — a
+ * poll, somebody knocked out at another table — and every refresh hands over a new copy
+ * of the same draw; a run that restarted on those would lose the timer that shows the
+ * result, and the room would never be told who won.
  */
 export function RaffleStrip({ raffle }: { raffle: Raffle }) {
-  return <RaffleReel initialRaffle={raffle} key={raffle.id} />;
+  return <RaffleRun initialRaffle={raffle} key={raffle.id} />;
 }
 
-function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
-  // The draw as it stood when the reel started. Nothing in it that the room sees
-  // changes afterwards, and a copy that arrives mid-spin must not restart it.
+function RaffleRun({ initialRaffle }: { initialRaffle: Raffle }) {
+  // The draw as it stood when it started. Nothing in it that the room sees changes
+  // afterwards, and a copy that arrives mid-run must not restart it.
   const [raffle] = useState(initialRaffle);
+  const motion = useMemo(
+    () =>
+      readRaffleMotion(raffle.motion, {
+        numbers: raffle.faces?.map((face) => face.number) ?? raffle.numbers,
+        winnerNumber: raffle.winnerNumber,
+      }),
+    [raffle],
+  );
+
+  switch (motion.style) {
+    case "finalTable":
+      return <FinalTableScene motion={motion} raffle={raffle} />;
+    case "slotMachine":
+      return <SlotMachineScene motion={motion} raffle={raffle} />;
+    case "spotlight":
+      return <SpotlightScene motion={motion} raffle={raffle} />;
+    default:
+      return <RaffleReel motion={motion} raffle={raffle} />;
+  }
+}
+
+/**
+ * Faces run past a needle in the middle and stop with the winner under it — a player
+ * with no photo rides past as their nickname, which is how the hall knows them anyway.
+ * How the reel gets there — which way, how far, with which stops on the way — is the
+ * draw's motion.
+ */
+function RaffleReel({ motion, raffle }: { motion: ReelMotion; raffle: Raffle }) {
   const [settled, setSettled] = useState(false);
-  // Photos that were here before the reel moved. Only these ride as faces: one still on
-  // its way — or one that never comes — rides past as the nickname, because a picture
-  // appearing mid-flight reads as a broken screen.
+  // Photos that were here before the reel moved. Only these ride as faces.
   const [arrived, setArrived] = useState<string[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
   const stripRef = useRef<HTMLDivElement>(null);
 
-  // A draw taken before the reel existed carries numbers and no faces; it runs as the
-  // numbers it was stored with rather than not at all.
-  const faces: RaffleFace[] = useMemo(
-    () =>
-      raffle.faces?.length
-        ? raffle.faces.map((face) => ({
-            ...face,
-            avatarUrl: toOwnOriginMediaUrl(face.avatarUrl) ?? null,
-          }))
-        : raffle.numbers.map((number) => ({ avatarUrl: null, name: String(number), number })),
-    [raffle.faces, raffle.numbers],
-  );
-
-  // A draw taken before there were five runs the reel it always had.
-  const motion = useMemo(() => readReelMotion(raffle.motion), [raffle.motion]);
+  const faces = useRaffleFaces(raffle);
   const winnerIndex = Math.max(0, faces.findIndex((face) => face.number === raffle.winnerNumber));
   const reel = useMemo(
     () => buildRaffleReel(faces.length, winnerIndex, motion.travelCells),
@@ -72,7 +88,6 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
 
   useEffect(() => {
     let cancelled = false;
-    let started = false;
     let animation: Animation | null = null;
     const timers: number[] = [];
 
@@ -112,33 +127,12 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
     };
 
     // Nothing moves until the faces are here, or until the room has waited long enough.
-    const urls = [
-      ...new Set(
-        faces.map((face) => face.avatarUrl).filter((url): url is string => Boolean(url)),
-      ),
-    ];
-    const loaded = urls.map(
-      (url) =>
-        new Promise<void>((resolve) => {
-          const image = new window.Image();
-          image.onload = () => {
-            if (!cancelled && !started) {
-              setArrived((list) => (list.includes(url) ? list : [...list, url]));
-            }
-            resolve();
-          };
-          image.onerror = () => resolve();
-          image.src = url;
-        }),
-    );
+    const preload = preloadPhotos(photoUrls(faces), (url) => {
+      if (!cancelled) setArrived((list) => (list.includes(url) ? list : [...list, url]));
+    });
 
-    void Promise.race([
-      Promise.all(loaded),
-      new Promise((resolve) => timers.push(window.setTimeout(resolve, PRELOAD_TIMEOUT_MS))),
-    ]).then(() => {
+    void preload.done.then(() => {
       if (cancelled) return;
-      // From here on the reel is what it is: a face still on its way stays a nickname.
-      started = true;
       // One frame at rest first, so the browser animates from a standstill rather than
       // jumping to the end.
       window.requestAnimationFrame(start);
@@ -146,71 +140,55 @@ function RaffleReel({ initialRaffle }: { initialRaffle: Raffle }) {
 
     return () => {
       cancelled = true;
+      preload.cancel();
       animation?.cancel();
       timers.forEach((timer) => window.clearTimeout(timer));
     };
   }, [faces, motion, raffle.spinSeconds, reel.landingIndex]);
 
   return (
-    <div className="raffle-overlay">
-      <div className="raffle-stage">
-        <p className="raffle-title">
-          {raffle.kind === "vip" ? "VIP розыгрыш" : "Розыгрыш бесплатной проходки"}
-        </p>
+    <RaffleStage raffle={raffle} settled={settled}>
+      <div className="raffle-strip-wrap" ref={wrapRef}>
+        <span className="raffle-needle" />
+        {/* Run the other way, the reel is mirrored: it starts where it stands either way,
+            and the same run lands on the same card. */}
+        <div
+          className={
+            motion.direction === "right" ? "raffle-strip raffle-strip--reverse" : "raffle-strip"
+          }
+          ref={stripRef}
+        >
+          {cells.map((face, index) => {
+            const photo =
+              face.avatarUrl && arrived.includes(face.avatarUrl) ? face.avatarUrl : null;
 
-        <div className="raffle-strip-wrap" ref={wrapRef}>
-          <span className="raffle-needle" />
-          {/* Run the other way, the reel is mirrored: it starts where it stands either way,
-              and the same run lands on the same card. */}
-          <div
-            className={
-              motion.direction === "right" ? "raffle-strip raffle-strip--reverse" : "raffle-strip"
-            }
-            ref={stripRef}
-          >
-            {cells.map((face, index) => {
-              const photo =
-                face.avatarUrl && arrived.includes(face.avatarUrl) ? face.avatarUrl : null;
-
-              return (
-                <div
-                  className={
-                    settled && index === reel.landingIndex
-                      ? "raffle-cell raffle-cell--winner"
-                      : "raffle-cell"
-                  }
-                  key={`${face.number}-${index}`}
-                >
-                  {photo ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      alt=""
-                      className="raffle-cell__photo"
-                      decoding="async"
-                      // Loaded once already, so this is rare; a nickname still beats a hole.
-                      onError={() => setArrived((list) => list.filter((url) => url !== photo))}
-                      src={photo}
-                    />
-                  ) : (
-                    <span className="raffle-cell__name">{face.name}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className={settled ? "raffle-result raffle-result--shown" : "raffle-result"}>
-          <p className="raffle-result__label">Победил номер</p>
-          <p className="raffle-result__number">{raffle.winnerNumber}</p>
-          <p className="raffle-result__name">{raffle.winnerName}</p>
-          <p className="raffle-result__prize">
-            {raffle.kind === "vip"
-              ? "Приз от партнёров клуба"
-              : "Бесплатная проходка на следующую игру"}
-          </p>
+            return (
+              <div
+                className={
+                  settled && index === reel.landingIndex
+                    ? "raffle-cell raffle-cell--winner"
+                    : "raffle-cell"
+                }
+                key={`${face.number}-${index}`}
+              >
+                {photo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    alt=""
+                    className="raffle-cell__photo"
+                    decoding="async"
+                    // Loaded once already, so this is rare; a nickname still beats a hole.
+                    onError={() => setArrived((list) => list.filter((url) => url !== photo))}
+                    src={photo}
+                  />
+                ) : (
+                  <span className="raffle-cell__name">{face.name}</span>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
-    </div>
+    </RaffleStage>
   );
 }
