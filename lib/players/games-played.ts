@@ -26,6 +26,8 @@ export async function countGamesByNickname(
         .from("tournament_results")
         .select("player_key, played_on")
         .in("player_key", batch)
+        // Pages in no order can repeat one row and skip another between them.
+        .order("id")
         .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
       if (error) throw error;

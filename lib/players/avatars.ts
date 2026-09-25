@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 /**
  * A face in two sizes: the full picture for a profile, and the thumbnail the lists
@@ -34,15 +35,26 @@ const NO_AVATAR: PlayerAvatar = { thumbUrl: null, url: null };
  * one lookup for the rating, the finishing table and anything else that lists players.
  */
 export async function loadPlayerAvatars(supabase: SupabaseClient): Promise<AvatarLookup> {
-  const { data } = await supabase
-    .from("client_bot_users")
-    .select("telegram_id, display_name, avatar_url, avatar_thumb_url")
-    .not("display_name", "is", null);
+  // Every account, a page at a time: past a thousand the rest would have lost their faces.
+  // A failed read costs the faces only — the lists still show every player, by letter.
+  let accounts: AccountRow[] = [];
+  try {
+    accounts = await readAllPages<AccountRow>((from, to) =>
+      supabase
+        .from("client_bot_users")
+        .select("telegram_id, display_name, avatar_url, avatar_thumb_url")
+        .not("display_name", "is", null)
+        .order("id")
+        .range(from, to),
+    );
+  } catch (error) {
+    console.error("Failed to read the players' photos", error);
+  }
 
   const byTelegramId = new Map<number, PlayerAvatar>();
   const byNickname = new Map<string, PlayerAvatar>();
 
-  for (const row of (data ?? []) as AccountRow[]) {
+  for (const row of accounts) {
     const avatar = { thumbUrl: row.avatar_thumb_url ?? row.avatar_url, url: row.avatar_url };
 
     if (row.telegram_id !== null) byTelegramId.set(row.telegram_id, avatar);

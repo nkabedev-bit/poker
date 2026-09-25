@@ -138,7 +138,9 @@ async function readAllResults(supabase: SupabaseClient) {
     const { data, error } = await supabase
       .from("tournament_results")
       .select("player_key, player_name, played_on")
+      // A date is shared by a whole evening; `id` keeps each row on one page only.
       .order("played_on")
+      .order("id")
       .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
     if (error) throw error;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readClientBotProfileSheet } from "@/lib/google-sheets";
 import { readSheetProfiles } from "@/lib/client-bot/profile-backfill";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -28,18 +29,19 @@ export async function POST() {
     return NextResponse.json({ error: "Лист «анкеты» пуст или недоступен" }, { status: 502 });
   }
 
-  const { data, error } = await supabase
-    .from("client_bot_users")
-    .select("id, nickname_key, pending_profile_answers")
-    .not("nickname_key", "is", null);
-
-  if (error) throw error;
-
-  const accounts = (data ?? []) as Array<{
+  // Every account, a page at a time: a single request stops at a thousand.
+  const accounts = await readAllPages<{
     id: string;
     nickname_key: string | null;
     pending_profile_answers: Record<string, unknown> | null;
-  }>;
+  }>((from, to) =>
+    supabase
+      .from("client_bot_users")
+      .select("id, nickname_key, pending_profile_answers")
+      .not("nickname_key", "is", null)
+      .order("id")
+      .range(from, to),
+  );
 
   const byKey = new Map(profiles.map((profile) => [profile.nicknameKey, profile]));
   let filled = 0;

@@ -5,6 +5,7 @@ import {
   type Season,
   type SeasonStanding,
 } from "@/lib/seasons/season";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 // Every column rather than a list of them: `parallel` arrives with migration 202609140001,
 // and naming it here would break the rating screen for everyone until that is applied.
@@ -79,27 +80,30 @@ export async function computeSeasonStandings(
   supabase: SupabaseClient,
   season: Season,
 ): Promise<SeasonStanding[]> {
-  let query = supabase
-    .from("tournament_results")
-    .select("telegram_id, player_name, points, knockouts")
-    .eq("counts_for_rating", true)
-    // Oldest first: a line without an account name falls back to its latest game's.
-    .order("started_at");
+  // Read in pages: a season holds thousands of rows, and a single request is cut at a
+  // thousand — oldest first, so the newest evenings were the ones silently dropped.
+  const data = await readAllPages<unknown>((from, to) => {
+    let query = supabase
+      .from("tournament_results")
+      .select("telegram_id, player_name, points, knockouts")
+      .eq("counts_for_rating", true)
+      // Oldest first: a line without an account name falls back to its latest game's.
+      .order("started_at")
+      .order("id");
 
-  if (season.parallel) {
-    // played_on comes from the moment a game started, so an evening that runs past
-    // midnight stays on the day it was played.
-    query = query.gte("played_on", season.startsOn);
-    if (season.endsOn) query = query.lte("played_on", season.endsOn);
-  } else {
-    query = query.eq("season_id", season.id);
-  }
+    if (season.parallel) {
+      // played_on comes from the moment a game started, so an evening that runs past
+      // midnight stays on the day it was played.
+      query = query.gte("played_on", season.startsOn);
+      if (season.endsOn) query = query.lte("played_on", season.endsOn);
+    } else {
+      query = query.eq("season_id", season.id);
+    }
 
-  const { data, error } = await query;
+    return query.range(from, to);
+  });
 
-  if (error) throw error;
-
-  const rows = (data ?? []).map((row) => {
+  const rows = data.map((row) => {
     const record = row as {
       knockouts: number | string | null;
       player_name: string;

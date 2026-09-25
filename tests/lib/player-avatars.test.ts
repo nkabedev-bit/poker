@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
 
 type Account = {
@@ -8,9 +8,13 @@ type Account = {
   telegram_id: number;
 };
 
-function supabaseWith(accounts: Account[]) {
+/** The accounts table, handing out the page it is asked for. */
+function supabaseWith(accounts: Account[], error: unknown = null) {
   const query = {
-    not: () => Promise.resolve({ data: accounts, error: null }),
+    not: () => query,
+    order: () => query,
+    range: (from: number, to: number) =>
+      Promise.resolve(error ? { data: null, error } : { data: accounts.slice(from, to + 1), error: null }),
     select: () => query,
   };
 
@@ -66,5 +70,30 @@ describe("loadPlayerAvatars", () => {
       thumbUrl: null,
       url: null,
     });
+  });
+});
+
+describe("loadPlayerAvatars — a club past a thousand accounts", () => {
+  it("finds the face of an account past the first thousand", async () => {
+    const accounts: Account[] = Array.from({ length: 1500 }, (_, index) => ({
+      avatar_thumb_url: `https://cdn/${index}-sm.webp`,
+      avatar_url: `https://cdn/${index}.jpg`,
+      display_name: `Игрок ${index}`,
+      telegram_id: 100 + index,
+    }));
+
+    const avatars = await loadPlayerAvatars(supabaseWith(accounts));
+
+    expect(avatars.find({ name: "Игрок 1499", telegramId: 1599 }).url).toBe("https://cdn/1499.jpg");
+  });
+
+  // The faces are a nicety: a failed read leaves letters, never an error on the page.
+  it("leaves every player a letter when the accounts cannot be read", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const avatars = await loadPlayerAvatars(supabaseWith([], new Error("timeout")));
+
+    expect(avatars.find({ name: "Karel", telegramId: 11 })).toEqual({ thumbUrl: null, url: null });
+    errorLog.mockRestore();
   });
 });

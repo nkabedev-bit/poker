@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readGames, readMonths } from "@/lib/sheets-import/reader";
 import { resolveGameNightDate } from "@/lib/sheets-import/parse-sheets";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,14 +23,17 @@ async function readStoredNames(
   const moments = [...new Set(startedAt)];
 
   for (let offset = 0; offset < moments.length; offset += NIGHT_DATE_BATCH_SIZE) {
-    const { data, error } = await supabase
-      .from("tournament_results")
-      .select("started_at, player_name")
-      .in("started_at", moments.slice(offset, offset + NIGHT_DATE_BATCH_SIZE));
+    // A hundred evenings are thousands of rows; one request would stop at a thousand.
+    const rows = await readAllPages<{ player_name: string; started_at: string }>((from, to) =>
+      supabase
+        .from("tournament_results")
+        .select("started_at, player_name")
+        .in("started_at", moments.slice(offset, offset + NIGHT_DATE_BATCH_SIZE))
+        .order("id")
+        .range(from, to),
+    );
 
-    if (error) throw error;
-
-    for (const row of (data ?? []) as Array<{ player_name: string; started_at: string }>) {
+    for (const row of rows) {
       names.set(storedNameKey(row.started_at, row.player_name), row.player_name);
     }
   }
@@ -301,14 +305,16 @@ export async function POST(request: Request) {
     const nightDates = [...new Set(uniqueNights.map((night) => night.played_on))];
 
     for (let offset = 0; offset < nightDates.length; offset += NIGHT_DATE_BATCH_SIZE) {
-      const { data, error } = await supabase
-        .from("tournament_results")
-        .select("played_on, player_name")
-        .in("played_on", nightDates.slice(offset, offset + NIGHT_DATE_BATCH_SIZE));
+      const rows = await readAllPages<{ played_on: string; player_name: string }>((from, to) =>
+        supabase
+          .from("tournament_results")
+          .select("played_on, player_name")
+          .in("played_on", nightDates.slice(offset, offset + NIGHT_DATE_BATCH_SIZE))
+          .order("id")
+          .range(from, to),
+      );
 
-      if (error) throw error;
-
-      for (const row of (data ?? []) as Array<{ played_on: string; player_name: string }>) {
+      for (const row of rows) {
         known.add(nightKey(row.played_on, row.player_name));
       }
     }

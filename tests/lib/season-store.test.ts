@@ -14,6 +14,7 @@ type QuerySpy = {
   in(column: string, values: unknown[]): QuerySpy;
   lte(column: string, value: unknown): QuerySpy;
   order(column: string): QuerySpy;
+  range(from: number, to: number): QuerySpy;
   select(columns: string): QuerySpy;
   then<T>(resolve: (result: Answer) => T): Promise<T>;
 };
@@ -39,6 +40,10 @@ function tableSpy(answer: Answer, record: (step: Filter) => void) {
     },
     order(column) {
       record(["order", column, undefined]);
+      return query;
+    },
+    // One page holds everything these tests store; the reader stops at a short page.
+    range() {
       return query;
     },
     select() {
@@ -156,7 +161,8 @@ describe("computeSeasonStandings — naming the lines", () => {
 
     await computeSeasonStandings(supabase, apc);
 
-    expect(orderedBy).toEqual(["started_at"]);
+    // Oldest first, with `id` to keep a row from straddling two pages.
+    expect(orderedBy).toEqual(["started_at", "id"]);
   });
 
   // 15.09.2026: two accounts were swapped for one evening, and the table put the other
@@ -239,5 +245,30 @@ describe("getOpenRegularSeason", () => {
     const season = await getOpenRegularSeason(supabase);
 
     expect(season?.id).toBe("autumn");
+  });
+});
+
+describe("computeSeasonStandings — a season past a thousand rows", () => {
+  // Forty players, sixty evenings: 2,400 rows. One request stopped at a thousand, oldest
+  // first, and the newest evenings went uncounted without a word.
+  it("counts every game of the season", async () => {
+    const rows = Array.from({ length: 2400 }, (_, index) => ({
+      knockouts: 0,
+      player_name: `Игрок ${index % 40}`,
+      points: 10,
+      telegram_id: null,
+    }));
+    const query = {
+      eq: () => query,
+      order: () => query,
+      range: async (from: number, to: number) => ({ data: rows.slice(from, to + 1), error: null }),
+      select: () => query,
+    };
+    const supabase = { from: () => query } as unknown as SupabaseClient;
+
+    const standings = await computeSeasonStandings(supabase, autumn);
+
+    expect(standings).toHaveLength(40);
+    expect(standings.every((line) => line.points === 600 && line.games === 60)).toBe(true);
   });
 });

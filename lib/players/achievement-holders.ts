@@ -9,8 +9,7 @@ import {
   countLastPlaces,
   type PlayerResultRow,
 } from "@/lib/results/player-stats";
-
-const PAGE_SIZE = 1000;
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 /**
  * How long one reading of the whole club stands in for a fresh one.
@@ -76,8 +75,6 @@ type RawAccount = {
   id: string;
   telegram_id: number | string | null;
 };
-
-type PageRead<Row> = { error: { message?: string } | null; rows: Row[] };
 
 function addTo<Key>(map: Map<Key, ClubResultRow[]>, key: Key, row: ClubResultRow) {
   const rows = map.get(key);
@@ -159,43 +156,25 @@ export function buildClubAchievements(
   return { holders, players: players.length };
 }
 
-/** Reads a table page by page: PostgREST hands out a thousand rows at a time. */
-async function readPages<Row>(
-  readPage: (
-    from: number,
-    to: number,
-  ) => PromiseLike<{ data: unknown; error: { message?: string } | null }>,
-): Promise<PageRead<Row>> {
-  const rows: Row[] = [];
-
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await readPage(from, from + PAGE_SIZE - 1);
-    if (error) return { error, rows };
-
-    const batch = (data ?? []) as Row[];
-    rows.push(...batch);
-
-    if (batch.length < PAGE_SIZE) return { error: null, rows };
-  }
-}
-
 async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]> {
   // Ordered by id alone: a page boundary has to fall in the same place on every request.
   const read = (columns: string) =>
-    readPages<RawResult>((from, to) =>
+    readAllPages<RawResult>((from, to) =>
       supabase.from("tournament_results").select(columns).order("id").range(from, to),
     );
 
   // Re-entries were added to the table later and the club runs its migrations by hand, so
   // the count still runs where the column is missing — "Без страховки" then goes to nobody,
   // which is what the profile shows in that case too.
-  let { error, rows } = await read(`${RESULT_COLUMNS}, rebuys`);
-  if (error && String(error.message ?? "").includes("rebuys")) {
-    console.warn("tournament_results.rebuys is missing; counting achievements without it", error);
-    ({ error, rows } = await read(RESULT_COLUMNS));
-  }
+  let rows: RawResult[];
+  try {
+    rows = await read(`${RESULT_COLUMNS}, rebuys`);
+  } catch (error) {
+    if (!String((error as { message?: unknown })?.message ?? "").includes("rebuys")) throw error;
 
-  if (error) throw error;
+    console.warn("tournament_results.rebuys is missing; counting achievements without it", error);
+    rows = await read(RESULT_COLUMNS);
+  }
 
   return rows.map((row) => ({
     knockouts: Number(row.knockouts ?? 0),
@@ -209,7 +188,7 @@ async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]
 }
 
 async function readAccounts(supabase: SupabaseClient): Promise<ClubAccount[]> {
-  const { error, rows } = await readPages<RawAccount>((from, to) =>
+  const rows = await readAllPages<RawAccount>((from, to) =>
     supabase
       .from("client_bot_users")
       .select("id, telegram_id, display_name, avatar_url, avatar_thumb_url")
@@ -217,8 +196,6 @@ async function readAccounts(supabase: SupabaseClient): Promise<ClubAccount[]> {
       .order("id")
       .range(from, to),
   );
-
-  if (error) throw error;
 
   return rows.map((row) => ({
     avatarUrl: row.avatar_thumb_url ?? row.avatar_url,

@@ -1,10 +1,14 @@
 import { ResultsManager } from "@/components/admin/results-manager";
 import { hasPublicEnv } from "@/lib/env";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
 const RECENT_ROWS_LIMIT = 2000;
+
+const RESULT_COLUMNS =
+  "started_at, played_on, title, player_name, place, points, knockouts, telegram_id, counts_for_rating";
 
 type ResultRow = {
   counts_for_rating: boolean | null;
@@ -28,13 +32,25 @@ export default async function ResultsPage({
   }
 
   const supabase = await createSupabaseServerClient();
-  const { data } = await supabase
-    .from("tournament_results")
-    .select("started_at, played_on, title, player_name, place, points, knockouts, telegram_id, counts_for_rating")
-    .order("started_at", { ascending: false })
-    .limit(RECENT_ROWS_LIMIT);
+  // The recent evenings, a page at a time: one request stops at a thousand rows, however
+  // many it asks for, and the list came up shorter than it meant to be.
+  const recent = await readAllPages<ResultRow>(
+    (from, to) =>
+      supabase
+        .from("tournament_results")
+        .select(RESULT_COLUMNS)
+        .order("started_at", { ascending: false })
+        .order("id")
+        .range(from, to),
+    { maxRows: RECENT_ROWS_LIMIT },
+  );
 
-  const rows = (data ?? []) as ResultRow[];
+  // A full window may end partway through an evening; that evening is left off rather
+  // than listed with only some of its players.
+  const rows =
+    recent.length === RECENT_ROWS_LIMIT
+      ? recent.filter((row) => row.started_at !== recent.at(-1)?.started_at)
+      : recent;
 
   // One entry per evening, newest first — the grouping the admin thinks in.
   const gamesByStart = new Map<
@@ -55,12 +71,25 @@ export default async function ResultsPage({
   const games = [...gamesByStart.values()];
   const selectedGame = (await searchParams).game ?? games[0]?.startedAt ?? null;
 
+  // The evening being edited is read on its own, whole. Saving writes back what is in
+  // the form and removes whoever is not, so an evening opened with part of its players —
+  // the edge of the list, or an older one opened by its link — lost the rest on save.
+  const selectedRows = selectedGame
+    ? await readAllPages<ResultRow>((from, to) =>
+        supabase
+          .from("tournament_results")
+          .select(RESULT_COLUMNS)
+          .eq("started_at", selectedGame)
+          .order("id")
+          .range(from, to),
+      )
+    : [];
+
   return (
     <ResultsManager
       key={selectedGame ?? "none"}
       games={games}
-      rows={rows
-        .filter((row) => row.started_at === selectedGame)
+      rows={selectedRows
         .map((row) => ({
           knockouts: Number(row.knockouts ?? 0),
           place: row.place,

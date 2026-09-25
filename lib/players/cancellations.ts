@@ -72,11 +72,11 @@ async function readAll<T>(
   const rows: T[] = [];
 
   for (let page = 0; ; page += 1) {
-    const { data, error } = await supabase
-      .from(table)
-      .select(columns)
-      .order(order)
-      .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
+    let query = supabase.from(table).select(columns).order(order);
+    // A shared value can straddle two pages; `id` keeps every row on exactly one.
+    if (order !== "id") query = query.order("id");
+
+    const { data, error } = await query.range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
 
     if (error) throw error;
 

@@ -12,6 +12,7 @@ import {
   type EventSignupStatus,
   type TournamentEvent,
 } from "@/lib/events/types";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 const EVENT_COLUMNS =
   "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
@@ -28,13 +29,15 @@ export async function listEvents(
   supabase: SupabaseClient,
   { publishedOnly = false }: { publishedOnly?: boolean } = {},
 ): Promise<TournamentEvent[]> {
-  let query = supabase.from("tournament_events").select(EVENT_COLUMNS).order("starts_at");
-  if (publishedOnly) query = query.eq("is_published", true);
+  // Every event, a page at a time: oldest first, so past a thousand the newest — the
+  // ones still ahead — are the ones a single request would have dropped.
+  const rows = await readAllPages<Record<string, unknown>>((from, to) => {
+    let query = supabase.from("tournament_events").select(EVENT_COLUMNS).order("starts_at").order("id");
+    if (publishedOnly) query = query.eq("is_published", true);
+    return query.range(from, to);
+  });
 
-  const { data, error } = await query;
-  if (error) throw error;
-
-  return (data ?? []).map((row) => mapEventRow(row as Record<string, unknown>));
+  return rows.map((row) => mapEventRow(row));
 }
 
 /**

@@ -5,7 +5,9 @@ import { getClientBot, sendTextToClientUsers } from "@/lib/client-bot/broadcast"
 import { recordClubAnnouncement } from "@/lib/client-bot/announcement-log";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// The most a Hobby function may run: a broadcast goes out a batch a second, and one cut off
+// halfway stays "sending" for good, with the rest of the club never told.
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   let env: ReturnType<typeof getServerEnv>;

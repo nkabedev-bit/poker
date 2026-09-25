@@ -107,8 +107,15 @@ function createSupabaseMock(accounts: AccountRow[] = [], pastWinners: WinnerRow[
             error: null,
           })),
         })),
-        // Where the faces on the reel come from.
-        not: vi.fn(async () => ({ data: accounts, error: null })),
+        // Where the faces on the reel come from, a page at a time.
+        not: vi.fn(() => ({
+          order: vi.fn(() => ({
+            range: vi.fn(async (from: number, to: number) => ({
+              data: accounts.slice(from, to + 1),
+              error: null,
+            })),
+          })),
+        })),
       })),
     }),
     rpc: vi.fn(async () => ({ data: null, error: null })),
