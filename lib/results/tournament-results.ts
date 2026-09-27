@@ -8,6 +8,8 @@ export type TournamentResultRow = {
   points: number;
   /** Re-entries bought this evening, doubles included. */
   rebuys: number;
+  /** How early the player sat down that evening, 1 for the first. */
+  seatOrder: number | null;
   telegramId: number | null;
 };
 
@@ -32,6 +34,9 @@ export function buildTournamentResultRows(
   }
 
   const addsSidePoints = isSideBountyPoints(pts.bountyType);
+  // The roster keeps players in the order the desk sat them down: the first of it is the
+  // one who was at the table before anybody else ("Раньше блайндов").
+  const seatOrder = new Map(players.map((player, index) => [player.id, index + 1]));
 
   return players
     .filter((player) => Number.isInteger(player.finishPlace) && (player.finishPlace ?? 0) > 0)
@@ -50,6 +55,7 @@ export function buildTournamentResultRows(
           ).toFixed(2),
         ),
         rebuys: Math.max(0, Math.trunc(Number(player.rebuys) || 0)),
+        seatOrder: seatOrder.get(player.id) ?? null,
         telegramId: Number.isInteger(player.telegramId) ? Number(player.telegramId) : null,
       };
     });

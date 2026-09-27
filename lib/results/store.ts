@@ -82,9 +82,10 @@ export async function saveTournamentResults({
   // here is the medal, and deleting the game takes the medal with it.
   const medalKey = resolveMedalKey(extras.settings);
 
-  // Two columns arrived after the table did, and the club applies its migrations by
-  // hand: the write tries them and falls back to the shape that has always been there,
-  // so a finished game is never lost to a migration nobody has run yet.
+  // Three columns arrived after the table did, and the club applies its migrations by
+  // hand: the write leaves out whichever one the database says it does not have and
+  // tries again, so a finished game is never lost to a migration nobody has run yet —
+  // nor its medal and re-entries to the newest one.
   const baseRows = rows.map((row) => ({
     event_id: eventId,
     knockouts: row.knockouts,
@@ -99,36 +100,28 @@ export async function saveTournamentResults({
     title,
     tournament_id: tournamentId,
   }));
+  const optionalColumns = {
+    medal_key: () => medalKey,
+    // Null would say "nobody knows"; the roster knows, so zero is written as zero.
+    rebuys: (index: number) => rows[index].rebuys,
+    seat_order: (index: number) => rows[index].seatOrder,
+  };
 
-  const { error } = await supabase.from("tournament_results").upsert(
-    baseRows.map((row, index) => ({
-      ...row,
-      medal_key: medalKey,
-      // Null would say "nobody knows"; the roster knows, so zero is written as zero.
-      rebuys: rows[index].rebuys,
-    })),
-    { onConflict: "started_at,player_name" },
-  );
-
-  const missingColumn = ["medal_key", "rebuys"].find((column) =>
-    String(error?.message ?? "").includes(column),
-  );
-
-  if (missingColumn) {
-    console.warn(
-      `tournament_results.${missingColumn} is missing; storing results without it`,
-      error,
+  let columns = Object.keys(optionalColumns) as Array<keyof typeof optionalColumns>;
+  for (;;) {
+    const { error } = await supabase.from("tournament_results").upsert(
+      baseRows.map((row, index) => ({
+        ...row,
+        ...Object.fromEntries(columns.map((column) => [column, optionalColumns[column](index)])),
+      })),
+      { onConflict: "started_at,player_name" },
     );
+    if (!error) return { saved: rows.length };
 
-    const { error: legacyError } = await supabase
-      .from("tournament_results")
-      .upsert(baseRows, { onConflict: "started_at,player_name" });
+    const missing = columns.find((column) => String(error.message ?? "").includes(column));
+    if (!missing) throw error;
 
-    if (legacyError) throw legacyError;
-    return { saved: rows.length };
+    console.warn(`tournament_results.${missing} is missing; storing results without it`, error);
+    columns = columns.filter((column) => column !== missing);
   }
-
-  if (error) throw error;
-
-  return { saved: rows.length };
 }

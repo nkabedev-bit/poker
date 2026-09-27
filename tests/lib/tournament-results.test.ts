@@ -26,6 +26,24 @@ function player(overrides: Partial<TournamentPlayer> = {}): TournamentPlayer {
 const PTS = { bountyPoints: 10, bountyType: "standard" as const, placePoints: [100, 80, 60] };
 
 describe("buildTournamentResultRows", () => {
+  // "Раньше блайндов": the roster keeps players in the order the desk sat them down.
+  it("remembers how early each player sat down", () => {
+    const rows = buildTournamentResultRows(
+      [
+        player({ finishPlace: 3, name: "Сел первым" }),
+        player({ finishPlace: 1, name: "Сел вторым" }),
+        player({ finishPlace: 2, name: "Сел третьим" }),
+      ],
+      PTS,
+    );
+
+    expect(rows.map((row) => [row.playerName, row.seatOrder])).toEqual([
+      ["Сел вторым", 2],
+      ["Сел третьим", 3],
+      ["Сел первым", 1],
+    ]);
+  });
+
   it("records a row per finished player, ordered by place", () => {
     const rows = buildTournamentResultRows(
       [
