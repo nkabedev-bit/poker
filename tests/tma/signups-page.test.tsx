@@ -364,44 +364,60 @@ describe("the waiting list at the desk", () => {
     expect(screen.getByText("1. Иван Очередь")).toBeTruthy();
   });
 
-  // A place in line is not a ticket: it becomes one only in somebody else's stead.
-  it("asks whose place the player from the queue is taking", async () => {
-    mockFetch({ waitlist: [QUEUED] });
-    render(<TMASignupsPage />);
-
-    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
-    fireEvent.click(screen.getByText("1. Иван Очередь"));
-
-    await screen.findByText(/Вместо кого сажаем/);
-    expect(screen.getByRole("button", { name: /ace high/i })).toBeTruthy();
-  });
-
-  it("seats them in the absentee's stead, on the ticket the desk picked", async () => {
+  it("opens the questionnaire of a player in the queue", async () => {
     const fetchMock = mockFetch({ waitlist: [QUEUED] });
     render(<TMASignupsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
     fireEvent.click(screen.getByText("1. Иван Очередь"));
-    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
 
-    await screen.findByText(/Вместо Ace High/);
+    await screen.findByText("Иван Иванов");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/client-profile?userId=account-9",
+      expect.anything(),
+    );
+    expect(screen.getByRole("button", { name: "Посадить за стол" })).toBeTruthy();
+    expect(screen.queryByText(/Вместо кого/)).toBeNull();
+  });
+
+  // People come late, and the desk cannot tell at the door who of those signed up is
+  // still on the way — so nobody is named as the one the queue replaces.
+  it("seats a player from the queue on the ticket picked, naming nobody they replace", async () => {
+    const fetchMock = mockFetch({ waitlist: [QUEUED] });
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
+    fireEvent.click(screen.getByText("1. Иван Очередь"));
+    fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
     fireEvent.click(screen.getByRole("button", { name: "VIP билет" }));
     fireEvent.click(screen.getByRole("button", { name: /Посадить на случайное место/ }));
 
     await waitFor(() =>
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tma/event-signups/wait-1/seat",
-        expect.objectContaining({
-          body: expect.stringContaining('"replacesSignupId":"signup-1"'),
-        }),
+        expect.objectContaining({ method: "POST" }),
       ),
     );
 
     const seatCall = fetchMock.mock.calls.find(
       ([url]) => String(url) === "/api/tma/event-signups/wait-1/seat",
     ) as unknown as [string, { body: string }];
+    const sent = JSON.parse(seatCall[1].body);
 
-    expect(JSON.parse(seatCall[1].body).ticketType).toBe("vip");
+    expect(sent.ticketType).toBe("vip");
+    expect(sent).not.toHaveProperty("replacesSignupId");
+  });
+
+  it("opens the questionnaire of a queued player already at a table, with no seat to give", async () => {
+    mockFetch({ waitlist: [{ ...QUEUED, seated: true }] });
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
+    fireEvent.click(screen.getByText("1. Иван Очередь"));
+
+    await screen.findByText("Иван Иванов");
+    expect(screen.getByText("Уже за столом")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Посадить за стол" })).toBeNull();
   });
 
   // They may still walk in an hour late and ask where their ticket went.

@@ -107,9 +107,10 @@ export default function TMASignupsPage() {
   // The queue is folded away: most evenings the desk works the sign-ups and never opens
   // it, and it only matters when somebody fails to turn up.
   const [waitlistOpen, setWaitlistOpen] = useState(false);
-  // Seating somebody out of the queue: who they are, and whose place they are taking.
-  const [queueSeating, setQueueSeating] = useState<WaitlistEntry | null>(null);
-  const [replacing, setReplacing] = useState<Signup | null>(null);
+  // Somebody from the queue, opened: their questionnaire first, then the ticket and the
+  // chair once the desk decides to sit them down.
+  const [queueEntry, setQueueEntry] = useState<WaitlistEntry | null>(null);
+  const [queueSeatingOpen, setQueueSeatingOpen] = useState(false);
   // A place in line says what the player hoped for; the desk decides at the door.
   const [queueTicket, setQueueTicket] = useState<"regular" | "vip">("regular");
   // The table whose chairs are being changed, so its buttons wait for the answer.
@@ -154,26 +155,27 @@ export default function TMASignupsPage() {
     setSeatingOpen(false);
   };
 
-  /** Starts seating somebody from the queue: first the desk says whose place it is. */
-  const openQueueSeating = (entry: WaitlistEntry) => {
-    setQueueSeating(entry);
-    setReplacing(null);
+  /** Opens somebody from the queue: the questionnaire they filled in when they joined. */
+  const openQueueEntry = (entry: WaitlistEntry) => {
+    setQueueEntry(entry);
+    setQueueSeatingOpen(false);
     setSeatChoice(null);
     // What they asked for in the queue is the obvious first guess; the desk can change it.
     setQueueTicket(entry.ticketType === "vip" ? "vip" : "regular");
   };
 
-  const closeQueueSeating = () => {
-    setQueueSeating(null);
-    setReplacing(null);
+  const closeQueueEntry = () => {
+    setQueueEntry(null);
+    setQueueSeatingOpen(false);
     setSeatChoice(null);
   };
 
   /**
-   * Seats the player from the queue in the absentee's stead: the sign-up that never
-   * turned up is marked as such, and this one becomes a ticket of the kind just picked.
+   * Seats the player from the queue on the ticket just picked. Nobody is named as the
+   * one they replace: people come late, and the desk cannot tell who of those signed up
+   * is still on the way.
    */
-  const seatFromQueue = async (entry: WaitlistEntry, absentee: Signup, choice: SeatChoice) => {
+  const seatFromQueue = async (entry: WaitlistEntry, choice: SeatChoice) => {
     const tg = getTelegramWebApp();
     if (seatingId) return;
 
@@ -183,7 +185,6 @@ export default function TMASignupsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
         body: JSON.stringify({
-          replacesSignupId: absentee.id,
           seat: choice.seat,
           table: choice.table,
           ticketType: queueTicket,
@@ -196,7 +197,7 @@ export default function TMASignupsPage() {
           ...choice,
           label: nameSeat(tableFormats, choice.table, choice.seat),
         });
-        closeQueueSeating();
+        closeQueueEntry();
         await load();
         return;
       }
@@ -288,54 +289,58 @@ export default function TMASignupsPage() {
   // join a tournament nobody put them in.
   const canSeat = data?.event?.seatingOpen ?? false;
 
-  // Somebody from the queue, on their way to a chair: first whose place it is, then the
-  // ticket and the seat.
-  if (queueSeating) {
-    const absentees = (data?.signups ?? []).filter(
-      (signup) => !signup.seated && !signup.noShow,
-    );
+  // Somebody from the queue: their questionnaire first, then — once the desk sits them
+  // down — the ticket and the chair.
+  if (queueEntry) {
     const queueDisabledClass = seatingId ? " opacity-60 cursor-not-allowed" : "";
 
-    if (!replacing) {
+    if (!queueSeatingOpen) {
       return (
         <div className="space-y-4">
           <button
             className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
             type="button"
-            onClick={closeQueueSeating}
+            onClick={closeQueueEntry}
           >
             <ChevronLeft size={18} /> К заявкам
           </button>
 
-          <h1 className="text-xl font-bold">
-            Вместо кого сажаем <span className="text-[#7ad0f0]">{queueSeating.name}</span>?
-          </h1>
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">
-            Выберите того, кто записался и не пришёл — его место займёт игрок из очереди.
-          </p>
+          <h1 className="text-xl font-bold">{queueEntry.name}</h1>
 
-          {absentees.length === 0 ? (
-            <p className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm text-[var(--tg-theme-hint-color)]">
-              Все записавшиеся уже за столами — свободного места в очередь нет.
+          <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm">
+            <p className="font-semibold">Лист ожидания</p>
+            <p className="mt-1 text-[var(--tg-theme-hint-color)]">
+              Просил: {TICKET_LABELS[queueEntry.ticketType]}
             </p>
+            {queueEntry.offerExpiresAt && !queueEntry.seated ? (
+              <p className="mt-1 text-[#e9c07a]">
+                Место держим до {formatEventTimeLabel(queueEntry.offerExpiresAt)}
+              </p>
+            ) : null}
+          </div>
+
+          <ClientProfileCard
+            accountId={queueEntry.userId}
+            className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4"
+            telegramId={queueEntry.telegramId}
+          />
+
+          {queueEntry.seated ? (
+            <p className="flex items-center gap-2 text-sm text-green-500">
+              <CheckCircle2 size={16} /> Уже за столом
+            </p>
+          ) : canSeat ? (
+            <button
+              className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)]"
+              type="button"
+              onClick={() => setQueueSeatingOpen(true)}
+            >
+              Посадить за стол
+            </button>
           ) : (
-            <div className="space-y-2">
-              {absentees.map((signup) => (
-                <button
-                  key={signup.id}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left"
-                  type="button"
-                  onClick={() => setReplacing(signup)}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{signup.name}</span>
-                    <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                      {TICKET_LABELS[signup.ticketType]}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
+            <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm text-[var(--tg-theme-hint-color)]">
+              Игра не сегодня — посадить за стол можно будет в день турнира.
+            </p>
           )}
         </div>
       );
@@ -347,16 +352,14 @@ export default function TMASignupsPage() {
           className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${queueDisabledClass}`}
           disabled={Boolean(seatingId)}
           type="button"
-          onClick={() => setReplacing(null)}
+          onClick={() => setQueueSeatingOpen(false)}
         >
-          <ChevronLeft size={18} /> К выбору
+          <ChevronLeft size={18} /> К анкете
         </button>
 
         <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-          <p className="text-lg font-bold">{queueSeating.name}</p>
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">
-            Вместо {replacing.name} — его заявка станет «не пришёл»
-          </p>
+          <p className="text-lg font-bold">{queueEntry.name}</p>
+          <p className="text-sm text-[var(--tg-theme-hint-color)]">Из листа ожидания</p>
         </div>
 
         {/* The queue said what they hoped for; what they get is decided here, at the
@@ -394,7 +397,7 @@ export default function TMASignupsPage() {
             if (!picked) return;
 
             setSeatChoice(picked);
-            void seatFromQueue(queueSeating, replacing, picked);
+            void seatFromQueue(queueEntry, picked);
           }}
         >
           <Dices size={18} /> Посадить на случайное место
@@ -418,7 +421,7 @@ export default function TMASignupsPage() {
           className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
           disabled={Boolean(seatingId) || !seatChoice}
           type="button"
-          onClick={() => seatChoice && void seatFromQueue(queueSeating, replacing, seatChoice)}
+          onClick={() => seatChoice && void seatFromQueue(queueEntry, seatChoice)}
         >
           {seatChoice
             ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
@@ -633,8 +636,8 @@ export default function TMASignupsPage() {
             <div className="space-y-2 pl-2">
               <p className="text-xs text-[var(--tg-theme-hint-color)]">
                 Очередь идёт сверху вниз: место, освободившееся в приложении, полчаса
-                держат за первым в ней. Нажмите на игрока, чтобы посадить его вместо
-                того, кто не пришёл.
+                держат за первым в ней. Нажмите на игрока, чтобы открыть анкету и
+                посадить за стол.
               </p>
               {waitlist.map((entry, index) => (
                 <button
@@ -642,9 +645,8 @@ export default function TMASignupsPage() {
                   className={`flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-left${
                     entry.seated ? " opacity-60" : ""
                   }`}
-                  disabled={entry.seated}
                   type="button"
-                  onClick={() => openQueueSeating(entry)}
+                  onClick={() => openQueueEntry(entry)}
                 >
                   <span className="min-w-0">
                     <span className="block truncate font-semibold">
@@ -660,7 +662,7 @@ export default function TMASignupsPage() {
                             : TICKET_LABELS[entry.ticketType]}
                     </span>
                   </span>
-                  <span className="shrink-0">
+                  <span className="flex shrink-0 items-center gap-2">
                     {entry.seated ? (
                       <CheckCircle2 className="text-[#7ad0f0]" size={18} />
                     ) : entry.ticketType === "vip" ? (
@@ -672,6 +674,8 @@ export default function TMASignupsPage() {
                         1+1
                       </span>
                     ) : null}
+                    {/* The same way into the questionnaire as every sign-up below. */}
+                    <ClipboardList className="text-[var(--tg-theme-button-color)]" size={18} />
                   </span>
                 </button>
               ))}
