@@ -8,7 +8,13 @@ type Row = Record<string, unknown>;
  * The results table, answering the way Supabase does: filtered by `in`, one page of at
  * most a thousand rows for each `range`. `columns` fails a read that asks for them.
  */
-function resultsTable(rows: Row[], { missingColumn }: { missingColumn?: string } = {}) {
+function resultsTable(
+  rows: Row[],
+  { missingColumn, missingColumns = missingColumn ? [missingColumn] : [] }: {
+    missingColumn?: string;
+    missingColumns?: string[];
+  } = {},
+) {
   const pages: Array<[number, number]> = [];
   const batches: unknown[][] = [];
 
@@ -32,8 +38,13 @@ function resultsTable(rows: Row[], { missingColumn }: { missingColumn?: string }
       },
       range(start: number, end: number) {
         pages.push([start, end]);
-        if (missingColumn && selected.includes(missingColumn)) {
-          return Promise.resolve({ data: null, error: { message: `column ${missingColumn} does not exist` } });
+        // Like Postgres, the first column asked for that is not there is the one named.
+        const missing = selected
+          .split(",")
+          .map((column) => column.trim())
+          .find((column) => missingColumns.includes(column));
+        if (missing) {
+          return Promise.resolve({ data: null, error: { message: `column ${missing} does not exist` } });
         }
         return Promise.resolve({ data: matching.slice(start, end + 1), error: null });
       },
@@ -76,7 +87,47 @@ describe("readPlayerGames", () => {
 
     const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
 
-    expect(played).toEqual([{ knockouts: 1, place: 1, rebuys: null, startedAt: startOf(0) }]);
+    expect(played).toEqual([
+      { knockouts: 1, place: 1, rebuys: null, seatOrder: null, startedAt: startOf(0) },
+    ]);
+  });
+
+  it("still reads the games where the seating order has not been added", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { supabase } = resultsTable(
+      [{ knockouts: 0, place: 3, rebuys: 1, started_at: startOf(0) }],
+      { missingColumn: "seat_order" },
+    );
+
+    const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
+
+    expect(played).toEqual([
+      { knockouts: 0, place: 3, rebuys: 1, seatOrder: null, startedAt: startOf(0) },
+    ]);
+  });
+
+  // Both came with migrations run by hand: an old database may have neither.
+  it("still reads the games when neither late column is there", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { supabase } = resultsTable([{ knockouts: 2, place: 5, started_at: startOf(0) }], {
+      missingColumns: ["rebuys", "seat_order"],
+    });
+
+    const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
+
+    expect(played).toEqual([
+      { knockouts: 2, place: 5, rebuys: null, seatOrder: null, startedAt: startOf(0) },
+    ]);
+  });
+
+  it("reads how early the player sat down", async () => {
+    const { supabase } = resultsTable([
+      { knockouts: 0, place: 2, rebuys: 0, seat_order: 1, started_at: startOf(0) },
+    ]);
+
+    const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
+
+    expect(played[0]?.seatOrder).toBe(1);
   });
 });
 

@@ -207,3 +207,98 @@ describe("buildPlayerResultsFilter", () => {
     expect(buildPlayerResultsFilter(42, "100%_ace")).toBe("telegram_id.eq.42,player_key.eq.100ace");
   });
 });
+
+describe("the new achievements' counts", () => {
+  // Days of September at 19:00 UTC; a row can also carry what the player bought and
+  // how early they sat down.
+  const night = (day: number, place: number | null, extra: Record<string, unknown> = {}) => ({
+    ...game(place, 0, day),
+    ...extra,
+  });
+
+  it("finds the longest run of wins in the player's own games", () => {
+    const stats = computePlayerStats([
+      night(1, 1),
+      night(3, 1),
+      night(5, 4),
+      night(7, 1),
+      night(9, null),
+      night(11, 1),
+    ]);
+
+    // A night restored without a place breaks nothing, so 7th and 11th make two in a row.
+    expect(stats.bestWinStreak).toBe(2);
+  });
+
+  it("tells a win on the first bullet from one that took a re-entry", () => {
+    const stats = computePlayerStats([
+      night(1, 1, { rebuys: 0 }),
+      night(2, 1, { rebuys: 2 }),
+      night(3, 1, { rebuys: null }),
+      night(4, 2, { rebuys: 0 }),
+    ]);
+
+    // The night that never recorded re-entries vouches for neither.
+    expect(stats).toMatchObject({ cleanWins: 1, reentryWins: 1, wins: 3 });
+  });
+
+  it("counts a shared knockout as a knockout", () => {
+    const stats = computePlayerStats([game(12, 0.5, 1), game(8, 0, 2), game(3, 2, 3)]);
+
+    expect(stats.knockoutGames).toBe(2);
+  });
+
+  it("counts which of the three podium places the player has taken", () => {
+    expect(computePlayerStats([game(1, 0, 1), game(3, 0, 2), game(3, 0, 3)]).podiumPlaces).toBe(2);
+    expect(computePlayerStats([game(2, 0, 1), game(1, 0, 2), game(3, 0, 3)]).podiumPlaces).toBe(3);
+    expect(computePlayerStats([game(4, 0, 1), game(9, 0, 2)]).podiumPlaces).toBe(0);
+  });
+
+  // Any seven days, not a calendar week.
+  it("finds the most final tables inside any seven days", () => {
+    expect(computePlayerStats([game(5, 0, 1), game(9, 0, 7)]).bestFinalsInWeek).toBe(2);
+    // Exactly a week apart is the next week.
+    expect(computePlayerStats([game(5, 0, 1), game(9, 0, 8)]).bestFinalsInWeek).toBe(1);
+    expect(
+      computePlayerStats([game(2, 0, 10), game(15, 0, 11), game(4, 0, 12), game(1, 0, 14)])
+        .bestFinalsInWeek,
+    ).toBe(3);
+  });
+
+  it("counts the evenings the player sat down first", () => {
+    const stats = computePlayerStats([
+      night(1, 5, { seatOrder: 1 }),
+      night(2, 5, { seatOrder: 3 }),
+      night(3, 5, { seatOrder: 1 }),
+      night(4, 5),
+    ]);
+
+    expect(stats.firstSeated).toBe(2);
+  });
+
+  describe("the run of attendance", () => {
+    const club = [1, 2, 3, 4, 5, 6].map((day) => game(null, 0, day).startedAt);
+
+    it("counts the club's games in a row the player came to", () => {
+      const stats = computePlayerStats([game(5, 0, 1), game(5, 0, 2), game(5, 0, 4), game(5, 0, 5), game(5, 0, 6)], {
+        clubGames: club,
+      });
+
+      // The 3rd was played without them: 4th to 6th is the longest run.
+      expect(stats.bestAttendanceStreak).toBe(3);
+    });
+
+    it("matches a game however its time was written", () => {
+      const stats = computePlayerStats([game(5, 0, 1), game(5, 0, 2)], {
+        clubGames: ["2026-09-01T19:00:00+00:00", "2026-09-02T22:00:00+03:00"],
+      });
+
+      expect(stats.bestAttendanceStreak).toBe(2);
+    });
+
+    // Without the club's list there is no telling which nights were missed.
+    it("stays at nought without the club's list of games", () => {
+      expect(computePlayerStats([game(5, 0, 1), game(5, 0, 2)]).bestAttendanceStreak).toBe(0);
+    });
+  });
+});

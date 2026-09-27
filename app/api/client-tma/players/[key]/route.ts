@@ -68,7 +68,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
     return NextResponse.json({ error: "not_found" }, { status: 404 });
   }
 
-  const stats = await buildPlayerStats(auth.supabase, played);
+  const stats = await buildPlayerStats(auth.supabase, played, {
+    accountId: record?.id ?? null,
+    nickname,
+    telegramId: record?.telegram_id ?? null,
+  });
   const [labels, games, medalsFromResults, archiveMedals, hand] = await Promise.all([
     loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
     countGamesByNickname(auth.supabase, [nickname]),

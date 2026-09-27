@@ -89,7 +89,7 @@ describe("achievements", () => {
     expect(badge({ bestMissStreak: 5 }, "character-test")?.earned).toBe(true);
   });
 
-  it("groups the badges into the club's five sections", () => {
+  it("groups the badges into the club's six sections", () => {
     const sections = getAchievementSections(EMPTY_PLAYER_STATS);
 
     expect(sections.map((section) => section.title)).toEqual([
@@ -98,6 +98,7 @@ describe("achievements", () => {
       "Победы",
       "Специальные достижения",
       "Попади в топ-9",
+      "Приглашения",
     ]);
   });
 

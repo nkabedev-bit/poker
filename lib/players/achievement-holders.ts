@@ -2,6 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { EMPTY_PLAYER_STATS, getAchievements } from "@/lib/client/achievements";
+import { computeInviteStats, NO_INVITES, type InviteeRecord } from "@/lib/players/invitees";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import {
   buildFieldSizes,
@@ -9,6 +10,11 @@ import {
   countLastPlaces,
   type PlayerResultRow,
 } from "@/lib/results/player-stats";
+import {
+  countBestTopTenSeasonStreak,
+  readClosedSeasonTopTens,
+  type SeasonTopTen,
+} from "@/lib/seasons/top-ten-streak";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 /**
@@ -22,6 +28,8 @@ import { readAllPages } from "@/lib/supabase/read-all-pages";
 const CACHE_TTL_MS = 60 * 60_000;
 
 const RESULT_COLUMNS = "telegram_id, player_key, player_name, place, knockouts, started_at";
+/** Added to the table later, by migrations the club runs by hand. */
+const OPTIONAL_RESULT_COLUMNS = ["rebuys", "seat_order"] as const;
 
 export type ClubResultRow = PlayerResultRow & {
   playerKey: string;
@@ -56,7 +64,19 @@ export type ClubAchievements = {
   players: number;
 };
 
-type ClubPlayer = Omit<AchievementHolder, "value"> & { rows: ClubResultRow[] };
+type ClubPlayer = Omit<AchievementHolder, "value"> & {
+  rows: ClubResultRow[];
+  /** Where the player has one: what a closed season's table knows them by. */
+  telegramId: number | null;
+};
+
+/** What the club-wide count needs beyond the results and the accounts. */
+export type ClubAchievementsContext = {
+  /** Newcomer's account → the account that brought them in. */
+  invitedBy?: Map<string, string>;
+  /** Every closed regular season's top ten, oldest first. */
+  seasons?: SeasonTopTen[];
+};
 
 type RawResult = {
   knockouts: number | string | null;
@@ -64,6 +84,7 @@ type RawResult = {
   player_key: string | null;
   player_name: string;
   rebuys?: number | string | null;
+  seat_order?: number | string | null;
   started_at: string;
   telegram_id: number | string | null;
 };
@@ -95,6 +116,7 @@ function addTo<Key>(map: Map<Key, ClubResultRow[]>, key: Key, row: ClubResultRow
 export function buildClubAchievements(
   results: ClubResultRow[],
   accounts: ClubAccount[],
+  { invitedBy = new Map(), seasons = [] }: ClubAchievementsContext = {},
 ): ClubAchievements {
   const byTelegramId = new Map<number, ClubResultRow[]>();
   const byNickname = new Map<string, ClubResultRow[]>();
@@ -122,7 +144,14 @@ export function buildClubAchievements(
     if (rows.size === 0) continue;
 
     for (const row of rows) claimed.add(row);
-    players.push({ accountId: account.id, avatarUrl: account.avatarUrl, key, name, rows: [...rows] });
+    players.push({
+      accountId: account.id,
+      avatarUrl: account.avatarUrl,
+      key,
+      name,
+      rows: [...rows],
+      telegramId: account.telegramId,
+    });
   }
 
   for (const [key, rows] of byNickname) {
@@ -132,19 +161,55 @@ export function buildClubAchievements(
     const latest = rows.reduce((last, row) =>
       new Date(row.startedAt).getTime() > new Date(last.startedAt).getTime() ? row : last,
     );
-    players.push({ accountId: null, avatarUrl: null, key, name: latest.playerName, rows });
+    players.push({
+      accountId: null,
+      avatarUrl: null,
+      key,
+      name: latest.playerName,
+      rows,
+      telegramId: null,
+    });
   }
 
-  // "Last place" is the largest place of a game, which only the whole field can tell.
+  // "Last place" is the largest place of a game, which only the whole field can tell, and
+  // a run of attendance is read against every game the club has played.
   const fieldSizes = buildFieldSizes(results);
+  const clubGames = [...new Set(results.map((row) => row.startedAt))];
   const holders: Record<string, AchievementHolder[]> = Object.fromEntries(
     getAchievements(EMPTY_PLAYER_STATS).map((achievement) => [achievement.id, []]),
   );
 
-  for (const { rows, ...player } of players) {
-    const stats = { ...computePlayerStats(rows), lastPlace: countLastPlaces(rows, fieldSizes) };
+  const counted = players.map(({ rows, telegramId, ...player }) => ({
+    player,
+    stats: {
+      ...computePlayerStats(rows, { clubGames }),
+      bestTopTenSeasonStreak: countBestTopTenSeasonStreak(seasons, {
+        nickname: player.name,
+        telegramId,
+      }),
+      lastPlace: countLastPlaces(rows, fieldSizes),
+    },
+  }));
 
-    for (const achievement of getAchievements(stats)) {
+  // What each account's newcomers have done since: a newcomer who never played counts
+  // as one with no games.
+  const recordByAccount = new Map<string, InviteeRecord>();
+  for (const { player, stats } of counted) {
+    if (player.accountId) recordByAccount.set(player.accountId, { games: stats.games, top9: stats.top9 });
+  }
+  const inviteesByAccount = new Map<string, InviteeRecord[]>();
+  for (const [invitee, referrer] of invitedBy) {
+    const records = inviteesByAccount.get(referrer) ?? [];
+    records.push(recordByAccount.get(invitee) ?? { games: 0, top9: 0 });
+    inviteesByAccount.set(referrer, records);
+  }
+
+  for (const { player, stats } of counted) {
+    const invites = player.accountId
+      ? computeInviteStats(inviteesByAccount.get(player.accountId) ?? [])
+      : NO_INVITES;
+
+    for (const achievement of getAchievements({ ...stats, ...invites })) {
       if (achievement.earned) holders[achievement.id].push({ ...player, value: achievement.value });
     }
   }
@@ -163,17 +228,23 @@ async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]
       supabase.from("tournament_results").select(columns).order("id").range(from, to),
     );
 
-  // Re-entries were added to the table later and the club runs its migrations by hand, so
-  // the count still runs where the column is missing — "Без страховки" then goes to nobody,
-  // which is what the profile shows in that case too.
+  // Re-entries and the seating order were added to the table later and the club runs its
+  // migrations by hand, so the count still runs where a column is missing — what hangs on
+  // it then goes to nobody, which is what the profile shows in that case too.
+  let optional: string[] = [...OPTIONAL_RESULT_COLUMNS];
   let rows: RawResult[];
-  try {
-    rows = await read(`${RESULT_COLUMNS}, rebuys`);
-  } catch (error) {
-    if (!String((error as { message?: unknown })?.message ?? "").includes("rebuys")) throw error;
+  for (;;) {
+    try {
+      rows = await read([RESULT_COLUMNS, ...optional].join(", "));
+      break;
+    } catch (error) {
+      const message = String((error as { message?: unknown })?.message ?? "");
+      const missing = optional.find((column) => message.includes(column));
+      if (!missing) throw error;
 
-    console.warn("tournament_results.rebuys is missing; counting achievements without it", error);
-    rows = await read(RESULT_COLUMNS);
+      console.warn(`tournament_results.${missing} is missing; counting achievements without it`);
+      optional = optional.filter((column) => column !== missing);
+    }
   }
 
   return rows.map((row) => ({
@@ -182,6 +253,8 @@ async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]
     playerKey: row.player_key ?? "",
     playerName: row.player_name,
     rebuys: row.rebuys === null || row.rebuys === undefined ? null : Number(row.rebuys),
+    seatOrder:
+      row.seat_order === null || row.seat_order === undefined ? null : Number(row.seat_order),
     startedAt: row.started_at,
     telegramId: row.telegram_id === null ? null : Number(row.telegram_id),
   }));
@@ -205,6 +278,34 @@ async function readAccounts(supabase: SupabaseClient): Promise<ClubAccount[]> {
   }));
 }
 
+/**
+ * Who brought whom, from the newcomers' questionnaires. Read apart from the accounts: the
+ * link came with a migration applied by hand, and without it the count still runs — the
+ * invites then go to nobody.
+ */
+async function readInviteLinks(supabase: SupabaseClient): Promise<Map<string, string>> {
+  try {
+    const rows = await readAllPages<{ id: string; referred_by_user_id: string | null }>(
+      (from, to) =>
+        supabase
+          .from("client_bot_users")
+          .select("id, referred_by_user_id")
+          .not("referred_by_user_id", "is", null)
+          .order("id")
+          .range(from, to),
+    );
+
+    return new Map(
+      rows
+        .filter((row) => row.referred_by_user_id)
+        .map((row) => [row.id, row.referred_by_user_id as string]),
+    );
+  } catch (error) {
+    console.warn("Invites are unavailable for the achievements", error);
+    return new Map();
+  }
+}
+
 /** Costs headers only: the rows themselves are not sent. Null when it cannot be told. */
 async function countResults(supabase: SupabaseClient) {
   const { count, error } = await supabase
@@ -220,10 +321,15 @@ let snapshot: Snapshot | null = null;
 let reading: Promise<Snapshot> | null = null;
 
 async function readSnapshot(supabase: SupabaseClient): Promise<Snapshot> {
-  const [results, accounts] = await Promise.all([readAllResults(supabase), readAccounts(supabase)]);
+  const [results, accounts, invitedBy, seasons] = await Promise.all([
+    readAllResults(supabase),
+    readAccounts(supabase),
+    readInviteLinks(supabase),
+    readClosedSeasonTopTens(supabase),
+  ]);
 
   return {
-    club: buildClubAchievements(results, accounts),
+    club: buildClubAchievements(results, accounts, { invitedBy, seasons }),
     readAt: Date.now(),
     results: results.length,
   };

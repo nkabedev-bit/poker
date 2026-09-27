@@ -80,7 +80,11 @@ export async function GET(request: Request) {
     nickname: auth.user.display_name ?? "",
     telegramId: auth.user.telegram_id,
   });
-  const { lastPlace, ...stats } = await buildPlayerStats(auth.supabase, played);
+  const { lastPlace, ...stats } = await buildPlayerStats(auth.supabase, played, {
+    accountId: auth.user.id,
+    nickname: auth.user.display_name ?? "",
+    telegramId: auth.user.telegram_id,
+  });
 
   // The club's own label wins over the count, which is how a champion is crowned.
   const tier = resolvePlayerTier({
@@ -147,14 +151,26 @@ export async function GET(request: Request) {
     // admin corrects the achievements with it — and games played before any of this
     // existed count too, because the club's old sheets were imported into the same table.
     stats: {
+      bestAttendanceStreak: stats.bestAttendanceStreak,
+      bestFinalsInWeek: stats.bestFinalsInWeek,
       bestMissStreak: stats.bestMissStreak,
       bestTop9Streak: stats.bestTop9Streak,
+      bestTopTenSeasonStreak: stats.bestTopTenSeasonStreak,
       bestTournamentBounty: stats.bestTournamentBounty,
+      bestWinStreak: stats.bestWinStreak,
       cleanPodiums: stats.cleanPodiums,
+      cleanWins: stats.cleanWins,
       comebackWins: stats.comebackWins,
       eliminations: stats.eliminations,
+      firstSeated: stats.firstSeated,
       games: stats.games,
+      invitedFinalists: stats.invitedFinalists,
+      invitedPlayers: stats.invitedPlayers,
+      invitedRegulars: stats.invitedRegulars,
+      knockoutGames: stats.knockoutGames,
       lastPlace,
+      podiumPlaces: stats.podiumPlaces,
+      reentryWins: stats.reentryWins,
       top9: stats.top9,
       top3: stats.top3,
       wins: stats.wins,

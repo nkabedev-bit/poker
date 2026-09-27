@@ -1,10 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { readInviteStats, type InviteStats } from "@/lib/players/invitees";
 import {
   buildFieldSizes,
   buildPlayerResultsFilter,
   computePlayerStats,
   countLastPlaces,
 } from "@/lib/results/player-stats";
+import { countBestTopTenSeasonStreak, readClosedSeasonTopTens } from "@/lib/seasons/top-ten-streak";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 /** Games asked about in one request when reading their fields: keeps the query short. */
@@ -14,6 +16,7 @@ type StoredGame = {
   knockouts: number | string | null;
   place: number | null;
   rebuys?: number | string | null;
+  seat_order?: number | string | null;
   started_at: string;
 };
 
@@ -22,10 +25,32 @@ export type PlayedGame = {
   place: number | null;
   /** Re-entries bought that evening; null when the game predates the column. */
   rebuys: number | null;
+  /** How early the player sat down that evening, 1 for the first; null before it was kept. */
+  seatOrder?: number | null;
   startedAt: string;
 };
 
-export type PlayerProfileStats = ReturnType<typeof computePlayerStats> & { lastPlace: number };
+export type PlayerProfileStats = ReturnType<typeof computePlayerStats> &
+  InviteStats & {
+    // Closed seasons in a row finished in the top ten.
+    bestTopTenSeasonStreak: number;
+    lastPlace: number;
+  };
+
+/** Whose profile it is: the account behind it (if any) and how the results know them. */
+export type ProfileOwner = { accountId: string | null; nickname: string; telegramId: number | null };
+
+/**
+ * Re-entries and the seating order were added to the table later and the club runs its
+ * migrations by hand, so a profile still opens where they are missing — those games
+ * simply say they do not know.
+ */
+const GAME_COLUMNS = "place, knockouts, started_at";
+const OPTIONAL_GAME_COLUMNS = ["rebuys", "seat_order"] as const;
+
+function readNullableNumber(value: unknown) {
+  return value === null || value === undefined ? null : Number(value);
+}
 
 /**
  * Everything a profile says about a player, counted from the games themselves.
@@ -51,31 +76,32 @@ export async function readPlayerGames(
         .range(from, to),
     );
 
-  // Re-entries were added to the table later and the club runs its migrations by hand,
-  // so a profile still opens where the column is missing — those games simply say they
-  // do not know. Anything else leaves the profile empty rather than locked.
+  // A column the database says is missing is left out and the read asked again; anything
+  // else leaves the profile empty rather than locked.
+  let optional: string[] = [...OPTIONAL_GAME_COLUMNS];
   let games: StoredGame[] = [];
-  try {
-    games = await read("place, knockouts, started_at, rebuys");
-  } catch (error) {
-    if (!String((error as { message?: unknown })?.message ?? "").includes("rebuys")) {
-      console.error("Failed to read the player's games", error);
-      return [];
-    }
-
-    console.warn("tournament_results.rebuys is missing; reading games without it", error);
+  for (;;) {
     try {
-      games = await read("place, knockouts, started_at");
-    } catch (fallbackError) {
-      console.error("Failed to read the player's games", fallbackError);
-      return [];
+      games = await read([GAME_COLUMNS, ...optional].join(", "));
+      break;
+    } catch (error) {
+      const message = String((error as { message?: unknown })?.message ?? "");
+      const missing = optional.find((column) => message.includes(column));
+      if (!missing) {
+        console.error("Failed to read the player's games", error);
+        return [];
+      }
+
+      console.warn(`tournament_results.${missing} is missing; reading games without it`);
+      optional = optional.filter((column) => column !== missing);
     }
   }
 
   return games.map((record) => ({
     knockouts: Number(record.knockouts ?? 0),
     place: record.place,
-    rebuys: record.rebuys === null || record.rebuys === undefined ? null : Number(record.rebuys),
+    rebuys: readNullableNumber(record.rebuys),
+    seatOrder: readNullableNumber(record.seat_order),
     startedAt: record.started_at,
   }));
 }
@@ -107,11 +133,43 @@ async function readFieldSizes(supabase: SupabaseClient, startedAt: string[]) {
   return buildFieldSizes(rows);
 }
 
+/**
+ * The club's games, oldest first: the list a run of attendance is read against. Read
+ * through a small database function that answers one row per game; until its migration
+ * is applied, and whenever the read fails, the run simply stays at nought.
+ */
+async function readClubGames(supabase: SupabaseClient): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.rpc("list_club_games");
+    if (error) throw error;
+
+    return ((data ?? []) as Array<{ started_at: string }>).map((row) => row.started_at);
+  } catch (error) {
+    console.warn("The club's list of games is unavailable for the achievements", error);
+    return [];
+  }
+}
+
+/**
+ * Everything a profile counts. Most of it comes from the player's own games; a run of
+ * attendance needs the club's list of games, a run in the top ten needs the closed
+ * seasons, and the invites need the players the account brought in — each read apart,
+ * and each left at nought when it cannot be.
+ */
 export async function buildPlayerStats(
   supabase: SupabaseClient,
   played: PlayedGame[],
+  owner?: ProfileOwner,
 ): Promise<PlayerProfileStats> {
-  const stats = computePlayerStats(played);
+  const [clubGames, seasons, invites] = await Promise.all([
+    played.length > 0 ? readClubGames(supabase) : Promise.resolve([]),
+    owner ? readClosedSeasonTopTens(supabase) : Promise.resolve([]),
+    readInviteStats(supabase, owner?.accountId ?? null),
+  ]);
+  const stats = computePlayerStats(played, { clubGames });
+  const bestTopTenSeasonStreak = owner
+    ? countBestTopTenSeasonStreak(seasons, { nickname: owner.nickname, telegramId: owner.telegramId })
+    : 0;
 
   // "Last place" needs the size of each field, which only the other players' rows can
   // tell — 27th is the bottom of one tournament and the middle of another. Without the
@@ -129,5 +187,5 @@ export async function buildPlayerStats(
     }
   }
 
-  return { ...stats, lastPlace };
+  return { ...stats, ...invites, bestTopTenSeasonStreak, lastPlace };
 }

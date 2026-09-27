@@ -147,6 +147,60 @@ describe("buildClubAchievements", () => {
   });
 });
 
+describe("buildClubAchievements — the new achievements", () => {
+  // Anna comes to all three of the club's evenings; Boris misses the second.
+  const threeEvenings = [
+    ...evening(1, [{ name: "Anna" }, { name: "Boris" }]),
+    ...evening(2, [{ name: "Anna" }, { name: "Cyril" }]),
+    ...evening(3, [{ name: "Boris" }, { name: "Anna" }]),
+  ];
+
+  it("reads a run of attendance against every game the club has played", () => {
+    const club = buildClubAchievements(threeEvenings, []);
+
+    expect(namesOf(club.holders["warm-up"])).toEqual(["Anna"]);
+  });
+
+  it("hands the first final, podium and knockout to whoever has one", () => {
+    const club = buildClubAchievements(
+      evening(1, [{ name: "Anna" }, { knockouts: 0.5, name: "Boris" }]),
+      [],
+    );
+
+    expect(namesOf(club.holders["first-final"])).toEqual(["Anna", "Boris"]);
+    expect(namesOf(club.holders["first-podium"])).toEqual(["Anna", "Boris"]);
+    expect(namesOf(club.holders["first-knockout"])).toEqual(["Boris"]);
+  });
+
+  // A newcomer counts for the one who brought them once they come back for a second game.
+  it("credits an account with the newcomers it brought in", () => {
+    const club = buildClubAchievements(
+      threeEvenings,
+      [account("anna", "Anna"), account("boris", "Boris"), account("cyril", "Cyril")],
+      { invitedBy: new Map([["boris", "anna"], ["cyril", "anna"]]) },
+    );
+
+    // Boris has two games and a final table; Cyril came once.
+    expect(namesOf(club.holders["plus-one"])).toEqual(["Anna"]);
+    expect(club.holders["plus-one"]?.[0]?.value).toBe(1);
+    expect(namesOf(club.holders.relay)).toEqual(["Anna"]);
+    expect(namesOf(club.holders["full-table"])).toEqual([]);
+  });
+
+  it("reads three closed seasons in the top ten for «В поле зрения»", () => {
+    const season = (id: string, names: string[]) => ({
+      id,
+      rows: names.map((playerName) => ({ playerName, telegramId: null })),
+      startsOn: `2026-0${id}-01`,
+    });
+    const club = buildClubAchievements(threeEvenings, [], {
+      seasons: [season("6", ["Anna", "Boris"]), season("7", ["Anna"]), season("8", ["Anna", "Boris"])],
+    });
+
+    expect(namesOf(club.holders["in-sight"])).toEqual(["Anna"]);
+  });
+});
+
 type RawResult = {
   knockouts: number;
   place: number | null;
@@ -198,7 +252,12 @@ function fakeDatabase(results: RawResult[], options: { missingRebuys?: boolean }
           };
         }
 
-        if (first === 0) reads[table === "tournament_results" ? "results" : "accounts"] += 1;
+        // The accounts are the read with the faces in it; the invite links and the
+        // seasons are read beside them, once per reading all the same.
+        if (first === 0 && table === "tournament_results") reads.results += 1;
+        if (first === 0 && table === "client_bot_users" && columns.includes("avatar_url")) {
+          reads.accounts += 1;
+        }
         return { data: rows.slice(first, last + 1), error: null };
       };
 
