@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
+import { PlayerAvatar } from "../_components/player-avatar";
 import { GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
 import { isValidBirthDate, maskBirthDateInput } from "@/lib/client-bot/registration";
 
 const AGREEMENT_TEXT =
   "Я ознакомлен с положением и принимаю пользовательское соглашение и соблюдаю правила сообщества: фишки НЕ имеют денежного эквивалента, турнир проводится БЕЗ денежных призов, встреча НЕ является игорной деятельностью.";
+
+const SEARCH_DELAY_MS = 350;
+
+/** A club member as the nickname search hands them over. */
+type MemberMatch = { avatarUrl: string | null; key: string; name: string };
 
 export default function ClientOnboardingPage() {
   const { initData } = useClientTMA();
@@ -18,11 +24,63 @@ export default function ClientOnboardingPage() {
   const [discoverySource, setDiscoverySource] = useState("");
   const [error, setError] = useState("");
   const [fullName, setFullName] = useState("");
+  const [invitedBy, setInvitedBy] = useState("");
+  const [inviterMatches, setInviterMatches] = useState<MemberMatch[]>([]);
   const [nickname, setNickname] = useState("");
   const [notificationsConsent, setNotificationsConsent] = useState(true);
   const [phone, setPhone] = useState("");
   const [ratingConsent, setRatingConsent] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const searchTimer = useRef<number | null>(null);
+  // Only the latest search may fill the list: an answer still on its way when the
+  // newcomer picks somebody must not open it again under the name they chose.
+  const searchRequest = useRef(0);
+
+  useEffect(
+    () => () => {
+      if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    },
+    [],
+  );
+
+  // The server takes only a nickname the club knows, so the members are offered as the
+  // newcomer types — a tap puts the exact spelling in the field.
+  const searchInviters = async (query: string) => {
+    const request = ++searchRequest.current;
+
+    if (query.trim().length < 2) {
+      setInviterMatches([]);
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/client-tma/players?q=${encodeURIComponent(query)}`, {
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (request === searchRequest.current) {
+          setInviterMatches((data.players ?? []) as MemberMatch[]);
+        }
+      }
+    } catch {
+      if (request === searchRequest.current) setInviterMatches([]);
+    }
+  };
+
+  const typeInviter = (value: string) => {
+    setInvitedBy(value);
+
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchTimer.current = window.setTimeout(() => void searchInviters(value), SEARCH_DELAY_MS);
+  };
+
+  const pickInviter = (match: MemberMatch) => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchRequest.current += 1;
+    setInvitedBy(match.name);
+    setInviterMatches([]);
+  };
 
   const submit = async () => {
     setError("");
@@ -44,6 +102,7 @@ export default function ClientOnboardingPage() {
           birthDate,
           discoverySource,
           fullName,
+          invitedBy,
           nickname,
           notificationsConsent,
           phone,
@@ -127,6 +186,33 @@ export default function ClientOnboardingPage() {
             onChange={(event) => setDiscoverySource(event.target.value)}
           />
         </Field>
+
+        <Field label="Если вас пригласил игрок, что состоит в клубе — укажите его ник">
+          <input
+            autoComplete="off"
+            className={inputClass}
+            maxLength={40}
+            placeholder="Ник игрока клуба — необязательно"
+            value={invitedBy}
+            onChange={(event) => typeInviter(event.target.value)}
+          />
+        </Field>
+
+        {inviterMatches.length > 0 ? (
+          <div className="space-y-1.5">
+            {inviterMatches.map((match) => (
+              <button
+                key={match.key}
+                className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
+                type="button"
+                onClick={() => pickInviter(match)}
+              >
+                <PlayerAvatar name={match.name} photoUrl={match.avatarUrl ?? undefined} size={30} />
+                <span className="truncate text-sm font-semibold">{match.name}</span>
+              </button>
+            ))}
+          </div>
+        ) : null}
       </GlassCard>
 
       <GlassCard className="space-y-3">

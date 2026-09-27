@@ -3,6 +3,12 @@ export type ClientBotProfileAnswers = {
   birthDate: string;
   discoverySource: string;
   fullName: string;
+  /**
+   * The club member who brought the player in, by their nickname — empty when nobody
+   * did. Absent from questionnaires filled in before the question was asked. Never shown
+   * to players: it is what the referral achievements will be counted off.
+   */
+  invitedBy?: string;
   nickname: string;
   notificationsConsent: boolean;
   phone: string;
@@ -24,6 +30,7 @@ export const CLIENT_BOT_PROFILE_SHEET_HEADERS = [
   "Как узнали",
   "Согласие на уведомления",
   "Пользовательское соглашение",
+  "Пригласил",
 ];
 
 const russianMonthNumbers: Record<string, string> = {
@@ -170,5 +177,6 @@ export function buildClientBotProfileSheetRow({
     answers.discoverySource,
     answers.notificationsConsent ? "Да" : "Нет",
     answers.agreementAccepted ? "Согласен" : "",
+    answers.invitedBy ?? "",
   ];
 }

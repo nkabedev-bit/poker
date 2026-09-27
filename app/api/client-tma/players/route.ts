@@ -7,8 +7,9 @@ export const dynamic = "force-dynamic";
 const MATCHES_SHOWN = 8;
 
 /**
- * Members of the club, looked up by nickname — for now, whoever a player names as the
- * +1 on a "1+1" ticket.
+ * Members of the club, looked up by nickname — whoever a player names as the +1 on a
+ * "1+1" ticket, and whoever a newcomer names in the questionnaire as the one who
+ * brought them in.
  *
  * Only the nickname and the face come back, and both are already on the board in the
  * hall and in the rating table. Telegram ids stay on the server: the player picks a

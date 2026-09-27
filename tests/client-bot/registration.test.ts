@@ -66,6 +66,7 @@ describe("client bot", () => {
       "Как узнали",
       "Согласие на уведомления",
       "Пользовательское соглашение",
+      "Пригласил",
     ]);
 
     expect(
@@ -96,7 +97,32 @@ describe("client bot", () => {
       "Друг",
       "Нет",
       "Согласен",
+      "",
     ]);
+  });
+
+  // Column L, after everything the birthday digest and the backfill read (A–K).
+  it("writes the member who brought the player in last", () => {
+    const row = buildClientBotProfileSheetRow({
+      answers: {
+        agreementAccepted: true,
+        birthDate: "01.01.1990",
+        discoverySource: "Друг",
+        fullName: "Иван Петров",
+        invitedBy: "Chura",
+        nickname: "Ace High",
+        notificationsConsent: false,
+        phone: "+79990000000",
+        ratingConsent: true,
+      },
+      submittedAt: new Date("2026-05-19T10:20:00.000Z"),
+      telegramId: 12345,
+      username: "ace_user",
+    });
+
+    expect(row).toHaveLength(CLIENT_BOT_PROFILE_SHEET_HEADERS.length);
+    expect(row[11]).toBe("Chura");
+    expect(CLIENT_BOT_PROFILE_SHEET_HEADERS[11]).toBe("Пригласил");
   });
 
   it("normalizes birth date in profile sheet row", () => {

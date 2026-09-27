@@ -8,6 +8,7 @@ type ProfileAnswers = {
   birthDate?: string;
   discoverySource?: string;
   fullName?: string;
+  invitedBy?: string;
   nickname?: string;
   notificationsConsent?: boolean;
   phone?: string;
@@ -73,6 +74,8 @@ export async function GET(request: Request) {
         vip: Number(record.vip_free_entries ?? 0),
       },
       fullName: answers.fullName ?? "",
+      // The admin's eyes only: players never see who brought whom.
+      invitedBy: answers.invitedBy ?? "",
       joinedAt: record.created_at,
       notificationsConsent: Boolean(answers.notificationsConsent),
       phone: answers.phone ?? "",

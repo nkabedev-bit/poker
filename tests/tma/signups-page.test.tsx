@@ -220,6 +220,26 @@ describe("TMASignupsPage", () => {
     await screen.findByText(/игрок ещё не подтвердил/i);
   });
 
+  it("shows the desk who brought the player in, and nothing when nobody did", async () => {
+    mockFetch({ profile: { ...PROFILE, invitedBy: "Chura" } });
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+
+    await screen.findByText("Иван Иванов");
+    expect(screen.getByText("Пригласил")).toBeTruthy();
+    expect(screen.getByText("Chura")).toBeTruthy();
+
+    cleanup();
+    mockFetch();
+    render(<TMASignupsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /ace high/i }));
+
+    await screen.findByText("Иван Иванов");
+    expect(screen.queryByText("Пригласил")).toBeNull();
+  });
+
   it("says so plainly when the player has no questionnaire", async () => {
     mockFetch({ profile: null });
     render(<TMASignupsPage />);

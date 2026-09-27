@@ -11,6 +11,8 @@ type ClientProfile = {
   displayName: string | null;
   freeEntries: { regular: number; vip: number };
   fullName: string;
+  /** The member who brought the player in; empty when nobody did. */
+  invitedBy?: string;
   notificationsConsent: boolean;
   phone: string;
   ratingConsent: boolean;
@@ -126,6 +128,7 @@ export function ClientProfileCard({
       />
       <ProfileRow label="Дата рождения" value={profile.birthDate} />
       <ProfileRow label="Откуда узнал" value={profile.discoverySource} />
+      <ProfileRow label="Пригласил" value={profile.invitedBy ?? ""} />
       <ProfileRow
         icon={<Send size={14} />}
         label="Telegram"
