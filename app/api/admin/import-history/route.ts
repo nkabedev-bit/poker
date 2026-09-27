@@ -3,6 +3,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readGames, readMonths } from "@/lib/sheets-import/reader";
 import { resolveGameNightDate } from "@/lib/sheets-import/parse-sheets";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { importedGameStart } from "@/lib/results/imported-games";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 export const dynamic = "force-dynamic";
@@ -147,7 +148,7 @@ export async function POST(request: Request) {
         player_name: row.playerName,
         points: row.points,
         source: "import",
-        started_at: `${game.playedOn}T12:00:00.000Z`,
+        started_at: importedGameStart(game.playedOn),
         title: `Игра ${game.sheetName}`,
       })),
     );
@@ -279,7 +280,7 @@ export async function POST(request: Request) {
             points: night.points,
             season_id: seasonIdBySheet.get(month.sheetName) ?? null,
             source: "import",
-            started_at: `${playedOn}T12:00:00.000Z`,
+            started_at: importedGameStart(playedOn),
             title: `Игра ${playedOn.split("-").reverse().join(".")}`,
           }];
         }),
