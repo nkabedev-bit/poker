@@ -40,6 +40,7 @@ export async function GET(request: Request) {
     // The lists draw faces the size of a fingernail, so thumbnails do.
     findAvatar: (player) =>
       avatars.find({ name: player.name, telegramId: player.telegramId }).thumbUrl,
+    isBounty: context.extras.settings.isBounty,
     isMe: (player) =>
       isSameTelegramAccount(auth.user.telegram_id, player.telegramId) ||
       (Boolean(myNicknameKey) && buildNicknameKey(player.name) === myNicknameKey),

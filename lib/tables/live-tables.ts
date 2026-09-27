@@ -3,6 +3,11 @@ import type { TournamentPlayer } from "@/lib/timer/types";
 /** One player as the club's phones see them: a face, a name, a number and a fate. */
 export type LiveTablePlayer = {
   avatarUrl: string | null;
+  /**
+   * Players knocked out tonight, a knockout split between killers counting as a share —
+   * so 2.5 is possible. Null when the evening pays no bounties: there is nothing to count.
+   */
+  bounties: number | null;
   /** Where they came in the finishing order; null while they are still playing. */
   finishPlace: number | null;
   id: string;
@@ -29,6 +34,7 @@ export type LiveRoom = {
 };
 
 type RosterPlayer = Pick<TournamentPlayer, "id" | "name" | "status"> & {
+  bountyCount?: number | null;
   finishPlace?: number | null;
   registrationNumber?: number | null;
   seat?: number | null;
@@ -73,9 +79,12 @@ export function buildLiveRoom(
   players: RosterPlayer[],
   {
     findAvatar,
+    isBounty = false,
     isMe,
   }: {
     findAvatar?: (player: RosterPlayer) => string | null;
+    /** Whether tonight pays bounties — only then is a player's count worth showing. */
+    isBounty?: boolean;
     isMe?: (player: RosterPlayer) => boolean;
   } = {},
 ): LiveRoom {
@@ -89,6 +98,10 @@ export function buildLiveRoom(
     const playing = player.status === "active";
     const listed: LiveTablePlayer = {
       avatarUrl: findAvatar?.(player) ?? null,
+      // Two decimals are enough for a three-way split.
+      bounties: isBounty
+        ? Number(Math.max(0, Number(player.bountyCount) || 0).toFixed(2))
+        : null,
       finishPlace: optionalNumber(player.finishPlace),
       id: player.id,
       isMe: isMe?.(player) ?? false,

@@ -76,6 +76,7 @@ describe("LiveTournamentCard", () => {
 describe("LiveTables", () => {
   const seat = (overrides: Partial<LiveTablePlayer> & { id: string; name: string }) => ({
     avatarUrl: null,
+    bounties: null,
     finishPlace: null,
     isMe: false,
     registrationNumber: 4,
@@ -134,6 +135,40 @@ describe("LiveTables", () => {
 
     expect(screen.queryByText("Вылетели")).toBeNull();
     expect(screen.queryByText("вылетел")).toBeNull();
+  });
+
+  // A row of zeros at the start of the evening would be noise, so only a knockout shows.
+  it("shows the bounties of those who have knocked somebody out", () => {
+    render(
+      <LiveTables
+        eliminated={[
+          seat({ bounties: 1, id: "c", name: "Выбил и вылетел", seat: null, status: "eliminated" }),
+        ]}
+        tables={[
+          {
+            number: 1,
+            players: [
+              seat({ bounties: 2.5, id: "a", name: "Разделил" }),
+              seat({ bounties: 0, id: "b", name: "Пока никого", seat: 3 }),
+            ],
+          },
+        ]}
+      />,
+    );
+
+    const row = (name: string) => screen.getByText(name).closest("li")?.textContent ?? "";
+
+    expect(row("Разделил")).toContain("2,5 баунти");
+    expect(row("Выбил и вылетел")).toContain("1 баунти");
+    expect(row("Пока никого")).not.toContain("баунти");
+  });
+
+  it("shows no bounties on an evening that pays none", () => {
+    render(
+      <LiveTables eliminated={[]} tables={[{ number: 1, players: [seat({ id: "a", name: "Играет" })] }]} />,
+    );
+
+    expect(screen.getByText("Играет").closest("li")?.textContent).not.toContain("баунти");
   });
 
   it("says plainly when nobody has sat down yet", () => {

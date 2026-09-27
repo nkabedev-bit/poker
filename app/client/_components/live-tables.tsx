@@ -1,6 +1,6 @@
 "use client";
 
-import { Users } from "lucide-react";
+import { Crosshair, Users } from "lucide-react";
 import { GlassCard } from "./ui";
 import { PlayerAvatar } from "./player-avatar";
 import type { LiveRoom, LiveTablePlayer } from "@/lib/tables/live-tables";
@@ -28,6 +28,20 @@ function PlayerRow({ player }: { player: LiveTablePlayer }) {
           {player.seat ? `место ${player.seat}` : null}
         </p>
       </div>
+
+      {/* Only those who have knocked somebody out: a row of zeros at the start of the
+          evening would be noise. */}
+      {player.bounties ? (
+        <span
+          className={`flex shrink-0 items-center gap-1 text-[13px] font-bold text-[#e9c07a] ${
+            out ? "opacity-45" : ""
+          }`}
+        >
+          <Crosshair size={13} />
+          {player.bounties.toLocaleString("ru-RU")}
+          <span className="sr-only"> баунти</span>
+        </span>
+      ) : null}
 
       {out ? (
         <span className="shrink-0 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-white/45">

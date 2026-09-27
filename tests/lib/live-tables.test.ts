@@ -122,6 +122,33 @@ describe("buildLiveRoom", () => {
     });
   });
 
+  // A knockout split between killers pays each a share; a three-way split is a third.
+  it("counts the bounties of the still-in and the out alike when tonight pays them", () => {
+    const room = buildLiveRoom(
+      [
+        player({ bountyCount: 2.5, name: "Разделил", registrationNumber: 1 }),
+        player({ bountyCount: 1 / 3, name: "Треть", registrationNumber: 2, seat: 2 }),
+        player({
+          bountyCount: 1,
+          finishPlace: 9,
+          name: "Выбил и вылетел",
+          registrationNumber: 3,
+          status: "eliminated",
+        }),
+      ],
+      { isBounty: true },
+    );
+
+    expect(room.tables[0]?.players.map((item) => item.bounties)).toEqual([2.5, 0.33]);
+    expect(room.eliminated[0]?.bounties).toBe(1);
+  });
+
+  it("counts no bounties on an evening that pays none", () => {
+    const room = buildLiveRoom([player({ bountyCount: 2, name: "Выбил" })]);
+
+    expect(room.tables[0]?.players[0]?.bounties).toBeNull();
+  });
+
   it("returns an empty room for an empty roster", () => {
     expect(buildLiveRoom([])).toEqual({ eliminated: [], tables: [] });
   });
