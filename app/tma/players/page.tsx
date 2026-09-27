@@ -39,9 +39,13 @@ const CONFIRM_NAMES_LIMIT = 10;
 type Player = {
   addons?: number;
   addonChipsTotal?: number;
+  /** Double re-entries (x2) — counted in `rebuys` too. */
+  doubleRebuys?: number;
   id: string;
   name: string;
   paid?: boolean;
+  /** Every re-entry the player took, the doubles among them. */
+  rebuys?: number;
   registrationNumber?: number | null;
   table: number;
   seat: number;
@@ -232,6 +236,13 @@ export default function TMAPlayersPage() {
     player.status === "active" && Math.max(0, Number(player.addons ?? 0)) < maxAddons;
 
   const selectedPlayerAddons = Math.max(0, Number(selectedPlayer?.addons ?? 0));
+  // `rebuys` counts every re-entry, the doubles included; the card shows the two apart,
+  // the way the sheet and the bill do.
+  const selectedPlayerDoubleRebuys = Math.max(0, Number(selectedPlayer?.doubleRebuys ?? 0));
+  const selectedPlayerRebuys = Math.max(
+    0,
+    Number(selectedPlayer?.rebuys ?? 0) - selectedPlayerDoubleRebuys,
+  );
   const selectedPlayerCanAddon =
     Boolean(selectedPlayer) &&
     selectedPlayer?.status === "active" &&
@@ -816,6 +827,14 @@ export default function TMAPlayersPage() {
             <div>
               <div className="text-[var(--tg-theme-hint-color)]">Аддоны</div>
               <div className="font-semibold">{selectedPlayerAddons} / {maxAddons}</div>
+            </div>
+            <div>
+              <div className="text-[var(--tg-theme-hint-color)]">Ребаи</div>
+              <div className="font-semibold">{selectedPlayerRebuys}</div>
+            </div>
+            <div>
+              <div className="text-[var(--tg-theme-hint-color)]">Двойные ребаи</div>
+              <div className="font-semibold">{selectedPlayerDoubleRebuys}</div>
             </div>
             <div>
               <div className="text-[var(--tg-theme-hint-color)]">Стол</div>

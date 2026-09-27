@@ -444,6 +444,28 @@ describe("TMAPlayersPage", () => {
     return fetchMock;
   }
 
+  // `rebuys` counts every re-entry, the doubles among them; the card splits them the way
+  // the sheet and the bill do, so one x2 does not read as two re-entries.
+  it("shows the rebuys and the double rebuys the player took apart", async () => {
+    stubAddonPlayerFetch({ doubleRebuys: 1, rebuys: 3 });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    expect((await screen.findByText("Ребаи")).nextElementSibling?.textContent).toBe("2");
+    expect(screen.getByText("Двойные ребаи").nextElementSibling?.textContent).toBe("1");
+  });
+
+  it("shows no rebuys for a player who never re-entered", async () => {
+    stubAddonPlayerFetch();
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    expect((await screen.findByText("Ребаи")).nextElementSibling?.textContent).toBe("0");
+    expect(screen.getByText("Двойные ребаи").nextElementSibling?.textContent).toBe("0");
+  });
+
   it("takes an addon back after a confirmation naming the chips it removes", async () => {
     const showConfirm = vi.mocked(window.Telegram!.WebApp!.showConfirm);
     showConfirm.mockImplementation((_message, callback) => callback(true));
