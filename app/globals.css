@@ -3243,6 +3243,57 @@ p {
   text-wrap: balance;
 }
 
+/* A broken table lists who goes where, so the heading and the clock give up some of the
+   board: ten lines have to fit under them on a television across the room. */
+.public-break-overlay--moves {
+  gap: clamp(8px, 2vh, 28px);
+}
+
+.public-break-overlay--moves .public-break-overlay__notice {
+  font-size: clamp(32px, 7vh, 120px);
+}
+
+.public-break-overlay--moves .public-break-overlay__detail {
+  font-size: clamp(16px, 2.8vh, 44px);
+}
+
+.public-break-overlay--moves .public-break-overlay__clock {
+  font-size: clamp(24px, 5vh, 80px);
+}
+
+.public-break-overlay__moves {
+  display: grid;
+  gap: clamp(4px, 1.2vh, 16px) clamp(24px, 5vw, 96px);
+  max-width: 94vw;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: rgba(255 255 255 / 0.85);
+  font-size: clamp(18px, 3.4vh, 54px);
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: left;
+}
+
+/* Down one column, then the next: the moves come table by table, so each column reads as
+   one table's newcomers rather than zigzagging between the two. */
+.public-break-overlay__moves--two {
+  grid-auto-flow: column;
+  grid-template-columns: repeat(2, auto);
+  font-size: clamp(16px, 2.9vh, 46px);
+}
+
+.public-break-overlay__move-name {
+  color: #fff;
+  font-weight: 800;
+}
+
+.public-break-overlay__move-target {
+  color: #c9a84c;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .public-break-overlay__clock {
   color: rgba(255 255 255 / 0.75);
   font-size: clamp(36px, 9vh, 140px);

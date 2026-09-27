@@ -25,10 +25,10 @@ import {
 import { isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
-import { TABLE_MERGE_NOTICE } from "@/lib/timer/table-merge";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
+import { TableMergeOverlay } from "@/components/public/table-merge-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
 import { statePulseInterval, useStatePulse } from "@/components/public/use-state-pulse";
 
@@ -1053,12 +1053,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       </div>
       {/* The floor's own announcement outranks the break one: the room is moving now. */}
       {state.extras.tableMerge ? (
-        <div className="public-break-overlay public-break-overlay--merge" role="status">
-          <span className="public-break-overlay__label">{TABLE_MERGE_NOTICE.label}</span>
-          <strong className="public-break-overlay__notice">{TABLE_MERGE_NOTICE.title}</strong>
-          <span className="public-break-overlay__detail">{TABLE_MERGE_NOTICE.detail}</span>
-          <span className="public-break-overlay__clock">{formatClock(remainingSeconds)}</span>
-        </div>
+        <TableMergeOverlay clock={formatClock(remainingSeconds)} merge={state.extras.tableMerge} />
       ) : breakChipNotice ? (
         <div className="public-break-overlay" role="status">
           <span className="public-break-overlay__label">Перерыв</span>
