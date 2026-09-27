@@ -6,18 +6,27 @@ import { useVisiblePolling } from "../use-visible-polling";
 import { Crown, Gift, Pause, Play, Shuffle, SkipBack, SkipForward, Square, X } from "lucide-react";
 import type { TableMerge, TimerState } from "@/lib/timer/types";
 import type { Raffle } from "@/lib/raffle/raffle";
+import {
+  describeActiveTable,
+  describeTableBreakQuestion,
+  type ActiveTable,
+} from "@/lib/tables/table-break";
+import { formatTableMoveTarget } from "@/lib/timer/table-merge";
 
 const CONFIRM_MESSAGE = "Вы уверены?";
 
 export default function TMAControlPage() {
   const { initData } = useTMA();
   const [state, setState] = useState<{
+    /** The tables somebody is playing at, for the desk to choose one to break. */
+    activeTables?: ActiveTable[];
     raffle: Raffle | null;
     raffleHistory?: Raffle[];
     tableMerge: TableMerge | null;
     timerState: TimerState;
   } | null>(null);
   const [raffleBusy, setRaffleBusy] = useState(false);
+  const [breakBusy, setBreakBusy] = useState(false);
 
   const fetchState = useCallback(async () => {
     const res = await fetch("/api/tma/timer?scope=control", { headers: { "X-Telegram-Init-Data": initData } });
@@ -33,13 +42,47 @@ export default function TMAControlPage() {
   }, [fetchState]);
   useVisiblePolling(() => void fetchState());
 
-  const confirmAction = () => {
+  const confirmAction = (message = CONFIRM_MESSAGE) => {
     const tg = getTelegramWebApp();
     if (tg?.showConfirm) {
-      return new Promise<boolean>((resolve) => tg.showConfirm(CONFIRM_MESSAGE, resolve));
+      return new Promise<boolean>((resolve) => tg.showConfirm(message, resolve));
     }
 
-    return Promise.resolve(window.confirm(CONFIRM_MESSAGE));
+    return Promise.resolve(window.confirm(message));
+  };
+
+  /**
+   * Breaks a table up: the server deals its players out to the other tables and puts
+   * the list on the screens. True once it is done, so the choice can close.
+   */
+  const breakTable = async (table: ActiveTable) => {
+    const tg = getTelegramWebApp();
+    if (breakBusy) return false;
+    if (!(await confirmAction(describeTableBreakQuestion(table, state?.activeTables ?? [])))) {
+      return false;
+    }
+
+    setBreakBusy(true);
+    try {
+      const res = await fetch("/api/tma/timer/table-merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ table: table.number }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        tg?.HapticFeedback.notificationOccurred("error");
+        tg?.showAlert(data?.error ?? "Не удалось расформировать стол");
+        return false;
+      }
+
+      tg?.HapticFeedback.notificationOccurred("success");
+      await fetchState();
+      return true;
+    } finally {
+      setBreakBusy(false);
+    }
   };
 
   /**
@@ -243,22 +286,131 @@ export default function TMAControlPage() {
           <h2 className="mb-4 text-sm font-semibold tracking-wider text-[var(--tg-theme-hint-color)]">
             СТОЛЫ
           </h2>
-          <button
-            className={`flex w-full items-center justify-center gap-2 rounded-lg py-3 font-medium text-white ${
-              merging ? "bg-green-600" : "bg-orange-600"
-            }`}
-            type="button"
-            onClick={() => handleAction(merging ? "table-merge-end" : "table-merge")}
-          >
-            <Shuffle size={18} /> {merging ? "Закончить рассадку" : "Объединение столов"}
-          </button>
-          {merging ? (
-            <p className="mt-3 text-sm text-[var(--tg-theme-hint-color)]">
-              Часы остановлены, на экранах объявление о пересадке.
-            </p>
-          ) : null}
+          <TablesCard
+            activeTables={state.activeTables ?? []}
+            busy={breakBusy}
+            merge={state.tableMerge}
+            onBreak={breakTable}
+            onEnd={() => void handleAction("table-merge-end")}
+            onPauseOnly={() => void handleAction("table-merge")}
+          />
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * The merge, and while it lasts, who goes where.
+ *
+ * Calling it asks which table to break: the app deals that table's players out to the
+ * others and puts the list up on the screens. The desk can still just stop the clock and
+ * reseat the room by hand, the way it always could.
+ */
+function TablesCard({
+  activeTables,
+  busy,
+  merge,
+  onBreak,
+  onEnd,
+  onPauseOnly,
+}: {
+  activeTables: ActiveTable[];
+  busy: boolean;
+  merge: TableMerge | null;
+  onBreak: (table: ActiveTable) => Promise<boolean>;
+  onEnd: () => void;
+  onPauseOnly: () => void;
+}) {
+  const [choosing, setChoosing] = useState(false);
+
+  if (merge) {
+    return (
+      <>
+        <button
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-green-600 py-3 font-medium text-white"
+          type="button"
+          onClick={onEnd}
+        >
+          <Shuffle size={18} /> Закончить рассадку
+        </button>
+        <p className="mt-3 text-sm text-[var(--tg-theme-hint-color)]">
+          Часы остановлены, на экранах объявление о пересадке.
+        </p>
+        {merge.moves?.length ? (
+          <div className="mt-4 space-y-2 text-left">
+            <div className="text-sm font-semibold">
+              {merge.brokenTable ? `Стол ${merge.brokenTable} расформирован` : "Пересадка"}
+            </div>
+            {/* The desk reads it out to the room, so a row per player, the chair lined up
+                on the right — the screens in the hall carry the full sentence. */}
+            <ul className="space-y-1 text-sm">
+              {merge.moves.map((move) => (
+                <li key={move.playerId} className="flex justify-between gap-3">
+                  <span className="truncate font-semibold">{move.name}</span>
+                  <span className="shrink-0">{formatTableMoveTarget(move)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </>
+    );
+  }
+
+  if (!choosing) {
+    return (
+      <button
+        className="flex w-full items-center justify-center gap-2 rounded-lg bg-orange-600 py-3 font-medium text-white"
+        type="button"
+        onClick={() => setChoosing(true)}
+      >
+        <Shuffle size={18} /> Объединение столов
+      </button>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="pb-1 text-base font-semibold">Какой стол расформировать?</div>
+      {activeTables.length > 1 ? (
+        activeTables.map((table) => (
+          <button
+            key={table.number}
+            className="w-full rounded-lg bg-orange-600 py-3 font-medium text-white disabled:opacity-60"
+            disabled={busy}
+            type="button"
+            onClick={async () => {
+              if (await onBreak(table)) setChoosing(false);
+            }}
+          >
+            {describeActiveTable(table)}
+          </button>
+        ))
+      ) : (
+        <div className="text-sm text-[var(--tg-theme-hint-color)]">
+          Расформировывать нечего — играет один стол.
+        </div>
+      )}
+      <button
+        className="w-full rounded-lg bg-[var(--tg-theme-bg-color)] py-3 font-medium disabled:opacity-60"
+        disabled={busy}
+        type="button"
+        onClick={() => {
+          setChoosing(false);
+          onPauseOnly();
+        }}
+      >
+        Только пауза — рассажу сам
+      </button>
+      <button
+        className="w-full py-2 text-sm text-[var(--tg-theme-hint-color)] disabled:opacity-60"
+        disabled={busy}
+        type="button"
+        onClick={() => setChoosing(false)}
+      >
+        Отмена
+      </button>
     </div>
   );
 }

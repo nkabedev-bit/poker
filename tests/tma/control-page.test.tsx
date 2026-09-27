@@ -125,4 +125,152 @@ describe("TMAControlPage", () => {
     expect(asked.filter((url) => url === "/api/tma/pulse")).toHaveLength(1);
     expect(asked).toHaveLength(3);
   });
+
+  describe("breaking a table up", () => {
+    const ACTIVE_TABLES = [
+      { number: 1, players: 6 },
+      { number: 2, players: 5 },
+      { number: 3, players: 4 },
+    ];
+
+    function mockControl(
+      extra: Record<string, unknown> = {},
+      mergeResponse: () => Response = () => Response.json({ ok: true }),
+    ) {
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        void init;
+        const url = String(input);
+        if (url.startsWith("/api/tma/timer?scope=control")) {
+          return Response.json({
+            activeTables: ACTIVE_TABLES,
+            tableMerge: null,
+            timerState: { ...pausedTimerState, status: "running" },
+            ...extra,
+          });
+        }
+        if (url === "/api/tma/timer/table-merge") return mergeResponse();
+
+        return Response.json({ ok: true });
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      return fetchMock;
+    }
+
+    function mergeCalls(fetchMock: ReturnType<typeof mockControl>) {
+      return fetchMock.mock.calls.filter(([input]) => String(input) === "/api/tma/timer/table-merge");
+    }
+
+    afterEach(() => {
+      delete (window as { Telegram?: unknown }).Telegram;
+    });
+
+    it("asks which table to break, listing the tables in play", async () => {
+      mockControl();
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+
+      expect(screen.getByText("Какой стол расформировать?")).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Стол 1 · 6 игроков" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Стол 2 · 5 игроков" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Стол 3 · 4 игрока" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Только пауза — рассажу сам" })).toBeTruthy();
+    });
+
+    it("breaks the table picked once the desk confirms where everybody goes", async () => {
+      const fetchMock = mockControl();
+      const confirmMock = vi.spyOn(window, "confirm").mockReturnValue(true);
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Стол 3 · 4 игрока" }));
+
+      expect(confirmMock).toHaveBeenCalledWith(
+        "Расформировать стол 3? 4 игрока пересядут за столы 1 и 2.",
+      );
+      await waitFor(() => expect(mergeCalls(fetchMock)).toHaveLength(1));
+      expect(mergeCalls(fetchMock)[0]?.[1]).toMatchObject({
+        body: JSON.stringify({ table: 3 }),
+        method: "POST",
+      });
+    });
+
+    it("breaks nothing when the desk says no", async () => {
+      const fetchMock = mockControl();
+      vi.spyOn(window, "confirm").mockReturnValue(false);
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Стол 3 · 4 игрока" }));
+
+      await waitFor(() => expect(screen.getByText("Какой стол расформировать?")).toBeTruthy());
+      expect(mergeCalls(fetchMock)).toHaveLength(0);
+    });
+
+    it("still offers the plain pause, sending no table", async () => {
+      const fetchMock = mockControl();
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Только пауза — рассажу сам" }));
+
+      await waitFor(() => expect(mergeCalls(fetchMock)).toHaveLength(1));
+      expect(mergeCalls(fetchMock)[0]?.[1]?.body).toBeUndefined();
+    });
+
+    it("shows why the server refused and keeps the choice open", async () => {
+      const showAlert = vi.fn();
+      (window as { Telegram?: unknown }).Telegram = {
+        WebApp: {
+          HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+          showAlert,
+          showConfirm: (_message: string, callback: (ok: boolean) => void) => callback(true),
+        },
+      };
+      mockControl({}, () =>
+        Response.json({ error: "Не хватает мест: за столом 1 свободных мест нет" }, { status: 409 }),
+      );
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+      fireEvent.click(screen.getByRole("button", { name: "Стол 3 · 4 игрока" }));
+
+      await waitFor(() =>
+        expect(showAlert).toHaveBeenCalledWith("Не хватает мест: за столом 1 свободных мест нет"),
+      );
+      expect(screen.getByText("Какой стол расформировать?")).toBeTruthy();
+    });
+
+    it("offers only the pause while a single table is playing", async () => {
+      mockControl({ activeTables: [{ number: 1, players: 8 }] });
+      render(<TMAControlPage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: /объединение столов/i }));
+
+      expect(screen.getByText("Расформировывать нечего — играет один стол.")).toBeTruthy();
+      expect(screen.queryByRole("button", { name: /^Стол 1/ })).toBeNull();
+    });
+
+    it("lists who goes where while the room is being reseated", async () => {
+      mockControl({
+        tableMerge: {
+          brokenTable: 3,
+          moves: [
+            { name: "Chura", playerId: "p1", seat: 3, seatLabel: "3", table: 1 },
+            { name: "Олюшка", playerId: "p2", seat: 5, seatLabel: "5", table: 2 },
+          ],
+          startedAt: "2026-09-27T20:00:00.000Z",
+        },
+        timerState: pausedTimerState,
+      });
+      render(<TMAControlPage />);
+
+      expect(await screen.findByText("Стол 3 расформирован")).toBeTruthy();
+      const row = (name: string) => screen.getByText(name).closest("li")?.textContent;
+      expect(row("Chura")).toBe("Churaстол 1, место 3");
+      expect(row("Олюшка")).toBe("Олюшкастол 2, место 5");
+      expect(screen.getByRole("button", { name: /закончить рассадку/i })).toBeTruthy();
+    });
+  });
 });

@@ -154,6 +154,24 @@ function joinTableNumbers(tables: number[]) {
   return `${tables.slice(0, -1).join(", ")} и ${tables[tables.length - 1]}`;
 }
 
+/** "Стол 3 · 4 игрока" — a table on the list the desk chooses from. */
+export function describeActiveTable(table: ActiveTable) {
+  return `Стол ${table.number} · ${countWord(table.players, ["игрок", "игрока", "игроков"])}`;
+}
+
+/**
+ * What the desk is asked before a table is broken — there is no taking it back, only
+ * reseating everybody by hand: "Расформировать стол 3? 4 игрока пересядут за столы 1 и 2."
+ */
+export function describeTableBreakQuestion(table: ActiveTable, tables: ActiveTable[]) {
+  const others = tables.filter((other) => other.number !== table.number).map((other) => other.number);
+  const players = countWord(table.players, ["игрок", "игрока", "игроков"]);
+  const verb = table.players === 1 ? "пересядет" : "пересядут";
+  const where = others.length === 1 ? `стол ${others[0]}` : `столы ${joinTableNumbers(others)}`;
+
+  return `Расформировать стол ${table.number}? ${players} ${verb} за ${where}.`;
+}
+
 /** Why a table could not be broken, in words the desk can act on. */
 export function describeTableBreakRefusal(
   plan: Exclude<TableBreakPlan, { ok: true }>,

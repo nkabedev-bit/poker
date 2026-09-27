@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  describeActiveTable,
+  describeTableBreakQuestion,
   describeTableBreakRefusal,
   listActiveTables,
   planTableBreak,
@@ -256,5 +258,31 @@ describe("describeTableBreakRefusal", () => {
     expect(describeTableBreakRefusal({ ok: false, reason: "no_other_tables" }, 2)).toBe(
       "Кроме стола 2, играющих столов нет — пересаживать некуда.",
     );
+  });
+});
+
+describe("the desk's choice of table", () => {
+  it("names a table with how many are playing at it", () => {
+    expect(describeActiveTable({ number: 3, players: 4 })).toBe("Стол 3 · 4 игрока");
+    expect(describeActiveTable({ number: 1, players: 1 })).toBe("Стол 1 · 1 игрок");
+    expect(describeActiveTable({ number: 2, players: 9 })).toBe("Стол 2 · 9 игроков");
+  });
+
+  it("asks before breaking, saying where everybody goes", () => {
+    const tables = [
+      { number: 1, players: 6 },
+      { number: 2, players: 5 },
+      { number: 3, players: 4 },
+    ];
+
+    expect(describeTableBreakQuestion(tables[2]!, tables)).toBe(
+      "Расформировать стол 3? 4 игрока пересядут за столы 1 и 2.",
+    );
+    expect(
+      describeTableBreakQuestion({ number: 2, players: 1 }, [
+        { number: 1, players: 7 },
+        { number: 2, players: 1 },
+      ]),
+    ).toBe("Расформировать стол 2? 1 игрок пересядет за стол 1.");
   });
 });
