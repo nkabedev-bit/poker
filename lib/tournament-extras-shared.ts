@@ -8,7 +8,7 @@ import {
 import { isEventTemplate } from "@/lib/events/templates";
 import { isKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
 import { isRaffle } from "@/lib/raffle/raffle";
-import { isTableMerge } from "@/lib/timer/table-merge";
+import { readTableMerge } from "@/lib/timer/table-merge";
 import type { ScheduleVersion, TournamentExtras } from "@/lib/timer/types";
 
 export function normalizeScheduleVersions(value: unknown): ScheduleVersion[] {
@@ -134,7 +134,7 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
     raffleHistory: Array.isArray(input.raffleHistory)
       ? input.raffleHistory.filter(isRaffle)
       : [],
-    tableMerge: isTableMerge(input.tableMerge) ? input.tableMerge : null,
+    tableMerge: readTableMerge(input.tableMerge),
     // Only ever the last few: the screen announces what it has not announced yet, and
     // an evening's worth of them would ride along in every copy of the extras.
     knockouts: Array.isArray(input.knockouts)

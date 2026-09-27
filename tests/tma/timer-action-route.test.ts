@@ -230,3 +230,153 @@ describe("TMA timer action route", () => {
     expect(mocks.grantWinnerPass).not.toHaveBeenCalled();
   });
 });
+
+describe("breaking a table up from the merge", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.resetModules();
+    mocks.afterResponse.splice(0);
+  });
+
+  function seated(table: number, count: number, firstSeat = 1) {
+    return Array.from({ length: count }, (_, index) => ({
+      id: `t${table}-${index + 1}`,
+      name: `Стол ${table} игрок ${index + 1}`,
+      seat: firstSeat + index,
+      status: "active",
+      table,
+    }));
+  }
+
+  async function tonight(players: unknown[], settings: Record<string, unknown> = {}) {
+    const { mergeTournamentExtras } = await import("@/lib/tournament-extras-shared");
+    const context = {
+      extras: mergeTournamentExtras({
+        players,
+        settings: { maxPlayersPerTable: 9, tablesCount: 3, ...settings },
+      }),
+      tournament: { id: "tournament-1", public_token: "public-token" },
+    };
+    mocks.loadCurrentTournamentContext.mockResolvedValue(context);
+    return context;
+  }
+
+  async function callMerge(body?: unknown) {
+    const { POST } = await import("@/app/api/tma/timer/[action]/route");
+    return POST(
+      new Request("http://localhost/api/tma/timer/table-merge", {
+        body: body === undefined ? undefined : JSON.stringify(body),
+        method: "POST",
+      }),
+      { params: Promise.resolve({ action: "table-merge" }) },
+    );
+  }
+
+  it("sends everybody at the table to the others and stops the clock", async () => {
+    const supabase = createSupabaseMock("running");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    await tonight([...seated(1, 3), ...seated(2, 3), ...seated(3, 4)]);
+
+    const response = await callMerge({ table: 3 });
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).toHaveBeenCalledWith(
+      "break_tournament_table",
+      expect.objectContaining({
+        p_table: 3,
+        p_table_merge: expect.objectContaining({ brokenTable: 3 }),
+        p_tournament_id: "tournament-1",
+      }),
+    );
+
+    const [, args] = supabase.rpc.mock.calls[0] as unknown as [
+      string,
+      { p_moves: Array<{ id: string; table: number }>; p_table_merge: { moves: unknown[] } },
+    ];
+    expect(args.p_moves.map((move) => move.id).sort()).toEqual(["t3-1", "t3-2", "t3-3", "t3-4"]);
+    expect(args.p_moves.every((move) => move.table === 1 || move.table === 2)).toBe(true);
+    expect(args.p_table_merge.moves).toHaveLength(4);
+
+    expect(supabase.timerUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "paused" }));
+    // The announcement went up with the moves; a second, bare one would wipe the list.
+    expect(mocks.saveTournamentExtrasFromContext).not.toHaveBeenCalled();
+  });
+
+  it("refuses a table the others have no room for, and leaves the clock alone", async () => {
+    const supabase = createSupabaseMock("running");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    await tonight([...seated(1, 9), ...seated(2, 3)], { tablesCount: 2 });
+
+    const response = await callMerge({ table: 2 });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe(
+      "Не хватает мест: за столом 1 свободных мест нет, а за столом 2 играют 3 игрока. " +
+        "Добавьте места (+ место) на экране «Игроки» и попробуйте ещё раз.",
+    );
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(supabase.timerUpdate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the plain pause for a desk that names no table", async () => {
+    const supabase = createSupabaseMock("running");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    await tonight([...seated(1, 3), ...seated(2, 3)]);
+
+    const response = await callMerge();
+
+    expect(response.status).toBe(200);
+    expect(supabase.rpc).not.toHaveBeenCalled();
+    expect(supabase.timerUpdate).toHaveBeenCalledWith(expect.objectContaining({ status: "paused" }));
+    expect(mocks.saveTournamentExtrasFromContext).toHaveBeenCalledWith(
+      supabase,
+      expect.anything(),
+      { tableMerge: { startedAt: expect.any(String) } },
+    );
+  });
+
+  it("asks again when the room changed while the plan was drawn", async () => {
+    const supabase = createSupabaseMock("running");
+    supabase.rpc.mockResolvedValue({
+      data: null,
+      error: { code: "P0001", message: "Seat already taken by Vera" },
+    } as never);
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    await tonight([...seated(1, 3), ...seated(2, 3), ...seated(3, 2)]);
+
+    const response = await callMerge({ table: 3 });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain("Место уже занято: Vera");
+    expect(supabase.timerUpdate).not.toHaveBeenCalled();
+  });
+
+  it("names the migration when the database cannot break tables yet", async () => {
+    const supabase = createSupabaseMock("running");
+    supabase.rpc.mockResolvedValue({
+      data: null,
+      error: {
+        code: "PGRST202",
+        message: "Could not find the function public.break_tournament_table in the schema cache",
+      },
+    } as never);
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+    await tonight([...seated(1, 3), ...seated(2, 3), ...seated(3, 2)]);
+
+    const response = await callMerge({ table: 3 });
+
+    expect(response.status).toBe(503);
+    expect((await response.json()).error).toContain("202609270002");
+    expect(supabase.timerUpdate).not.toHaveBeenCalled();
+  });
+
+  it("refuses a table that is not one", async () => {
+    const supabase = createSupabaseMock("running");
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
+
+    const response = await callMerge({ table: "третий" });
+
+    expect(response.status).toBe(400);
+    expect(supabase.timerUpdate).not.toHaveBeenCalled();
+  });
+});

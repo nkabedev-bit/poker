@@ -10,10 +10,94 @@ import {
   loadCurrentTournamentContext,
   saveTournamentExtrasFromContext,
 } from "@/lib/client-bot/server";
-import { TimerState, BlindLevel } from "@/lib/timer/types";
+import { readTableFormats } from "@/lib/tables/seating";
+import { describeTableBreakRefusal, planTableBreak } from "@/lib/tables/table-break";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { TimerState, BlindLevel, type TableMerge } from "@/lib/timer/types";
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error";
+}
+
+/**
+ * The table the desk asked to break, if it named one. Older screens send no body at
+ * all, and that is the plain pause they always asked for.
+ */
+async function readBreakTable(request: Request): Promise<number | null | "invalid"> {
+  const body = await request.json().catch(() => null);
+  const table = (body as { table?: unknown } | null)?.table;
+  if (table === undefined || table === null) return null;
+
+  return Number.isInteger(table) && Number(table) > 0 ? Number(table) : "invalid";
+}
+
+/**
+ * Sends everybody at a table to the others and puts the list up on the screens, in one
+ * locked write: either the whole table moves or nobody does. Returns the answer for the
+ * desk when it cannot be done, and null once it is.
+ */
+async function breakTableUp(
+  supabase: SupabaseClient,
+  tournamentId: string,
+  table: number,
+  now: Date,
+): Promise<Response | null> {
+  const context = await loadCurrentTournamentContext(supabase);
+  if (!context) return NextResponse.json({ error: "No tournament" }, { status: 404 });
+
+  const { settings } = context.extras;
+  const tablesCount = Math.max(1, Number(settings.tablesCount ?? 1));
+  const plan = planTableBreak({
+    formats: readTableFormats(settings.maxPlayersPerTable, context.extras.tableFormats, tablesCount),
+    players: context.extras.players,
+    table,
+    tablesCount,
+  });
+
+  if (!plan.ok) {
+    return NextResponse.json({ error: describeTableBreakRefusal(plan, table) }, { status: 409 });
+  }
+
+  const tableMerge: TableMerge = {
+    brokenTable: table,
+    moves: plan.moves,
+    startedAt: now.toISOString(),
+  };
+  const { error } = await supabase.rpc("break_tournament_table", {
+    p_moves: plan.moves.map((move) => ({ id: move.playerId, seat: move.seat, table: move.table })),
+    p_table: table,
+    p_table_merge: tableMerge,
+    p_tournament_id: tournamentId,
+  });
+  if (!error) return null;
+
+  const message = String(error.message ?? "");
+  const takenBy = message.match(/Seat already taken by (.+)$/)?.[1]?.trim();
+  if (takenBy) {
+    return NextResponse.json(
+      { error: `Место уже занято: ${takenBy}. Рассадка изменилась — попробуйте ещё раз.` },
+      { status: 409 },
+    );
+  }
+  // Somebody was knocked out, seated or moved while the plan was being drawn.
+  if (/no longer at the table|still at the table|one seat/.test(message)) {
+    return NextResponse.json(
+      { error: "Рассадка изменилась, пока стол расформировывался. Попробуйте ещё раз." },
+      { status: 409 },
+    );
+  }
+  if (error.code === "PGRST202" || message.includes("break_tournament_table")) {
+    return NextResponse.json(
+      {
+        error:
+          "Расформирование ещё не включено: нужна миграция 202609270002 в Supabase. " +
+          "Пока можно выбрать «Только пауза».",
+      },
+      { status: 503 },
+    );
+  }
+
+  throw error;
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ action: string }> }) {
@@ -125,6 +209,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         }
       }
     } else if (action === "pause" || action === "table-merge") {
+      // A table the desk named is reseated before the clock stops: a room without the
+      // chairs for it is refused while the game still runs as it was.
+      const breakTable = action === "table-merge" ? await readBreakTable(request) : null;
+      if (breakTable === "invalid") {
+        return NextResponse.json({ error: "Выберите стол" }, { status: 400 });
+      }
+      if (breakTable !== null) {
+        const refusal = await breakTableUp(auth.supabase, t.id, breakTable, now);
+        if (refusal) return refusal;
+      }
+
       const { remainingSeconds, currentLevelIndex } = getEffectiveTimerState(timerState, blindLevels, now);
       await auth.supabase.from("timer_state").update({
         status: "paused",
@@ -132,8 +227,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         paused_remaining_seconds: remainingSeconds,
       }).eq("tournament_id", t.id);
 
-      // Breaking a table up takes as long as it takes: the clock waits for the room.
-      if (action === "table-merge") {
+      // Breaking a table up takes as long as it takes: the clock waits for the room. A
+      // broken table already put its announcement up, list and all.
+      if (action === "table-merge" && breakTable === null) {
         const context = await loadCurrentTournamentContext(auth.supabase);
         if (context) {
           await saveTournamentExtrasFromContext(

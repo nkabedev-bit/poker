@@ -143,7 +143,23 @@ export type ScheduleVersion = { effectiveFrom: string; text: string };
  * It is not a level of its own: the clock stops where it stands and the screens turn
  * into one announcement, the same way a break does.
  */
-export type TableMerge = { startedAt: string };
+export type TableMerge = {
+  startedAt: string;
+  /** The table broken up, when the app did the reseating rather than the desk. */
+  brokenTable?: number;
+  /** Who goes where, in the order the room reads it: table by table, seat by seat. */
+  moves?: TableMove[];
+};
+
+/** One player sent to a new chair when their table was broken up. */
+export type TableMove = {
+  name: string;
+  playerId: string;
+  seat: number;
+  /** The chair as the dealer calls it at that table tonight: "3", or "2/3" short-handed. */
+  seatLabel: string;
+  table: number;
+};
 
 export type TournamentExtras = {
   blindTemplates: BlindTemplate[];

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
+import { listActiveTables } from "@/lib/tables/table-break";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,8 @@ export async function GET(request: Request) {
     const extras = await loadTournamentExtras(t.id, auth.supabase);
 
     return NextResponse.json({
+      // The tables the desk may choose to break up when it calls the merge.
+      activeTables: listActiveTables(extras.players),
       raffle: extras.raffle,
       raffleHistory: extras.raffleHistory,
       tableMerge: extras.tableMerge,
