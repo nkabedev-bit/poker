@@ -48,6 +48,16 @@ describe("buildSignupList", () => {
     expect(list[1]).toMatchObject({ avatarUrl: null, isMe: false });
   });
 
+  // A guest brought on a 1+1 has no account, so no hand of their own — even when the
+  // buyer's name would find one.
+  it("hangs each player's favourite hand, and none on a guest", () => {
+    const list = buildSignupList([signup({ duoPartnerName: "Друг", ticketType: "duo" })], {
+      findHand: (player) => (player.telegramId === 100 ? "QsTs" : "AhAd"),
+    });
+
+    expect(list.map((entry) => entry.hand)).toEqual(["QsTs", null]);
+  });
+
   // A pair takes two chairs, so the list has to show two people.
   it("lists the guest half of a 1+1 under the name the buyer wrote down", () => {
     const list = buildSignupList([

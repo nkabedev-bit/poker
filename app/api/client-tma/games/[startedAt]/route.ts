@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import { loadFavoriteHands } from "@/lib/players/favorite-hand";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
@@ -67,10 +68,11 @@ export async function GET(
 
   // The table wears the same tiers as the board and the rating, so a player is
   // recognisable wherever their name appears.
-  const [games, labels, avatars] = await Promise.all([
+  const [games, labels, avatars, hands] = await Promise.all([
     countGamesByNickname(auth.supabase, rows.map((row) => row.playerName)),
     loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
     loadPlayerAvatars(auth.supabase),
+    loadFavoriteHands(auth.supabase),
   ]);
 
   const withTiers = rows.map((row) => ({
@@ -79,6 +81,7 @@ export async function GET(
     avatarUrl: row.isMe
       ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null)
       : avatars.find({ name: row.playerName, telegramId: row.telegramId }).thumbUrl,
+    hand: hands.find({ name: row.playerName, telegramId: row.telegramId }),
     tier: resolvePlayerTier({
       games: games.get(buildNicknameKey(row.playerName)) ?? 0,
       label: getPersistedPlayerLabel(labels, row.playerName),
@@ -94,6 +97,7 @@ export async function GET(
     },
     rows: withTiers.map((row) => ({
       avatarUrl: row.avatarUrl,
+      hand: row.hand,
       isMe: row.isMe,
       knockouts: row.knockouts,
       place: row.place,

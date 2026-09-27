@@ -15,7 +15,12 @@ function PlayerRow({ player }: { player: LiveTablePlayer }) {
       }`}
     >
       <span className={out ? "opacity-40 grayscale" : undefined}>
-        <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={34} />
+        <PlayerAvatar
+          hand={player.hand}
+          name={player.name}
+          photoUrl={player.avatarUrl ?? undefined}
+          size={34}
+        />
       </span>
 
       <div className="min-w-0 flex-1">

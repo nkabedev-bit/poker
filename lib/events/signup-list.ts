@@ -4,6 +4,8 @@ import type { EventSignupWithPlayer } from "@/lib/events/store";
 /** One name on the list of who is coming, as the club's players see each other. */
 export type SignupListEntry = {
   avatarUrl: string | null;
+  /** Their favourite hand ("QsTs"), drawn on the avatar; a guest never has one. */
+  hand: string | null;
   /** Somebody brought on a "1+1" who has no account here — a name and nothing else. */
   isGuest: boolean;
   isMe: boolean;
@@ -28,9 +30,11 @@ export function buildSignupList(
   signups: EventSignupWithPlayer[],
   {
     findAvatar,
+    findHand,
     myUserId,
   }: {
     findAvatar?: (signup: { name: string; telegramId: number | null }) => string | null;
+    findHand?: (signup: { name: string; telegramId: number | null }) => string | null;
     myUserId?: string | null;
   } = {},
 ): SignupListEntry[] {
@@ -39,6 +43,7 @@ export function buildSignupList(
     const entries: SignupListEntry[] = [
       {
         avatarUrl: findAvatar?.({ name, telegramId: signup.telegramId }) ?? null,
+        hand: findHand?.({ name, telegramId: signup.telegramId }) ?? null,
         isGuest: false,
         isMe: Boolean(myUserId) && signup.userId === myUserId,
         key: signup.id,
@@ -53,6 +58,7 @@ export function buildSignupList(
     if (signup.ticketType === "duo" && guestName && !signup.duoPartnerUserId) {
       entries.push({
         avatarUrl: null,
+        hand: null,
         isGuest: true,
         isMe: false,
         key: `${signup.id}:guest`,

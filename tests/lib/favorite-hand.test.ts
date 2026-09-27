@@ -108,6 +108,19 @@ describe("readFavoriteHand", () => {
     expect(await readFavoriteHand(account({ data: { favorite_hand: null }, error: null }), "a1")).toBeNull();
   });
 
+  // The home screen and the profile read it on every open; a hand is not worth either.
+  it("answers null when the read itself throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const broken = {
+      from: () => {
+        throw new TypeError("fetch failed");
+      },
+    } as never;
+
+    expect(await readFavoriteHand(broken, "a1")).toBeNull();
+    warn.mockRestore();
+  });
+
   it("answers null rather than failing the page when the column is missing", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
 

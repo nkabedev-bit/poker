@@ -10,6 +10,8 @@ export type LiveTablePlayer = {
   bounties: number | null;
   /** Where they came in the finishing order; null while they are still playing. */
   finishPlace: number | null;
+  /** Their favourite hand ("QsTs"), drawn on the avatar; null when they have none. */
+  hand: string | null;
   id: string;
   isMe: boolean;
   name: string;
@@ -79,10 +81,12 @@ export function buildLiveRoom(
   players: RosterPlayer[],
   {
     findAvatar,
+    findHand,
     isBounty = false,
     isMe,
   }: {
     findAvatar?: (player: RosterPlayer) => string | null;
+    findHand?: (player: RosterPlayer) => string | null;
     /** Whether tonight pays bounties — only then is a player's count worth showing. */
     isBounty?: boolean;
     isMe?: (player: RosterPlayer) => boolean;
@@ -103,6 +107,7 @@ export function buildLiveRoom(
         ? Number(Math.max(0, Number(player.bountyCount) || 0).toFixed(2))
         : null,
       finishPlace: optionalNumber(player.finishPlace),
+      hand: findHand?.(player) ?? null,
       id: player.id,
       isMe: isMe?.(player) ?? false,
       name: player.name,

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
+import { readFavoriteHand } from "@/lib/players/favorite-hand";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
 import { countGamesByNickname } from "@/lib/players/games-played";
@@ -68,7 +69,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   }
 
   const stats = await buildPlayerStats(auth.supabase, played);
-  const [labels, games, medalsFromResults, archiveMedals] = await Promise.all([
+  const [labels, games, medalsFromResults, archiveMedals, hand] = await Promise.all([
     loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
     countGamesByNickname(auth.supabase, [nickname]),
     // The club's own record of what this player won before any of it was stored is on
@@ -79,6 +80,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
     }),
     // Турниры, которых клуб больше не проводит: их медали не из игр, а из колонки.
     readArchiveMedals(auth.supabase, record?.id ?? null),
+    // A player the desk only ever typed in has no account to pick one on.
+    record ? readFavoriteHand(auth.supabase, record.id) : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
@@ -90,6 +93,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
         startedAt: game.startedAt,
       })),
       archiveMedals,
+      hand,
       isMe: record?.id === auth.user.id,
       medals: mergeMedalCounts(
         record?.medals as Record<string, unknown> | null,

@@ -11,7 +11,15 @@ import { formatAchievementValue } from "../../_components/award-cards";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { findAchievement, formatRarityPercent } from "@/lib/client/achievements";
 
-type Holder = { avatarUrl: string | null; isMe: boolean; key: string; name: string; value: number };
+type Holder = {
+  avatarUrl: string | null;
+  /** Their favourite hand ("QsTs"), drawn on the avatar. */
+  hand?: string | null;
+  isMe: boolean;
+  key: string;
+  name: string;
+  value: number;
+};
 
 type AchievementHolders = { holders: Holder[]; players: number };
 
@@ -116,7 +124,12 @@ function HolderRow({ holder }: { holder: Holder }) {
       }`}
       href={`/client/players/${encodeURIComponent(holder.key)}`}
     >
-      <PlayerAvatar name={holder.name} photoUrl={holder.avatarUrl ?? undefined} size={34} />
+      <PlayerAvatar
+        hand={holder.hand}
+        name={holder.name}
+        photoUrl={holder.avatarUrl ?? undefined}
+        size={34}
+      />
       <span className="min-w-0 flex-1 truncate text-[15px] font-semibold">
         {holder.name}
         {holder.isMe ? (

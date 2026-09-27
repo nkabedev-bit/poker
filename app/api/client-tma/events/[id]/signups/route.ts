@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { getEvent, listEventSignups, listEventWaitlist } from "@/lib/events/store";
 import { buildSignupList } from "@/lib/events/signup-list";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import { loadFavoriteHands } from "@/lib/players/favorite-hand";
 import { takesSeat } from "@/lib/events/types";
 
 export const dynamic = "force-dynamic";
@@ -25,14 +26,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: "not_found", message: "Турнир не найден." }, { status: 404 });
   }
 
-  const [signups, waitlist, avatars] = await Promise.all([
+  const [signups, waitlist, avatars, hands] = await Promise.all([
     listEventSignups(auth.supabase, id),
     listEventWaitlist(auth.supabase, id),
     loadPlayerAvatars(auth.supabase),
+    loadFavoriteHands(auth.supabase),
   ]);
 
   const findAvatar = (player: { name: string; telegramId: number | null }) =>
     avatars.find(player).thumbUrl;
+  const findHand = (player: { name: string; telegramId: number | null }) => hands.find(player);
 
   // Everyone actually holding a chair. `listEventSignups` also carries the no-shows,
   // whose seat has already gone to somebody in the queue.
@@ -40,9 +43,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const seated = signups.filter((signup) => takesSeat(signup.status, null, now));
 
   return NextResponse.json({
-    players: buildSignupList(seated, { findAvatar, myUserId: auth.user.id }),
+    players: buildSignupList(seated, { findAvatar, findHand, myUserId: auth.user.id }),
     // The queue is shown apart: standing in it is not a ticket, and a list that mixed
     // the two would promise seats the room does not have.
-    waitlist: buildSignupList(waitlist, { findAvatar, myUserId: auth.user.id }),
+    waitlist: buildSignupList(waitlist, { findAvatar, findHand, myUserId: auth.user.id }),
   });
 }

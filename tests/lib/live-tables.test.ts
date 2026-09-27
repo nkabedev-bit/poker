@@ -149,6 +149,21 @@ describe("buildLiveRoom", () => {
     expect(room.tables[0]?.players[0]?.bounties).toBeNull();
   });
 
+  it("hangs each player's favourite hand, the knocked-out's too", () => {
+    const room = buildLiveRoom(
+      [
+        player({ name: "Chura", registrationNumber: 1 }),
+        player({ finishPlace: 9, name: "Vera", registrationNumber: 2, status: "eliminated" }),
+        player({ name: "Без руки", registrationNumber: 3, seat: 2 }),
+      ],
+      { findHand: (item) => ({ Chura: "QsTs", Vera: "7h2c" })[item.name] ?? null },
+    );
+
+    expect(room.tables[0]?.players.map((item) => item.hand)).toEqual(["QsTs", null]);
+    expect(room.eliminated[0]?.hand).toBe("7h2c");
+    expect(buildLiveRoom([player({ name: "Chura" })]).tables[0]?.players[0]?.hand).toBeNull();
+  });
+
   it("returns an empty room for an empty roster", () => {
     expect(buildLiveRoom([])).toEqual({ eliminated: [], tables: [] });
   });

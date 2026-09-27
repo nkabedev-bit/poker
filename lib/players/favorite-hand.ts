@@ -102,22 +102,30 @@ export async function loadFavoriteHands(supabase: SupabaseClient): Promise<HandL
   };
 }
 
-/** One account's hand, read apart so a missing column never costs the rest of a page. */
+/**
+ * One account's hand, read apart so a missing column never costs the rest of a page.
+ * The hand is decoration: whatever goes wrong reading it, the page opens without it.
+ */
 export async function readFavoriteHand(
   supabase: SupabaseClient,
   accountId: string,
 ): Promise<string | null> {
-  const { data, error } = await supabase
-    .from("client_bot_users")
-    .select("favorite_hand")
-    .eq("id", accountId)
-    .maybeSingle();
+  try {
+    const { data, error } = await supabase
+      .from("client_bot_users")
+      .select("favorite_hand")
+      .eq("id", accountId)
+      .maybeSingle();
 
-  if (error) {
-    console.warn("Favorite hand is unavailable", error.message);
+    if (error) {
+      console.warn("Favorite hand is unavailable", error.message);
+      return null;
+    }
+
+    const hand = (data as { favorite_hand?: unknown } | null)?.favorite_hand;
+    return parseFavoriteHand(hand) ? (hand as string) : null;
+  } catch (error) {
+    console.warn("Favorite hand is unavailable", error);
     return null;
   }
-
-  const hand = (data as { favorite_hand?: unknown } | null)?.favorite_hand;
-  return parseFavoriteHand(hand) ? (hand as string) : null;
 }

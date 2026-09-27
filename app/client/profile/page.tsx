@@ -40,6 +40,8 @@ type Me = {
   avatarIsCustom?: boolean;
   avatarUrl: string | null;
   displayName: string | null;
+  /** The two cards the player picked ("QsTs"); null until they pick them. */
+  favoriteHand?: string | null;
   tier?: PlayerTier | null;
   freeEntries: { regular: number; vip: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
@@ -190,7 +192,7 @@ export default function ClientProfilePage() {
           type="button"
           onClick={() => photoInputRef.current?.click()}
         >
-          <PlayerAvatar name={name} photoUrl={photoUrl} size={72} />
+          <PlayerAvatar hand={me?.favoriteHand} name={name} photoUrl={photoUrl} size={72} />
           <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0a0608] bg-[#c8163f] text-white">
             {avatarBusy ? <Loader2 className="animate-spin" size={14} /> : <Camera size={14} />}
           </span>

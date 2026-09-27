@@ -3,6 +3,7 @@ import { ACHIEVEMENTS_TOTAL, EMPTY_PLAYER_STATS, getAchievements } from "@/lib/c
 import type { AchievementHolder, ClubAchievements } from "@/lib/players/achievement-holders";
 
 const mocks = vi.hoisted(() => ({
+  loadFavoriteHands: vi.fn(),
   readClubAchievements: vi.fn(),
   requireClientSignedIn: vi.fn(),
   requireClientTmaAuth: vi.fn(),
@@ -17,6 +18,9 @@ vi.mock("@/lib/client-tma/require-auth", () => ({
 vi.mock("@/lib/supabase/admin", () => ({ createSupabaseAdminClient: () => ({}) }));
 vi.mock("@/lib/players/achievement-holders", () => ({
   readClubAchievements: mocks.readClubAchievements,
+}));
+vi.mock("@/lib/players/favorite-hand", () => ({
+  loadFavoriteHands: mocks.loadFavoriteHands,
 }));
 vi.mock("next/server", () => ({
   NextResponse: {
@@ -96,6 +100,12 @@ describe("client mini-app API: у кого есть достижение", () =>
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.requireClientTmaAuth.mockResolvedValue({ supabase: {}, user: { id: "me" } });
+    // Anna picked a hand; "Guest" shares a nickname with somebody who did, but was only
+    // ever typed in at the desk and has no account of their own.
+    const hands: Record<string, string> = { Anna: "AhKd", Guest: "QsQh" };
+    mocks.loadFavoriteHands.mockResolvedValue({
+      find: ({ name }: { name?: string | null }) => hands[name ?? ""] ?? null,
+    });
   });
 
   it("lists the holders and marks the player's own line by account", async () => {
@@ -120,9 +130,16 @@ describe("client mini-app API: у кого есть достижение", () =>
 
     expect(body.players).toBe(12);
     expect(body.holders).toEqual([
-      { avatarUrl: "https://club.test/a.webp", isMe: false, key: "anna", name: "Anna", value: 5 },
-      { avatarUrl: null, isMe: true, key: "kabedev", name: "Kabedev", value: 3 },
-      { avatarUrl: null, isMe: false, key: "guest", name: "Guest", value: 3 },
+      {
+        avatarUrl: "https://club.test/a.webp",
+        hand: "AhKd",
+        isMe: false,
+        key: "anna",
+        name: "Anna",
+        value: 5,
+      },
+      { avatarUrl: null, hand: null, isMe: true, key: "kabedev", name: "Kabedev", value: 3 },
+      { avatarUrl: null, hand: null, isMe: false, key: "guest", name: "Guest", value: 3 },
     ]);
   });
 

@@ -78,6 +78,7 @@ describe("LiveTables", () => {
     avatarUrl: null,
     bounties: null,
     finishPlace: null,
+    hand: null,
     isMe: false,
     registrationNumber: 4,
     seat: 2,
@@ -181,6 +182,7 @@ describe("LiveTables", () => {
 describe("SignupList", () => {
   const entry = (name: string, overrides = {}) => ({
     avatarUrl: null,
+    hand: null,
     isGuest: false,
     isMe: false,
     key: name,

@@ -19,7 +19,12 @@ function Entry({ player }: { player: SignupListEntry }) {
         player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
       }`}
     >
-      <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={34} />
+      <PlayerAvatar
+        hand={player.hand}
+        name={player.name}
+        photoUrl={player.avatarUrl ?? undefined}
+        size={34}
+      />
       <p className="min-w-0 flex-1 truncate text-[14px] font-semibold">
         {player.name}
         {player.isGuest ? <span className="text-white/35"> · гость</span> : null}

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { findAchievement } from "@/lib/client/achievements";
 import { readClubAchievements } from "@/lib/players/achievement-holders";
+import { loadFavoriteHands } from "@/lib/players/favorite-hand";
 
 export const dynamic = "force-dynamic";
 
@@ -19,11 +20,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!findAchievement(id)) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   try {
-    const club = await readClubAchievements(auth.supabase);
+    // The holders are counted once an hour; hands are hung on per request, so one
+    // picked a minute ago is already on the list.
+    const [club, hands] = await Promise.all([
+      readClubAchievements(auth.supabase),
+      loadFavoriteHands(auth.supabase),
+    ]);
 
     return NextResponse.json({
       holders: (club.holders[id] ?? []).map((holder) => ({
         avatarUrl: holder.avatarUrl,
+        hand: holder.accountId ? hands.find({ name: holder.name }) : null,
         isMe: holder.accountId === auth.user.id,
         key: holder.key,
         name: holder.name,

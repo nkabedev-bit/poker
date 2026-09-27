@@ -9,6 +9,7 @@ import { arrangeSeasonsForRating, type Season } from "@/lib/seasons/season";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import { loadFavoriteHands } from "@/lib/players/favorite-hand";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { resolvePlayerTier, type PlayerTier } from "@/lib/players/tier";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
@@ -167,7 +168,12 @@ export async function GET(request: Request) {
   const requested = new URL(request.url).searchParams.get("season");
   const season = seasons.find((item) => item.id === requested) ?? seasons[0];
 
-  const lines = await cachedSeasonTable(auth.supabase, season);
+  // Hands are hung on per request, over the day-long table: a player who picks one sees
+  // it in the standings at once. Only the accounts that have one are read.
+  const [lines, hands] = await Promise.all([
+    cachedSeasonTable(auth.supabase, season),
+    loadFavoriteHands(auth.supabase),
+  ]);
 
   const myNickname = normalizeNickname(auth.user.display_name);
   // One line is the player's own. The one with their Telegram id, when there is one; by
@@ -185,6 +191,7 @@ export async function GET(request: Request) {
     return {
       ...line,
       avatarUrl: isMe ? (auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null) : line.avatarUrl,
+      hand: hands.find({ name: line.name, telegramId }),
       isMe,
     };
   });
@@ -196,6 +203,7 @@ export async function GET(request: Request) {
         avatarUrl: auth.user.avatar_thumb_url ?? auth.user.avatar_url ?? null,
         eliminations: 0,
         games: 0,
+        hand: hands.find({ name: auth.user.display_name, telegramId: auth.user.telegram_id }),
         isMe: true,
         name: auth.user.display_name ?? "",
         place: null,

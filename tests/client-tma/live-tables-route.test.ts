@@ -3,6 +3,7 @@ import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 
 const mocks = vi.hoisted(() => ({
   loadCurrentTournamentContext: vi.fn(),
+  loadFavoriteHands: vi.fn(),
   loadPlayerAvatars: vi.fn(),
   readClientLiveState: vi.fn(),
   requireClientTmaAuth: vi.fn(),
@@ -22,6 +23,10 @@ vi.mock("@/lib/client-tma/live-state", () => ({
 
 vi.mock("@/lib/players/avatars", () => ({
   loadPlayerAvatars: mocks.loadPlayerAvatars,
+}));
+
+vi.mock("@/lib/players/favorite-hand", () => ({
+  loadFavoriteHands: mocks.loadFavoriteHands,
 }));
 
 vi.mock("next/server", () => ({
@@ -68,6 +73,17 @@ describe("the room as a player sees it", () => {
     });
     mocks.readClientLiveState.mockResolvedValue({ tournamentName: "Bounty Classic" });
     mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null }) });
+    mocks.loadFavoriteHands.mockResolvedValue({
+      find: ({ name }: { name?: string | null }) => (name === "Chura" ? "QsTs" : null),
+    });
+  });
+
+  it("carries each player's favourite hand to the tables", async () => {
+    mocks.loadCurrentTournamentContext.mockResolvedValue(tonight(false));
+
+    const room = await readTables();
+
+    expect(room.tables[0].players[0]).toMatchObject({ hand: "QsTs", name: "Chura" });
   });
 
   it("carries each player's bounties when tonight pays them", async () => {

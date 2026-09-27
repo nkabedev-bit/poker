@@ -9,6 +9,8 @@ export type RatingPlayer = {
   avatarUrl: string | null;
   eliminations: number;
   games: number;
+  /** Their favourite hand ("QsTs"), drawn on the avatar. */
+  hand?: string | null;
   isMe: boolean;
   name: string;
   place: number | null;
@@ -63,7 +65,12 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
         {player.place ?? "—"}
       </span>
 
-      <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={34} />
+      <PlayerAvatar
+        hand={player.hand}
+        name={player.name}
+        photoUrl={player.avatarUrl ?? undefined}
+        size={34}
+      />
 
       {/* The tier is worn as the colour of the name — a badge beside it was too much
           on a list this dense. */}

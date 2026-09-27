@@ -10,6 +10,7 @@ import {
 import { findDuoInvitationEventIds } from "@/lib/events/duo";
 import { announcePublishedEvents, publishDueEvents } from "@/lib/events/scheduled-publication";
 import { readClientLiveState } from "@/lib/client-tma/live-state";
+import { readFavoriteHand } from "@/lib/players/favorite-hand";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
 
   const published = await listEvents(auth.supabase, { publishedOnly: true });
 
-  const [mySignups, live] = await Promise.all([
+  const [mySignups, live, favoriteHand] = await Promise.all([
     getUserSignups(auth.supabase, auth.user.id),
     // Carried with the screen it is drawn on: a card for the game under way would
     // otherwise cost every phone an extra round trip the moment the app opens. The
@@ -37,6 +38,8 @@ export async function GET(request: Request) {
       console.error("Failed to read the live tournament state", error);
       return null;
     }),
+    // The player's own hand, for the face at the top of the screen.
+    readFavoriteHand(auth.supabase, auth.user.id),
   ]);
 
   // The posters still to come, and — while the cards are in the air — the one being
@@ -92,6 +95,7 @@ export async function GET(request: Request) {
       avatarIsCustom: Boolean(auth.user.avatar_is_custom),
       avatarUrl: auth.user.avatar_url,
       displayName: auth.user.display_name,
+      favoriteHand,
       freeEntries: {
         regular: Number(auth.user.free_entries ?? 0),
         vip: Number(auth.user.vip_free_entries ?? 0),

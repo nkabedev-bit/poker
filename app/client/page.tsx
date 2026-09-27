@@ -36,6 +36,8 @@ type EventsResponse = {
     avatarUrl?: string | null;
     canClaimProfile?: boolean;
     displayName: string | null;
+    /** The player's own favourite hand ("QsTs"), drawn on their avatar. */
+    favoriteHand?: string | null;
     profileSubmitted: boolean;
     username: string | null;
   };
@@ -135,7 +137,12 @@ export default function ClientHomePage() {
   return (
     <div className="space-y-7 pt-1">
       <div className="flex items-center gap-3">
-        <PlayerAvatar name={playerName} photoUrl={photoUrl} size={52} />
+        <PlayerAvatar
+          hand={data?.player.favoriteHand}
+          name={playerName}
+          photoUrl={photoUrl}
+          size={52}
+        />
         <div className="min-w-0">
           <p className="truncate text-[19px] font-bold tracking-tight">{playerName}</p>
           <p className="text-[13px] text-white/40">

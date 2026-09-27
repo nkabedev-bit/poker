@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   countGamesByNickname: vi.fn(),
   listSeasons: vi.fn(),
   loadCurrentTournamentContext: vi.fn(),
+  loadFavoriteHands: vi.fn(),
   loadPlayerAvatars: vi.fn(),
   readSeasonSnapshot: vi.fn(),
   requireClientTmaAuth: vi.fn(),
@@ -22,6 +23,7 @@ vi.mock("@/lib/seasons/store", () => ({
 }));
 
 vi.mock("@/lib/players/avatars", () => ({ loadPlayerAvatars: mocks.loadPlayerAvatars }));
+vi.mock("@/lib/players/favorite-hand", () => ({ loadFavoriteHands: mocks.loadFavoriteHands }));
 vi.mock("@/lib/players/games-played", () => ({
   countGamesByNickname: mocks.countGamesByNickname,
 }));
@@ -75,6 +77,7 @@ describe("the rating — which line is the player's own", () => {
     vi.resetModules();
     mocks.listSeasons.mockResolvedValue([APC]);
     mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null, url: null }) });
+    mocks.loadFavoriteHands.mockResolvedValue({ find: () => null });
     mocks.countGamesByNickname.mockResolvedValue(new Map());
     mocks.loadCurrentTournamentContext.mockResolvedValue(null);
   });
@@ -133,6 +136,7 @@ describe("the rating — counted again only when the results change", () => {
     results.newest = "2026-09-24T22:30:00.000Z";
     mocks.listSeasons.mockResolvedValue([APC]);
     mocks.loadPlayerAvatars.mockResolvedValue({ find: () => ({ thumbUrl: null, url: null }) });
+    mocks.loadFavoriteHands.mockResolvedValue({ find: () => null });
     mocks.countGamesByNickname.mockResolvedValue(new Map());
     mocks.loadCurrentTournamentContext.mockResolvedValue(null);
     mocks.computeSeasonStandings.mockResolvedValue([
@@ -182,6 +186,24 @@ describe("the rating — counted again only when the results change", () => {
     await openAs(7);
 
     expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(2);
+  });
+
+  // The table is counted once a day, but a hand is the player's own doing: it shows the
+  // moment they pick it, on the table everybody already has.
+  it("hangs a hand picked since the table was counted on the very next open", async () => {
+    await openAs(7);
+    mocks.loadFavoriteHands.mockResolvedValue({
+      find: ({ telegramId }: { telegramId?: number | null }) => (telegramId === 8 ? "AhKd" : null),
+    });
+    const { players } = (await openAs(7)) as unknown as {
+      players: Array<{ hand: string | null; name: string }>;
+    };
+
+    expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(1);
+    expect(players.map((player) => [player.name, player.hand])).toEqual([
+      ["Kabedev", null],
+      ["Chura", "AhKd"],
+    ]);
   });
 
   it("keeps the accounts' Telegram ids off the wire", async () => {

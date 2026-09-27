@@ -24,6 +24,8 @@ type PlayerGame = { knockouts: number; place: number | null; startedAt: string }
 type PublicPlayer = {
   avatarUrl: string | null;
   games: PlayerGame[];
+  /** Their favourite hand ("QsTs"), drawn on the avatar. */
+  hand?: string | null;
   isMe: boolean;
   medals: Record<string, number>;
   name: string;
@@ -108,7 +110,12 @@ export default function ClientPlayerPage() {
       <PageTitle>Профиль</PageTitle>
 
       <div className="flex items-center gap-4">
-        <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={72} />
+        <PlayerAvatar
+          hand={player.hand}
+          name={player.name}
+          photoUrl={player.avatarUrl ?? undefined}
+          size={72}
+        />
         <div className="min-w-0">
           <p className="truncate text-[22px] font-bold tracking-tight">
             {player.tier === "champion" ? <span className="mr-1.5">👑</span> : null}

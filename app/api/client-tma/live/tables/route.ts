@@ -3,6 +3,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { readClientLiveState } from "@/lib/client-tma/live-state";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import { loadFavoriteHands } from "@/lib/players/favorite-hand";
 import { buildLiveRoom } from "@/lib/tables/live-tables";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
@@ -25,9 +26,10 @@ export async function GET(request: Request) {
   // the desk's business, and the one of a finished game is on the results page.
   if (!live) return NextResponse.json({ eliminated: [], tables: [], tournamentName: null });
 
-  const [context, avatars] = await Promise.all([
+  const [context, avatars, hands] = await Promise.all([
     loadCurrentTournamentContext(auth.supabase),
     loadPlayerAvatars(auth.supabase),
+    loadFavoriteHands(auth.supabase),
   ]);
 
   if (!context) return NextResponse.json({ eliminated: [], tables: [], tournamentName: null });
@@ -40,6 +42,7 @@ export async function GET(request: Request) {
     // The lists draw faces the size of a fingernail, so thumbnails do.
     findAvatar: (player) =>
       avatars.find({ name: player.name, telegramId: player.telegramId }).thumbUrl,
+    findHand: (player) => hands.find({ name: player.name, telegramId: player.telegramId }),
     isBounty: context.extras.settings.isBounty,
     isMe: (player) =>
       isSameTelegramAccount(auth.user.telegram_id, player.telegramId) ||
