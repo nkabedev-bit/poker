@@ -6,6 +6,7 @@ import { isUpcomingEvent } from "@/lib/events/types";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-counts";
+import { readFavoriteHand } from "@/lib/players/favorite-hand";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
@@ -66,7 +67,10 @@ export async function GET(request: Request) {
       : isSameTelegramAccount(auth.user.telegram_id, item.telegramId),
   );
 
-  const achievementStats = await readAchievementStats(auth.supabase, auth.user.id);
+  const [achievementStats, favoriteHand] = await Promise.all([
+    readAchievementStats(auth.supabase, auth.user.id),
+    readFavoriteHand(auth.supabase, auth.user.id),
+  ]);
 
   const now = new Date();
 
@@ -125,6 +129,8 @@ export async function GET(request: Request) {
     // The club nickname is what the player is known by at the table, so it wins over
     // whatever Telegram calls them.
     displayName: auth.user.display_name,
+    // The two cards drawn on the player's avatar ("QsTs"); null until they pick them.
+    favoriteHand,
     history: {
       active: active.sort(byStartDate),
       past: past.sort((a, b) => byStartDate(b, a)),

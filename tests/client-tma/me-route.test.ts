@@ -83,4 +83,27 @@ describe("client mini-app API: свой профиль", () => {
 
     expect(earned).toEqual(expect.arrayContaining(["no-insurance", "comeback"]));
   });
+
+  // The avatar wears it everywhere, the player's own profile first.
+  it("sends the two cards the player picked as their hand", async () => {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase: {
+        from: () => ({
+          select: (columns: string) => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: columns === "favorite_hand" ? { favorite_hand: "QsTs" } : null,
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      },
+      user: { display_name: "Kabedev", id: "me", telegram_id: 7 },
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ favoriteHand: "QsTs" });
+  });
 });
