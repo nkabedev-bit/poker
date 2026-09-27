@@ -410,12 +410,13 @@ describe("TMAPlayersPage", () => {
   // A player with one 6000-chip addon; each test overrides what it is about.
   function stubAddonPlayerFetch(
     player: Record<string, unknown> = {},
-    options: { addonEnabled?: boolean; cancelResponse?: Response } = {},
+    options: { addonEnabled?: boolean; cancelResponse?: Response; isBounty?: boolean } = {},
   ) {
     const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       if (String(input) === "/api/tma/players" && !init?.method) {
         return Response.json({
           addonEnabled: options.addonEnabled ?? true,
+          isBounty: options.isBounty ?? false,
           maxAddons: 1,
           tablesCount: 3,
           players: [
@@ -464,6 +465,26 @@ describe("TMAPlayersPage", () => {
 
     expect((await screen.findByText("Ребаи")).nextElementSibling?.textContent).toBe("0");
     expect(screen.getByText("Двойные ребаи").nextElementSibling?.textContent).toBe("0");
+  });
+
+  // A knockout split between two killers gives each half a bounty.
+  it("shows how many players the player knocked out in a bounty game", async () => {
+    stubAddonPlayerFetch({ bountyCount: 2.5 }, { isBounty: true });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    expect((await screen.findByText("Баунти")).nextElementSibling?.textContent).toBe("2,5");
+  });
+
+  it("leaves the bounties off the card when tonight pays none", async () => {
+    stubAddonPlayerFetch({ bountyCount: 2 }, { isBounty: false });
+
+    render(<TMAPlayersPage />);
+    fireEvent.click(await screen.findByRole("button", { name: /addon player/i }));
+
+    await screen.findByText("Ребаи");
+    expect(screen.queryByText("Баунти")).toBeNull();
   });
 
   it("takes an addon back after a confirmation naming the chips it removes", async () => {

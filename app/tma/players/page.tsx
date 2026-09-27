@@ -39,6 +39,8 @@ const CONFIRM_NAMES_LIMIT = 10;
 type Player = {
   addons?: number;
   addonChipsTotal?: number;
+  /** Knockouts this player made; a knockout split between killers counts as a share. */
+  bountyCount?: number;
   /** Double re-entries (x2) — counted in `rebuys` too. */
   doubleRebuys?: number;
   id: string;
@@ -95,6 +97,7 @@ export default function TMAPlayersPage() {
   const [newTicket, setNewTicket] = useState<NewPlayerTicket>("regular");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [addonEnabled, setAddonEnabled] = useState(false);
+  const [isBounty, setIsBounty] = useState(false);
   const [maxAddons, setMaxAddons] = useState(1);
   const [tablesCount, setTablesCount] = useState(1);
   // Each table is drawn in the format it is dealt in tonight, with the chairs the desk
@@ -132,6 +135,7 @@ export default function TMAPlayersPage() {
         const data = await res.json();
         setPlayers(data.players || []);
         setAddonEnabled(Boolean(data.addonEnabled));
+        setIsBounty(Boolean(data.isBounty));
         setMaxAddons(Math.max(1, Number(data.maxAddons ?? 1)));
         setTablesCount(Math.max(1, Number(data.tablesCount ?? 1)));
         setTableFormats(readTableFormatsFrom(data));
@@ -243,6 +247,11 @@ export default function TMAPlayersPage() {
     0,
     Number(selectedPlayer?.rebuys ?? 0) - selectedPlayerDoubleRebuys,
   );
+  // A knockout split between killers gives each a share of the bounty, so the count can
+  // read 2,5; two decimals are enough for a three-way split.
+  const selectedPlayerBounties = Number(
+    Math.max(0, Number(selectedPlayer?.bountyCount ?? 0)).toFixed(2),
+  ).toLocaleString("ru-RU");
   const selectedPlayerCanAddon =
     Boolean(selectedPlayer) &&
     selectedPlayer?.status === "active" &&
@@ -848,6 +857,13 @@ export default function TMAPlayersPage() {
                   : null}
               </div>
             </div>
+            {/* Last, so the pairs above stay put whether tonight pays bounties or not. */}
+            {isBounty ? (
+              <div>
+                <div className="text-[var(--tg-theme-hint-color)]">Баунти</div>
+                <div className="font-semibold">{selectedPlayerBounties}</div>
+              </div>
+            ) : null}
           </div>
         </div>
 
