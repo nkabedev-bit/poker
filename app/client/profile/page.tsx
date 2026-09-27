@@ -17,6 +17,7 @@ import type { ReactNode } from "react";
 import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
+import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
@@ -71,6 +72,7 @@ export default function ClientProfilePage() {
   const [loading, setLoading] = useState(true);
   const [historyTab, setHistoryTab] = useState<"active" | "past">("active");
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [handPickerOpen, setHandPickerOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -138,6 +140,42 @@ export default function ClientProfilePage() {
       showClientAlert("Не удалось прочитать файл");
     } finally {
       setAvatarBusy(false);
+    }
+  };
+
+  /**
+   * Stores the player's favourite hand, or takes it off with null. The profile and its
+   * rating rows show the new hand at once, without reading everything again.
+   */
+  const saveFavoriteHand = async (hand: string | null): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/client-tma/favorite-hand", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ hand }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) return data?.message ?? "Не удалось сохранить руку. Попробуйте ещё раз.";
+
+      const saved = (data?.hand as string | null | undefined) ?? null;
+      getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
+      setMe((current) => (current ? { ...current, favoriteHand: saved } : current));
+      setRating((current) =>
+        current
+          ? {
+              ...current,
+              me: current.me?.isMe ? { ...current.me, hand: saved } : current.me,
+              players: current.players.map((player) =>
+                player.isMe ? { ...player, hand: saved } : player,
+              ),
+            }
+          : current,
+      );
+      setHandPickerOpen(false);
+      return null;
+    } catch {
+      return "Нет связи с сервером. Попробуйте ещё раз.";
     }
   };
 
@@ -237,6 +275,21 @@ export default function ClientProfilePage() {
           ) : null}
         </div>
       </div>
+
+      <FavoriteHandCard
+        games={stats.games}
+        hand={me?.favoriteHand ?? null}
+        tier={me?.tier ?? null}
+        onOpen={() => setHandPickerOpen(true)}
+      />
+
+      {handPickerOpen ? (
+        <FavoriteHandPicker
+          current={me?.favoriteHand ?? null}
+          onClose={() => setHandPickerOpen(false)}
+          onSave={saveFavoriteHand}
+        />
+      ) : null}
 
       <div className="grid grid-cols-3 gap-3">
         <StatTile icon={<Spade size={18} />} label="Игр" value={stats.games} />
