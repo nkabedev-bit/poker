@@ -264,61 +264,68 @@ describe("re-entry settings UI", () => {
   });
 });
 
-// A freeroll is free because its ticket is priced at nothing — nothing else makes it
-// free any more. Picking the preset has to zero the price, or the admin who forgot
-// would have billed a free game.
-describe("the freeroll preset", () => {
+// Every ticket is priced straight from the settings, so a preset puts its prices in. A
+// freeroll's free seat must not stay behind for the next game: a bounty once went out at
+// 0 ₽ because only the freeroll touched the price.
+describe("the ticket prices of a preset", () => {
   afterEach(() => {
     cleanup();
   });
 
-  function renderSettings(extras = defaultTournamentExtras) {
+  function renderSettings(prices: { buyIn: number; duoBuyIn: number; vipBuyIn: number }) {
     render(
       <SettingsForm
         action={vi.fn()}
-        extras={extras}
+        extras={{
+          ...defaultTournamentExtras,
+          settings: { ...defaultTournamentExtras.settings, ...prices },
+        }}
         publicUrl="/screen/demo"
         tournament={tournament}
       />,
     );
   }
 
-  it("zeroes the ordinary ticket and leaves the VIP price alone", () => {
-    const extras = {
-      ...defaultTournamentExtras,
-      settings: { ...defaultTournamentExtras.settings, buyIn: 1250, vipBuyIn: 1000 },
+  function prices() {
+    return {
+      buyIn: (screen.getByLabelText("Цена билета") as HTMLInputElement).value,
+      duoBuyIn: (screen.getByLabelText("Цена билета 1+1") as HTMLInputElement).value,
+      vipBuyIn: (screen.getByLabelText("Цена VIP билета") as HTMLInputElement).value,
     };
-    renderSettings(extras);
+  }
 
-    const buyIn = screen.getByLabelText("Цена билета") as HTMLInputElement;
-    const vipBuyIn = screen.getByLabelText("Цена VIP билета") as HTMLInputElement;
-    expect(buyIn.value).toBe("1250");
+  it("prices a freeroll: a free ordinary seat, no pair, VIP at 1000", () => {
+    renderSettings({ buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 });
 
     fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
 
-    expect(buyIn.value).toBe("0");
-    expect(vipBuyIn.value).toBe("1000");
+    expect(prices()).toEqual({ buyIn: "0", duoBuyIn: "0", vipBuyIn: "1000" });
   });
 
-  it("leaves the price alone for the kinds of game the club prices itself", () => {
-    const extras = {
-      ...defaultTournamentExtras,
-      settings: { ...defaultTournamentExtras.settings, buyIn: 1250 },
-    };
-    renderSettings(extras);
+  it.each(["phoenix", "deepstack", "bounty", "progressive", "mystery", "lastchance"])(
+    "puts the club's prices back when %s is picked after a freeroll",
+    (preset) => {
+      renderSettings({ buyIn: 0, duoBuyIn: 0, vipBuyIn: 1000 });
 
-    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "deepstack" } });
+      fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: preset } });
 
-    expect((screen.getByLabelText("Цена билета") as HTMLInputElement).value).toBe("1250");
-  });
+      expect(prices()).toEqual({ buyIn: "1250", duoBuyIn: "2000", vipBuyIn: "2000" });
+    },
+  );
 
   it("still lets the admin type a price over the preset", () => {
-    renderSettings();
+    renderSettings({ buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 });
 
     fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
-    const buyIn = screen.getByLabelText("Цена билета") as HTMLInputElement;
-    fireEvent.change(buyIn, { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("Цена билета"), { target: { value: "500" } });
+    fireEvent.change(screen.getByLabelText("Цена VIP билета"), { target: { value: "1500" } });
 
-    expect(buyIn.value).toBe("500");
+    expect(prices()).toEqual({ buyIn: "500", duoBuyIn: "0", vipBuyIn: "1500" });
+  });
+
+  it("keeps the saved prices until a preset is picked", () => {
+    renderSettings({ buyIn: 1500, duoBuyIn: 2400, vipBuyIn: 2500 });
+
+    expect(prices()).toEqual({ buyIn: "1500", duoBuyIn: "2400", vipBuyIn: "2500" });
   });
 });

@@ -33,17 +33,29 @@ const maxSoundSize = 1024 * 1024;
 
 type BountyMode = "off" | BountyType;
 
+type PresetPrices = {
+  /** The ordinary ticket. */
+  buyIn: number;
+  /** A "1+1": what the pair pays together, half of it each. */
+  duoBuyIn: number;
+  vipBuyIn: number;
+};
+
+/** What the tickets cost at every game the club runs but a freeroll. A "1+1" is 1000 each. */
+const CLUB_PRICES: PresetPrices = { buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 };
+
+/** A freeroll: the ordinary seat is free, no pair is sold, and the VIP seat costs 1000. */
+const FREEROLL_PRICES: PresetPrices = { buyIn: 0, duoBuyIn: 0, vipBuyIn: 1000 };
+
 type TournamentPreset = {
   addonEnabled: boolean;
   bountyMode: BountyMode;
   /**
-   * What the ordinary ticket costs at this kind of game, where the kind decides it.
-   *
-   * Only the freeroll does: its entry is free, and nothing else about the game says so
-   * — the sheet and the desk price every ticket straight from these settings. Left
-   * unset everywhere else, where the price is the club's to name.
+   * The ticket prices of this kind of game. The sheet and the desk price every ticket
+   * straight from the settings, so the preset puts them in: a game picked after a
+   * freeroll would otherwise have kept its free ticket.
    */
-  buyIn?: number;
+  prices: PresetPrices;
   label: string;
   maxAddons: number;
   maxReentries: number;
@@ -60,6 +72,7 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Феникс",
     maxAddons: 1,
     maxReentries: 1,
+    prices: CLUB_PRICES,
     startingStack: 2000,
     tournamentFormat: "phoenix",
   },
@@ -69,6 +82,7 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Дип стек",
     maxAddons: 1,
     maxReentries: 2,
+    prices: CLUB_PRICES,
     startingStack: 4000,
     tournamentFormat: "deepstack",
   },
@@ -78,6 +92,7 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Обычный баунти",
     maxAddons: 1,
     maxReentries: 2,
+    prices: CLUB_PRICES,
     startingStack: 2000,
     tournamentFormat: "regular",
   },
@@ -87,6 +102,7 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Прогрессив",
     maxAddons: 1,
     maxReentries: 2,
+    prices: CLUB_PRICES,
     startingStack: 2000,
     tournamentFormat: "regular",
   },
@@ -96,18 +112,17 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Мистери",
     maxAddons: 1,
     maxReentries: 2,
+    prices: CLUB_PRICES,
     startingStack: 2000,
     tournamentFormat: "regular",
   },
   freeroll: {
     addonEnabled: true,
     bountyMode: "off",
-    // The VIP seat keeps whatever price the club put on the poster: a freeroll here is
-    // a free ordinary ticket beside a paid VIP one.
-    buyIn: 0,
     label: "Фриролл",
     maxAddons: 1,
     maxReentries: 2,
+    prices: FREEROLL_PRICES,
     startingStack: 2000,
     tournamentFormat: "freeroll",
   },
@@ -117,6 +132,7 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     label: "Ласт ченс",
     maxAddons: 1,
     maxReentries: 2,
+    prices: CLUB_PRICES,
     startingStack: 2000,
     tournamentFormat: "regular",
   },
@@ -155,9 +171,11 @@ export function SettingsForm({
     settings.isBounty ? settings.bountyType : "off",
   );
   const [startingStack, setStartingStack] = useState(tournament.startingStack);
-  // Controlled so that picking "Фриролл" can zero it: the price is what makes an entry
-  // free now, and an admin who forgot to clear it would have billed a free game.
+  // Controlled so that a preset can put its prices in: the price is what makes an entry
+  // free now, and a price left over from the last game would bill this one wrong.
   const [buyIn, setBuyIn] = useState(settings.buyIn);
+  const [vipBuyIn, setVipBuyIn] = useState(settings.vipBuyIn);
+  const [duoBuyIn, setDuoBuyIn] = useState(settings.duoBuyIn);
   // The picked type is saved with the tournament: it names the game (and so the medal its
   // winner earns), while the fields below stay free to edit afterwards.
   const [presetName, setPresetName] = useState<string>(settings.tournamentPreset ?? "");
@@ -174,7 +192,9 @@ export function SettingsForm({
     setReentryEnabled(true);
     setStartingStack(preset.startingStack);
     setTournamentFormat(preset.tournamentFormat);
-    if (preset.buyIn !== undefined) setBuyIn(preset.buyIn);
+    setBuyIn(preset.prices.buyIn);
+    setVipBuyIn(preset.prices.vipBuyIn);
+    setDuoBuyIn(preset.prices.duoBuyIn);
   }
 
   function updateLogoUpload(file: File | undefined) {
@@ -408,22 +428,24 @@ export function SettingsForm({
           VIP билет, ₽
           <input
             aria-label="Цена VIP билета"
-            defaultValue={settings.vipBuyIn}
             inputMode="numeric"
             min={0}
             name="vipBuyIn"
             type="number"
+            value={vipBuyIn}
+            onChange={(event) => setVipBuyIn(Number(event.target.value) || 0)}
           />
         </label>
         <label>
           Билет 1+1, ₽ за двоих
           <input
             aria-label="Цена билета 1+1"
-            defaultValue={settings.duoBuyIn}
             inputMode="numeric"
             min={0}
             name="duoBuyIn"
             type="number"
+            value={duoBuyIn}
+            onChange={(event) => setDuoBuyIn(Number(event.target.value) || 0)}
           />
         </label>
         <label>
