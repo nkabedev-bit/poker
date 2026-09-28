@@ -106,16 +106,18 @@ export const RAFFLE_WIN_MESSAGE: Record<RaffleKind, string> = {
 };
 
 /**
- * The club's developer, who builds the draw and sets it up. They stay out of it: a prize
- * won by whoever wrote the draw would look rigged to the room, however fair it is.
+ * The people behind the draw, who stay out of it: the club's developer, who builds it and
+ * sets it up, and the venue's owner, who hosts the evening. A prize won by either would
+ * look rigged to the room, however fair the draw is.
  */
-const DEVELOPER_NICKNAME_KEY = buildNicknameKey("kabedev");
+const EXCLUDED_NICKNAME_KEYS = new Set(["kabedev", "Киберпсих"].map(buildNicknameKey));
 
 /**
  * Everyone in tonight's draw.
  *
  * The whole room takes part, knocked-out players included: they paid their entry and
- * are still in the hall. The club's developer alone is left out, of both draws.
+ * are still in the hall. The club's developer and the venue's owner alone are left out,
+ * of both draws.
  *
  * The free pass is drawn on the whole room — a VIP ticket is a better ticket, not a
  * smaller draw, so VIP guests stand in it alongside everyone else. The VIP draw is the
@@ -131,7 +133,7 @@ export function listRaffleEntrants(
 ): RaffleEntrant[] {
   return players
     .filter((player) => {
-      if (buildNicknameKey(player.name) === DEVELOPER_NICKNAME_KEY) return false;
+      if (EXCLUDED_NICKNAME_KEYS.has(buildNicknameKey(player.name))) return false;
 
       const number = Number(player.registrationNumber);
       if (!Number.isInteger(number) || number <= 0) return false;

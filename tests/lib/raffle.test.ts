@@ -70,12 +70,20 @@ describe("listRaffleEntrants", () => {
     expect(listRaffleEntrants([player(0), player(7)], "regular")).toHaveLength(1);
   });
 
-  // The developer sets the draw up, so a prize of theirs would look rigged to the room.
+  // The developer sets the draw up and the venue's owner hosts the evening, so a prize of
+  // theirs would look rigged to the room.
   it("leaves the club's developer out of both draws, however the nickname is written", () => {
     const room = [player(3, { name: "kabedev" }), player(4), player(22, { name: "Kabedev " }), player(23)];
 
     expect(listRaffleEntrants(room, "regular").map((entrant) => entrant.number)).toEqual([4, 23]);
     expect(listRaffleEntrants(room, "vip").map((entrant) => entrant.number)).toEqual([23]);
+  });
+
+  it("leaves the venue's owner out of both draws, however the nickname is written", () => {
+    const room = [player(5, { name: "Киберпсих" }), player(6), player(24, { name: "киберпсих" }), player(25)];
+
+    expect(listRaffleEntrants(room, "regular").map((entrant) => entrant.number)).toEqual([6, 25]);
+    expect(listRaffleEntrants(room, "vip").map((entrant) => entrant.number)).toEqual([25]);
   });
 
   it("carries the account the prize will go to", () => {
