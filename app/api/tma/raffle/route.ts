@@ -17,7 +17,7 @@ import {
   type Raffle,
   type RaffleWinRecord,
 } from "@/lib/raffle/raffle";
-import { pickRaffleMotion } from "@/lib/raffle/raffle-scenes";
+import { pickRaffleMotion, raffleFacePhoto } from "@/lib/raffle/raffle-scenes";
 
 export const dynamic = "force-dynamic";
 
@@ -124,8 +124,14 @@ export async function POST(request: Request) {
   );
 
   const raffle: Raffle = {
+    // A scene that draws the room small carries the thumbnails: forty faces reach the
+    // hall in a fraction of the bytes.
     faces: entrants.map((entrant) => ({
-      avatarUrl: avatars.find({ name: entrant.name, telegramId: entrant.telegramId }).url,
+      avatarUrl: raffleFacePhoto(
+        avatars.find({ name: entrant.name, telegramId: entrant.telegramId }),
+        motion.style,
+        entrants.length,
+      ),
       name: entrant.name,
       number: entrant.number,
     })),

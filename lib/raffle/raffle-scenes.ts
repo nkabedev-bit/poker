@@ -297,6 +297,28 @@ export function isSceneMotion(motion: RaffleMotion): motion is SceneMotion {
   return (SCENE_STYLES as readonly string[]).includes(motion.style);
 }
 
+/** The scenes that lay the whole room out as a table of faces. */
+const FACE_GRID_STYLES: readonly RaffleStyle[] = ["finalTable", "spotlight"];
+
+/**
+ * The photo a face in the draw carries.
+ *
+ * The final table and the spotlight lay the room out as a table of cards, and from three
+ * rows up — sixteen players and more — each photo is drawn at about a tenth of the
+ * screen's height, some 100 px on full HD. The 96-pixel thumbnail the club already keeps
+ * for its lists does there, at a fraction of the bytes, so forty faces reach a slow hall
+ * connection within the second and a half the scene waits for them. The reel, the drums
+ * and a smaller room show faces large, or not at all, and keep the full photo.
+ */
+export function raffleFacePhoto(
+  avatar: { thumbUrl: string | null; url: string | null },
+  style: RaffleStyle,
+  faces: number,
+) {
+  const drawnSmall = FACE_GRID_STYLES.includes(style) && faceGridShape(faces).rows >= 3;
+  return drawnSmall ? (avatar.thumbUrl ?? avatar.url) : avatar.url;
+}
+
 /**
  * Rows and columns for a table of faces on the hall's screen: cards a little wider than
  * tall, filling a box `aspect` times as wide as it is high.

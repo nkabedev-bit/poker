@@ -284,6 +284,65 @@ describe("POST /api/tma/raffle — the faces on the reel", () => {
   });
 });
 
+describe("POST /api/tma/raffle — how large the faces are sent", () => {
+  const ROOM = Array.from({ length: 16 }, (_, index) => index + 1);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.adjustFreeEntries.mockResolvedValue({ after: 1, before: 0 });
+    mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    if (mocks.realRandomInt) mocks.randomInt.mockImplementation(mocks.realRandomInt);
+  });
+
+  /** Sixteen players with photos, the draw's randomness pinned to one way of running. */
+  async function drawSixteen(pinnedStyleIndex: number) {
+    const pinned = Math.floor(((pinnedStyleIndex + 0.5) / RAFFLE_STYLES.length) * 2 ** 31);
+    mocks.randomInt.mockImplementation(() => pinned);
+    const supabase = createSupabaseMock(
+      ROOM.map((number) => ({
+        avatar_thumb_url: `https://club.example/thumbs/${number}.webp`,
+        avatar_url: `https://club.example/faces/${number}.jpg`,
+        display_name: `Игрок ${number}`,
+        telegram_id: 1000 + number,
+      })),
+    );
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({
+        players: ROOM.map((number) => player(number, { telegramId: 1000 + number })),
+      }),
+    );
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    await POST(request("regular"));
+    return storedDraw(supabase);
+  }
+
+  // Three rows of cards: each face is drawn about 100 px across, and forty of them have
+  // to reach a slow hall connection in a second and a half.
+  it("sends the thumbnails to the final table of a full room", async () => {
+    const stored = await drawSixteen(RAFFLE_STYLES.indexOf("finalTable"));
+
+    expect(stored.motion?.style).toBe("finalTable");
+    expect(stored.faces?.map((face) => face.avatarUrl)).toEqual(
+      ROOM.map((number) => `https://club.example/thumbs/${number}.webp`),
+    );
+  });
+
+  it("sends the full photos to the reel, which shows each face large", async () => {
+    const stored = await drawSixteen(0);
+
+    expect(REEL_STYLES).toContain(stored.motion?.style);
+    expect(stored.faces?.map((face) => face.avatarUrl)).toEqual(
+      ROOM.map((number) => `https://club.example/faces/${number}.jpg`),
+    );
+  });
+});
+
 describe("POST /api/tma/raffle — how the reel runs", () => {
   beforeEach(() => {
     vi.clearAllMocks();

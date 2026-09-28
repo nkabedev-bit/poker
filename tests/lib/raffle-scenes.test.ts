@@ -7,6 +7,7 @@ import {
   pickRaffleMotion,
   planFinalTable,
   RAFFLE_STYLES,
+  raffleFacePhoto,
   readRaffleMotion,
   SPOTLIGHT_HOPS,
   type RaffleStyle,
@@ -186,6 +187,40 @@ describe("faceGridShape", () => {
       expect(cols * rows).toBeGreaterThanOrEqual(count);
       expect(cols * (rows - 1)).toBeLessThan(count);
     }
+  });
+});
+
+describe("raffleFacePhoto", () => {
+  const avatar = {
+    thumbUrl: "https://club.example/thumbs/4.webp",
+    url: "https://club.example/faces/4.jpg",
+  };
+
+  // Three rows of cards and up, a face is drawn some 100 px across: the thumbnail does.
+  it("hands a full room's table of faces the thumbnail", () => {
+    expect(raffleFacePhoto(avatar, "finalTable", 16)).toBe(avatar.thumbUrl);
+    expect(raffleFacePhoto(avatar, "spotlight", 40)).toBe(avatar.thumbUrl);
+  });
+
+  // Two rows of cards draw a face half as large again: the thumbnail would blur.
+  it("keeps the full photo for a small room", () => {
+    expect(faceGridShape(15).rows).toBe(2);
+    expect(raffleFacePhoto(avatar, "finalTable", 15)).toBe(avatar.url);
+  });
+
+  it("keeps the full photo on the reel, which shows each face large", () => {
+    expect(raffleFacePhoto(avatar, CLASSIC_MOTION.style, 40)).toBe(avatar.url);
+  });
+
+  // The drums show numbers and nicknames; no face is drawn at all.
+  it("keeps the full photo for the one-armed bandit", () => {
+    expect(raffleFacePhoto(avatar, "slotMachine", 40)).toBe(avatar.url);
+  });
+
+  it("falls back to the full photo for a player with no thumbnail yet", () => {
+    expect(raffleFacePhoto({ thumbUrl: null, url: avatar.url }, "finalTable", 40)).toBe(
+      avatar.url,
+    );
   });
 });
 
