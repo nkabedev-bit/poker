@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { timeoutSignal } from "@/lib/timeout-signal";
 import { useTMA } from "./layout";
 
 /** How often an open admin screen asks whether anything has changed. */
@@ -9,11 +10,25 @@ export const TMA_POLL_INTERVAL_MS = 5000;
 /** How often it reloads anyway, for whatever the fingerprint does not cover. */
 export const TMA_FULL_REFRESH_MS = 60_000;
 
+/**
+ * How long a beat waits for the fingerprint. It is a few dozen bytes and comes back in
+ * well under a second; one still out after this is held up on the way.
+ */
+export const TMA_PULSE_TIMEOUT_MS = 8000;
+
+/**
+ * While the fingerprint cannot be read, how often the screen reloads the old way. Not on
+ * every beat: each reload is a full read on the server, and a network that loses the
+ * fingerprint loses most of the reloads as well.
+ */
+export const TMA_UNREADABLE_RELOAD_MS = 30_000;
+
 async function readVersion(initData: string) {
   try {
     const response = await fetch("/api/tma/pulse", {
       cache: "no-store",
       headers: { "X-Telegram-Init-Data": initData },
+      signal: timeoutSignal(TMA_PULSE_TIMEOUT_MS),
     });
     if (!response.ok) return null;
 
@@ -32,7 +47,9 @@ async function readVersion(initData: string) {
  * the club's server time. Every five seconds it now asks for a fingerprint of the state
  * and reloads only when that has moved, so a change made on another phone still shows up
  * within seconds. Once a minute it reloads regardless, for anything the fingerprint does
- * not see, and a pulse that cannot be read reloads the old way rather than go quiet.
+ * not see, and while the fingerprint cannot be read it reloads every half minute rather
+ * than go quiet. A fingerprint the network holds up is given up on after a few seconds,
+ * so one lost answer cannot stop the beat.
  *
  * Nothing is asked while the screen is hidden.
  */
@@ -58,13 +75,17 @@ export function useVisiblePolling(callback: () => void, enabled = true) {
 
       try {
         const next = await readVersion(initData);
-        const stale = Date.now() - reloadedAt >= TMA_FULL_REFRESH_MS;
+        const sinceReload = Date.now() - reloadedAt;
         // The first answer reloads too: something may have changed between the screen's
         // own first read and this one.
-        const moved = next === null || next !== version;
-        version = next;
+        const moved = next !== null && next !== version;
+        const unreadable = next === null && sinceReload >= TMA_UNREADABLE_RELOAD_MS;
+        const stale = sinceReload >= TMA_FULL_REFRESH_MS;
+        // A lost answer leaves the last one standing: once the fingerprint comes back,
+        // the screen reloads only if something moved while it was away.
+        if (next !== null) version = next;
 
-        if (moved || stale) {
+        if (moved || unreadable || stale) {
           reloadedAt = Date.now();
           callbackRef.current();
         }

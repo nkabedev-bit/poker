@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
 import { toTimerState, type ClientLiveState, type LiveBlindLevel } from "@/lib/client-tma/live-state-shared";
+import { timeoutSignal } from "@/lib/timeout-signal";
 
 /**
  * How often a phone asks the club whether anything moved.
@@ -23,6 +24,13 @@ const LIVE_PULSE_MS = 30_000;
  * nothing at all.
  */
 const IDLE_PULSE_MS = 60_000;
+
+/**
+ * How long a beat waits for its answer — a few hundred bytes, back in well under a
+ * second. One held up on the way is dropped rather than left open until the next beats
+ * pile up behind it.
+ */
+const LIVE_REQUEST_TIMEOUT_MS = 8_000;
 
 export type LiveTournament = {
   activePlayers: number;
@@ -109,6 +117,7 @@ export function useLiveTournament({
       const response = await fetch(`/api/client-tma/live${needsLevels ? "?levels=1" : ""}`, {
         cache: "no-store",
         headers: { "X-Telegram-Init-Data": initData },
+        signal: timeoutSignal(LIVE_REQUEST_TIMEOUT_MS),
       });
 
       if (!response.ok) return;

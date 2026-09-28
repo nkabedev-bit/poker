@@ -30,10 +30,18 @@ import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
 import { TableMergeOverlay } from "@/components/public/table-merge-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
-import { statePulseInterval, useStatePulse } from "@/components/public/use-state-pulse";
+import {
+  fullRefreshInterval,
+  statePulseInterval,
+  useStatePulse,
+} from "@/components/public/use-state-pulse";
+import { timeoutSignal } from "@/lib/timeout-signal";
 
-/** How often the screen re-reads its whole state regardless of the pulse. */
-const FULL_REFRESH_INTERVAL_MS = 60 * 60_000;
+/**
+ * How long the screen waits for its whole state. It comes back in well under a second;
+ * one still arriving after this is held up on the way, and the pulse asks again.
+ */
+const STATE_FETCH_TIMEOUT_MS = 15_000;
 
 type PublicScreenProps = {
   initialState: PublicTournamentState;
@@ -42,7 +50,10 @@ type PublicScreenProps = {
 };
 
 async function fetchPublicState(token: string) {
-  const response = await fetch(`/api/public-state/${token}`, { cache: "no-store" });
+  const response = await fetch(`/api/public-state/${token}`, {
+    cache: "no-store",
+    signal: timeoutSignal(STATE_FETCH_TIMEOUT_MS),
+  });
   if (!response.ok) throw new Error("Unable to refresh public state");
   const state = (await response.json()) as PublicTournamentState;
   const serverTimeHeader = response.headers.get("Date");
@@ -467,6 +478,8 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   const isFirstRender = useRef(true);
   // The fingerprint of the state on screen, for the pulse to compare against.
   const versionRef = useRef<string | undefined>(initialState.version);
+  // When the whole state last arrived, so the slow re-read skips a screen that is fresh.
+  const refreshedAtRef = useRef(0);
 
   if (isFirstRender.current) {
     const clientNow = Date.now();
@@ -509,6 +522,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       const { state: nextState, serverNowIso: nextServerNowIso } = await fetchPublicState(token);
       setState(nextState);
       versionRef.current = nextState.version;
+      refreshedAtRef.current = Date.now();
       const clientNow = Date.now();
       const serverTime = new Date(nextServerNowIso).getTime();
       clockOffsetRef.current = getSettledClockOffset(
@@ -516,8 +530,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
         serverTime - clientNow,
       );
       setNow(new Date(Date.now() + clockOffsetRef.current));
+      return true;
     } catch (error) {
       console.error(error);
+      return false;
     }
   }, [token]);
 
@@ -622,19 +638,23 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
     };
   }, []);
 
+  const fullRefreshMs = fullRefreshInterval(state.timerState.status);
+
   useEffect(() => {
     // In demo mode, we poll frequently since there's no websocket.
-    // In production the pulse notices every change and Realtime pushes them when it gets
-    // through, so the whole state is re-read only once an hour, for anything neither of
-    // them would see. It used to be every 45 seconds, around the clock, and that alone
-    // was a steady share of the club's server time.
-    const pollInterval = isDemo ? 5000 : FULL_REFRESH_INTERVAL_MS;
+    // In production the pulse notices changes and Realtime pushes them when it gets
+    // through; this re-read is for anything neither of them would see — once a minute
+    // during a game, once an hour otherwise.
+    const pollInterval = isDemo ? 5000 : fullRefreshMs;
     const poll = window.setInterval(() => {
-      refresh().catch(() => undefined);
+      // A screen the pulse has refreshed within the interval has nothing to catch up on,
+      // and a busy evening costs no extra reads.
+      if (!isDemo && Date.now() - refreshedAtRef.current < pollInterval) return;
+      void refresh();
     }, pollInterval);
 
     return () => window.clearInterval(poll);
-  }, [refresh, isDemo]);
+  }, [fullRefreshMs, isDemo, refresh]);
 
   useEffect(() => {
     if (isDemo) return;
