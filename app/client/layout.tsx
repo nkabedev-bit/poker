@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, House, Trophy, User } from "lucide-react";
+import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -65,6 +65,7 @@ export const useClientTMA = () => useContext(ClientTMAContext);
 const NAV_ITEMS = [
   { href: "/client", label: "Главная", icon: House, match: (p: string) => p === "/client" },
   { href: "/client/tournaments", label: "Турниры", icon: Trophy, match: (p: string) => p.includes("/tournaments") || p.includes("/events") },
+  { href: "/client/battle-pass", label: "Боевой пропуск", icon: Swords, match: (p: string) => p.includes("/battle-pass") },
   { href: "/client/profile", label: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
 
