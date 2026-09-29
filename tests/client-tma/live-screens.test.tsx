@@ -205,6 +205,24 @@ describe("SignupList", () => {
     expect(screen.getByText("В очереди")).toBeTruthy();
   });
 
+  it("opens the profile of whoever is coming, but not of a guest with no account", () => {
+    render(
+      <SignupList
+        players={[
+          entry("MAKS B"),
+          entry("Друг", { isGuest: true, ticketType: "duo_plus_one" as const }),
+        ]}
+        waitlist={[entry("В очереди")]}
+      />,
+    );
+
+    const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(links).toEqual([
+      "/client/players/maksb",
+      `/client/players/${encodeURIComponent("вочереди")}`,
+    ]);
+  });
+
   it("invites the first player in when nobody has signed up", () => {
     render(<SignupList players={[]} />);
 

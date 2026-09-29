@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { GlassCard } from "./ui";
 import { PlayerAvatar } from "./player-avatar";
 import type { SignupListEntry } from "@/lib/events/signup-list";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 const TICKET_LABELS: Record<string, string> = {
   duo: "1+1",
@@ -12,13 +14,14 @@ const TICKET_LABELS: Record<string, string> = {
 
 function Entry({ player }: { player: SignupListEntry }) {
   const ticket = TICKET_LABELS[player.ticketType];
-
-  return (
-    <li
-      className={`flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
-        player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
-      }`}
-    >
+  // A "1+1" guest is only the name the buyer wrote down: there is no account behind it,
+  // and a namesake's profile would be somebody else's.
+  const profileKey = player.isGuest ? "" : buildNicknameKey(player.name);
+  const rowClassName = `flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
+    player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
+  }`;
+  const row = (
+    <>
       <PlayerAvatar
         hand={player.hand}
         name={player.name}
@@ -34,6 +37,21 @@ function Entry({ player }: { player: SignupListEntry }) {
           {ticket}
         </span>
       ) : null}
+    </>
+  );
+
+  return (
+    <li>
+      {profileKey ? (
+        <Link
+          className={`${rowClassName} transition active:scale-[0.99]`}
+          href={`/client/players/${encodeURIComponent(profileKey)}`}
+        >
+          {row}
+        </Link>
+      ) : (
+        <div className={rowClassName}>{row}</div>
+      )}
     </li>
   );
 }
