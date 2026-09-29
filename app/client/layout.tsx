@@ -5,6 +5,7 @@ import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
+import { WelcomeSplash } from "./_components/welcome-splash";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -381,6 +382,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 );
               })}
             </nav>
+
+            <WelcomeSplash />
           </ClientTMAContext.Provider>
         )}
       </div>

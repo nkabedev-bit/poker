@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 
 /** Left by the questionnaire for the home screen it hands the newcomer over to. */
@@ -19,11 +20,12 @@ export function rememberWelcome() {
   }
 }
 
-function readWelcome() {
-  if (typeof window === "undefined") return false;
-
+/** Whether the questionnaire left a welcome, taking it so it is shown only once. */
+function takeWelcome() {
   try {
-    return window.sessionStorage.getItem(WELCOME_KEY) === "1";
+    const left = window.sessionStorage.getItem(WELCOME_KEY) === "1";
+    window.sessionStorage.removeItem(WELCOME_KEY);
+    return left;
   } catch {
     return false;
   }
@@ -33,18 +35,26 @@ function readWelcome() {
  * The newcomer's first second in the club: a check drawn in the club's red and a word of
  * welcome, then the home screen. The questionnaire used to drop them onto it mid-stride,
  * with nothing to say the form had gone through.
+ *
+ * It lives in the layout, which stays put while the home screen loads underneath it, and
+ * looks for the welcome each time the player arrives at the home screen.
  */
 export function WelcomeSplash() {
-  const [shown, setShown] = useState(readWelcome);
+  const pathname = usePathname();
+  const [shown, setShown] = useState(false);
+
+  // Read a tick later, the way the app's screens load: state is not set in the effect itself.
+  useEffect(() => {
+    if (pathname !== "/client") return;
+
+    const timer = window.setTimeout(() => {
+      if (takeWelcome()) setShown(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [pathname]);
 
   useEffect(() => {
     if (!shown) return;
-
-    try {
-      window.sessionStorage.removeItem(WELCOME_KEY);
-    } catch {
-      // Nothing to clear in a window that refuses storage.
-    }
 
     const timer = window.setTimeout(() => setShown(false), WELCOME_MS);
     return () => window.clearTimeout(timer);

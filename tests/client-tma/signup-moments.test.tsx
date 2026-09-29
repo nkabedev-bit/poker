@@ -3,6 +3,11 @@
  */
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const navigation = vi.hoisted(() => ({ pathname: "/client" }));
+
+vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
+
 import {
   formatOfferClock,
   OfferCountdown,
@@ -15,6 +20,7 @@ afterEach(() => {
   cleanup();
   vi.useRealTimers();
   window.sessionStorage.clear();
+  navigation.pathname = "/client";
 });
 
 const NOW = Date.parse("2026-10-03T16:00:00.000Z");
@@ -62,11 +68,12 @@ describe("the clock on a seat the queue is holding", () => {
 });
 
 describe("the newcomer's welcome", () => {
-  it("greets once after the questionnaire and then gives the screen back", () => {
+  it("greets once on the home screen after the questionnaire, then gives the screen back", () => {
     vi.useFakeTimers();
     rememberWelcome();
 
     render(<WelcomeSplash />);
+    act(() => vi.advanceTimersByTime(0));
     expect(screen.getByText("Добро пожаловать в Majestic")).toBeTruthy();
     expect(window.sessionStorage.getItem("club:welcome")).toBeNull();
 
@@ -74,8 +81,22 @@ describe("the newcomer's welcome", () => {
     expect(screen.queryByText("Добро пожаловать в Majestic")).toBeNull();
   });
 
-  it("stays away on every other visit to the home screen", () => {
+  it("keeps the welcome for the home screen while the player is elsewhere", () => {
+    vi.useFakeTimers();
+    navigation.pathname = "/client/onboarding";
+    rememberWelcome();
+
     render(<WelcomeSplash />);
+    act(() => vi.advanceTimersByTime(10));
+
+    expect(screen.queryByText("Добро пожаловать в Majestic")).toBeNull();
+    expect(window.sessionStorage.getItem("club:welcome")).toBe("1");
+  });
+
+  it("stays away on every other visit to the home screen", () => {
+    vi.useFakeTimers();
+    render(<WelcomeSplash />);
+    act(() => vi.advanceTimersByTime(10));
 
     expect(screen.queryByText("Добро пожаловать в Majestic")).toBeNull();
   });
