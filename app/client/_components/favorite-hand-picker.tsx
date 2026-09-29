@@ -32,13 +32,20 @@ function readCard(draft: Draft): HandCard | null {
   return draft.rank && draft.suit ? { rank: draft.rank, suit: draft.suit } : null;
 }
 
-/** The card as picked so far, the way the deck prints it; a question mark for what is not. */
+/**
+ * The card as picked so far, the way the deck prints it; a question mark for what is not.
+ * Once both halves are in it turns face up — keyed by the card, so each new one turns.
+ */
 function CardFace({ draft }: { draft: Draft }) {
   const red = draft.suit ? isRedSuit(draft.suit) : false;
+  const complete = Boolean(draft.rank && draft.suit);
 
   return (
     <span
-      className="flex h-9 min-w-[44px] items-center justify-center gap-0.5 rounded-lg bg-white px-2 text-[17px] font-extrabold leading-none"
+      key={complete ? `${draft.rank}${draft.suit}` : "draft"}
+      className={`flex h-9 min-w-[44px] items-center justify-center gap-0.5 rounded-lg bg-white px-2 text-[17px] font-extrabold leading-none ${
+        complete ? "client-card-flip" : ""
+      }`}
       style={{ color: red ? "#d4152b" : "#121212" }}
     >
       {draft.rank || draft.suit ? (
@@ -175,13 +182,15 @@ export function FavoriteHandPicker({
   // Drawn on the page's body: the screen it opens from is its own stacking layer, and
   // the menu at the bottom of the app would otherwise sit on top of the buttons.
   return createPortal(
+    // On a phone it comes up from the bottom edge, where the thumb already is; on a wider
+    // screen it stands in the middle.
     <div
       aria-label="Любимая рука"
       aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm"
+      className="client-app fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:px-4"
       role="dialog"
     >
-      <GlassCard className="max-h-[92dvh] w-full max-w-[420px] space-y-3 overflow-y-auto border border-[#c8163f]/40">
+      <GlassCard className="client-sheet-up max-h-[92dvh] w-full max-w-[420px] space-y-3 overflow-y-auto border border-[#c8163f]/40 !rounded-b-none pb-[calc(env(safe-area-inset-bottom)+20px)] sm:!rounded-b-[22px] sm:pb-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40">

@@ -4570,3 +4570,155 @@ p {
   mask: radial-gradient(circle, #000 0 18%, transparent 60%);
   animation: client-spin-slow 16s linear infinite;
 }
+
+/* ——— Client mini-app motion: the live game, the rating, the favourite hand ——— */
+
+@keyframes client-flip-up {
+  from {
+    opacity: 0;
+    transform: translateY(60%);
+  }
+}
+
+@keyframes client-flip-down {
+  from {
+    opacity: 0;
+    transform: translateY(-60%);
+  }
+}
+
+@keyframes client-tick {
+  from {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes client-sweep {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes client-flash {
+  from {
+    opacity: 1;
+  }
+}
+
+@keyframes client-toast {
+  0% {
+    opacity: 0;
+    transform: translateY(-140%);
+  }
+  12%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-140%);
+  }
+}
+
+@keyframes client-find-ring {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.04, 1.3);
+  }
+}
+
+@keyframes client-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+@keyframes client-card-flip {
+  from {
+    transform: perspective(400px) rotateY(90deg);
+  }
+}
+
+@keyframes client-hand-deal {
+  from {
+    opacity: 0;
+    transform: translate(14px, -22px) rotate(28deg) scale(0.5);
+  }
+}
+
+/* A new level turns the blinds over like a card; a knockout rolls the count down. */
+.client-flip-up {
+  display: inline-block;
+  animation: client-flip-up 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-flip-down {
+  display: inline-block;
+  animation: client-flip-down 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* The level's last seconds beat on the clock. */
+.client-tick {
+  display: inline-block;
+  animation: client-tick 1s ease-out infinite;
+}
+
+/* Light passes over the live card when the level changes. */
+.client-sweep {
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.14) 50%, transparent 70%);
+  transform: translateX(100%);
+  animation: client-sweep 0.9s ease-out;
+}
+
+/* A player just knocked out flashes red at the head of the knocked-out list. */
+.client-bust::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgb(240 90 126 / 0.35);
+  opacity: 0;
+  pointer-events: none;
+  animation: client-flash 1.4s ease-out;
+}
+
+/* A knockout called out at the top of the screen: in, a moment, out. */
+.client-toast {
+  animation: client-toast 2.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+}
+
+/* "Here you are": the player's own row, found in the rating, rings twice. */
+.client-find::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 2px solid rgb(233 192 122 / 0.85);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  animation: client-find-ring 1s ease-out 0.65s 2;
+}
+
+/* A dialog that belongs to the thumb comes up from the bottom edge. */
+.client-sheet-up {
+  animation: client-sheet-up 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* A card turns face up once its rank and suit are both picked. */
+.client-card-flip {
+  animation: client-card-flip 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+/* The favourite hand is dealt onto the avatar the moment it is picked. */
+.client-hand-deal {
+  transform-origin: 20% 90%;
+  animation: client-hand-deal 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}

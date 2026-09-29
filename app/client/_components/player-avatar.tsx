@@ -5,11 +5,14 @@ import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import { HandCards } from "./hand-cards";
 
 export function PlayerAvatar({
+  dealHand = false,
   hand,
   name,
   photoUrl,
   size = 48,
 }: {
+  /** Deal the hand onto the face as it appears — for the moment the player picks it. */
+  dealHand?: boolean;
   /** The player's favourite hand ("QsTs"), drawn over the corner of the face. */
   hand?: string | null;
   name: string;
@@ -44,10 +47,18 @@ export function PlayerAvatar({
   if (!hand) return face;
 
   // The face clips everything round, so the cards sit on a box of their own around it.
+  // A dealt hand sits on a layer the size of the face, keyed by the hand, so a new pick
+  // flies in again.
   return (
     <span className="relative inline-flex shrink-0" style={{ height: size, width: size }}>
       {face}
-      <HandCards hand={hand} size={size} />
+      {dealHand ? (
+        <span key={hand} className="client-hand-deal pointer-events-none absolute inset-0">
+          <HandCards hand={hand} size={size} />
+        </span>
+      ) : (
+        <HandCards hand={hand} size={size} />
+      )}
     </span>
   );
 }

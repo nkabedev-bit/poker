@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { tickClientSelection, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
@@ -18,6 +18,45 @@ type RatingResponse = {
 
 type SortKey = "eliminations" | "points";
 
+/** When the player's own row is looked for: once the table has come in. */
+const FIND_ME_SCROLL_MS = 600;
+/** How long the row is marked as found — two rings of the gold. */
+const FIND_ME_MS = 2_800;
+
+function stillScreen() {
+  return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+/** Where each row of the table stands on the screen, by its key. */
+function readRowTops(list: HTMLElement | null) {
+  const tops = new Map<string, number>();
+  list?.querySelectorAll<HTMLElement>("[data-row]").forEach((row) => {
+    tops.set(row.dataset.row ?? "", row.getBoundingClientRect().top);
+  });
+  return tops;
+}
+
+/**
+ * Slides every row from where it stood to where it stands now, so a change of sorting
+ * reads as players changing places rather than as a new list being dealt.
+ */
+function slideRowsFrom(list: HTMLElement | null, before: Map<string, number>) {
+  if (!list || stillScreen()) return;
+
+  list.querySelectorAll<HTMLElement>("[data-row]").forEach((row) => {
+    const top = before.get(row.dataset.row ?? "");
+    if (top === undefined || typeof row.animate !== "function") return;
+
+    const shift = top - row.getBoundingClientRect().top;
+    if (Math.abs(shift) < 1) return;
+
+    row.animate([{ transform: `translateY(${shift}px)` }, { transform: "none" }], {
+      duration: 450,
+      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
+    });
+  });
+}
+
 export default function ClientRatingPage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<RatingResponse | null>(null);
@@ -25,6 +64,11 @@ export default function ClientRatingPage() {
   const [query, setQuery] = useState("");
   const [seasonId, setSeasonId] = useState<string | null>(null);
   const [sortKey, setSortKey] = useState<SortKey>("eliminations");
+  // Raised each time a table comes in: the player's own row is brought into view and rings.
+  const [findMe, setFindMe] = useState(false);
+  const listRef = useRef<HTMLDivElement>(null);
+  // The rows as they stood before the sorting changed, for them to travel from.
+  const rowsBefore = useRef<Map<string, number> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -32,7 +76,10 @@ export default function ClientRatingPage() {
       const res = await fetch(`/api/client-tma/rating${query}`, {
         headers: { "X-Telegram-Init-Data": initData },
       });
-      if (res.ok) setData(await res.json());
+      if (res.ok) {
+        setData(await res.json());
+        setFindMe(true);
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +106,44 @@ export default function ClientRatingPage() {
 
     return withPhoto;
   }, [data, query, sortKey, telegramUser]);
+
+  useLayoutEffect(() => {
+    const before = rowsBefore.current;
+    if (!before) return;
+
+    rowsBefore.current = null;
+    slideRowsFrom(listRef.current, before);
+  }, [players]);
+
+  // "Here you are": a player far down the table is taken to their row, which rings.
+  useEffect(() => {
+    if (!findMe) return;
+
+    const look = window.setTimeout(() => {
+      const row = listRef.current?.querySelector<HTMLElement>('[data-me="true"]');
+      if (!row) return;
+
+      // Behind the header or under the floating tab bar counts as out of sight.
+      const { bottom, top } = row.getBoundingClientRect();
+      if (top < 80 || bottom > window.innerHeight - 110) {
+        row.scrollIntoView?.({ behavior: stillScreen() ? "auto" : "smooth", block: "center" });
+      }
+    }, FIND_ME_SCROLL_MS);
+    const done = window.setTimeout(() => setFindMe(false), FIND_ME_MS);
+
+    return () => {
+      window.clearTimeout(look);
+      window.clearTimeout(done);
+    };
+  }, [findMe]);
+
+  const chooseSort = (next: SortKey) => {
+    if (next === sortKey) return;
+
+    tickClientSelection();
+    rowsBefore.current = readRowTops(listRef.current);
+    setSortKey(next);
+  };
 
   if (loading) return <LoadingScreen shape="rating" />;
 
@@ -127,14 +212,14 @@ export default function ClientRatingPage() {
         <button
           className={`w-[52px] text-right ${sortKey === "eliminations" ? "text-white" : "text-white/55"}`}
           type="button"
-          onClick={() => setSortKey("eliminations")}
+          onClick={() => chooseSort("eliminations")}
         >
           Нокауты
         </button>
         <button
           className={`w-[74px] text-right ${sortKey === "points" ? "text-white" : "text-white/55"}`}
           type="button"
-          onClick={() => setSortKey("points")}
+          onClick={() => chooseSort("points")}
         >
           Рейтинг
         </button>
@@ -153,15 +238,28 @@ export default function ClientRatingPage() {
         </GlassCard>
       ) : (
         // Keyed by the season, so another season's table arrives row by row as well.
-        <div key={selected?.id ?? "season"} className="client-stagger-rows space-y-2">
-          {players.map((player) => (
-            <RatingRow key={`${player.place}-${player.name}`} player={player} />
-          ))}
+        <div key={selected?.id ?? "season"} ref={listRef} className="client-stagger-rows space-y-2">
+          {players.map((player) => {
+            const key = `${player.place}-${player.name}`;
+
+            return (
+              <div
+                key={key}
+                className={`relative rounded-[18px] ${findMe && player.isMe ? "client-find" : ""}`}
+                data-me={player.isMe ? "true" : undefined}
+                data-row={key}
+              >
+                <RatingRow player={player} />
+              </div>
+            );
+          })}
 
           {me && !meVisible && !query ? (
             <>
               <p className="text-center text-white/25">· · ·</p>
-              <RatingRow player={me} />
+              <div className={`relative rounded-[18px] ${findMe ? "client-find" : ""}`} data-me="true">
+                <RatingRow player={me} />
+              </div>
             </>
           ) : null}
         </div>

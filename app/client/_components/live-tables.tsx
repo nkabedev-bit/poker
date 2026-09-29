@@ -5,14 +5,14 @@ import { GlassCard } from "./ui";
 import { PlayerAvatar } from "./player-avatar";
 import type { LiveRoom, LiveTablePlayer } from "@/lib/tables/live-tables";
 
-function PlayerRow({ player }: { player: LiveTablePlayer }) {
+function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: LiveTablePlayer }) {
   const out = player.status === "eliminated";
 
   return (
     <li
-      className={`flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
+      className={`relative flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
         player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
-      }`}
+      } ${justOut ? "client-bust client-rise" : ""}`}
     >
       <span className={out ? "opacity-40 grayscale" : undefined}>
         <PlayerAvatar
@@ -67,7 +67,14 @@ function PlayerRow({ player }: { player: LiveTablePlayer }) {
  * after every table, greyed out, rather than disappearing — that is the story of the
  * evening, and the list would otherwise get shorter with nothing to show for it.
  */
-export function LiveTables({ eliminated, tables }: LiveRoom) {
+export function LiveTables({
+  eliminated,
+  justOut,
+  tables,
+}: LiveRoom & {
+  /** Who went out since the room was last read: they arrive in the list flashing red. */
+  justOut?: ReadonlySet<string>;
+}) {
   if (tables.length === 0 && eliminated.length === 0) {
     return (
       <GlassCard className="py-7 text-center">
@@ -105,7 +112,7 @@ export function LiveTables({ eliminated, tables }: LiveRoom) {
           </div>
           <ul className="space-y-0.5">
             {eliminated.map((player) => (
-              <PlayerRow key={player.id} player={player} />
+              <PlayerRow key={player.id} justOut={justOut?.has(player.id)} player={player} />
             ))}
           </ul>
         </GlassCard>

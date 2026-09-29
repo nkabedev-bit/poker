@@ -88,6 +88,8 @@ export default function ClientProfilePage() {
   const [historySwitched, setHistorySwitched] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
+  // Set once a hand is picked here, so the new pair is dealt onto the face.
+  const [handDealt, setHandDealt] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -188,6 +190,7 @@ export default function ClientProfilePage() {
           : current,
       );
       setHandPickerOpen(false);
+      setHandDealt(true);
       return null;
     } catch {
       return "Нет связи с сервером. Попробуйте ещё раз.";
@@ -263,7 +266,13 @@ export default function ClientProfilePage() {
           type="button"
           onClick={() => photoInputRef.current?.click()}
         >
-          <PlayerAvatar hand={me?.favoriteHand} name={name} photoUrl={photoUrl} size={72} />
+          <PlayerAvatar
+            dealHand={handDealt}
+            hand={me?.favoriteHand}
+            name={name}
+            photoUrl={photoUrl}
+            size={72}
+          />
           <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0a0608] bg-[#c8163f] text-white">
             {avatarBusy ? <Loader2 className="animate-spin" size={14} /> : <Camera size={14} />}
           </span>

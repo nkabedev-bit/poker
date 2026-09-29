@@ -13,6 +13,12 @@ import {
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { PosterImage } from "../../_components/poster-image";
 import { OfferCountdown } from "../../_components/offer-countdown";
+import {
+  countPlayersIn,
+  findNewlyEliminated,
+  KnockoutToast,
+  type KnockoutNews,
+} from "../../_components/knockout-toast";
 import { useSuitBurst } from "../../_components/suit-burst";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import {
@@ -162,6 +168,11 @@ export default function ClientEventPage() {
   );
   // Null until the room has been read once, so an empty room is never drawn in its place.
   const [room, setRoom] = useState<LiveRoom | null>(null);
+  // The last reading of the room, to tell who went out since; and the knockouts that
+  // reading turned up, called out at the top of the screen one after another.
+  const roomRef = useRef<LiveRoom | null>(null);
+  const [justOut, setJustOut] = useState<ReadonlySet<string>>(() => new Set());
+  const [knockouts, setKnockouts] = useState<KnockoutNews[]>([]);
   // The game under way as the page was served with it, so the card and the tables are
   // there on the first paint rather than a beat later.
   const [servedLive, setServedLive] = useState<ClientLiveState | null>(null);
@@ -279,11 +290,28 @@ export default function ClientEventPage() {
       if (!res.ok) return;
 
       const data = (await res.json()) as Partial<LiveRoom>;
-      setRoom({ eliminated: data.eliminated ?? [], tables: data.tables ?? [] });
+      const next = { eliminated: data.eliminated ?? [], tables: data.tables ?? [] };
+      // Who went out since the last reading is the news; the reading taken on opening
+      // the screen is compared with nothing.
+      const out = roomRef.current ? findNewlyEliminated(roomRef.current, next) : [];
+      roomRef.current = next;
+      setRoom(next);
+
+      if (out.length > 0) {
+        const left = countPlayersIn(next);
+        setJustOut(new Set(out.map((player) => player.id)));
+        setKnockouts((queue) => [
+          ...queue,
+          ...out.map((player) => ({ id: player.id, left, name: player.name })),
+        ]);
+      }
     } catch {
       // The seating is a bonus on this screen; the ticket is what it is for.
     }
   }, [initData]);
+
+  // Stable, so the page re-drawing its clock every second does not restart the toast.
+  const nextKnockout = useCallback(() => setKnockouts((queue) => queue.slice(1)), []);
 
   // The roster is the heavy half of the state, so it is fetched when the room actually
   // changes — somebody busting moves the count of survivors, and the light beat carries
@@ -582,498 +610,521 @@ export default function ClientEventPage() {
     .filter(Boolean);
 
   return (
-    <div className="client-stagger space-y-5 pt-1">
+    <>
+      <KnockoutToast news={knockouts[0] ?? null} onDone={nextKnockout} />
+      <div className="client-stagger space-y-5 pt-1">
 
-      {invite ? (
-        // Waits on the player's answer, so it breathes in gold like a held ticket.
-        <GlassCard className="client-breathe relative space-y-3 border-[#e9c07a]/35 !p-4">
-          <p className="text-[15px] font-bold">
-            {invite.hostName} зовёт вас по билету 1+1
-          </p>
-          <p className="text-[13px] leading-relaxed text-white/60">
-            Место уже оплачено на двоих. Подтвердите, что придёте — администратор будет
-            ждать вас обоих.
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <PrimaryButton loading={answering} onClick={() => void answerInvite(true)}>
-              Приду
-            </PrimaryButton>
-            <GhostButton disabled={answering} onClick={() => void answerInvite(false)}>
-              Не смогу
-            </GhostButton>
-          </div>
-        </GlassCard>
-      ) : null}
-
-      <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
-        {event.posterUrl ? (
-          <PosterImage drift url={event.posterUrl} />
-        ) : (
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />
-        )}
-
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,rgba(6,3,4,0.95)_0%,rgba(6,3,4,0.86)_38%,rgba(6,3,4,0.35)_72%,rgba(6,3,4,0.1)_100%)]" />
-
-        <div className="relative flex h-full flex-col gap-3 p-5">
-          <h1 className="max-w-[70%] text-[27px] font-extrabold uppercase leading-[1.05] tracking-tight">
-            {event.title}
-          </h1>
-          <div className="flex flex-wrap gap-2">
-            <Chip>
-              <CalendarDays size={13} /> {formatEventDayLabel(event.startsAt)}
-            </Chip>
-            <Chip>
-              <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
-            </Chip>
-            {announcedSeats ? (
-              <Chip>
-                <Users size={13} /> {formatSeatsCount(announcedSeats.total)}
-              </Chip>
-            ) : null}
-          </div>
-          <div className="mt-auto">{event.badge ? <Badge>{event.badge}</Badge> : null}</div>
-        </div>
-      </div>
-
-      {/* Once the cards are in the air the room takes the place of the sign-up list: who
-          is still in, table by table, and who has already gone out. */}
-      {live ? (
-        <section className="space-y-2">
-          <LiveTournamentCard live={live} />
-          {room ? (
-            <>
-              <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
-              <LiveTables eliminated={room.eliminated} tables={room.tables} />
-            </>
-          ) : null}
-        </section>
-      ) : stillAhead && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">
-            Кто идёт
-            <span className="ml-2 text-[15px] font-semibold text-white/35">
-              {signups.players.length}
-            </span>
-          </h2>
-          <SignupList players={signups.players} waitlist={signups.waitlist} />
-        </section>
-      ) : null}
-
-      {event.venueAddress ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Где проходит турнир?</h2>
-          <GlassCard className="!p-4">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
-              <p className="text-sm text-white/80">{event.venueAddress}</p>
+        {invite ? (
+          // Waits on the player's answer, so it breathes in gold like a held ticket.
+          <GlassCard className="client-breathe relative space-y-3 border-[#e9c07a]/35 !p-4">
+            <p className="text-[15px] font-bold">
+              {invite.hostName} зовёт вас по билету 1+1
+            </p>
+            <p className="text-[13px] leading-relaxed text-white/60">
+              Место уже оплачено на двоих. Подтвердите, что придёте — администратор будет
+              ждать вас обоих.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <PrimaryButton loading={answering} onClick={() => void answerInvite(true)}>
+                Приду
+              </PrimaryButton>
+              <GhostButton disabled={answering} onClick={() => void answerInvite(false)}>
+                Не смогу
+              </GhostButton>
             </div>
           </GlassCard>
-        </section>
-      ) : null}
-
-      {event.rulesText ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Общие правила</h2>
-          <GlassCard className="!p-4">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">
-              {event.rulesText}
-            </p>
-          </GlassCard>
-        </section>
-      ) : null}
-
-      {featureLines.length > 0 || event.startingStack ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Особенности</h2>
-          <GlassCard className="space-y-2 !p-4">
-            {featureLines.map((line, index) => (
-              <p key={index} className="text-sm leading-relaxed text-white/80">
-                {line}
-              </p>
-            ))}
-            {event.startingStack ? (
-              <p className="text-sm text-white/80">
-                Стартовый стек {event.startingStack.toLocaleString("ru-RU")} фишек
-              </p>
-            ) : null}
-          </GlassCard>
-        </section>
-      ) : null}
-
-      <section className="space-y-2">
-        <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
-        {seatsBreakdown ? (
-          <p className="px-1 text-xs text-white/40">{seatsBreakdown}</p>
         ) : null}
-        {event.signedUp || event.reservedTicket ? (
-          <div className={TICKET_GRID[ticketsInRow]}>
-            <TicketCard
-              compact={ticketsInRow > 2}
-              kind="regular"
-              price={event.buyIn}
-              seats={freeSeats.regular}
-              stamp={heldTicket === "regular" ? heldStamp : undefined}
-              state={heldTicket === "regular" ? "chosen" : "muted"}
-            />
-            {offersDuo ? (
-              <TicketCard
-                compact={ticketsInRow > 2}
-                kind="duo"
-                price={event.duoBuyIn}
-                seats={freeSeats.duo}
-                stamp={heldTicket === "duo" || heldTicket === "duo_plus_one" ? heldStamp : undefined}
-                state={
-                  heldTicket === "duo" || heldTicket === "duo_plus_one"
-                    ? "chosen"
-                    : "muted"
-                }
-              />
-            ) : null}
-            {offersVip ? (
-              <TicketCard
-                compact={ticketsInRow > 2}
-                kind="vip"
-                price={event.vipBuyIn}
-                seats={freeSeats.vip}
-                stamp={heldTicket === "vip" ? heldStamp : undefined}
-                state={heldTicket === "vip" ? "chosen" : "muted"}
-              />
-            ) : null}
+
+        <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
+          {event.posterUrl ? (
+            <PosterImage drift url={event.posterUrl} />
+          ) : (
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />
+          )}
+
+          <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,rgba(6,3,4,0.95)_0%,rgba(6,3,4,0.86)_38%,rgba(6,3,4,0.35)_72%,rgba(6,3,4,0.1)_100%)]" />
+
+          <div className="relative flex h-full flex-col gap-3 p-5">
+            <h1 className="max-w-[70%] text-[27px] font-extrabold uppercase leading-[1.05] tracking-tight">
+              {event.title}
+            </h1>
+            <div className="flex flex-wrap gap-2">
+              <Chip>
+                <CalendarDays size={13} /> {formatEventDayLabel(event.startsAt)}
+              </Chip>
+              <Chip>
+                <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
+              </Chip>
+              {announcedSeats ? (
+                <Chip>
+                  <Users size={13} /> {formatSeatsCount(announcedSeats.total)}
+                </Chip>
+              ) : null}
+            </div>
+            <div className="mt-auto">{event.badge ? <Badge>{event.badge}</Badge> : null}</div>
           </div>
-        ) : (
-          <>
+        </div>
+
+        {/* Once the cards are in the air the room takes the place of the sign-up list: who
+            is still in, table by table, and who has already gone out. */}
+        {live ? (
+          <section className="space-y-2">
+            <LiveTournamentCard live={live} />
+            {room ? (
+              <>
+                <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
+                <LiveTables eliminated={room.eliminated} justOut={justOut} tables={room.tables} />
+              </>
+            ) : null}
+          </section>
+        ) : stillAhead && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
+          <section className="space-y-2">
+            <h2 className="text-[19px] font-bold tracking-tight">
+              Кто идёт
+              <span className="ml-2 text-[15px] font-semibold text-white/35">
+                {signups.players.length}
+              </span>
+            </h2>
+            <SignupList players={signups.players} waitlist={signups.waitlist} />
+          </section>
+        ) : null}
+
+        {event.venueAddress ? (
+          <section className="space-y-2">
+            <h2 className="text-[19px] font-bold tracking-tight">Где проходит турнир?</h2>
+            <GlassCard className="!p-4">
+              <div className="flex items-start gap-3">
+                <MapPin className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
+                <p className="text-sm text-white/80">{event.venueAddress}</p>
+              </div>
+            </GlassCard>
+          </section>
+        ) : null}
+
+        {event.rulesText ? (
+          <section className="space-y-2">
+            <h2 className="text-[19px] font-bold tracking-tight">Общие правила</h2>
+            <GlassCard className="!p-4">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">
+                {event.rulesText}
+              </p>
+            </GlassCard>
+          </section>
+        ) : null}
+
+        {featureLines.length > 0 || event.startingStack ? (
+          <section className="space-y-2">
+            <h2 className="text-[19px] font-bold tracking-tight">Особенности</h2>
+            <GlassCard className="space-y-2 !p-4">
+              {featureLines.map((line, index) => (
+                <p key={index} className="text-sm leading-relaxed text-white/80">
+                  {line}
+                </p>
+              ))}
+              {event.startingStack ? (
+                <p className="text-sm text-white/80">
+                  Стартовый стек {event.startingStack.toLocaleString("ru-RU")} фишек
+                </p>
+              ) : null}
+            </GlassCard>
+          </section>
+        ) : null}
+
+        <section className="space-y-2">
+          <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
+          {seatsBreakdown ? (
+            <p className="px-1 text-xs text-white/40">{seatsBreakdown}</p>
+          ) : null}
+          {event.signedUp || event.reservedTicket ? (
             <div className={TICKET_GRID[ticketsInRow]}>
               <TicketCard
                 compact={ticketsInRow > 2}
                 kind="regular"
-                onSelect={() => selectTicket("regular")}
                 price={event.buyIn}
                 seats={freeSeats.regular}
-                state={ticketType === "regular" ? "chosen" : "idle"}
+                stamp={heldTicket === "regular" ? heldStamp : undefined}
+                state={heldTicket === "regular" ? "chosen" : "muted"}
               />
               {offersDuo ? (
                 <TicketCard
                   compact={ticketsInRow > 2}
                   kind="duo"
-                  onSelect={() => selectTicket("duo")}
                   price={event.duoBuyIn}
                   seats={freeSeats.duo}
-                  state={ticketType === "duo" ? "chosen" : "idle"}
+                  stamp={heldTicket === "duo" || heldTicket === "duo_plus_one" ? heldStamp : undefined}
+                  state={
+                    heldTicket === "duo" || heldTicket === "duo_plus_one"
+                      ? "chosen"
+                      : "muted"
+                  }
                 />
               ) : null}
               {offersVip ? (
                 <TicketCard
                   compact={ticketsInRow > 2}
                   kind="vip"
-                  onSelect={() => selectTicket("vip")}
                   price={event.vipBuyIn}
                   seats={freeSeats.vip}
-                  state={ticketType === "vip" ? "chosen" : "idle"}
+                  stamp={heldTicket === "vip" ? heldStamp : undefined}
+                  state={heldTicket === "vip" ? "chosen" : "muted"}
                 />
               ) : null}
             </div>
-            {offersDuo ? (
-              <p className="px-1 text-xs text-white/40">
-                Билет 1+1 — вход для двоих по одной цене.
-              </p>
-            ) : null}
-            {offersVip ? (
-              <p className="px-1 text-xs text-white/40">
-                Место за столом выдаёт администратор в день игры.
-              </p>
-            ) : null}
-          </>
-        )}
-
-        {(reservedDuo || ticketType === "duo") && (!event.signedUp || needsPartner) ? (
-          <GlassCard className="space-y-3 !p-4">
-            <p className="block text-sm font-bold">Кто придёт с вами?</p>
-
-            {/* The friend worth bringing is often the one who has not joined yet, so the
-                two cases are asked apart rather than guessed from what was typed. */}
-            <div className="grid grid-cols-2 gap-2">
-              {(["member", "invite"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  className={`rounded-2xl px-3 py-2.5 text-[13px] font-semibold transition ${
-                    partnerMode === mode
-                      ? "bg-[#c8163f] text-white"
-                      : "border border-white/[0.09] bg-white/[0.04] text-white/70"
-                  }`}
-                  type="button"
-                  onClick={() => setPartnerMode(mode)}
-                >
-                  {mode === "member" ? "Резидент клуба" : "Нет аккаунта в Majestic"}
-                </button>
-              ))}
-            </div>
-
-            {partnerMode === "invite" ? (
-              <div className="space-y-2">
-                <p className="text-[12px] leading-relaxed text-white/50">
-                  Запишитесь — и получите ссылку-приглашение. Друг откроет её,
-                  зарегистрируется и увидит приглашение на этот турнир.
-                </p>
-
-                {hasInviteLinks ? (
-                  <div className="space-y-1.5">
-                    {shownInviteLinks?.telegram ? (
-                      <InviteLink href={shownInviteLinks.telegram} label="Телеграм" />
-                    ) : null}
-                    {shownInviteLinks?.web ? (
-                      <InviteLink
-                        href={shownInviteLinks.web}
-                        label="Нет доступа к телеграмму"
-                      />
-                    ) : null}
-                    <p className="text-[11px] leading-relaxed text-white/40">
-                      Отправьте другу ссылку-приглашение — ту, что подходит: есть ли у
-                      него доступ к телеграмму. Ссылка одноразовая: кто откроет первым,
-                      тот и придёт с вами.
-                    </p>
-                  </div>
+          ) : (
+            <>
+              <div className={TICKET_GRID[ticketsInRow]}>
+                <TicketCard
+                  compact={ticketsInRow > 2}
+                  kind="regular"
+                  onSelect={() => selectTicket("regular")}
+                  price={event.buyIn}
+                  seats={freeSeats.regular}
+                  state={ticketType === "regular" ? "chosen" : "idle"}
+                />
+                {offersDuo ? (
+                  <TicketCard
+                    compact={ticketsInRow > 2}
+                    kind="duo"
+                    onSelect={() => selectTicket("duo")}
+                    price={event.duoBuyIn}
+                    seats={freeSeats.duo}
+                    state={ticketType === "duo" ? "chosen" : "idle"}
+                  />
+                ) : null}
+                {offersVip ? (
+                  <TicketCard
+                    compact={ticketsInRow > 2}
+                    kind="vip"
+                    onSelect={() => selectTicket("vip")}
+                    price={event.vipBuyIn}
+                    seats={freeSeats.vip}
+                    state={ticketType === "vip" ? "chosen" : "idle"}
+                  />
                 ) : null}
               </div>
-            ) : (
-              <>
-            <label className="block text-sm font-bold" htmlFor="duo-partner">
-              Ник напарника
-            </label>
-            <input
-              autoComplete="off"
-              className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-[15px] outline-none placeholder:text-white/30 focus:border-[#f05a7e]/60"
-              id="duo-partner"
-              maxLength={MAX_PARTNER_NAME_LENGTH}
-              onChange={(item) => typePartner(item.target.value)}
-              placeholder="Ник в клубе или имя гостя"
-              value={partnerName}
-            />
+              {offersDuo ? (
+                <p className="px-1 text-xs text-white/40">
+                  Билет 1+1 — вход для двоих по одной цене.
+                </p>
+              ) : null}
+              {offersVip ? (
+                <p className="px-1 text-xs text-white/40">
+                  Место за столом выдаёт администратор в день игры.
+                </p>
+              ) : null}
+            </>
+          )}
 
-            {partnerMatches.length > 0 ? (
-              <div className="space-y-1.5">
-                {partnerMatches.map((match) => (
+          {(reservedDuo || ticketType === "duo") && (!event.signedUp || needsPartner) ? (
+            <GlassCard className="space-y-3 !p-4">
+              <p className="block text-sm font-bold">Кто придёт с вами?</p>
+
+              {/* The friend worth bringing is often the one who has not joined yet, so the
+                  two cases are asked apart rather than guessed from what was typed. */}
+              <div className="grid grid-cols-2 gap-2">
+                {(["member", "invite"] as const).map((mode) => (
                   <button
-                    key={match.key}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
+                    key={mode}
+                    className={`rounded-2xl px-3 py-2.5 text-[13px] font-semibold transition ${
+                      partnerMode === mode
+                        ? "bg-[#c8163f] text-white"
+                        : "border border-white/[0.09] bg-white/[0.04] text-white/70"
+                    }`}
                     type="button"
-                    onClick={() => pickPartner(match)}
+                    onClick={() => setPartnerMode(mode)}
                   >
-                    <PlayerAvatar
-                      name={match.name}
-                      photoUrl={match.avatarUrl ?? undefined}
-                      size={30}
-                    />
-                    <span className="truncate text-sm font-semibold">{match.name}</span>
+                    {mode === "member" ? "Резидент клуба" : "Нет аккаунта в Majestic"}
                   </button>
                 ))}
               </div>
-            ) : null}
 
-            {typedMember ? (
-              <p className="text-[11px] font-semibold leading-relaxed text-[#e9c07a]">
-                {typedMember.name} есть в клубе — нажмите на него в списке выше, чтобы ему
-                пришло приглашение. Иначе он придёт гостем и ничего не увидит в приложении.
-              </p>
-            ) : (
-              <p className="text-[11px] leading-relaxed text-white/45">
-                {partnerKey
-                  ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
-                  : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
-                Вход для обоих, цена делится пополам.
-              </p>
-            )}
-              </>
-            )}
-          </GlassCard>
-        ) : null}
-      </section>
+              {partnerMode === "invite" ? (
+                <div className="space-y-2">
+                  <p className="text-[12px] leading-relaxed text-white/50">
+                    Запишитесь — и получите ссылку-приглашение. Друг откроет её,
+                    зарегистрируется и увидит приглашение на этот турнир.
+                  </p>
 
-      {/* A pass never buys a pair, whether the player picked the "1+1" themselves or the
-          club is holding one for them. */}
-      {passOptions.length > 0 && !event.signedUp && (heldTicket ?? ticketType) !== "duo" ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
-          <GlassCard className="space-y-2 !p-3">
-            {passOptions.map((option) => (
-              <button
-                key={option.value}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                  usePass === option.value
-                    ? "border-[#f05a7e]/60 bg-[#f05a7e]/12"
-                    : "border-white/[0.07] bg-white/[0.03]"
-                } ${option.disabled ? "opacity-45" : ""}`}
-                disabled={option.disabled}
-                type="button"
-                onClick={() => selectPass(option.value)}
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold">{option.title}</span>
-                  {option.note ? (
-                    <span className="block text-xs text-white/45">{option.note}</span>
+                  {hasInviteLinks ? (
+                    <div className="space-y-1.5">
+                      {shownInviteLinks?.telegram ? (
+                        <InviteLink href={shownInviteLinks.telegram} label="Телеграм" />
+                      ) : null}
+                      {shownInviteLinks?.web ? (
+                        <InviteLink
+                          href={shownInviteLinks.web}
+                          label="Нет доступа к телеграмму"
+                        />
+                      ) : null}
+                      <p className="text-[11px] leading-relaxed text-white/40">
+                        Отправьте другу ссылку-приглашение — ту, что подходит: есть ли у
+                        него доступ к телеграмму. Ссылка одноразовая: кто откроет первым,
+                        тот и придёт с вами.
+                      </p>
+                    </div>
                   ) : null}
-                </span>
-                <span
-                  className={`h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
-                    usePass === option.value
-                      ? "border-[#f05a7e] bg-[#f05a7e]"
-                      : "border-white/25"
-                  }`}
-                />
-              </button>
-            ))}
-            <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/45">
-              Проходка закрывает билет своего типа: VIP-проходка — VIP билет, обычная —
-              обычный. Использовать её можно только на вход в турнир: права на бесплатный
-              ре-энтри или аддон она не даёт.
-            </p>
-          </GlassCard>
-        </section>
-      ) : null}
-
-      {event.signedUp && event.usePass !== "none" ? (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-          <Ticket className="shrink-0 text-[#f05a7e]" size={18} />
-          <p className="text-sm text-white/80">
-            Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру, а
-            до тех пор она закреплена за этой записью.
-          </p>
-        </div>
-      ) : null}
-
-      {needsPartner ? (
-        <PrimaryButton
-          disabled={partnerMissing}
-          loading={submitting}
-          onClick={() => void toggleSignup(true)}
-        >
-          {partnerMissing ? "Укажите напарника" : "Позвать напарника"}
-        </PrimaryButton>
-      ) : null}
-
-      {signupBan ? (
-        // Said before they tap rather than after: the player is not signing up tonight,
-        // and the screen owes them the reason and the date it ends.
-        <div className="rounded-2xl border border-[#c8163f]/40 bg-[#c8163f]/10 px-4 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-[#f05a7e]">
-          {signupBan.message}
-        </div>
-      ) : event.signedUp ? (
-        <div className="space-y-3">
-          <div
-            className={`relative rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300 ${
-              celebrating ? "client-pop-in" : ""
-            }`}
-          >
-            {burst}
-            <span className="inline-flex items-center justify-center gap-1.5">
-              <Check
-                className={`shrink-0 ${celebrating ? "client-check-draw" : ""}`}
-                size={17}
-                strokeWidth={3}
+                </div>
+              ) : (
+                <>
+              <label className="block text-sm font-bold" htmlFor="duo-partner">
+                Ник напарника
+              </label>
+              <input
+                autoComplete="off"
+                className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-[15px] outline-none placeholder:text-white/30 focus:border-[#f05a7e]/60"
+                id="duo-partner"
+                maxLength={MAX_PARTNER_NAME_LENGTH}
+                onChange={(item) => typePartner(item.target.value)}
+                placeholder="Ник в клубе или имя гостя"
+                value={partnerName}
               />
-              Вы записаны · {TICKET_TITLES[event.ticketType]} билет
-            </span>
-            {event.partnerName ? (
-              <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
-                С вами: {event.partnerName}
-                {event.partnerIsMember
-                  ? event.partnerConfirmed
-                    ? " · подтвердил"
-                    : " · ждём ответа"
-                  : " · гость"}
-              </span>
-            ) : null}
-          </div>
-          {/* Sat down at a table, or out already: the seat is being played in. */}
-          {event.cancellationClosed ? null : (
-            <>
-              <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-                Отменить запись
-              </GhostButton>
-              {needsPartner ? (
-                <p className="px-2 text-center text-xs text-white/40">
-                  Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
+
+              {partnerMatches.length > 0 ? (
+                <div className="space-y-1.5">
+                  {partnerMatches.map((match) => (
+                    <button
+                      key={match.key}
+                      className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
+                      type="button"
+                      onClick={() => pickPartner(match)}
+                    >
+                      <PlayerAvatar
+                        name={match.name}
+                        photoUrl={match.avatarUrl ?? undefined}
+                        size={30}
+                      />
+                      <span className="truncate text-sm font-semibold">{match.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {typedMember ? (
+                <p className="text-[11px] font-semibold leading-relaxed text-[#e9c07a]">
+                  {typedMember.name} есть в клубе — нажмите на него в списке выше, чтобы ему
+                  пришло приглашение. Иначе он придёт гостем и ничего не увидит в приложении.
                 </p>
               ) : (
-                <p className="px-2 text-center text-xs text-white/40">
-                  Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
+                <p className="text-[11px] leading-relaxed text-white/45">
+                  {partnerKey
+                    ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
+                    : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
+                  Вход для обоих, цена делится пополам.
                 </p>
               )}
-            </>
-          )}
-        </div>
-      ) : event.reservedTicket ? (
-        // The club promised this seat to somebody who asked ahead; all that is left is
-        // for them to say they are coming.
-        <div className="space-y-3">
-          <div className="client-breathe relative rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
-            Вам отложен{" "}
-            {event.reservedTicket === "vip"
-              ? "VIP-билет"
-              : event.reservedTicket === "duo"
-                ? "билет 1+1"
-                : "обычный билет"}
-            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              {reservedDuo
-                ? "Место держим за вами — впишите напарника и подтвердите."
-                : "Место держим за вами — подтвердите участие."}
-            </span>
+                </>
+              )}
+            </GlassCard>
+          ) : null}
+        </section>
+
+        {/* A pass never buys a pair, whether the player picked the "1+1" themselves or the
+            club is holding one for them. */}
+        {passOptions.length > 0 && !event.signedUp && (heldTicket ?? ticketType) !== "duo" ? (
+          <section className="space-y-2">
+            <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
+            <GlassCard className="space-y-2 !p-3">
+              {passOptions.map((option) => (
+                <button
+                  key={option.value}
+                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
+                    usePass === option.value
+                      ? "border-[#f05a7e]/60 bg-[#f05a7e]/12"
+                      : "border-white/[0.07] bg-white/[0.03]"
+                  } ${option.disabled ? "opacity-45" : ""}`}
+                  disabled={option.disabled}
+                  type="button"
+                  onClick={() => selectPass(option.value)}
+                >
+                  <span className="min-w-0">
+                    <span className="block text-sm font-bold">{option.title}</span>
+                    {option.note ? (
+                      <span className="block text-xs text-white/45">{option.note}</span>
+                    ) : null}
+                  </span>
+                  <span
+                    className={`h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
+                      usePass === option.value
+                        ? "border-[#f05a7e] bg-[#f05a7e]"
+                        : "border-white/25"
+                    }`}
+                  />
+                </button>
+              ))}
+              <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/45">
+                Проходка закрывает билет своего типа: VIP-проходка — VIP билет, обычная —
+                обычный. Использовать её можно только на вход в турнир: права на бесплатный
+                ре-энтри или аддон она не даёт.
+              </p>
+            </GlassCard>
+          </section>
+        ) : null}
+
+        {event.signedUp && event.usePass !== "none" ? (
+          <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+            <Ticket className="shrink-0 text-[#f05a7e]" size={18} />
+            <p className="text-sm text-white/80">
+              Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру, а
+              до тех пор она закреплена за этой записью.
+            </p>
           </div>
+        ) : null}
+
+        {needsPartner ? (
           <PrimaryButton
-            disabled={reservedPartnerMissing}
+            disabled={partnerMissing}
             loading={submitting}
-            onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
+            onClick={() => void toggleSignup(true)}
           >
-            {reservedPartnerMissing ? "Укажите напарника" : "Подтвердить участие"}
+            {partnerMissing ? "Укажите напарника" : "Позвать напарника"}
           </PrimaryButton>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Не смогу прийти
-          </GhostButton>
-        </div>
-      ) : queuedTicket && event.waitlistOfferExpiresAt ? (
-        // The queue reached them and the place is held for nobody else until the half
-        // hour runs out. The room reads full to everyone else, so this seat is theirs
-        // to take rather than to race anyone for.
-        <div className="space-y-3">
-          {/* Counting down on the phone; when the time is up the club is asked once where
-              the queue went, and the screen follows. */}
-          <OfferCountdown expiresAt={event.waitlistOfferExpiresAt} onExpire={() => void load()} />
-          <PrimaryButton
-            disabled={queuedPartnerMissing}
-            loading={submitting}
-            onClick={() => void toggleSignup(true, false, queuedTicket)}
-          >
-            {queuedPartnerMissing
-              ? "Укажите напарника"
-              : `Записаться · ${TICKET_TITLES[queuedTicket]}`}
-          </PrimaryButton>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Отказаться от места
-          </GhostButton>
-        </div>
-      ) : event.waitlisted ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
-            Вы в листе ожидания
-            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              Как освободится место, оно уйдёт по очереди — первому, кто в ней стоит.
-              Когда дойдёт до вас, сообщим и полчаса будем держать место за вами.
-            </span>
+        ) : null}
+
+        {signupBan ? (
+          // Said before they tap rather than after: the player is not signing up tonight,
+          // and the screen owes them the reason and the date it ends.
+          <div className="rounded-2xl border border-[#c8163f]/40 bg-[#c8163f]/10 px-4 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-[#f05a7e]">
+            {signupBan.message}
           </div>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Выйти из листа ожидания
-          </GhostButton>
-        </div>
-      ) : event.seatGivenAway ? (
-        // They did not come and the desk gave their place to somebody waiting. Saying
-        // so beats the screen insisting they are signed up for a seat that is taken.
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3.5 text-center text-[15px] font-bold text-white/70">
-            Место передали другому игроку
-            <span className="mt-1 block text-[13px] font-semibold text-white/45">
-              Вас не было к началу, и место ушло тому, кто ждал в очереди.
-            </span>
+        ) : event.signedUp ? (
+          <div className="space-y-3">
+            <div
+              className={`relative rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300 ${
+                celebrating ? "client-pop-in" : ""
+              }`}
+            >
+              {burst}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <Check
+                  className={`shrink-0 ${celebrating ? "client-check-draw" : ""}`}
+                  size={17}
+                  strokeWidth={3}
+                />
+                Вы записаны · {TICKET_TITLES[event.ticketType]} билет
+              </span>
+              {event.partnerName ? (
+                <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
+                  С вами: {event.partnerName}
+                  {event.partnerIsMember
+                    ? event.partnerConfirmed
+                      ? " · подтвердил"
+                      : " · ждём ответа"
+                    : " · гость"}
+                </span>
+              ) : null}
+            </div>
+            {/* Sat down at a table, or out already: the seat is being played in. */}
+            {event.cancellationClosed ? null : (
+              <>
+                <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+                  Отменить запись
+                </GhostButton>
+                {needsPartner ? (
+                  <p className="px-2 text-center text-xs text-white/40">
+                    Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
+                  </p>
+                ) : (
+                  <p className="px-2 text-center text-xs text-white/40">
+                    Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
+                  </p>
+                )}
+              </>
+            )}
           </div>
-          {soldOut ? (
+        ) : event.reservedTicket ? (
+          // The club promised this seat to somebody who asked ahead; all that is left is
+          // for them to say they are coming.
+          <div className="space-y-3">
+            <div className="client-breathe relative rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
+              Вам отложен{" "}
+              {event.reservedTicket === "vip"
+                ? "VIP-билет"
+                : event.reservedTicket === "duo"
+                  ? "билет 1+1"
+                  : "обычный билет"}
+              <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
+                {reservedDuo
+                  ? "Место держим за вами — впишите напарника и подтвердите."
+                  : "Место держим за вами — подтвердите участие."}
+              </span>
+            </div>
+            <PrimaryButton
+              disabled={reservedPartnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
+            >
+              {reservedPartnerMissing ? "Укажите напарника" : "Подтвердить участие"}
+            </PrimaryButton>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Не смогу прийти
+            </GhostButton>
+          </div>
+        ) : queuedTicket && event.waitlistOfferExpiresAt ? (
+          // The queue reached them and the place is held for nobody else until the half
+          // hour runs out. The room reads full to everyone else, so this seat is theirs
+          // to take rather than to race anyone for.
+          <div className="space-y-3">
+            {/* Counting down on the phone; when the time is up the club is asked once where
+                the queue went, and the screen follows. */}
+            <OfferCountdown expiresAt={event.waitlistOfferExpiresAt} onExpire={() => void load()} />
+            <PrimaryButton
+              disabled={queuedPartnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true, false, queuedTicket)}
+            >
+              {queuedPartnerMissing
+                ? "Укажите напарника"
+                : `Записаться · ${TICKET_TITLES[queuedTicket]}`}
+            </PrimaryButton>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Отказаться от места
+            </GhostButton>
+          </div>
+        ) : event.waitlisted ? (
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
+              Вы в листе ожидания
+              <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
+                Как освободится место, оно уйдёт по очереди — первому, кто в ней стоит.
+                Когда дойдёт до вас, сообщим и полчаса будем держать место за вами.
+              </span>
+            </div>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Выйти из листа ожидания
+            </GhostButton>
+          </div>
+        ) : event.seatGivenAway ? (
+          // They did not come and the desk gave their place to somebody waiting. Saying
+          // so beats the screen insisting they are signed up for a seat that is taken.
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3.5 text-center text-[15px] font-bold text-white/70">
+              Место передали другому игроку
+              <span className="mt-1 block text-[13px] font-semibold text-white/45">
+                Вас не было к началу, и место ушло тому, кто ждал в очереди.
+              </span>
+            </div>
+            {soldOut ? (
+              <PrimaryButton
+                disabled={partnerMissing}
+                loading={submitting}
+                onClick={() => void toggleSignup(true, true)}
+              >
+                Встать в лист ожидания
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton
+                disabled={partnerMissing}
+                loading={submitting}
+                onClick={() => void toggleSignup(true)}
+              >
+                {partnerMissing ? "Укажите напарника" : `Записаться снова · ${TICKET_TITLES[ticketType]}`}
+              </PrimaryButton>
+            )}
+          </div>
+        ) : soldOut ? (
+          // Sold out is where the club used to lose the player: nothing on the screen
+          // said "tell me if a place comes free".
+          <div className="space-y-3">
             <PrimaryButton
               disabled={partnerMissing}
               loading={submitting}
@@ -1081,51 +1132,31 @@ export default function ClientEventPage() {
             >
               Встать в лист ожидания
             </PrimaryButton>
-          ) : (
-            <PrimaryButton
-              disabled={partnerMissing}
-              loading={submitting}
-              onClick={() => void toggleSignup(true)}
-            >
-              {partnerMissing ? "Укажите напарника" : `Записаться снова · ${TICKET_TITLES[ticketType]}`}
-            </PrimaryButton>
-          )}
-        </div>
-      ) : soldOut ? (
-        // Sold out is where the club used to lose the player: nothing on the screen
-        // said "tell me if a place comes free".
-        <div className="space-y-3">
+            <p className="px-2 text-center text-xs text-white/40">
+              {ticketType === "vip"
+                ? "VIP-места разобрали."
+                : ticketType === "duo"
+                  ? "Билеты 1+1 разобрали."
+                  : "Места разобрали."}{" "}
+              Если кто-то отменит запись, мы вам сообщим.
+            </p>
+          </div>
+        ) : (
           <PrimaryButton
             disabled={partnerMissing}
             loading={submitting}
-            onClick={() => void toggleSignup(true, true)}
+            onClick={() => void toggleSignup(true)}
           >
-            Встать в лист ожидания
+            {/* Keyed by its words, so a change of ticket rolls them over in place. */}
+            <SwapLabel text={partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`} />
           </PrimaryButton>
-          <p className="px-2 text-center text-xs text-white/40">
-            {ticketType === "vip"
-              ? "VIP-места разобрали."
-              : ticketType === "duo"
-                ? "Билеты 1+1 разобрали."
-                : "Места разобрали."}{" "}
-            Если кто-то отменит запись, мы вам сообщим.
-          </p>
-        </div>
-      ) : (
-        <PrimaryButton
-          disabled={partnerMissing}
-          loading={submitting}
-          onClick={() => void toggleSignup(true)}
-        >
-          {/* Keyed by its words, so a change of ticket rolls them over in place. */}
-          <SwapLabel text={partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`} />
-        </PrimaryButton>
-      )}
+        )}
 
-      <p className="px-2 pb-2 text-center text-xs text-white/40">
-        Номер участника и стол выдаст администратор в день игры.
-      </p>
-    </div>
+        <p className="px-2 pb-2 text-center text-xs text-white/40">
+          Номер участника и стол выдаст администратор в день игры.
+        </p>
+      </div>
+    </>
   );
 }
 
