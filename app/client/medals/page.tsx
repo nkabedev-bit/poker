@@ -40,14 +40,14 @@ export default function ClientMedalsPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="grid" />;
 
   const list = medals ?? getMedals({});
   const earned = countEarnedMedals(list);
   const progress = Math.round((earned / MEDALS_TOTAL) * 100);
 
   return (
-    <div className="space-y-7 pt-1">
+    <div className="client-stagger space-y-7 pt-1">
 
       <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,#c8163f,#7d0d26)] p-5 shadow-[0_14px_38px_rgba(200,22,63,0.35)]">
         <MedalIcon

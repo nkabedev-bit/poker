@@ -60,10 +60,10 @@ export default function ClientNewsPage() {
   }
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
       <PageTitle>Объявления</PageTitle>
 
-      <div className="space-y-3">
+      <div className="client-stagger-rows space-y-3">
         {announcements.map((item) => (
           <GlassCard key={item.id} className="space-y-2">
             <p className="text-[12px] uppercase tracking-wider text-white/35">

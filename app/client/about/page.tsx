@@ -44,7 +44,7 @@ function Block({ block }: { block: AboutBlock }) {
 
 export default function ClientAboutPage() {
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
 
       <div className="overflow-hidden rounded-[22px] border border-white/[0.07] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
         {/* eslint-disable-next-line @next/next/no-img-element */}

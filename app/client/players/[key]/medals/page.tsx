@@ -49,10 +49,10 @@ export default function PlayerMedalsPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  if (loading || !medals) return <LoadingScreen />;
+  if (loading || !medals) return <LoadingScreen shape="grid" />;
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
       <div>
         <PageTitle>Медали</PageTitle>
         <p className="mt-1 flex items-center gap-2 text-sm text-white/40">

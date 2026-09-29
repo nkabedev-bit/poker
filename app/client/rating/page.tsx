@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Search, Trophy } from "lucide-react";
-import { useClientTMA } from "../layout";
+import { tickClientSelection, useClientTMA } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 
@@ -60,7 +60,7 @@ export default function ClientRatingPage() {
     return withPhoto;
   }, [data, query, sortKey, telegramUser]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="rating" />;
 
   const seasons = data?.seasons ?? [];
   const selected = data?.season ?? null;
@@ -69,7 +69,7 @@ export default function ClientRatingPage() {
   const meVisible = players.some((player) => player.isMe);
 
   return (
-    <div className="space-y-4 pt-1">
+    <div className="client-stagger space-y-4 pt-1">
       <div className="space-y-1">
         <PageTitle>Рейтинг</PageTitle>
         {selected ? (
@@ -92,7 +92,12 @@ export default function ClientRatingPage() {
                     : "border border-white/[0.07] bg-white/[0.04] text-white/55"
                 }`}
                 type="button"
-                onClick={() => setSeasonId(season.id)}
+                onClick={() => {
+                  if (season.id === selected?.id) return;
+
+                  tickClientSelection();
+                  setSeasonId(season.id);
+                }}
               >
                 {season.title}
               </button>
@@ -147,7 +152,8 @@ export default function ClientRatingPage() {
           </p>
         </GlassCard>
       ) : (
-        <div className="space-y-2">
+        // Keyed by the season, so another season's table arrives row by row as well.
+        <div key={selected?.id ?? "season"} className="client-stagger-rows space-y-2">
           {players.map((player) => (
             <RatingRow key={`${player.place}-${player.name}`} player={player} />
           ))}

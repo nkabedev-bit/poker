@@ -126,10 +126,114 @@ export function NoEventsCard() {
   );
 }
 
-export function LoadingScreen() {
+/** A grey block standing in for a piece of the screen that is on its way. */
+function Bone({ className }: { className: string }) {
+  return <span className={`client-skeleton block ${className}`} />;
+}
+
+function BoneRows({ className, count }: { className: string; count: number }) {
+  return Array.from({ length: count }, (_, index) => <Bone key={index} className={className} />);
+}
+
+/** Which screen is loading, so the placeholders take the shape it is about to have. */
+export type LoadingShape = "cards" | "event" | "grid" | "home" | "profile" | "rating" | "results" | "rows";
+
+const SKELETONS: Record<LoadingShape, ReactNode> = {
+  cards: <BoneRows className="h-[168px] rounded-[22px]" count={3} />,
+  event: (
+    <>
+      <Bone className="h-[210px] rounded-[22px]" />
+      <Bone className="h-5 w-2/5 rounded-md" />
+      <Bone className="h-16 rounded-[22px]" />
+      <div className="grid grid-cols-3 gap-2">
+        <BoneRows className="h-[92px] rounded-[20px]" count={3} />
+      </div>
+      <Bone className="h-[52px] rounded-2xl" />
+    </>
+  ),
+  grid: (
+    <>
+      <Bone className="h-[132px] rounded-[22px]" />
+      <div className="grid grid-cols-2 gap-3">
+        <BoneRows className="h-[164px] rounded-[22px]" count={4} />
+      </div>
+    </>
+  ),
+  home: (
+    <>
+      <div className="flex items-center gap-3">
+        <Bone className="h-[52px] w-[52px] rounded-full" />
+        <div className="flex flex-1 flex-col gap-2">
+          <Bone className="h-4 w-1/2 rounded-md" />
+          <Bone className="h-3 w-1/3 rounded-md" />
+        </div>
+      </div>
+      <Bone className="h-[196px] rounded-[22px]" />
+      <div className="flex flex-col gap-2">
+        <Bone className="mb-1 h-5 w-2/5 rounded-md" />
+        <BoneRows className="h-[58px] rounded-[18px]" count={3} />
+      </div>
+    </>
+  ),
+  profile: (
+    <>
+      <Bone className="h-8 w-1/3 rounded-lg" />
+      <div className="flex items-center gap-4">
+        <Bone className="h-[72px] w-[72px] rounded-full" />
+        <div className="flex flex-1 flex-col gap-2">
+          <Bone className="h-5 w-1/2 rounded-md" />
+          <Bone className="h-3 w-1/3 rounded-md" />
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-3">
+        <BoneRows className="h-[104px] rounded-[22px]" count={3} />
+      </div>
+      <Bone className="h-[62px] rounded-[22px]" />
+      <Bone className="h-[112px] rounded-[22px]" />
+    </>
+  ),
+  rating: (
+    <>
+      <Bone className="h-8 w-2/5 rounded-lg" />
+      <Bone className="h-[50px] rounded-2xl" />
+      <div className="flex flex-col gap-2">
+        <BoneRows className="h-[58px] rounded-[18px]" count={7} />
+      </div>
+    </>
+  ),
+  results: (
+    <>
+      <Bone className="h-8 w-3/4 rounded-lg" />
+      <Bone className="h-[86px] rounded-[20px]" />
+      <div className="grid grid-cols-3 items-end gap-2">
+        <Bone className="h-[150px] rounded-t-2xl" />
+        <Bone className="h-[190px] rounded-t-2xl" />
+        <Bone className="h-[130px] rounded-t-2xl" />
+      </div>
+      <div className="flex flex-col gap-2">
+        <BoneRows className="h-[58px] rounded-[18px]" count={3} />
+      </div>
+    </>
+  ),
+  rows: (
+    <>
+      <Bone className="h-[190px] rounded-[22px]" />
+      <div className="flex flex-col gap-2">
+        <BoneRows className="h-[58px] rounded-[18px]" count={5} />
+      </div>
+    </>
+  ),
+};
+
+/**
+ * What a screen shows while its data is on the way: placeholders in the shape of what is
+ * coming. A spinner in an empty screen said nothing about what to expect, and the screen
+ * then appeared all at once.
+ */
+export function LoadingScreen({ shape = "cards" }: { shape?: LoadingShape }) {
   return (
-    <div className="flex flex-1 items-center justify-center py-24 text-white/40">
-      <Loader2 className="animate-spin" size={28} />
+    <div aria-busy="true" aria-label="Загрузка" className="client-skeleton-screen flex flex-col gap-5 pt-1" role="status">
+      {SKELETONS[shape]}
     </div>
   );
 }

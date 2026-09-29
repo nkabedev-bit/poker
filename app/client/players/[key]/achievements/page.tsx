@@ -47,13 +47,13 @@ export default function PlayerAchievementsPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  if (loading || !stats) return <LoadingScreen />;
+  if (loading || !stats) return <LoadingScreen shape="grid" />;
 
   const sections = getAchievementSections(stats);
   const all = sections.flatMap((section) => section.achievements);
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
       <div>
         <PageTitle>Достижения</PageTitle>
         <p className="mt-1 flex items-center gap-2 text-sm text-white/40">

@@ -14,7 +14,12 @@ import {
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../layout";
+import {
+  getClientTelegramWebApp,
+  showClientAlert,
+  tickClientSelection,
+  useClientTMA,
+} from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
@@ -71,6 +76,9 @@ export default function ClientProfilePage() {
   const [played, setPlayed] = useState<PlayedGame[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyTab, setHistoryTab] = useState<"active" | "past">("active");
+  // The history slides only once the player switches it: the screen's own cascade brings
+  // it in the first time.
+  const [historySwitched, setHistorySwitched] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -179,6 +187,14 @@ export default function ClientProfilePage() {
     }
   };
 
+  const chooseHistoryTab = (next: "active" | "past") => {
+    if (next === historyTab) return;
+
+    tickClientSelection();
+    setHistoryTab(next);
+    setHistorySwitched(true);
+  };
+
   const resetAvatar = async () => {
     setAvatarBusy(true);
     try {
@@ -202,7 +218,7 @@ export default function ClientProfilePage() {
 
   const medalsEarned = countEarnedMedals(getMedals(me?.medals));
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="profile" />;
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
   const earned = countEarnedAchievements(achievements);
@@ -218,7 +234,7 @@ export default function ClientProfilePage() {
   const passesTotal = (me?.freeEntries?.regular ?? 0) + (me?.freeEntries?.vip ?? 0);
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
       <PageTitle>Профиль</PageTitle>
 
       <div className="flex items-center gap-4">
@@ -381,7 +397,7 @@ export default function ClientProfilePage() {
       <section className="space-y-3">
         <SectionHeader href="/client/rating" title="Рейтинг" />
         {topPlayers.length > 0 ? (
-          <div className="space-y-2">
+          <div className="client-stagger-rows space-y-2">
             {topPlayers.map((player) => (
               <RatingRow key={`${player.place}-${player.name}`} player={player} />
             ))}
@@ -402,78 +418,97 @@ export default function ClientProfilePage() {
       <section className="space-y-3">
         <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
 
-        <div className="grid grid-cols-2 gap-1 rounded-full bg-white/[0.05] p-1">
-          <TabButton active={historyTab === "active"} onClick={() => setHistoryTab("active")}>
+        <div className="relative grid grid-cols-2 gap-1 rounded-full bg-white/[0.05] p-1">
+          {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
+          <span
+            aria-hidden
+            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-full bg-white transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+              historyTab === "past" ? "translate-x-[calc(100%+4px)]" : ""
+            }`}
+          />
+          <TabButton active={historyTab === "active"} onClick={() => chooseHistoryTab("active")}>
             Активные
           </TabButton>
-          <TabButton active={historyTab === "past"} onClick={() => setHistoryTab("past")}>
+          <TabButton active={historyTab === "past"} onClick={() => chooseHistoryTab("past")}>
             Прошедшие
           </TabButton>
         </div>
 
-        {historyTab === "active" ? (
-          upcoming.length > 0 ? (
-            <div className="space-y-2">
-              {upcoming.map((item) => (
-                <Link
-                  key={item.event.id}
-                  className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
-                  href={`/client/events/${item.event.id}`}
-                >
-                  <p className="font-semibold">{item.event.title}</p>
-                  <p className="mt-1 text-xs text-white/45">
-                    {formatEventDayLabel(item.event.startsAt)},{" "}
-                    {formatEventTimeLabel(item.event.startsAt)}
-                  </p>
-                  {/* A ticket the club is holding is not a sign-up: it is still waiting
-                      on the player, and a card that looks like the rest never gets
-                      answered. */}
-                  {item.status === "reserved" ? (
-                    <p className="mt-2 inline-flex rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e9c07a]">
-                      Билет отложен · подтвердите
+        {/* Keyed by the tab, so a switch brings the list in from the side of the tab. */}
+        <div
+          key={historyTab}
+          className={
+            historySwitched
+              ? historyTab === "past"
+                ? "client-slide-from-right"
+                : "client-slide-from-left"
+              : undefined
+          }
+        >
+          {historyTab === "active" ? (
+            upcoming.length > 0 ? (
+              <div className="client-stagger-rows space-y-2">
+                {upcoming.map((item) => (
+                  <Link
+                    key={item.event.id}
+                    className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
+                    href={`/client/events/${item.event.id}`}
+                  >
+                    <p className="font-semibold">{item.event.title}</p>
+                    <p className="mt-1 text-xs text-white/45">
+                      {formatEventDayLabel(item.event.startsAt)},{" "}
+                      {formatEventTimeLabel(item.event.startsAt)}
                     </p>
-                  ) : null}
+                    {/* A ticket the club is holding is not a sign-up: it is still waiting
+                        on the player, and a card that looks like the rest never gets
+                        answered. */}
+                    {item.status === "reserved" ? (
+                      <p className="mt-2 inline-flex rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e9c07a]">
+                        Билет отложен · подтвердите
+                      </p>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <GlassCard className="py-8 text-center">
+                <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
+                <p className="text-sm text-white/45">Вы пока никуда не записаны.</p>
+              </GlassCard>
+            )
+          ) : played.length > 0 ? (
+            <div className="client-stagger-rows space-y-2">
+              {played.map((game) => (
+                <Link
+                  key={game.startedAt}
+                  className="flex items-center gap-3 rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
+                  href={`/client/games/${encodeURIComponent(game.startedAt)}`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold">{game.title}</span>
+                    <span className="mt-1 block text-xs text-white/45">
+                      {formatEventDayLabel(game.playedOn)}
+                      {game.points > 0 ? ` · ${game.points.toLocaleString("ru-RU")} очков` : ""}
+                    </span>
+                  </span>
+                  <span className="shrink-0 text-right">
+                    <span className="block text-[20px] font-extrabold leading-none text-[#e9c07a]">
+                      {game.place ?? "—"}
+                    </span>
+                    <span className="mt-1 block text-[10px] uppercase tracking-wider text-white/35">
+                      место
+                    </span>
+                  </span>
                 </Link>
               ))}
             </div>
           ) : (
             <GlassCard className="py-8 text-center">
               <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
-              <p className="text-sm text-white/45">Вы пока никуда не записаны.</p>
+              <p className="text-sm text-white/45">Сыгранных турниров пока нет.</p>
             </GlassCard>
-          )
-        ) : played.length > 0 ? (
-          <div className="space-y-2">
-            {played.map((game) => (
-              <Link
-                key={game.startedAt}
-                className="flex items-center gap-3 rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
-                href={`/client/games/${encodeURIComponent(game.startedAt)}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">{game.title}</span>
-                  <span className="mt-1 block text-xs text-white/45">
-                    {formatEventDayLabel(game.playedOn)}
-                    {game.points > 0 ? ` · ${game.points.toLocaleString("ru-RU")} очков` : ""}
-                  </span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block text-[20px] font-extrabold leading-none text-[#e9c07a]">
-                    {game.place ?? "—"}
-                  </span>
-                  <span className="mt-1 block text-[10px] uppercase tracking-wider text-white/35">
-                    место
-                  </span>
-                </span>
-              </Link>
-            ))}
-          </div>
-        ) : (
-          <GlassCard className="py-8 text-center">
-            <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
-            <p className="text-sm text-white/45">Сыгранных турниров пока нет.</p>
-          </GlassCard>
-        )}
+          )}
+        </div>
       </section>
     </div>
   );
@@ -500,8 +535,8 @@ function TabButton({
 }) {
   return (
     <button
-      className={`rounded-full py-2.5 text-sm font-bold transition ${
-        active ? "bg-white text-[#0a0608]" : "text-white/50"
+      className={`relative rounded-full py-2.5 text-sm font-bold transition-colors duration-300 ${
+        active ? "text-[#0a0608]" : "text-white/50"
       }`}
       type="button"
       onClick={onClick}

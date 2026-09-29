@@ -30,6 +30,7 @@ export type ClientTelegramWebApp = {
   HapticFeedback?: {
     impactOccurred: (style: string) => void;
     notificationOccurred: (type: string) => void;
+    selectionChanged?: () => void;
   };
 };
 
@@ -56,6 +57,14 @@ export function showClientAlert(message: string) {
   window.alert(message);
 }
 
+/**
+ * The light tick a phone gives when the player moves between tabs, tickets or sortings.
+ * Telegram asks for it on a change of choice only, never on the choice being confirmed.
+ */
+export function tickClientSelection() {
+  getClientTelegramWebApp()?.HapticFeedback?.selectionChanged?.();
+}
+
 export const ClientTMAContext = createContext<{ initData: string; telegramUser: ClientTelegramUser | null }>({
   initData: "",
   telegramUser: null,
@@ -68,6 +77,9 @@ const NAV_ITEMS = [
   { href: "/client/battle-pass", label: "Боевой пропуск", icon: Swords, match: (p: string) => p.includes("/battle-pass") },
   { href: "/client/profile", label: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
+
+/** How far the tab bar's pill travels per tab: a tab's width and the gap after it. */
+const NAV_STEP_PX = 78;
 
 /** How long to wait for Telegram before deciding this is an ordinary browser. */
 const TELEGRAM_WAIT_MS = 1200;
@@ -133,6 +145,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [door, setDoor] = useState<"loading" | "telegram" | "web">("loading");
   const pathname = usePathname();
   const router = useRouter();
+
+  // The tab the pill rests on. A screen outside the tab bar (the rating, somebody's
+  // profile) leaves it hidden where it was, so it comes back from the last tab visited
+  // rather than sliding in from the first.
+  const activeTab = NAV_ITEMS.findIndex((item) => item.match(pathname));
+  const [pillTab, setPillTab] = useState(Math.max(activeTab, 0));
+  if (activeTab >= 0 && activeTab !== pillTab) setPillTab(activeTab);
 
   const initTg = useCallback(() => {
     const tg = getClientTelegramWebApp();
@@ -295,7 +314,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         onReady={initTg}
       />
 
-      <div className="relative flex h-[100dvh] flex-col overflow-hidden bg-[#0a0608] text-white">
+      <div className="client-app relative flex h-[100dvh] flex-col overflow-hidden bg-[#0a0608] text-white">
         {/* Club colours: a crimson glow bleeding into near-black felt */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-40 inset-x-0 h-80 rounded-full bg-[#b8163c]/20 blur-[90px]" />
@@ -329,21 +348,29 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
             {/* A floating capsule rather than a full-width bar: the content keeps
                 running underneath it, which is what makes the screen feel deep. */}
             <nav className="fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),18px)] z-20 mx-auto flex w-fit items-center gap-1 rounded-full border border-white/[0.08] bg-[#160c11]/90 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
-              {NAV_ITEMS.map((item) => {
+              <span
+                aria-hidden
+                className={`client-nav-pill pointer-events-none absolute left-1.5 top-1.5 h-[52px] w-[74px] rounded-full bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] shadow-[0_8px_22px_rgba(200,22,63,0.45)] ${
+                  activeTab < 0 ? "opacity-0" : ""
+                }`}
+                style={{ transform: `translateX(${pillTab * NAV_STEP_PX}px)` }}
+              />
+              {NAV_ITEMS.map((item, index) => {
                 const Icon = item.icon;
-                const active = item.match(pathname);
+                const active = index === activeTab;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     aria-label={item.label}
-                    className={`flex h-[52px] w-[74px] items-center justify-center rounded-full transition-all ${
-                      active
-                        ? "bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] text-white shadow-[0_8px_22px_rgba(200,22,63,0.45)]"
-                        : "text-white/40"
+                    className={`relative flex h-[52px] w-[74px] items-center justify-center rounded-full transition-colors duration-300 ${
+                      active ? "text-white" : "text-white/40"
                     }`}
+                    onClick={() => {
+                      if (!active) tickClientSelection();
+                    }}
                   >
-                    <Icon size={22} strokeWidth={active ? 2.4 : 1.9} />
+                    <Icon className={active ? "client-icon-pop" : undefined} size={22} strokeWidth={active ? 2.4 : 1.9} />
                   </Link>
                 );
               })}

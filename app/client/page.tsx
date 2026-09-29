@@ -107,7 +107,7 @@ export default function ClientHomePage() {
     initial: data?.live ?? null,
   });
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="home" />;
 
   const [nextEvent, ...laterEvents] = events;
   // Which poster the game under way belongs to, so tapping the card opens its tables.
@@ -135,7 +135,7 @@ export default function ClientHomePage() {
   };
 
   return (
-    <div className="space-y-7 pt-1">
+    <div className="client-stagger space-y-7 pt-1">
       <div className="flex items-center gap-3">
         <PlayerAvatar
           hand={data?.player.favoriteHand}
@@ -229,7 +229,7 @@ export default function ClientHomePage() {
       <section className="space-y-3">
         <SectionHeader href="/client/rating" title="Рейтинг" />
         {topPlayers.length > 0 ? (
-          <div className="space-y-2">
+          <div className="client-stagger-rows space-y-2">
             {topPlayers.map((player) => (
               <RatingRow key={`${player.place}-${player.name}`} player={player} />
             ))}

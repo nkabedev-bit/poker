@@ -53,7 +53,7 @@ export default function AchievementHoldersPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="rows" />;
 
   const achievement = findAchievement(id);
 
@@ -73,7 +73,7 @@ export default function AchievementHoldersPage() {
   }
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
       {/* Spaced with gaps, not margins: the global reset in globals.css zeroes the margin
           of every p and heading, and it outranks Tailwind's layered utilities. */}
       <div className="flex flex-col gap-5 rounded-[22px] border border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] p-5 shadow-[0_10px_28px_rgba(233,192,122,0.12)]">
@@ -99,7 +99,7 @@ export default function AchievementHoldersPage() {
         </h2>
 
         {data.holders.length > 0 ? (
-          <div className="space-y-2">
+          <div className="client-stagger-rows space-y-2">
             {data.holders.map((holder, index) => (
               <HolderRow holder={holder} key={`${holder.key}-${index}`} />
             ))}

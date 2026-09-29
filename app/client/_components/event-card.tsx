@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { CalendarDays, Clock, Users } from "lucide-react";
 import { Badge, Chip } from "./ui";
+import { PosterImage } from "./poster-image";
 import { countAnnouncedSeats, formatSeatsTaken } from "@/lib/events/seats";
-import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -40,12 +40,7 @@ export function EventCard({
         }`}
       >
         {event.posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            src={toOwnOriginMediaUrl(event.posterUrl)}
-          />
+          <PosterImage drift={featured} url={event.posterUrl} />
         ) : (
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />
         )}

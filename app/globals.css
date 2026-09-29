@@ -4143,3 +4143,155 @@ p {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
+
+/* ——— Client mini-app motion ———
+   Everything the club's app moves is declared here under the `client-` prefix, and the
+   reduced-motion switch at the end of the section stills all of it at once. Only
+   transform and opacity are animated: the app already blurs its glow and its tab bar, and
+   a weak Android phone stutters when a list repaints shadows or widths on top of that.
+   Entrances fill backwards only, so once they finish the element is its own again — a
+   forwards fill would pin `transform: none` over the press-down scale of every card. */
+
+@keyframes client-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes client-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes client-shimmer {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes client-slide-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+
+@keyframes client-slide-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+}
+
+@keyframes client-icon-pop {
+  35% {
+    transform: scale(0.8);
+  }
+  70% {
+    transform: scale(1.14);
+  }
+}
+
+@keyframes client-ken-burns {
+  to {
+    transform: scale(1.07);
+  }
+}
+
+/* A screen's blocks rise one after another once its data is in. Eight steps cover every
+   screen; anything further down arrives with the eighth. */
+.client-stagger > * {
+  animation: client-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-stagger > :nth-child(2) { animation-delay: 70ms; }
+.client-stagger > :nth-child(3) { animation-delay: 140ms; }
+.client-stagger > :nth-child(4) { animation-delay: 210ms; }
+.client-stagger > :nth-child(5) { animation-delay: 280ms; }
+.client-stagger > :nth-child(6) { animation-delay: 350ms; }
+.client-stagger > :nth-child(7) { animation-delay: 420ms; }
+.client-stagger > :nth-child(n + 8) { animation-delay: 490ms; }
+
+/* Lists step faster and stop stepping after a dozen rows: a hundredth row still waiting
+   its turn would make the rating feel slow rather than alive. */
+.client-stagger-rows > * {
+  animation: client-rise 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-stagger-rows > :nth-child(2) { animation-delay: 40ms; }
+.client-stagger-rows > :nth-child(3) { animation-delay: 80ms; }
+.client-stagger-rows > :nth-child(4) { animation-delay: 120ms; }
+.client-stagger-rows > :nth-child(5) { animation-delay: 160ms; }
+.client-stagger-rows > :nth-child(6) { animation-delay: 200ms; }
+.client-stagger-rows > :nth-child(7) { animation-delay: 240ms; }
+.client-stagger-rows > :nth-child(8) { animation-delay: 280ms; }
+.client-stagger-rows > :nth-child(9) { animation-delay: 320ms; }
+.client-stagger-rows > :nth-child(10) { animation-delay: 360ms; }
+.client-stagger-rows > :nth-child(11) { animation-delay: 400ms; }
+.client-stagger-rows > :nth-child(n + 12) { animation-delay: 440ms; }
+
+/* Placeholders in the shape of the screen being loaded. The skeleton waits a beat before
+   it shows, so an answer that comes back at once never flashes grey blocks. */
+.client-skeleton-screen {
+  animation: client-fade-in 0.2s ease-out 0.12s backwards;
+}
+
+.client-skeleton {
+  position: relative;
+  overflow: hidden;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.client-skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.08), transparent);
+  transform: translateX(-100%);
+  animation: client-shimmer 1.3s ease-in-out infinite;
+}
+
+/* The tab bar's one pill travels to the tab the player is on; the icon it lands on
+   springs. A gradient cannot fade, so a tab that switched its own on simply blinked. */
+.client-nav-pill {
+  transition:
+    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    opacity 0.2s ease-out;
+}
+
+.client-icon-pop {
+  animation: client-icon-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* A tab's content comes in from the side the tab sits on. */
+.client-slide-from-left {
+  animation: client-slide-from-left 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-slide-from-right {
+  animation: client-slide-from-right 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* The poster of the next game drifts closer, slowly enough to read as light, not motion. */
+.client-ken-burns {
+  animation: client-ken-burns 16s ease-in-out infinite alternate;
+}
+
+/* A player who asked their phone for less motion gets the app still: every animation
+   above ends where it would have ended, at once. Portals carry the class themselves. */
+@media (prefers-reduced-motion: reduce) {
+  .client-app *,
+  .client-app *::before,
+  .client-app *::after {
+    animation-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}

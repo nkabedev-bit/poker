@@ -81,7 +81,7 @@ export default function ClientPlayerPage() {
   );
   const achievements = useMemo(() => getAchievements(stats), [stats]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="profile" />;
 
   if (!player) {
     return (
@@ -106,7 +106,7 @@ export default function ClientPlayerPage() {
   )?.place;
 
   return (
-    <div className="space-y-6 pt-1">
+    <div className="client-stagger space-y-6 pt-1">
       <PageTitle>Профиль</PageTitle>
 
       <div className="flex items-center gap-4">
@@ -215,7 +215,7 @@ export default function ClientPlayerPage() {
         <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
 
         {player.games.length > 0 ? (
-          <div className="space-y-2">
+          <div className="client-stagger-rows space-y-2">
             {player.games.map((game) => (
               <Link
                 key={game.startedAt}

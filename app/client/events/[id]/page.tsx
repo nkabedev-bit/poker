@@ -6,8 +6,8 @@ import { useParams, useRouter } from "next/navigation";
 import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
 import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
 import { PlayerAvatar } from "../../_components/player-avatar";
+import { PosterImage } from "../../_components/poster-image";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { toOwnOriginMediaUrl } from "@/lib/media/own-origin-url";
 import {
   Badge,
   Chip,
@@ -415,7 +415,7 @@ export default function ClientEventPage() {
     }
   };
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="event" />;
 
   if (!event) {
     return (
@@ -545,7 +545,7 @@ export default function ClientEventPage() {
     .filter(Boolean);
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
 
       {invite ? (
         <GlassCard className="space-y-3 !p-4">
@@ -569,12 +569,7 @@ export default function ClientEventPage() {
 
       <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
         {event.posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover"
-            src={toOwnOriginMediaUrl(event.posterUrl)}
-          />
+          <PosterImage drift url={event.posterUrl} />
         ) : (
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />
         )}

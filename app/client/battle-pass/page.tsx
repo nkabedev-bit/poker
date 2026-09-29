@@ -7,7 +7,7 @@ import { PageTitle, ScreenMessage } from "../_components/ui";
  */
 export default function ClientBattlePassPage() {
   return (
-    <div className="pt-1">
+    <div className="client-stagger pt-1">
       <PageTitle>Боевой пропуск</PageTitle>
       <ScreenMessage icon={<Swords size={30} />} title="Скоро" />
     </div>

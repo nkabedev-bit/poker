@@ -4,7 +4,12 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/app/client/layout", () => ({ useClientTMA: () => ({ initData: "mock-init" }) }));
+const tickClientSelection = vi.hoisted(() => vi.fn());
+
+vi.mock("@/app/client/layout", () => ({
+  tickClientSelection,
+  useClientTMA: () => ({ initData: "mock-init" }),
+}));
 
 const { default: ClientTournamentsPage } = await import("@/app/client/tournaments/page");
 
@@ -35,11 +40,24 @@ function pastCalls(fetchMock: ReturnType<typeof serve>) {
 
 afterEach(() => {
   cleanup();
+  tickClientSelection.mockReset();
   vi.unstubAllGlobals();
   window.history.replaceState(null, "", "/");
 });
 
 describe("the tournaments tab", () => {
+  it("ticks the phone when the player switches tabs, and not on the tab already open", async () => {
+    serve();
+    render(<ClientTournamentsPage />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Актуальные" }));
+    expect(tickClientSelection).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Прошедшие" }));
+    expect(tickClientSelection).toHaveBeenCalledTimes(1);
+    expect(await screen.findByText("HEARTSTORM")).toBeTruthy();
+  });
+
   it("opens on the tournaments still ahead and reads the past only when asked", async () => {
     const fetchMock = serve();
     render(<ClientTournamentsPage />);

@@ -127,7 +127,7 @@ export default function ClientOnboardingPage() {
   };
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
       <div className="space-y-1.5">
         <PageTitle>Анкета игрока</PageTitle>
         <p className="text-sm text-white/45">

@@ -142,7 +142,7 @@ export default function ClientGamePage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  if (loading) return <LoadingScreen />;
+  if (loading) return <LoadingScreen shape="results" />;
 
   if (!data) {
     return (
@@ -166,7 +166,7 @@ export default function ClientGamePage() {
   const startKnown = hasKnownStartTime(data.game.startedAt);
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
       <div className="space-y-3">
         <div className="flex flex-wrap gap-2">
           <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[12px] font-semibold text-white/60">
@@ -221,7 +221,7 @@ export default function ClientGamePage() {
             <span className="w-[74px] text-right">Очки</span>
           </div>
 
-          <div className="space-y-2">
+          <div className="client-stagger-rows space-y-2">
             {table.map((row) => (
               <Link
                 key={`${row.place}-${row.playerName}`}

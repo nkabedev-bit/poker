@@ -49,7 +49,7 @@ export default function ClientLinkPage() {
 
   if (played === null) {
     return (
-      <div className="flex min-h-full flex-col justify-center space-y-5 py-6">
+      <div className="client-stagger flex min-h-full flex-col justify-center space-y-5 py-6">
         <div className="space-y-1.5 text-center">
           <PageTitle>Вы у нас уже играли?</PageTitle>
           <p className="text-sm text-white/45">
@@ -68,7 +68,7 @@ export default function ClientLinkPage() {
   }
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
       <div className="space-y-1.5">
         <PageTitle>Найдём ваш профиль</PageTitle>
         <p className="text-sm text-white/45">

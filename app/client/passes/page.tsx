@@ -52,7 +52,7 @@ export default function ClientPassesPage() {
   const held = freeEntries.heldFor;
 
   return (
-    <div className="space-y-5 pt-1">
+    <div className="client-stagger space-y-5 pt-1">
       <PageTitle>Бесплатные проходки</PageTitle>
 
       <div className="grid grid-cols-2 gap-3">
