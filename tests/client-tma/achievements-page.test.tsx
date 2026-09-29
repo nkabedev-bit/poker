@@ -40,10 +40,12 @@ describe("client mini-app: достижения", () => {
 
     for (const title of [
       "Посещение игр",
+      "Попади в топ-9",
       "Попадания в топ-3",
       "Победы",
+      "Нокауты",
       "Специальные достижения",
-      "Попади в топ-9",
+      "Приглашения",
     ]) {
       expect(await screen.findByText(title)).toBeTruthy();
     }

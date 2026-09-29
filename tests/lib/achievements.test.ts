@@ -89,16 +89,41 @@ describe("achievements", () => {
     expect(badge({ bestMissStreak: 5 }, "character-test")?.earned).toBe(true);
   });
 
-  it("groups the badges into the club's six sections", () => {
+  it("groups the badges into the club's seven sections, the final table before the podium", () => {
     const sections = getAchievementSections(EMPTY_PLAYER_STATS);
 
     expect(sections.map((section) => section.title)).toEqual([
       "Посещение игр",
+      "Попади в топ-9",
       "Попадания в топ-3",
       "Победы",
+      "Нокауты",
       "Специальные достижения",
-      "Попади в топ-9",
       "Приглашения",
+    ]);
+  });
+
+  // New badges used to be added at the end of a section, and "Первый нокаут" ended up
+  // behind twelve bounties in one tournament.
+  it("runs every section from the easiest badge up: a goal never follows a bigger one", () => {
+    for (const section of getAchievementSections(EMPTY_PLAYER_STATS)) {
+      const goals = section.achievements.map((item) => item.goal);
+
+      expect(goals, section.title).toEqual([...goals].sort((a, b) => a - b));
+    }
+  });
+
+  it("opens the knockouts with the first one and climbs to the big hunt", () => {
+    const knockouts = getAchievementSections(EMPTY_PLAYER_STATS).find(
+      (section) => section.title === "Нокауты",
+    );
+
+    expect(knockouts?.achievements.map((item) => item.title)).toEqual([
+      "Первый нокаут",
+      "Точный прицел",
+      "Шторм за столом",
+      "Мясник",
+      "Большая охота",
     ]);
   });
 

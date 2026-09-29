@@ -117,68 +117,76 @@ type AchievementDefinition = {
   title: string;
 };
 
+// Each section runs from the badge a player earns first up to the hardest one, so a goal
+// never comes after a bigger one: new badges used to be added at the end of a section,
+// and "Первый нокаут" ended up behind twelve bounties in one tournament.
 const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] = [
   {
     title: "Посещение игр",
     items: [
       { description: "Посети 1 игру", goal: 1, icon: "rocket", id: "debut", metric: "games", title: "Дебют!" },
       { description: "3 игры", goal: 3, icon: "message", id: "first-vibe", metric: "games", title: "Первый вайб" },
+      { description: "3 турнира клуба подряд без пропусков", goal: 3, icon: "calendar-check", id: "warm-up", metric: "bestAttendanceStreak", title: "Разогрев" },
+      { description: "Первым сесть за стол на 3 турнирах", goal: 3, icon: "alarm-clock", id: "early-bird", metric: "firstSeated", title: "Раньше блайндов" },
+      { description: "6 турниров клуба подряд без пропусков", goal: 6, icon: "hammer", id: "got-into-it", metric: "bestAttendanceStreak", title: "Втянулся" },
+      { description: "9 турниров клуба подряд без пропусков", goal: 9, icon: "anvil", id: "iron-schedule", metric: "bestAttendanceStreak", title: "Железный график" },
       { description: "10 игр", goal: 10, icon: "flag", id: "one-of-us", metric: "games", title: "Уже свой" },
       { description: "25 игр", goal: 25, icon: "thumbs-up", id: "atmosphere", metric: "games", title: "Часть атмосферы" },
       { description: "50 игр", goal: 50, icon: "crown", id: "resident", metric: "games", title: "Резидент клуба" },
       { description: "100 игр", goal: 100, icon: "flame", id: "living-legend", metric: "games", title: "Живая легенда" },
-      { description: "3 турнира клуба подряд без пропусков", goal: 3, icon: "calendar-check", id: "warm-up", metric: "bestAttendanceStreak", title: "Разогрев" },
-      { description: "6 турниров клуба подряд без пропусков", goal: 6, icon: "hammer", id: "got-into-it", metric: "bestAttendanceStreak", title: "Втянулся" },
-      { description: "9 турниров клуба подряд без пропусков", goal: 9, icon: "anvil", id: "iron-schedule", metric: "bestAttendanceStreak", title: "Железный график" },
-      { description: "Первым сесть за стол на 3 турнирах", goal: 3, icon: "alarm-clock", id: "early-bird", metric: "firstSeated", title: "Раньше блайндов" },
-    ],
-  },
-  {
-    title: "Попадания в топ-3",
-    items: [
-      { description: "Впервые попасть в топ-3", goal: 1, icon: "award", id: "first-podium", metric: "top3", title: "Первый подиум" },
-      { description: "5 раз", goal: 5, icon: "dumbbell", id: "in-rhythm", metric: "top3", title: "Поймал ритм" },
-      { description: "10 раз", goal: 10, icon: "medal", id: "real-rival", metric: "top3", title: "Серьёзный соперник" },
-      { description: "15 раз", goal: 15, icon: "star", id: "experienced", metric: "top3", title: "На опыте" },
-      { description: "20 раз", goal: 20, icon: "sun", id: "elite", metric: "top3", title: "Элита" },
-      { description: "Занять 1-е, 2-е и 3-е место", goal: 3, icon: "podium", id: "full-podium", metric: "podiumPlaces", title: "Весь пьедестал" },
-    ],
-  },
-  {
-    title: "Победы",
-    items: [
-      { description: "1 победа", goal: 1, icon: "check", id: "first-trophy", metric: "wins", title: "Первый трофей" },
-      { description: "3 победы", goal: 3, icon: "medal", id: "title-collector", metric: "wins", title: "Коллекционер титулов" },
-      { description: "5 побед", goal: 5, icon: "megaphone", id: "well-known", metric: "wins", title: "Имя на слуху" },
-      { description: "10 побед", goal: 10, icon: "trophy", id: "face-of-majestic", metric: "wins", title: "Лицо Majestic" },
-      { description: "2 победы подряд", goal: 2, icon: "repeat", id: "double", metric: "bestWinStreak", title: "Дубль" },
-      { description: "Победа без единого ре-энтри", goal: 1, icon: "sparkles", id: "clean-win", metric: "cleanWins", title: "Чистая победа" },
-      { description: "Победа после ре-энтри", goal: 1, icon: "heart-pulse", id: "second-life", metric: "reentryWins", title: "Вторая жизнь" },
-    ],
-  },
-  {
-    title: "Специальные достижения",
-    items: [
-      { description: "Последнее место", goal: 1, icon: "briefcase", id: "early-flight", metric: "lastPlace", title: "Ранний рейс" },
-      { description: "5 баунти за турнир", goal: 5, icon: "target", id: "precise-aim", metric: "bestTournamentBounty", title: "Точный прицел" },
-      { description: "8 баунти за турнир", goal: 8, icon: "zap", id: "table-storm", metric: "bestTournamentBounty", title: "Шторм за столом" },
-      { description: "12 баунти за турнир", goal: 12, icon: "heart", id: "butcher", metric: "bestTournamentBounty", title: "Мясник" },
-      { description: "Топ-3 без единого ребая", goal: 1, icon: "shield", id: "no-insurance", metric: "cleanPodiums", title: "Без страховки" },
-      { description: "Победа после 3 вылетов без финалки подряд", goal: 1, icon: "sunrise", id: "comeback", metric: "comebackWins", title: "Возвращение" },
-      { description: "Первое выбивание соперника", goal: 1, icon: "swords", id: "first-knockout", metric: "knockoutGames", title: "Первый нокаут" },
-      { description: "25 баунти за всё время", goal: 25, icon: "skull", id: "big-hunt", metric: "eliminations", title: "Большая охота" },
-      { description: "3 сезона подряд в топ-10 рейтинга", goal: 3, icon: "eye", id: "in-sight", metric: "bestTopTenSeasonStreak", title: "В поле зрения" },
     ],
   },
   {
     title: "Попади в топ-9",
     items: [
       { description: "Впервые попасть за финальный стол", goal: 1, icon: "armchair", id: "first-final", metric: "top9", title: "Первый финал" },
+      { description: "2 финальных стола за 7 дней", goal: 2, icon: "calendar-range", id: "two-finals-week", metric: "bestFinalsInWeek", title: "Два финала за неделю" },
       { description: "2 турнира подряд за финальным столом", goal: 2, icon: "waves", id: "caught-the-wave", metric: "bestTop9Streak", title: "Поймал волну" },
       { description: "3 турнира подряд за финальным столом", goal: 3, icon: "shark", id: "series-shark", metric: "bestTop9Streak", title: "Акула серии" },
       { description: "5 турниров подряд за финальным столом", goal: 5, icon: "compass", id: "perfect-distance", metric: "bestTop9Streak", title: "Идеальная дистанция" },
       { description: "5 вылетов без финального стола подряд", goal: 5, icon: "wand", id: "character-test", metric: "bestMissStreak", title: "Испытание характером" },
-      { description: "2 финальных стола за 7 дней", goal: 2, icon: "calendar-range", id: "two-finals-week", metric: "bestFinalsInWeek", title: "Два финала за неделю" },
+    ],
+  },
+  {
+    title: "Попадания в топ-3",
+    items: [
+      { description: "Впервые попасть в топ-3", goal: 1, icon: "award", id: "first-podium", metric: "top3", title: "Первый подиум" },
+      { description: "Топ-3 без единого ребая", goal: 1, icon: "shield", id: "no-insurance", metric: "cleanPodiums", title: "Без страховки" },
+      { description: "Занять 1-е, 2-е и 3-е место", goal: 3, icon: "podium", id: "full-podium", metric: "podiumPlaces", title: "Весь пьедестал" },
+      { description: "5 раз", goal: 5, icon: "dumbbell", id: "in-rhythm", metric: "top3", title: "Поймал ритм" },
+      { description: "10 раз", goal: 10, icon: "medal", id: "real-rival", metric: "top3", title: "Серьёзный соперник" },
+      { description: "15 раз", goal: 15, icon: "star", id: "experienced", metric: "top3", title: "На опыте" },
+      { description: "20 раз", goal: 20, icon: "sun", id: "elite", metric: "top3", title: "Элита" },
+    ],
+  },
+  {
+    title: "Победы",
+    items: [
+      { description: "1 победа", goal: 1, icon: "check", id: "first-trophy", metric: "wins", title: "Первый трофей" },
+      { description: "Победа без единого ре-энтри", goal: 1, icon: "sparkles", id: "clean-win", metric: "cleanWins", title: "Чистая победа" },
+      { description: "Победа после ре-энтри", goal: 1, icon: "heart-pulse", id: "second-life", metric: "reentryWins", title: "Вторая жизнь" },
+      { description: "Победа после 3 вылетов без финалки подряд", goal: 1, icon: "sunrise", id: "comeback", metric: "comebackWins", title: "Возвращение" },
+      { description: "2 победы подряд", goal: 2, icon: "repeat", id: "double", metric: "bestWinStreak", title: "Дубль" },
+      { description: "3 победы", goal: 3, icon: "medal", id: "title-collector", metric: "wins", title: "Коллекционер титулов" },
+      { description: "5 побед", goal: 5, icon: "megaphone", id: "well-known", metric: "wins", title: "Имя на слуху" },
+      { description: "10 побед", goal: 10, icon: "trophy", id: "face-of-majestic", metric: "wins", title: "Лицо Majestic" },
+    ],
+  },
+  {
+    title: "Нокауты",
+    items: [
+      { description: "Первое выбивание соперника", goal: 1, icon: "swords", id: "first-knockout", metric: "knockoutGames", title: "Первый нокаут" },
+      { description: "5 баунти за турнир", goal: 5, icon: "target", id: "precise-aim", metric: "bestTournamentBounty", title: "Точный прицел" },
+      { description: "8 баунти за турнир", goal: 8, icon: "zap", id: "table-storm", metric: "bestTournamentBounty", title: "Шторм за столом" },
+      { description: "12 баунти за турнир", goal: 12, icon: "heart", id: "butcher", metric: "bestTournamentBounty", title: "Мясник" },
+      { description: "25 баунти за всё время", goal: 25, icon: "skull", id: "big-hunt", metric: "eliminations", title: "Большая охота" },
+    ],
+  },
+  {
+    title: "Специальные достижения",
+    items: [
+      { description: "Последнее место", goal: 1, icon: "briefcase", id: "early-flight", metric: "lastPlace", title: "Ранний рейс" },
+      { description: "3 сезона подряд в топ-10 рейтинга", goal: 3, icon: "eye", id: "in-sight", metric: "bestTopTenSeasonStreak", title: "В поле зрения" },
     ],
   },
   {
@@ -187,10 +195,10 @@ const ACHIEVEMENT_SECTIONS: { items: AchievementDefinition[]; title: string }[] 
     title: "Приглашения",
     items: [
       { description: "Привести нового игрока — после его 2-й игры", goal: 1, icon: "user-plus", id: "plus-one", metric: "invitedPlayers", title: "Плюс один" },
-      { description: "Привести 3 новых игроков — после их 2-й игры", goal: 3, icon: "users", id: "full-table", metric: "invitedPlayers", title: "Собрал стол" },
-      { description: "Привести 5 новых игроков — после их 2-й игры", goal: 5, icon: "party", id: "own-crew", metric: "invitedPlayers", title: "Своя компания" },
       { description: "Приглашённый впервые за финальным столом", goal: 1, icon: "handshake", id: "relay", metric: "invitedFinalists", title: "Передал эстафету" },
       { description: "Приглашённый сыграл 10 турниров", goal: 1, icon: "book", id: "preacher", metric: "invitedRegulars", title: "Настоящий проповедник" },
+      { description: "Привести 3 новых игроков — после их 2-й игры", goal: 3, icon: "users", id: "full-table", metric: "invitedPlayers", title: "Собрал стол" },
+      { description: "Привести 5 новых игроков — после их 2-й игры", goal: 5, icon: "party", id: "own-crew", metric: "invitedPlayers", title: "Своя компания" },
     ],
   },
 ];
