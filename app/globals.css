@@ -4295,3 +4295,184 @@ p {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ——— Client mini-app motion: the moments a player acts on ——— */
+
+@keyframes client-swap-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes client-glint {
+  0% {
+    transform: translateX(-130%) skewX(-20deg);
+  }
+  20%,
+  100% {
+    transform: translateX(330%) skewX(-20deg);
+  }
+}
+
+@keyframes client-blink {
+  50% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes client-stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(2.3);
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+}
+
+@keyframes client-jolt {
+  35% {
+    transform: translateY(4px) scale(0.97);
+  }
+}
+
+@keyframes client-pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+}
+
+@keyframes client-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes client-confetti {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) rotate(0) scale(0.5);
+  }
+  55% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.8), var(--dy)) rotate(calc(var(--rot) * 0.6)) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), calc(var(--dy) + 120px)) rotate(var(--rot)) scale(0.9);
+  }
+}
+
+@keyframes client-breathe {
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes client-ring-out {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12, 1.55);
+  }
+}
+
+@keyframes client-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* A button's words change in place — «Записаться · VIP» — rather than blink. */
+.client-swap-in {
+  animation: client-swap-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* The VIP ticket catches the light every few seconds. */
+.client-glint::after {
+  content: "";
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, rgb(233 192 122 / 0.35), transparent);
+  pointer-events: none;
+  animation: client-glint 5s ease-in-out 1s infinite;
+}
+
+/* The last seats of a kind pulse, and nothing else on the ticket does. */
+.client-blink {
+  animation: client-blink 1.6s ease-in-out infinite;
+}
+
+/* The sign-up lands: the stamp thuds onto the ticket, which gives under it. */
+.client-stamp-in {
+  animation: client-stamp-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-jolt {
+  animation: client-jolt 0.35s ease-out 0.25s;
+}
+
+.client-pop-in {
+  animation: client-pop-in 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.client-check-draw path {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: client-draw 0.45s ease-out 0.15s forwards;
+}
+
+/* Card suits thrown up from where the player tapped; they fall away in a second. */
+.client-confetti {
+  position: absolute;
+  margin: -8px 0 0 -5px;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1;
+  animation: client-confetti 1.25s cubic-bezier(0.2, 0.7, 0.35, 1) both;
+}
+
+/* Whatever waits on the player's answer breathes: a held ticket, a pair invitation,
+   a freed seat. Only opacity moves; the glow itself is drawn once. The element carries
+   `relative` and may set --client-glow and --client-breathe-speed. */
+.client-breathe::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow: 0 0 18px 2px var(--client-glow, rgb(233 192 122 / 0.55));
+  opacity: 0.2;
+  pointer-events: none;
+  animation: client-breathe var(--client-breathe-speed, 2.4s) ease-in-out infinite;
+}
+
+/* A freed seat on a poster sends rings out, the way a notification does. */
+.client-ring-pulse::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border: 1.5px solid rgb(52 211 153);
+  border-radius: inherit;
+  pointer-events: none;
+  animation: client-ring-out 1.8s ease-out infinite;
+}
+
+/* The welcome after the questionnaire: in, a moment, out. */
+.client-welcome {
+  animation:
+    client-fade-in 0.3s ease-out backwards,
+    client-fade-out 0.35s ease-in 1.45s forwards;
+}

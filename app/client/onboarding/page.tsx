@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
+import { rememberWelcome } from "../_components/welcome-splash";
 import { isValidBirthDate, maskBirthDateInput } from "@/lib/client-bot/registration";
 
 const AGREEMENT_TEXT =
@@ -112,6 +113,7 @@ export default function ClientOnboardingPage() {
 
       if (res.ok) {
         tg?.HapticFeedback?.notificationOccurred("success");
+        rememberWelcome();
         router.replace("/client");
         return;
       }

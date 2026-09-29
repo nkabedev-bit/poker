@@ -3,10 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarDays, Clock, MapPin, Ticket, Users } from "lucide-react";
-import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
+import { CalendarDays, Check, Clock, Copy, MapPin, Ticket, Users } from "lucide-react";
+import {
+  getClientTelegramWebApp,
+  showClientAlert,
+  tickClientSelection,
+  useClientTMA,
+} from "../../layout";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { PosterImage } from "../../_components/poster-image";
+import { OfferCountdown } from "../../_components/offer-countdown";
+import { useSuitBurst } from "../../_components/suit-burst";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import {
   Badge,
@@ -89,6 +96,9 @@ const MAX_PARTNER_NAME_LENGTH = 40;
 /** How long the partner search waits after the last keystroke. */
 const SEARCH_DELAY_MS = 350;
 
+/** How long a new sign-up's stamp and suits hold the screen. */
+const CELEBRATION_MS = 1600;
+
 /** A member of the club, offered as the +1 of a pair. */
 type PartnerMatch = { avatarUrl: string | null; key: string; name: string };
 
@@ -158,6 +168,10 @@ export default function ClientEventPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [answering, setAnswering] = useState(false);
+  // The moment right after a seat is taken: the stamp thuds onto the ticket and the
+  // suits go up. Only then — a page opened on an old sign-up shows the stamp at rest.
+  const [celebrating, setCelebrating] = useState(false);
+  const { burst, fire: fireBurst } = useSuitBurst();
   // Nicknames are looked up while the buyer types, so the search waits for them to stop
   // rather than asking the server about every letter.
   const searchTimer = useRef<number | null>(null);
@@ -166,12 +180,14 @@ export default function ClientEventPage() {
   // choice that no longer applies — and a "1+1" is bought at its own price, never with
   // a pass.
   const selectTicket = (ticket: TicketType) => {
+    if (ticket !== ticketType) tickClientSelection();
     setTicketType(ticket);
     setUsePass((chosen) => (chosen === ticket ? chosen : "none"));
   };
 
   /** A pass belongs to one kind of ticket, so picking it picks that ticket too. */
   const selectPass = (pass: FreePassChoice) => {
+    if (pass !== usePass) tickClientSelection();
     setUsePass(pass);
     if (pass !== "none") setTicketType(pass);
   };
@@ -371,6 +387,9 @@ export default function ClientEventPage() {
 
     setSubmitting(true);
     const tg = getClientTelegramWebApp();
+    // Celebrated only when a seat is newly taken: naming another partner on a ticket
+    // already held, or stepping into the queue, is not that moment.
+    const takesSeat = signUp && !waitlist && !event?.signedUp;
     try {
       const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
         method: signUp ? "POST" : "DELETE",
@@ -392,8 +411,19 @@ export default function ClientEventPage() {
         // away so the buyer can send it while they still have their friend in mind.
         const saved = await res.json().catch(() => null);
         setInviteLinks(saved?.inviteLinks ?? null);
-        tg?.HapticFeedback?.notificationOccurred("success");
+        // Letting a seat go is not a success to cheer: it gets a light tap instead.
+        if (signUp) {
+          tg?.HapticFeedback?.notificationOccurred("success");
+        } else {
+          tg?.HapticFeedback?.impactOccurred("light");
+        }
         await load();
+
+        if (takesSeat) {
+          setCelebrating(true);
+          fireBurst();
+          window.setTimeout(() => setCelebrating(false), CELEBRATION_MS);
+        }
         return;
       }
 
@@ -539,6 +569,13 @@ export default function ClientEventPage() {
       value: "none" as const,
     });
   }
+  // The ticket a signed-up player holds wears the stamp; it lands with a thud only at the
+  // moment the seat is taken. A ticket the club is holding is not the player's yet.
+  const heldStamp: TicketStamp | undefined = event.signedUp
+    ? celebrating
+      ? "landing"
+      : "resting"
+    : undefined;
   const featureLines = event.featuresText
     .split("\n")
     .map((line) => line.trim())
@@ -548,7 +585,8 @@ export default function ClientEventPage() {
     <div className="client-stagger space-y-5 pt-1">
 
       {invite ? (
-        <GlassCard className="space-y-3 !p-4">
+        // Waits on the player's answer, so it breathes in gold like a held ticket.
+        <GlassCard className="client-breathe relative space-y-3 border-[#e9c07a]/35 !p-4">
           <p className="text-[15px] font-bold">
             {invite.hostName} зовёт вас по билету 1+1
           </p>
@@ -674,6 +712,7 @@ export default function ClientEventPage() {
               kind="regular"
               price={event.buyIn}
               seats={freeSeats.regular}
+              stamp={heldTicket === "regular" ? heldStamp : undefined}
               state={heldTicket === "regular" ? "chosen" : "muted"}
             />
             {offersDuo ? (
@@ -682,6 +721,7 @@ export default function ClientEventPage() {
                 kind="duo"
                 price={event.duoBuyIn}
                 seats={freeSeats.duo}
+                stamp={heldTicket === "duo" || heldTicket === "duo_plus_one" ? heldStamp : undefined}
                 state={
                   heldTicket === "duo" || heldTicket === "duo_plus_one"
                     ? "chosen"
@@ -695,6 +735,7 @@ export default function ClientEventPage() {
                 kind="vip"
                 price={event.vipBuyIn}
                 seats={freeSeats.vip}
+                stamp={heldTicket === "vip" ? heldStamp : undefined}
                 state={heldTicket === "vip" ? "chosen" : "muted"}
               />
             ) : null}
@@ -917,8 +958,20 @@ export default function ClientEventPage() {
         </div>
       ) : event.signedUp ? (
         <div className="space-y-3">
-          <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
-            Вы записаны · {TICKET_TITLES[event.ticketType]} билет
+          <div
+            className={`relative rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300 ${
+              celebrating ? "client-pop-in" : ""
+            }`}
+          >
+            {burst}
+            <span className="inline-flex items-center justify-center gap-1.5">
+              <Check
+                className={`shrink-0 ${celebrating ? "client-check-draw" : ""}`}
+                size={17}
+                strokeWidth={3}
+              />
+              Вы записаны · {TICKET_TITLES[event.ticketType]} билет
+            </span>
             {event.partnerName ? (
               <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
                 С вами: {event.partnerName}
@@ -952,7 +1005,7 @@ export default function ClientEventPage() {
         // The club promised this seat to somebody who asked ahead; all that is left is
         // for them to say they are coming.
         <div className="space-y-3">
-          <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
+          <div className="client-breathe relative rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
             Вам отложен{" "}
             {event.reservedTicket === "vip"
               ? "VIP-билет"
@@ -981,13 +1034,9 @@ export default function ClientEventPage() {
         // hour runs out. The room reads full to everyone else, so this seat is theirs
         // to take rather than to race anyone for.
         <div className="space-y-3">
-          <div className="rounded-2xl border border-emerald-400/40 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300">
-            Освободилось место — очередь дошла до вас
-            <span className="mt-1 block text-[13px] font-semibold text-emerald-300/75">
-              Держим его за вами до {formatEventTimeLabel(event.waitlistOfferExpiresAt)}.
-              Потом место уйдёт следующему в очереди.
-            </span>
-          </div>
+          {/* Counting down on the phone; when the time is up the club is asked once where
+              the queue went, and the screen follows. */}
+          <OfferCountdown expiresAt={event.waitlistOfferExpiresAt} onExpire={() => void load()} />
           <PrimaryButton
             disabled={queuedPartnerMissing}
             loading={submitting}
@@ -1068,7 +1117,8 @@ export default function ClientEventPage() {
           loading={submitting}
           onClick={() => void toggleSignup(true)}
         >
-          {partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`}
+          {/* Keyed by its words, so a change of ticket rolls them over in place. */}
+          <SwapLabel text={partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`} />
         </PrimaryButton>
       )}
 
@@ -1085,6 +1135,12 @@ const TICKET_ACCENTS: Record<TicketType, string> = {
   vip: "#e9c07a",
 };
 
+/** The "вы записаны" stamp on the ticket a player holds, and whether it is landing now. */
+type TicketStamp = "landing" | "resting";
+
+/** How few seats of a kind have to be left before they start to pulse. */
+const LAST_SEATS = 3;
+
 /** One ticket the poster sells: its price, what is left of it, and whether it is picked. */
 function TicketCard({
   compact,
@@ -1092,6 +1148,7 @@ function TicketCard({
   onSelect,
   price,
   seats,
+  stamp,
   state,
 }: {
   /** Set when three kinds share the row and the card has to give up some width. */
@@ -1100,22 +1157,41 @@ function TicketCard({
   onSelect?: () => void;
   price: number | null;
   seats: number | null;
+  stamp?: TicketStamp;
   state: "chosen" | "idle" | "muted";
 }) {
   const soldOut = seats !== null && seats <= 0;
   const accent = TICKET_ACCENTS[kind];
+  const chosen = state === "chosen";
+  // The last seats of a kind pulse; a ticket that is sold out or not on the table keeps
+  // still. VIP catches the light while it is on sale — the ticket the club would rather sell.
+  const lastSeats = seats !== null && seats > 0 && seats <= LAST_SEATS && state !== "muted";
+  const glints = kind === "vip" && !soldOut && state !== "muted";
 
   return (
     <button
-      className={`rounded-[20px] border text-left transition ${compact ? "p-3" : "p-[18px]"} ${
-        state === "chosen"
-          ? "border-white/25 bg-white/[0.09]"
+      className={`relative overflow-hidden rounded-[20px] border text-left transition-[transform,background-color,border-color,box-shadow,opacity] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+        compact ? "p-3" : "p-[18px]"
+      } ${
+        chosen
+          ? "-translate-y-[3px] scale-[1.03] border-white/25 bg-white/[0.09]"
           : "border-white/[0.07] bg-white/[0.03]"
-      } ${soldOut && state !== "chosen" ? "opacity-45" : ""}`}
-      disabled={!onSelect || (soldOut && state !== "chosen")}
+      } ${soldOut && !chosen ? "opacity-45" : ""} ${glints ? "client-glint" : ""} ${
+        stamp === "landing" ? "client-jolt" : ""
+      }`}
+      disabled={!onSelect || (soldOut && !chosen)}
+      style={chosen ? { boxShadow: `0 12px 26px -10px ${accent}` } : undefined}
       type="button"
       onClick={onSelect}
     >
+      {/* The picked ticket lights up in its own colour from the inside. */}
+      <span
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity duration-300 ${
+          chosen ? "opacity-90" : "opacity-0"
+        }`}
+        style={{ boxShadow: `inset 0 0 0 1.5px ${accent}, inset 0 0 18px -6px ${accent}` }}
+      />
       <p
         className="text-[11px] uppercase tracking-wider"
         style={{ color: state === "muted" ? "rgba(255,255,255,0.35)" : accent }}
@@ -1127,10 +1203,32 @@ function TicketCard({
       >
         {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
       </p>
-      <p className={`mt-2 text-white/45 ${compact ? "text-[11px]" : "text-[12px]"}`}>
+      <p
+        className={`mt-2 ${compact ? "text-[11px]" : "text-[12px]"} ${
+          lastSeats ? "client-blink text-[#ff8aa2]" : "text-white/45"
+        }`}
+      >
         {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
       </p>
+      {stamp ? (
+        <span
+          className={`pointer-events-none absolute left-1/2 top-[70%] z-[1] -translate-x-1/2 -translate-y-1/2 -rotate-[14deg] whitespace-nowrap rounded-md border-2 border-emerald-300 bg-[#0a0608]/75 px-1.5 py-0.5 font-extrabold uppercase tracking-[0.08em] text-emerald-300 ${
+            compact ? "text-[9px]" : "text-[10px]"
+          } ${stamp === "landing" ? "client-stamp-in" : ""}`}
+        >
+          Вы записаны
+        </span>
+      ) : null}
     </button>
+  );
+}
+
+/** A button's words, rolled over in place when they change instead of blinking. */
+function SwapLabel({ text }: { text: string }) {
+  return (
+    <span key={text} className="client-swap-in inline-block">
+      {text}
+    </span>
   );
 }
 
@@ -1146,6 +1244,7 @@ function InviteLink({ href, label }: { href: string; label: string }) {
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(href);
+      getClientTelegramWebApp()?.HapticFeedback?.impactOccurred("light");
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -1155,7 +1254,9 @@ function InviteLink({ href, label }: { href: string; label: string }) {
 
   return (
     <button
-      className="flex w-full items-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-3 py-2.5 text-left"
+      className={`flex w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-left transition-colors duration-300 ${
+        copied ? "border-emerald-400/40 bg-emerald-400/10" : "border-white/[0.09] bg-white/[0.04]"
+      }`}
       type="button"
       onClick={copy}
     >
@@ -1163,7 +1264,16 @@ function InviteLink({ href, label }: { href: string; label: string }) {
         <span className="block text-[12px] font-semibold text-white/70">{label}</span>
         <span className="block truncate text-[11px] text-white/35">{href}</span>
       </span>
-      <span className="shrink-0 text-[12px] font-bold text-[#f05a7e]">
+      <span
+        className={`flex shrink-0 items-center gap-1 text-[12px] font-bold ${
+          copied ? "text-emerald-300" : "text-[#f05a7e]"
+        }`}
+      >
+        {copied ? (
+          <Check key="copied" className="client-icon-pop" size={14} strokeWidth={3} />
+        ) : (
+          <Copy key="copy" size={14} />
+        )}
         {copied ? "Скопировано" : "Копировать"}
       </span>
     </button>

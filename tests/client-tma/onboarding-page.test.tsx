@@ -63,6 +63,18 @@ describe("client mini-app: анкета новичка", () => {
     cleanup();
     vi.unstubAllGlobals();
     replace.mockReset();
+    window.sessionStorage.clear();
+  });
+
+  it("leaves the home screen a welcome for the newcomer once the questionnaire is in", async () => {
+    mockFetch();
+    render(<ClientOnboardingPage />);
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить анкету" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/client"));
+    expect(window.sessionStorage.getItem("club:welcome")).toBe("1");
   });
 
   it("asks who brought the player in, and lets them leave it empty", async () => {

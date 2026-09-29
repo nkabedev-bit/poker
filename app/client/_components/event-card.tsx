@@ -75,11 +75,11 @@ export function EventCard({
                   // The bot's message only opens the app: without this the card looks
                   // like any other evening they are waiting on, and the half hour runs
                   // out on the wrong screen.
-                  <span className="inline-flex items-center rounded-xl border border-emerald-400/45 bg-emerald-400/15 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
+                  <span className="client-ring-pulse relative inline-flex items-center rounded-xl border border-emerald-400/45 bg-emerald-400/15 px-3 py-1.5 text-[12px] font-bold text-emerald-300">
                     Место освободилось · запишитесь
                   </span>
                 ) : event.awaiting ? (
-                  <span className="inline-flex items-center rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-3 py-1.5 text-[12px] font-bold text-[#e9c07a]">
+                  <span className="client-breathe relative inline-flex items-center rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-3 py-1.5 text-[12px] font-bold text-[#e9c07a]">
                     {event.awaiting === "reserved"
                       ? "Билет отложен · подтвердите"
                       : "Зовут в пару · подтвердите"}
