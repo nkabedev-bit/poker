@@ -322,3 +322,37 @@ export async function findDuoInvitationEventIds(
 
   return new Set((data ?? []).map((row) => String((row as { event_id: unknown }).event_id)));
 }
+
+/**
+ * The nickname of the member who asked this player along as their +1, or null when
+ * nobody has.
+ *
+ * A newcomer on a friend's "1+1" link holds the invitation before they fill in the
+ * questionnaire, and that friend is the one who brought them to the club — so the
+ * questionnaire offers the name as its answer to "who invited you". Should two members
+ * have asked, the older sign-up is the one offered.
+ */
+export async function findDuoInviterName(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<string | null> {
+  // `!user_id` is the account the sign-up belongs to: the buyer who asked.
+  const { data, error } = await supabase
+    .from("event_signups")
+    .select("client_bot_users!user_id(display_name)")
+    .eq("ticket_type", "duo")
+    .eq("duo_partner_user_id", userId)
+    .neq("status", "cancelled")
+    .order("created_at")
+    .limit(1);
+
+  if (error) throw error;
+
+  const [first] = data ?? [];
+  const embedded = (first as { client_bot_users?: unknown } | undefined)?.client_bot_users;
+  const host = (Array.isArray(embedded) ? embedded[0] : embedded) as
+    | { display_name?: string | null }
+    | undefined;
+
+  return host?.display_name?.trim() || null;
+}

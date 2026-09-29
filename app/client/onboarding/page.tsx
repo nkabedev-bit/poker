@@ -44,6 +44,27 @@ export default function ClientOnboardingPage() {
     [],
   );
 
+  // A newcomer who came on a friend's "1+1" link was invited by that friend, so the answer
+  // is filled in for them. Only a suggestion: they can change it or clear it, and whatever
+  // they typed before it arrived stays.
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/client-tma/duo-invite", { headers: { "X-Telegram-Init-Data": initData } })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: { inviter?: string | null } | null) => {
+        const inviter = data?.inviter;
+        if (cancelled || !inviter) return;
+
+        setInvitedBy((current) => current || inviter);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [initData]);
+
   // The server takes only a nickname the club knows, so the members are offered as the
   // newcomer types — a tap puts the exact spelling in the field.
   const searchInviters = async (query: string) => {

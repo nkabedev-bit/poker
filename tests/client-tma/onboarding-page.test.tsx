@@ -19,16 +19,21 @@ const CHURA = { avatarUrl: null, key: "chura", name: "Chura" };
 
 type FetchAnswer = () => Promise<Response>;
 
-/** The member search and the questionnaire itself, each answered by the test. */
+/**
+ * The member search, the questionnaire itself and who asked the newcomer along on a
+ * "1+1", each answered by the test.
+ */
 function mockFetch({
+  inviter = async () => Response.json({ inviter: null }),
   profile = async () => Response.json({ nickname: "Ace High", profileSubmitted: true }),
   search = async () => Response.json({ players: [CHURA] }),
-}: { profile?: FetchAnswer; search?: FetchAnswer } = {}) {
+}: { inviter?: FetchAnswer; profile?: FetchAnswer; search?: FetchAnswer } = {}) {
   const fetchMock = vi.fn<(input: RequestInfo | URL, init?: RequestInit) => Promise<Response>>(
     async (input) => {
       const url = String(input);
       if (url.startsWith("/api/client-tma/players")) return search();
       if (url === "/api/client-tma/profile") return profile();
+      if (url === "/api/client-tma/duo-invite") return inviter();
       return Response.json({});
     },
   );
@@ -140,6 +145,54 @@ describe("client mini-app: анкета новичка", () => {
 
     expect(inviterField().value).toBe("Chura");
     expect(screen.queryByRole("button", { name: /chura/i })).toBeNull();
+  });
+
+  it("fills in the member whose 1+1 link brought the newcomer, and sends them", async () => {
+    const fetchMock = mockFetch({ inviter: async () => Response.json({ inviter: "Chura" }) });
+    render(<ClientOnboardingPage />);
+
+    await waitFor(() => expect(inviterField().value).toBe("Chura"));
+    // Filled in, not searched for: the list of members stays shut.
+    expect(screen.queryByRole("button", { name: /chura/i })).toBeNull();
+
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить анкету" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/client"));
+    expect(sentProfile(fetchMock)).toMatchObject({ invitedBy: "Chura" });
+  });
+
+  it("lets the newcomer clear the member filled in for them", async () => {
+    const fetchMock = mockFetch({ inviter: async () => Response.json({ inviter: "Chura" }) });
+    render(<ClientOnboardingPage />);
+
+    await waitFor(() => expect(inviterField().value).toBe("Chura"));
+    fireEvent.change(inviterField(), { target: { value: "" } });
+    fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Сохранить анкету" }));
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/client"));
+    expect(sentProfile(fetchMock)).toMatchObject({ invitedBy: "" });
+  });
+
+  // The answer can arrive after the newcomer has already typed somebody in, and what they
+  // typed is theirs.
+  it("keeps what the newcomer typed when the member arrives late", async () => {
+    let answerLate: (response: Response) => void = () => {};
+    mockFetch({
+      inviter: () =>
+        new Promise<Response>((resolve) => {
+          answerLate = resolve;
+        }),
+      search: async () => Response.json({ players: [] }),
+    });
+    render(<ClientOnboardingPage />);
+
+    fireEvent.change(inviterField(), { target: { value: "Саша" } });
+    answerLate(Response.json({ inviter: "Chura" }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(inviterField().value).toBe("Саша");
   });
 
   it("shows why the server sent the questionnaire back", async () => {

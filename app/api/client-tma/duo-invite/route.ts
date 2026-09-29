@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
-import { claimDuoInvite } from "@/lib/events/duo";
+import { claimDuoInvite, findDuoInviterName } from "@/lib/events/duo";
 
 export const dynamic = "force-dynamic";
 
@@ -36,4 +36,16 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ claimed: true, eventId: outcome.eventId });
+}
+
+/**
+ * Who asked this player along, for the questionnaire to fill in as the one who invited
+ * them. Only a suggestion: the player can change it or clear it, and the questionnaire
+ * checks whatever they send.
+ */
+export async function GET(request: Request) {
+  const auth = await requireClientTmaAuth(request);
+  if (auth.error) return auth.error;
+
+  return NextResponse.json({ inviter: await findDuoInviterName(auth.supabase, auth.user.id) });
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { claimDuoInvite, createDuoInviteToken } from "@/lib/events/duo";
+import { claimDuoInvite, createDuoInviteToken, findDuoInviterName } from "@/lib/events/duo";
 
 /**
  * The two queries a claim makes: finding the invitation, and asking whether somebody is
@@ -105,5 +105,46 @@ describe("taking up an invitation", () => {
     await expect(
       claimDuoInvite(supabase, { token: "   ", userId: "account-friend" }),
     ).resolves.toMatchObject({ error: "gone" });
+  });
+});
+
+describe("who asked a newcomer along", () => {
+  /** The buyers' sign-ups naming this player as their +1, with every filter recorded. */
+  function supabaseReading(rows: unknown[]) {
+    const filters: unknown[][] = [];
+    const chain: Record<string, unknown> = {
+      then: (resolve: (value: { data: unknown[]; error: null }) => unknown) =>
+        Promise.resolve({ data: rows, error: null }).then(resolve),
+    };
+    for (const link of ["eq", "neq", "order", "limit"]) {
+      chain[link] = vi.fn((...args: unknown[]) => {
+        filters.push([link, ...args]);
+        return chain;
+      });
+    }
+    chain.select = vi.fn(() => chain);
+
+    return { filters, supabase: { from: vi.fn(() => chain) } as never };
+  }
+
+  it("names the buyer of the pair the newcomer was asked into", async () => {
+    const { filters, supabase } = supabaseReading([
+      { client_bot_users: { display_name: " TitAn " } },
+    ]);
+
+    await expect(findDuoInviterName(supabase, "account-friend")).resolves.toBe("TitAn");
+    expect(filters).toEqual(
+      expect.arrayContaining([
+        ["eq", "ticket_type", "duo"],
+        ["eq", "duo_partner_user_id", "account-friend"],
+        ["neq", "status", "cancelled"],
+      ]),
+    );
+  });
+
+  it("names nobody when no member has asked", async () => {
+    const { supabase } = supabaseReading([]);
+
+    await expect(findDuoInviterName(supabase, "account-friend")).resolves.toBeNull();
   });
 });

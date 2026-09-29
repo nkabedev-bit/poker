@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { findDuoInvitation } from "@/lib/events/duo";
+import { findDuoInvitation, findDuoInviterName } from "@/lib/events/duo";
 import { listEventSignups } from "@/lib/events/store";
 
 /**
@@ -42,6 +42,14 @@ describe("embedding the account of a sign-up", () => {
     });
 
     expect(invitation?.hostName).toBe("TitAn");
+    expect(columns[0]).toContain("client_bot_users!user_id(");
+    expect(columns[0]).not.toMatch(/[^!]client_bot_users\(/);
+  });
+
+  it("names the foreign key when it reads who asked a newcomer along", async () => {
+    const { columns, supabase } = supabaseStub([{ client_bot_users: { display_name: "TitAn" } }]);
+
+    await expect(findDuoInviterName(supabase, "account-newcomer")).resolves.toBe("TitAn");
     expect(columns[0]).toContain("client_bot_users!user_id(");
     expect(columns[0]).not.toMatch(/[^!]client_bot_users\(/);
   });
