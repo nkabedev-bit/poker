@@ -40,4 +40,18 @@ describe("the favourite hand on an avatar", () => {
     const card = screen.getByRole("img", { name: /Любимая рука/ }).children[0] as HTMLElement;
     expect(parseInt(card.style.width, 10)).toBeGreaterThanOrEqual(13);
   });
+
+  // A profile draws the face 72 pixels across; the fan stays in its lower-left quarter
+  // instead of reaching across the face.
+  it("keeps the cards to the corner of a profile's face", () => {
+    render(<PlayerAvatar hand="AsAh" name="Chura" size={72} />);
+
+    const fan = screen.getByRole("img", { name: /Любимая рука/ });
+    const px = (value: string) => parseInt(value, 10);
+    const right = px(fan.style.left) + px(fan.style.width);
+    const top = 72 - px(fan.style.bottom) - px(fan.style.height);
+
+    expect(right).toBeLessThanOrEqual(72 / 2);
+    expect(top).toBeGreaterThanOrEqual(72 / 2);
+  });
 });
