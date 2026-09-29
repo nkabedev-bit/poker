@@ -7,6 +7,7 @@ import { ChevronRight, Crosshair, Medal, Spade, Trophy } from "lucide-react";
 import { useClientTMA } from "../../layout";
 import { GhostButton, GlassCard, LoadingScreen, PageTitle, ScreenMessage } from "../../_components/ui";
 import { PlayerAvatar } from "../../_components/player-avatar";
+import { CountUp } from "../../_components/count-up";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
@@ -177,12 +178,12 @@ export default function ClientPlayerPage() {
               <ChevronRight className="text-white/35" size={19} />
             </div>
             <span className="text-sm text-white/45">
-              {earned} / {achievements.length}
+              <CountUp suffix={` / ${achievements.length}`} value={earned} />
             </span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
             <div
-              className="h-full rounded-full bg-[#e9c07a]"
+              className="client-fill-x h-full rounded-full bg-[#e9c07a]"
               style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
             />
           </div>
@@ -205,7 +206,7 @@ export default function ClientPlayerPage() {
         <GlassCard className="!p-[18px]">
           <Medal className="text-[#e9c07a]" size={20} />
           <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-            {stats.wins}
+            <CountUp value={stats.wins} />
           </p>
           <p className="mt-2 text-[12px] text-white/50">Побед</p>
         </GlassCard>
@@ -265,7 +266,9 @@ function StatTile({
   return (
     <GlassCard className="!p-[18px]">
       <span className="text-[#e9c07a]">{icon}</span>
-      <p className="mt-2.5 text-[26px] font-extrabold leading-none">{value}</p>
+      <p className="mt-2.5 text-[26px] font-extrabold leading-none">
+        <CountUp value={value} />
+      </p>
       <p className="mt-2 text-[12px] text-white/50">{label}</p>
     </GlassCard>
   );

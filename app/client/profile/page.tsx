@@ -22,12 +22,16 @@ import {
 } from "../layout";
 import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
+import { CountUp } from "../_components/count-up";
 import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
+import { AwardCelebration } from "../_components/award-celebration";
+import { useAwardNews } from "../_components/use-award-news";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
+import { listHeldAwards, type AwardShelf } from "@/lib/client/award-news";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
@@ -41,6 +45,9 @@ import {
 } from "@/lib/events/types";
 
 type HistoryItem = { event: TournamentEvent; status: string };
+
+/** The profile knows every kind of award, so it tells the player about all of them. */
+const PROFILE_SHELVES: AwardShelf[] = ["achievements", "medals", "tier"];
 
 type Me = {
   avatarIsCustom?: boolean;
@@ -218,6 +225,16 @@ export default function ClientProfilePage() {
 
   const medalsEarned = countEarnedMedals(getMedals(me?.medals));
 
+  // What the player holds, checked against what their phone has already shown them.
+  const awards = useMemo(
+    () =>
+      me
+        ? listHeldAwards({ achievements, medals: getMedals(me.medals), tier: me.tier ?? null })
+        : null,
+    [achievements, me],
+  );
+  const { dismiss: dismissNews, left: newsLeft, news } = useAwardNews(awards, PROFILE_SHELVES);
+
   if (loading) return <LoadingScreen shape="profile" />;
 
   const name = me?.displayName?.trim() || telegramUser?.first_name || "Игрок";
@@ -299,6 +316,8 @@ export default function ClientProfilePage() {
         onOpen={() => setHandPickerOpen(true)}
       />
 
+      {news ? <AwardCelebration award={news} left={newsLeft} onDone={dismissNews} /> : null}
+
       {handPickerOpen ? (
         <FavoriteHandPicker
           current={me?.favoriteHand ?? null}
@@ -337,12 +356,12 @@ export default function ClientProfilePage() {
               <ChevronRight className="text-white/35" size={19} />
             </div>
             <span className="text-sm text-white/45">
-              {earned} / {achievements.length}
+              <CountUp suffix={` / ${achievements.length}`} value={earned} />
             </span>
           </div>
           <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
             <div
-              className="h-full rounded-full bg-[#e9c07a]"
+              className="client-fill-x h-full rounded-full bg-[#e9c07a]"
               style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
             />
           </div>
@@ -359,7 +378,7 @@ export default function ClientProfilePage() {
           <GlassCard className="h-full !p-[18px]">
             <Ticket className="text-[#e9c07a]" size={20} />
             <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-              {passesTotal}
+              <CountUp value={passesTotal} />
             </p>
             <p className="mt-2 text-[12px] text-white/50">Бесплатные проходки</p>
             <p className="text-[11px] text-white/25">
@@ -370,7 +389,15 @@ export default function ClientProfilePage() {
         <GlassCard className="!p-[18px]">
           <Trophy className="text-[#e9c07a]" size={20} />
           <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-            {myRating?.place ?? "—"}
+            {/* The place climbs up from the bottom of the table to where the player is. */}
+            {myRating?.place ? (
+              <CountUp
+                from={Math.max(rating?.players.length ?? 0, myRating.place)}
+                value={myRating.place}
+              />
+            ) : (
+              "—"
+            )}
           </p>
           <p className="mt-2 text-[12px] text-white/50">Место в рейтинге</p>
         </GlassCard>
@@ -518,7 +545,9 @@ function StatTile({ icon, label, value }: { icon: ReactNode; label: string; valu
   return (
     <GlassCard className="!p-4 text-center">
       <span className="flex justify-center text-white/35">{icon}</span>
-      <p className="mt-2.5 text-[26px] font-extrabold leading-none">{value}</p>
+      <p className="mt-2.5 text-[26px] font-extrabold leading-none">
+        <CountUp value={value} />
+      </p>
       <p className="mt-2 text-[11px] text-white/45">{label}</p>
     </GlassCard>
   );

@@ -4408,6 +4408,8 @@ p {
   width: 38%;
   background: linear-gradient(90deg, transparent, rgb(233 192 122 / 0.35), transparent);
   pointer-events: none;
+  /* At rest the streak waits past the edge, so a stilled animation leaves no stripe. */
+  transform: translateX(330%) skewX(-20deg);
   animation: client-glint 5s ease-in-out 1s infinite;
 }
 
@@ -4475,4 +4477,96 @@ p {
   animation:
     client-fade-in 0.3s ease-out backwards,
     client-fade-out 0.35s ease-in 1.45s forwards;
+}
+
+/* ——— Client mini-app motion: counting and awards ——— */
+
+@keyframes client-fill-x {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes client-grow-y {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+@keyframes client-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-36px);
+  }
+}
+
+@keyframes client-crown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) rotate(-25deg) scale(0.4);
+  }
+}
+
+@keyframes client-float {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes client-spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A progress bar fills up to where the player stands. */
+.client-fill-x {
+  transform-origin: left;
+  animation: client-fill-x 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s backwards;
+}
+
+/* One element rising on its own, at a delay the element sets. */
+.client-rise {
+  animation: client-rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* An award already won catches the light once as it comes into view. */
+.client-glint-once::after {
+  content: "";
+  position: absolute;
+  top: -10%;
+  bottom: -10%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(90deg, transparent, rgb(255 236 190 / 0.35), transparent);
+  pointer-events: none;
+  transform: translateX(330%) skewX(-20deg);
+  animation: client-glint 2s ease-out 0.5s backwards;
+}
+
+/* The evening's podium: the steps grow third, second, first, and the faces land on them. */
+.client-podium-step {
+  transform-origin: bottom;
+  animation: client-grow-y 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+.client-drop {
+  animation: client-drop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.client-crown-in {
+  animation: client-crown-in 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 1.1s backwards;
+}
+
+/* Something that is coming — the battle pass — hovers, not quite here yet. */
+.client-float {
+  animation: client-float 3.2s ease-in-out infinite;
+}
+
+/* The rays behind a new award turn slowly while it is on the screen. */
+.client-rays {
+  background: repeating-conic-gradient(rgb(233 192 122 / 0.18) 0 9deg, transparent 9deg 24deg);
+  -webkit-mask: radial-gradient(circle, #000 0 18%, transparent 60%);
+  mask: radial-gradient(circle, #000 0 18%, transparent 60%);
+  animation: client-spin-slow 16s linear infinite;
 }

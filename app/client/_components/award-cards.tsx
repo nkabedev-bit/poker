@@ -33,8 +33,8 @@ export function AchievementCard({
 
   return (
     <Link
-      className={`block h-full rounded-[22px] border p-[18px] transition-transform active:scale-[0.98] ${
-        achievement.earned ? EARNED : LOCKED
+      className={`relative block h-full overflow-hidden rounded-[22px] border p-[18px] transition-transform active:scale-[0.98] ${
+        achievement.earned ? `${EARNED} client-glint-once` : LOCKED
       }`}
       href={`/client/achievements/${achievement.id}`}
     >
@@ -72,7 +72,11 @@ export function MedalCard({ medal }: { medal: Medal }) {
   const earned = medal.count > 0;
 
   return (
-    <div className={`rounded-[22px] border p-[18px] ${earned ? EARNED : LOCKED}`}>
+    <div
+      className={`relative overflow-hidden rounded-[22px] border p-[18px] ${
+        earned ? `${EARNED} client-glint-once` : LOCKED
+      }`}
+    >
       <AchievementIcon className={earned ? "text-[#e9c07a]" : "text-white/30"} name={medal.icon} />
       <p
         className={`mt-3 text-[15px] font-bold uppercase leading-tight ${

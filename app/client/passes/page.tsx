@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Ticket, TriangleAlert } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { GhostButton, GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
+import { CountUp } from "../_components/count-up";
 import { formatEventDayLabel } from "@/lib/events/types";
 
 /** A pass written down for a game the player signed up for and has not played yet. */
@@ -58,12 +59,14 @@ export default function ClientPassesPage() {
       <div className="grid grid-cols-2 gap-3">
         <GlassCard className="!p-[18px]">
           <p className="text-[11px] uppercase tracking-wider text-white/40">Обычные</p>
-          <p className="mt-2 text-[30px] font-extrabold leading-none">{freeEntries.regular}</p>
+          <p className="mt-2 text-[30px] font-extrabold leading-none">
+            <CountUp value={freeEntries.regular} />
+          </p>
         </GlassCard>
         <GlassCard className="border-[#e9c07a]/40 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] !p-[18px]">
           <p className="text-[11px] uppercase tracking-wider text-[#e9c07a]">VIP</p>
           <p className="mt-2 text-[30px] font-extrabold leading-none text-[#e9c07a]">
-            {freeEntries.vip}
+            <CountUp value={freeEntries.vip} />
           </p>
         </GlassCard>
       </div>

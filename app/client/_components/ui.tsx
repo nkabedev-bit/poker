@@ -94,17 +94,24 @@ export function PageTitle({ children }: { children: ReactNode }) {
 export function ScreenMessage({
   action,
   icon,
+  lively = false,
   title,
   subtitle,
 }: {
   action?: ReactNode;
   icon: ReactNode;
+  /** For something on its way rather than missing: the icon hovers and catches the light. */
+  lively?: boolean;
   title: string;
   subtitle?: string;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
-      <div className="flex h-[72px] w-[72px] items-center justify-center rounded-[24px] border border-white/[0.07] bg-white/[0.04] text-[#e0416a]">
+      <div
+        className={`flex h-[72px] w-[72px] items-center justify-center rounded-[24px] border border-white/[0.07] bg-white/[0.04] text-[#e0416a] ${
+          lively ? "client-float client-glint relative overflow-hidden" : ""
+        }`}
+      >
         {icon}
       </div>
       <div className="space-y-1.5">

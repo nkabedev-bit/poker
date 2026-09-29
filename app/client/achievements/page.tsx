@@ -1,17 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
 import { LoadingScreen } from "../_components/ui";
 import { AchievementCard } from "../_components/award-cards";
+import { CountUp } from "../_components/count-up";
 import { useAchievementRarity } from "../_components/use-achievement-rarity";
+import { AwardCelebration } from "../_components/award-celebration";
+import { useAwardNews } from "../_components/use-award-news";
 import {
   countEarnedAchievements,
   EMPTY_PLAYER_STATS,
+  getAchievements,
   getAchievementSections,
   type PlayerStats,
 } from "@/lib/client/achievements";
+import { listHeldAwards, type AwardShelf } from "@/lib/client/award-news";
+
+/** This screen knows the player's achievements only, so it speaks for that shelf alone. */
+const ACHIEVEMENT_SHELVES: AwardShelf[] = ["achievements"];
 
 export default function ClientAchievementsPage() {
   const { initData } = useClientTMA();
@@ -38,6 +46,12 @@ export default function ClientAchievementsPage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
+  const awards = useMemo(
+    () => (stats ? listHeldAwards({ achievements: getAchievements(stats) }) : null),
+    [stats],
+  );
+  const { dismiss: dismissNews, left: newsLeft, news } = useAwardNews(awards, ACHIEVEMENT_SHELVES);
+
   if (loading) return <LoadingScreen shape="grid" />;
 
   const sections = getAchievementSections(stats ?? EMPTY_PLAYER_STATS);
@@ -47,6 +61,7 @@ export default function ClientAchievementsPage() {
 
   return (
     <div className="client-stagger space-y-7 pt-1">
+      {news ? <AwardCelebration award={news} left={newsLeft} onDone={dismissNews} /> : null}
 
       <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,#c8163f,#7d0d26)] p-5 shadow-[0_14px_38px_rgba(200,22,63,0.35)]">
         <Trophy
@@ -57,12 +72,12 @@ export default function ClientAchievementsPage() {
         />
         <p className="text-[26px] font-bold tracking-tight">Достижения</p>
         <div className="mt-4 h-1.5 w-full max-w-[60%] overflow-hidden rounded-full bg-black/25">
-          <div className="h-full rounded-full bg-white/85" style={{ width: `${progress}%` }} />
+          <div className="client-fill-x h-full rounded-full bg-white/85" style={{ width: `${progress}%` }} />
         </div>
         <p className="mt-3 flex items-center gap-2 text-[15px] font-bold">
           Выполнено
           <Trophy size={16} />
-          {earned} / {all.length}
+          <CountUp suffix={` / ${all.length}`} value={earned} />
         </p>
       </div>
 

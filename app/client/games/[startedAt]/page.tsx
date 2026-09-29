@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { CalendarDays, Clock, Crosshair, Trophy, Users, Zap } from "lucide-react";
+import { CalendarDays, Clock, Crosshair, Crown, Trophy, Users, Zap } from "lucide-react";
 import { useClientTMA } from "../../layout";
 import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui";
 import { PlayerAvatar } from "../../_components/player-avatar";
+import { useSuitBurst } from "../../_components/suit-burst";
 import {
   formatEventDayLabel,
   formatEventTimeLabel,
@@ -43,12 +44,19 @@ const PODIUM: Record<number, string> = {
 /** The podium is read left to right as the room sees it: second, first, third. */
 const PODIUM_ORDER = [2, 1, 3] as const;
 
-/** How tall each step of the podium stands, and how large the face on it is. */
-const PODIUM_STEP: Record<number, { avatar: number; step: string }> = {
-  1: { avatar: 76, step: "h-24" },
-  2: { avatar: 60, step: "h-16" },
-  3: { avatar: 60, step: "h-12" },
+/**
+ * How tall each step of the podium stands, how large the face on it is, and when each
+ * comes in: the steps grow third, second, first, and the faces land on them in the same
+ * order, so the winner arrives last.
+ */
+const PODIUM_STEP: Record<number, { avatar: number; landsMs: number; risesMs: number; step: string }> = {
+  1: { avatar: 76, landsMs: 750, risesMs: 360, step: "h-24" },
+  2: { avatar: 60, landsMs: 600, risesMs: 180, step: "h-16" },
+  3: { avatar: 60, landsMs: 450, risesMs: 0, step: "h-12" },
 };
+
+/** When a player who made the podium gets their suits: once everybody has landed. */
+const PODIUM_CHEER_MS = 1_450;
 
 function profileHref(name: string) {
   return `/client/players/${encodeURIComponent(buildNicknameKey(name))}`;
@@ -59,19 +67,45 @@ function profileHref(name: string) {
  * A game with fewer than three finishers shows the steps it has.
  */
 function Podium({ rows }: { rows: ResultRow[] }) {
+  const { burst, fire } = useSuitBurst();
+  const meOnPodium = rows.some((row) => row.isMe);
+
+  useEffect(() => {
+    if (!meOnPodium) return;
+
+    const timer = window.setTimeout(fire, PODIUM_CHEER_MS);
+    return () => window.clearTimeout(timer);
+  }, [fire, meOnPodium]);
+
+  // The top padding is the winner's crown's room.
   return (
-    <div className="grid grid-cols-3 items-end gap-2">
+    <div className="grid grid-cols-3 items-end gap-2 pt-8">
       {PODIUM_ORDER.map((place) => {
         const row = rows.find((item) => item.place === place);
         if (!row) return <div key={place} />;
 
+        const { landsMs, risesMs } = PODIUM_STEP[place];
+
         return (
           <Link
             key={place}
-            className="flex min-w-0 flex-col items-center gap-2 text-center"
+            className="relative flex min-w-0 flex-col items-center gap-2 text-center"
             href={profileHref(row.playerName)}
           >
-            <span className={`rounded-full p-[3px] ${PODIUM[place]}`}>
+            {row.isMe ? burst : null}
+            {place === 1 ? (
+              <Crown
+                aria-hidden
+                className="client-crown-in absolute -top-7 left-1/2 -translate-x-1/2 text-[#e9c07a]"
+                fill="rgba(233,192,122,0.25)"
+                size={24}
+                strokeWidth={1.8}
+              />
+            ) : null}
+            <span
+              className={`client-drop rounded-full p-[3px] ${PODIUM[place]}`}
+              style={{ animationDelay: `${landsMs}ms` }}
+            >
               <PlayerAvatar
                 hand={row.hand}
                 name={row.playerName}
@@ -80,11 +114,15 @@ function Podium({ rows }: { rows: ResultRow[] }) {
               />
             </span>
             <span
-              className={`w-full truncate text-[14px] font-bold ${row.isMe ? "text-[#e9c07a]" : ""}`}
+              className={`client-rise w-full truncate text-[14px] font-bold ${row.isMe ? "text-[#e9c07a]" : ""}`}
+              style={{ animationDelay: `${landsMs + 120}ms` }}
             >
               {row.playerName}
             </span>
-            <span className="flex items-center gap-2.5 text-[12px] font-semibold text-white/60">
+            <span
+              className="client-rise flex items-center gap-2.5 text-[12px] font-semibold text-white/60"
+              style={{ animationDelay: `${landsMs + 160}ms` }}
+            >
               <span className="flex items-center gap-0.5">
                 {row.points.toLocaleString("ru-RU")}
                 <Zap className="text-[#e9c07a]" fill="currentColor" size={11} />
@@ -95,7 +133,8 @@ function Podium({ rows }: { rows: ResultRow[] }) {
               </span>
             </span>
             <span
-              className={`flex w-full items-start justify-center rounded-t-2xl pt-2 text-[20px] font-extrabold ${PODIUM[place]} ${PODIUM_STEP[place].step}`}
+              className={`client-podium-step flex w-full items-start justify-center rounded-t-2xl pt-2 text-[20px] font-extrabold ${PODIUM[place]} ${PODIUM_STEP[place].step}`}
+              style={{ animationDelay: `${risesMs}ms` }}
             >
               {place}
             </span>

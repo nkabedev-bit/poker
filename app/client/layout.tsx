@@ -32,6 +32,12 @@ export type ClientTelegramWebApp = {
     notificationOccurred: (type: string) => void;
     selectionChanged?: () => void;
   };
+  /** Bot API 6.9+: a few kilobytes per player, kept by Telegram across their devices. */
+  CloudStorage?: {
+    getItems: (keys: string[], callback: (error: unknown, values?: Record<string, string>) => void) => void;
+    setItem: (key: string, value: string, callback?: (error: unknown, stored?: boolean) => void) => void;
+  };
+  isVersionAtLeast?: (version: string) => boolean;
 };
 
 export function getClientTelegramWebApp(): ClientTelegramWebApp | undefined {

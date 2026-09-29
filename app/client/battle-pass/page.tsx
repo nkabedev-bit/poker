@@ -9,7 +9,7 @@ export default function ClientBattlePassPage() {
   return (
     <div className="client-stagger pt-1">
       <PageTitle>Боевой пропуск</PageTitle>
-      <ScreenMessage icon={<Swords size={30} />} title="Скоро" />
+      <ScreenMessage icon={<Swords size={30} />} lively title="Скоро" />
     </div>
   );
 }

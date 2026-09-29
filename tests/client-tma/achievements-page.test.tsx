@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ACHIEVEMENTS_TOTAL } from "@/lib/client/achievements";
 
 vi.mock("@/app/client/layout", () => ({
+  getClientTelegramWebApp: () => undefined,
   useClientTMA: () => ({ initData: "mock-init", telegramUser: null }),
 }));
 
