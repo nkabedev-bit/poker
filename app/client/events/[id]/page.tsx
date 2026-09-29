@@ -1234,17 +1234,19 @@ function TicketCard({
       >
         {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
       </p>
+      {/* The stamp takes the seats line's place: what is left of a ticket the player
+          already holds is not theirs to worry about. */}
       <p
         className={`mt-2 ${compact ? "text-[11px]" : "text-[12px]"} ${
           lastSeats ? "client-blink text-[#ff8aa2]" : "text-white/45"
-        }`}
+        } ${stamp ? "invisible" : ""}`}
       >
         {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
       </p>
       {stamp ? (
         <span
-          className={`pointer-events-none absolute left-1/2 top-[70%] z-[1] -translate-x-1/2 -translate-y-1/2 -rotate-[14deg] whitespace-nowrap rounded-md border-2 border-emerald-300 bg-[#0a0608]/75 px-1.5 py-0.5 font-extrabold uppercase tracking-[0.08em] text-emerald-300 ${
-            compact ? "text-[9px]" : "text-[10px]"
+          className={`pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2 -rotate-[8deg] whitespace-nowrap rounded-md border-2 border-emerald-300 bg-[#0a0608]/75 px-1.5 py-0.5 font-extrabold uppercase tracking-[0.08em] text-emerald-300 ${
+            compact ? "bottom-2 text-[9px]" : "bottom-3.5 text-[10px]"
           } ${stamp === "landing" ? "client-stamp-in" : ""}`}
         >
           Вы записаны

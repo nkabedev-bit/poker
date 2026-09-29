@@ -81,12 +81,16 @@ describe("a number counting up", () => {
     const { container } = render(<CountUp from={40} value={4} />);
     expect(container.textContent).toBe("40");
 
-    act(() => frames.shift()?.(450));
+    // The count waits a beat for its block to come into view, then runs for 900 ms.
+    act(() => frames.shift()?.(100));
+    expect(container.textContent).toBe("40");
+
+    act(() => frames.shift()?.(600));
     const midway = Number(container.textContent);
     expect(midway).toBeLessThan(40);
     expect(midway).toBeGreaterThan(4);
 
-    act(() => frames.shift()?.(900));
+    act(() => frames.shift()?.(1_100));
     expect(container.textContent).toBe("4");
   });
 });

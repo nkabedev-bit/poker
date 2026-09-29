@@ -5,12 +5,27 @@ import { useLayoutEffect, useRef } from "react";
 /** How long a number takes to reach its value. */
 const COUNT_MS = 900;
 
+/** How far into its block's rise the count begins, so the block is in sight by then. */
+const COUNT_LEAD_MS = 150;
+
 /** A phone that asked for less motion, or cannot say, gets the number at once. */
 function mayMove() {
   return (
     typeof window.matchMedia === "function" &&
     !window.matchMedia("(prefers-reduced-motion: reduce)").matches
   );
+}
+
+/**
+ * How long the block holding the number waits for its turn in the screen's cascade. A
+ * count that ran from the start was all but over by the time its block came into view.
+ */
+function cascadeDelayMs(span: HTMLElement) {
+  const block = span.closest(".client-stagger > *");
+  if (!block) return 0;
+
+  const seconds = Number.parseFloat(getComputedStyle(block).animationDelay);
+  return Number.isFinite(seconds) ? seconds * 1000 : 0;
 }
 
 /**
@@ -37,7 +52,7 @@ export function CountUp({
     const span = node.current;
     if (!span || from === value || !mayMove()) return;
 
-    const started = performance.now();
+    const started = performance.now() + cascadeDelayMs(span) + COUNT_LEAD_MS;
     let frame = 0;
 
     const draw = (now: number) => {

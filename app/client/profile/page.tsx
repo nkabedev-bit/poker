@@ -458,7 +458,7 @@ export default function ClientProfilePage() {
           {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
           <span
             aria-hidden
-            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-full bg-white transition-transform duration-[400ms] ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
+            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-full bg-white transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
               historyTab === "past" ? "translate-x-[calc(100%+4px)]" : ""
             }`}
           />

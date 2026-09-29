@@ -4257,10 +4257,11 @@ p {
 }
 
 /* The tab bar's one pill travels to the tab the player is on; the icon it lands on
-   springs. A gradient cannot fade, so a tab that switched its own on simply blinked. */
+   springs. A gradient cannot fade, so a tab that switched its own on simply blinked.
+   The pill itself glides without overshooting: past the last tab it would leave the bar. */
 .client-nav-pill {
   transition:
-    transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.2s ease-out;
 }
 
@@ -4522,7 +4523,7 @@ p {
 /* A progress bar fills up to where the player stands. */
 .client-fill-x {
   transform-origin: left;
-  animation: client-fill-x 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s backwards;
+  animation: client-fill-x 1s cubic-bezier(0.2, 0.8, 0.2, 1) 0.6s backwards;
 }
 
 /* One element rising on its own, at a delay the element sets. */
