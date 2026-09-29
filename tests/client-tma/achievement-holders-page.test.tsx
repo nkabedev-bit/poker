@@ -48,6 +48,9 @@ describe("client mini-app: у кого есть достижение", () => {
     expect(screen.getByText("12,5%")).toBeTruthy();
     expect(screen.getByText("2 из 16")).toBeTruthy();
     expect(screen.getByText("вы")).toBeTruthy();
+    // The nickname shortens on its own; the badge beside it is never cut off with it.
+    expect(screen.getByText("Kabedev").className).toContain("truncate");
+    expect(screen.getByText("вы").closest(".truncate")).toBeNull();
     expect(screen.getByText("5")).toBeTruthy();
     expect(screen.getByText("Anna").closest("a")?.getAttribute("href")).toBe("/client/players/anna");
   });

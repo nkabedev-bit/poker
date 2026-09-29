@@ -56,6 +56,16 @@ describe("RatingRow", () => {
     expect(screen.getByText("Maks B").getAttribute("style")).toBeNull();
   });
 
+  // On a phone the name column is narrow: a long nickname shortens itself, and the «вы»
+  // badge beside it used to be cut off along with it.
+  it("keeps the «вы» badge whole and lets only the nickname shorten", () => {
+    const name = "Очень длинный никнейм игрока клуба";
+    render(<RatingRow player={player({ isMe: true, name })} />);
+
+    expect(screen.getByText(name).className).toContain("truncate");
+    expect(screen.getByText("вы").closest(".truncate")).toBeNull();
+  });
+
   it("stays on the rating when a row has no nickname to open", () => {
     render(<RatingRow player={player({ name: "" })} />);
 

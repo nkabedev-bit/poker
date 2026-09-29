@@ -75,10 +75,14 @@ export function RatingRow({ player }: { player: RatingPlayer }) {
       {/* The tier is worn as the colour of the name — a badge beside it was too much
           on a list this dense. */}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-[15px] font-semibold">
-          {player.name || "Без никнейма"}
+        {/* The name gives way to the «вы» badge: a long one shortens itself, and the
+            badge beside it stays whole instead of being cut off with it. */}
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="min-w-0 truncate text-[15px] font-semibold">
+            {player.name || "Без никнейма"}
+          </span>
           {player.isMe ? (
-            <span className="ml-2 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
+            <span className="shrink-0 rounded-md bg-[#e9c07a]/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-[#e9c07a]">
               вы
             </span>
           ) : null}
