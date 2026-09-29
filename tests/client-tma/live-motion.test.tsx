@@ -68,7 +68,7 @@ describe("knockouts called out on the phone", () => {
       <LiveTables {...room(["Ace"], ["Blinder", "Kira"])} justOut={new Set(["Blinder"])} />,
     );
 
-    const flashing = [...container.querySelectorAll("li.client-bust")].map((row) => row.textContent);
+    const flashing = [...container.querySelectorAll(".client-bust")].map((row) => row.textContent);
     expect(flashing).toHaveLength(1);
     expect(flashing[0]).toContain("Blinder");
   });

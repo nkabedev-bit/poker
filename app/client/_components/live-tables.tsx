@@ -1,19 +1,22 @@
 "use client";
 
+import Link from "next/link";
 import { Crosshair, Users } from "lucide-react";
 import { GlassCard } from "./ui";
 import { PlayerAvatar } from "./player-avatar";
 import type { LiveRoom, LiveTablePlayer } from "@/lib/tables/live-tables";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: LiveTablePlayer }) {
   const out = player.status === "eliminated";
-
-  return (
-    <li
-      className={`relative flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
-        player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
-      } ${justOut ? "client-bust client-rise" : ""}`}
-    >
+  // The desk's spelling of the name is the one the evening's results are saved under,
+  // so it finds the same profile the rating and the game page open.
+  const profileKey = buildNicknameKey(player.name);
+  const rowClassName = `relative flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
+    player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
+  } ${justOut ? "client-bust client-rise" : ""}`;
+  const row = (
+    <>
       <span className={out ? "opacity-40 grayscale" : undefined}>
         <PlayerAvatar
           hand={player.hand}
@@ -54,6 +57,21 @@ function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: Liv
         </span>
       ) : (
         <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+      )}
+    </>
+  );
+
+  return (
+    <li>
+      {profileKey ? (
+        <Link
+          className={`${rowClassName} transition active:scale-[0.99]`}
+          href={`/client/players/${encodeURIComponent(profileKey)}`}
+        >
+          {row}
+        </Link>
+      ) : (
+        <div className={rowClassName}>{row}</div>
       )}
     </li>
   );

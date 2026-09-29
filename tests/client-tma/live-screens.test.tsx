@@ -131,6 +131,18 @@ describe("LiveTables", () => {
     expect(screen.getByText("Играет").className).not.toContain("text-white/40");
   });
 
+  it("opens the profile of anybody at the tables, the knocked-out too", () => {
+    render(
+      <LiveTables
+        eliminated={[seat({ id: "b", name: "Mr.Shark", seat: null, status: "eliminated" })]}
+        tables={[{ number: 1, players: [seat({ id: "a", name: "MAKS B" })] }]}
+      />,
+    );
+
+    const links = screen.getAllByRole("link").map((link) => link.getAttribute("href"));
+    expect(links).toEqual(["/client/players/maksb", "/client/players/mrshark"]);
+  });
+
   it("draws no list of the knocked-out while everybody is still in", () => {
     render(<LiveTables eliminated={[]} tables={[{ number: 1, players: [seat({ id: "a", name: "Играет" })] }]} />);
 
