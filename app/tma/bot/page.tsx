@@ -1,19 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ReactNode } from "react";
 import {
   CalendarDays,
   CalendarPlus,
   Clock,
   Link,
   Loader2,
-  MessageSquare,
   Paperclip,
   Send,
   Trash2,
 } from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { MoreTabs } from "../more-tabs";
+import { ScreenHeader, SectionLabel, ToggleRow } from "../ui";
 import { moscowLocalToUtcISO, utcISOToMoscowLocal } from "@/lib/client-bot/schedule-time";
 
 type ScheduleVersion = { effectiveFrom: string; text: string };
@@ -47,8 +47,13 @@ const STATUS_LABELS: Record<ScheduledBroadcast["status"], string> = {
   canceled: "отменено",
 };
 
-const textFieldClass =
-  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color)] p-3 text-[var(--tg-theme-text-color)] placeholder:text-[var(--tg-theme-hint-color)] outline-none";
+const STATUS_TONES: Record<ScheduledBroadcast["status"], string> = {
+  canceled: "",
+  failed: " tma-badge--red",
+  pending: " tma-badge--amber",
+  sending: " tma-badge--blue",
+  sent: " tma-badge--green",
+};
 
 function formatMoscow(iso: string): string {
   // utcISOToMoscowLocal -> "2026-06-19T14:00" -> "19.06.2026 14:00"
@@ -222,24 +227,25 @@ export default function TMABotPage() {
     }));
   };
 
-  if (loading) return <div>Загрузка...</div>;
+  if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   return (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-3 text-[var(--tg-theme-text-color)]">
-        <div className="flex items-center gap-2 text-[var(--tg-theme-text-color)]">
-          <MessageSquare size={18} />
-          <h1 className="text-lg font-bold">Рассылка</h1>
-        </div>
+    <div className="tma-screen">
+      <ScreenHeader title="Ещё" />
+      <MoreTabs current="bot" />
+
+      <SectionLabel title="Рассылка" />
+      <div className="tma-card">
         <textarea
-          className={`min-h-28 ${textFieldClass}`}
+          aria-label="Сообщение"
+          className="min-h-28"
           placeholder="Сообщение пользователям клиентского бота"
           value={message}
           onChange={(event) => setMessage(event.target.value)}
         />
 
         {!scheduleEnabled ? (
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]">
+          <label className="tma-btn tma-btn--inset tma-btn--link">
             <Paperclip size={16} />
             <span>{files?.length ? `Вложений: ${files.length}` : "Добавить вложения"}</span>
             <input
@@ -251,22 +257,22 @@ export default function TMABotPage() {
           </label>
         ) : null}
 
-        <label className="flex items-center gap-2 text-sm font-semibold text-[var(--tg-theme-text-color)]">
-          <input
-            checked={scheduleEnabled}
-            onChange={(event) => {
-              setScheduleEnabled(event.target.checked);
-              if (event.target.checked) setFiles(null);
-            }}
-            type="checkbox"
-          />
-          <Clock size={16} />
-          Отправить позже
-        </label>
+        <ToggleRow
+          checked={scheduleEnabled}
+          label={
+            <span className="flex items-center gap-2">
+              <Clock size={16} /> Отправить позже
+            </span>
+          }
+          onChange={(checked) => {
+            setScheduleEnabled(checked);
+            if (checked) setFiles(null);
+          }}
+        />
 
         {scheduleEnabled ? (
           <input
-            className={textFieldClass}
+            aria-label="Когда отправить (МСК)"
             type="datetime-local"
             value={scheduleAt}
             onChange={(event) => setScheduleAt(event.target.value)}
@@ -274,34 +280,33 @@ export default function TMABotPage() {
         ) : null}
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color,#2563eb)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          className="tma-btn tma-btn--primary"
           disabled={sending}
+          type="button"
           onClick={sendBroadcast}
         >
           {sending ? <Loader2 className="animate-spin" size={18} /> : <Send size={18} />}
-          {scheduleEnabled ? "Запланировать" : "Отправить"}
+          {scheduleEnabled ? "Запланировать" : "Отправить всем"}
         </button>
-      </section>
+      </div>
 
       {scheduled.length > 0 ? (
-        <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-3 text-[var(--tg-theme-text-color)]">
-          <div className="flex items-center gap-2 text-[var(--tg-theme-text-color)]">
-            <Clock size={18} />
-            <h2 className="text-base font-bold">Рассылки</h2>
-          </div>
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
-            Запланированные и две последние отправленные — остальные удаляются.
-          </p>
-          {scheduled.map((item) => (
-            <div key={item.id} className="rounded-lg border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-bg-color)] p-3 text-sm text-[var(--tg-theme-text-color)]">
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-semibold">{formatMoscow(item.send_at)}</span>
-                <span className="flex items-center gap-2">
-                  <span className="text-[var(--tg-theme-hint-color)]">{STATUS_LABELS[item.status]}</span>
+        <>
+          <SectionLabel meta="запланированные и две последние" title="Отправленные" />
+          <div className="tma-card tma-card--flush">
+            {scheduled.map((item) => (
+              <div key={item.id} className="tma-row !items-start">
+                <span className="tma-row__body">
+                  <span className="whitespace-pre-wrap break-words text-[15px]">{item.message}</span>
+                  <span className="tma-row__sub">{formatMoscow(item.send_at)}</span>
+                </span>
+                <span className="flex shrink-0 items-center gap-1">
+                  <span className={`tma-badge${STATUS_TONES[item.status]}`}>{STATUS_LABELS[item.status]}</span>
                   {item.status === "pending" ? (
                     <button
                       aria-label="Отменить"
-                      className="text-red-500"
+                      className="tma-icon-btn tma-icon-btn--danger"
+                      type="button"
                       onClick={() => cancelScheduled(item.id)}
                     >
                       <Trash2 size={16} />
@@ -309,94 +314,90 @@ export default function TMABotPage() {
                   ) : null}
                 </span>
               </div>
-              <p className="mt-1 whitespace-pre-wrap break-words text-[var(--tg-theme-text-color)]">{item.message}</p>
-            </div>
-          ))}
-        </section>
+            ))}
+          </div>
+        </>
       ) : null}
 
-      <section className="rounded-xl border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-secondary-bg-color)] p-4 space-y-4 text-[var(--tg-theme-text-color)]">
-        <SettingLabel icon={<CalendarDays size={18} />} title="Расписание следующих турниров" />
-        <textarea
-          className={`min-h-32 ${textFieldClass}`}
-          value={settings.scheduleText}
-          onChange={(event) => updateSetting({ scheduleText: event.target.value })}
-          placeholder="Текущее расписание (показывается, пока не наступит запланированная версия)"
-        />
+      <SectionLabel title="Настройки бота" />
+      <div className="tma-card">
+        <label className="tma-field">
+          <span className="tma-field__label flex items-center gap-1.5">
+            <CalendarDays size={14} /> Расписание следующих турниров
+          </span>
+          <textarea
+            className="min-h-32"
+            value={settings.scheduleText}
+            onChange={(event) => updateSetting({ scheduleText: event.target.value })}
+            placeholder="Текущее расписание (показывается, пока не наступит запланированная версия)"
+          />
+        </label>
 
-        <div className="space-y-3">
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
-            Запланированные версии: каждая показывается с указанной даты, заменяя предыдущую.
-          </p>
-          {settings.scheduleVersions.map((version, index) => (
-            <div key={index} className="rounded-lg border border-[var(--tg-theme-hint-color)]/20 bg-[var(--tg-theme-bg-color)] p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <input
-                  className={textFieldClass}
-                  type="datetime-local"
-                  value={version.effectiveFrom ? utcISOToMoscowLocal(version.effectiveFrom) : ""}
-                  onChange={(event) =>
-                    updateVersion(index, {
-                      effectiveFrom: event.target.value
-                        ? moscowLocalToUtcISO(event.target.value)
-                        : "",
-                    })
-                  }
-                />
-                <button
-                  aria-label="Удалить версию"
-                  className="shrink-0 text-red-500"
-                  onClick={() => removeVersion(index)}
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-              <textarea
-                className={`min-h-24 ${textFieldClass}`}
-                value={version.text}
-                onChange={(event) => updateVersion(index, { text: event.target.value })}
-                placeholder="Текст расписания для этой даты"
+        <p className="tma-hint">
+          Запланированные версии: каждая показывается с указанной даты, заменяя предыдущую.
+        </p>
+        {settings.scheduleVersions.map((version, index) => (
+          <div key={index} className="tma-card tma-card--inset !gap-2 !p-3">
+            <div className="flex items-center gap-2">
+              <input
+                aria-label="Показывать с (МСК)"
+                type="datetime-local"
+                value={version.effectiveFrom ? utcISOToMoscowLocal(version.effectiveFrom) : ""}
+                onChange={(event) =>
+                  updateVersion(index, {
+                    effectiveFrom: event.target.value
+                      ? moscowLocalToUtcISO(event.target.value)
+                      : "",
+                  })
+                }
               />
+              <button
+                aria-label="Удалить версию"
+                className="tma-icon-btn tma-icon-btn--danger"
+                type="button"
+                onClick={() => removeVersion(index)}
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
-          ))}
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color,#2563eb)]"
-            onClick={addVersion}
-          >
-            <CalendarPlus size={16} />
-            Добавить версию
-          </button>
-        </div>
+            <textarea
+              aria-label="Текст расписания"
+              className="min-h-24"
+              value={version.text}
+              onChange={(event) => updateVersion(index, { text: event.target.value })}
+              placeholder="Текст расписания для этой даты"
+            />
+          </div>
+        ))}
+        <button className="tma-btn tma-btn--inset tma-btn--link" type="button" onClick={addVersion}>
+          <CalendarPlus size={16} />
+          Добавить версию с даты
+        </button>
 
-        <SettingLabel icon={<Link size={18} />} title="Ссылка на Google-таблицу с рейтингом" />
-        <input
-          className={textFieldClass}
-          inputMode="url"
-          value={settings.ratingUrl}
-          onChange={(event) => updateSetting({ ratingUrl: event.target.value })}
-          placeholder="https://docs.google.com/spreadsheets/..."
-        />
+        <label className="tma-field">
+          <span className="tma-field__label flex items-center gap-1.5">
+            <Link size={14} /> Ссылка на Google-таблицу с рейтингом
+          </span>
+          <input
+            inputMode="url"
+            value={settings.ratingUrl}
+            onChange={(event) => updateSetting({ ratingUrl: event.target.value })}
+            placeholder="https://docs.google.com/spreadsheets/..."
+          />
+        </label>
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color,#2563eb)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color,#fff)] disabled:opacity-60"
+          className="tma-btn tma-btn--primary"
           disabled={saving}
+          type="button"
           onClick={saveSettings}
         >
           {saving ? <Loader2 className="animate-spin" size={18} /> : null}
           Сохранить настройки
         </button>
-      </section>
+      </div>
 
-      {status ? <p className="text-center text-sm text-[var(--tg-theme-hint-color)]">{status}</p> : null}
+      {status ? <p className="tma-hint text-center">{status}</p> : null}
     </div>
-  );
-}
-
-function SettingLabel({ icon, title }: { icon: ReactNode; title: string }) {
-  return (
-    <label className="flex items-center gap-2 text-sm font-semibold text-[var(--tg-theme-text-color)]">
-      {icon}
-      {title}
-    </label>
   );
 }

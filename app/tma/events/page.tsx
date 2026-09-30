@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   CalendarPlus,
-  ChevronLeft,
   Copy,
   Eye,
   EyeOff,
@@ -15,6 +14,8 @@ import {
   Users,
 } from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
+import { MoreTabs } from "../more-tabs";
+import { ScreenHeader, SectionLabel, ToggleRow } from "../ui";
 import { utcISOToMoscowLocal } from "@/lib/client-bot/schedule-time";
 import { addMinutesToMoscowLocal, type EventTemplate } from "@/lib/events/templates";
 import {
@@ -35,10 +36,6 @@ type EventRow = TournamentEvent & {
   signupsCount: number;
 };
 
-// The fallbacks matter: a Telegram client that sets none of its theme variables leaves
-// the text the colour of whatever is behind it, and the field reads as empty.
-const textFieldClass =
-  "w-full rounded-lg border border-[var(--tg-theme-hint-color)]/30 bg-[var(--tg-theme-secondary-bg-color,#fff)] p-3 text-[var(--tg-theme-text-color,#111)] placeholder:text-[var(--tg-theme-hint-color,#707579)] outline-none";
 
 /**
  * The longest side of a poster sent. The server keeps no more than this anyway
@@ -383,29 +380,19 @@ export default function TMAEventsPage() {
     });
   };
 
-  if (loading) return <div>Загрузка...</div>;
+  if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   if (draft) {
     return (
-      <div className="space-y-4">
-        <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={() => setDraft(null)}
-        >
-          <ChevronLeft size={18} /> К списку афиш
-        </button>
-
-        <h1 className="text-xl font-bold">{draft.id ? "Правка афиши" : "Новая афиша"}</h1>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{ label: "Афиши", onClick: () => setDraft(null) }}
+          title={draft.id ? "Правка афиши" : "Новая афиша"}
+        />
 
         {templates.length > 0 ? (
-          <div>
-            <FieldLabel title="Шаблон" />
-            <select
-              className={textFieldClass}
-              value=""
-              onChange={(event) => applyTemplate(event.target.value)}
-            >
+          <Field hint="Подставит всё, кроме даты и времени." title="Шаблон">
+            <select value="" onChange={(event) => applyTemplate(event.target.value)}>
               <option value="">Выбрать сохранённый…</option>
               {templates.map((template) => (
                 <option key={template.id} value={template.id}>
@@ -413,147 +400,135 @@ export default function TMAEventsPage() {
                 </option>
               ))}
             </select>
-            <p className="mt-1 text-xs text-[var(--tg-theme-hint-color)]">
-              Подставит всё, кроме даты и времени.
-            </p>
-          </div>
+          </Field>
         ) : null}
 
-        <FieldLabel title="Название" />
-        <input
-          className={textFieldClass}
-          maxLength={80}
-          value={draft.title}
-          onChange={(event) => update({ title: event.target.value })}
-        />
-
-        <FieldLabel title="Плашка" />
-        <input
-          className={textFieldClass}
-          maxLength={40}
-          value={draft.badge}
-          onChange={(event) => update({ badge: event.target.value })}
-        />
-
-        <FieldLabel title="Начало (МСК)" />
-        <input
-          className={textFieldClass}
-          type="datetime-local"
-          value={draft.startsAt}
-          onChange={(event) => update({ startsAt: event.target.value })}
-        />
-
-        <FieldLabel title="Вход до (МСК)" />
-        <input
-          className={textFieldClass}
-          type="datetime-local"
-          value={draft.lateEntryUntil}
-          onChange={(event) => update({ lateEntryUntil: event.target.value })}
-        />
-
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <FieldLabel title="Обычных мест" />
+        <SectionLabel title="Основное" />
+        <div className="tma-card">
+          <Field title="Название">
             <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.maxPlayers}
-              onChange={(event) => update({ maxPlayers: event.target.value })}
+              maxLength={80}
+              value={draft.title}
+              onChange={(event) => update({ title: event.target.value })}
             />
-          </div>
-          <div>
-            <FieldLabel title="VIP-мест" />
+          </Field>
+          <Field title="Плашка">
             <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.maxVipPlayers}
-              onChange={(event) => update({ maxVipPlayers: event.target.value })}
+              maxLength={40}
+              value={draft.badge}
+              onChange={(event) => update({ badge: event.target.value })}
             />
-          </div>
-          <div>
-            <FieldLabel title="Стек" />
-            <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.startingStack}
-              onChange={(event) => update({ startingStack: event.target.value })}
-            />
+          </Field>
+          <div className="grid grid-cols-2 gap-2">
+            <Field title="Начало (МСК)">
+              <input
+                type="datetime-local"
+                value={draft.startsAt}
+                onChange={(event) => update({ startsAt: event.target.value })}
+              />
+            </Field>
+            <Field title="Вход до (МСК)">
+              <input
+                type="datetime-local"
+                value={draft.lateEntryUntil}
+                onChange={(event) => update({ lateEntryUntil: event.target.value })}
+              />
+            </Field>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <FieldLabel title="Обычный билет ₽" />
-            <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.buyIn}
-              onChange={(event) => update({ buyIn: event.target.value })}
-            />
+        <SectionLabel title="Места и цены" />
+        <div className="tma-card">
+          <div className="grid grid-cols-3 gap-2">
+            <Field title="Обычных мест">
+              <input
+                inputMode="numeric"
+                value={draft.maxPlayers}
+                onChange={(event) => update({ maxPlayers: event.target.value })}
+              />
+            </Field>
+            <Field title="VIP-мест">
+              <input
+                inputMode="numeric"
+                value={draft.maxVipPlayers}
+                onChange={(event) => update({ maxVipPlayers: event.target.value })}
+              />
+            </Field>
+            <Field title="Стек">
+              <input
+                inputMode="numeric"
+                value={draft.startingStack}
+                onChange={(event) => update({ startingStack: event.target.value })}
+              />
+            </Field>
           </div>
-          <div>
-            <FieldLabel title="VIP билет ₽" />
-            <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.vipBuyIn}
-              onChange={(event) => update({ vipBuyIn: event.target.value })}
-            />
+          <div className="grid grid-cols-2 gap-2">
+            <Field title="Обычный билет ₽">
+              <input
+                inputMode="numeric"
+                value={draft.buyIn}
+                onChange={(event) => update({ buyIn: event.target.value })}
+              />
+            </Field>
+            <Field title="VIP билет ₽">
+              <input
+                inputMode="numeric"
+                value={draft.vipBuyIn}
+                onChange={(event) => update({ vipBuyIn: event.target.value })}
+              />
+            </Field>
+            <Field title="Билетов 1+1">
+              <input
+                inputMode="numeric"
+                value={draft.maxDuoTickets}
+                onChange={(event) => update({ maxDuoTickets: event.target.value })}
+              />
+            </Field>
+            <Field title="Билет 1+1 ₽ за двоих">
+              <input
+                inputMode="numeric"
+                value={draft.duoBuyIn}
+                onChange={(event) => update({ duoBuyIn: event.target.value })}
+              />
+            </Field>
           </div>
-          <div>
-            <FieldLabel title="Билетов 1+1" />
-            <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.maxDuoTickets}
-              onChange={(event) => update({ maxDuoTickets: event.target.value })}
-            />
-          </div>
-          <div>
-            <FieldLabel title="Билет 1+1 ₽ за двоих" />
-            <input
-              className={textFieldClass}
-              inputMode="numeric"
-              value={draft.duoBuyIn}
-              onChange={(event) => update({ duoBuyIn: event.target.value })}
-            />
-          </div>
+          <p className="tma-hint">
+            {describeAnnouncedSeats({
+              duoTickets: Number(draft.maxDuoTickets) || 0,
+              regular: Number(draft.maxPlayers) || 0,
+              vip: Number(draft.maxVipPlayers) || 0,
+            })}
+          </p>
         </div>
 
-        <p className="px-1 text-[11px] text-white/40">{describeAnnouncedSeats({
-            duoTickets: Number(draft.maxDuoTickets) || 0,
-            regular: Number(draft.maxPlayers) || 0,
-            vip: Number(draft.maxVipPlayers) || 0,
-          })}</p>
+        <SectionLabel title="Описание" />
+        <div className="tma-card">
+          <Field title="Адрес">
+            <input
+              maxLength={200}
+              value={draft.venueAddress}
+              onChange={(event) => update({ venueAddress: event.target.value })}
+            />
+          </Field>
+          <Field title="Общие правила">
+            <textarea
+              className="min-h-24"
+              maxLength={2000}
+              value={draft.rulesText}
+              onChange={(event) => update({ rulesText: event.target.value })}
+            />
+          </Field>
+          <Field hint="Каждая строка выводится игроку отдельным пунктом." title="Особенности">
+            <textarea
+              className="min-h-32"
+              maxLength={4000}
+              value={draft.featuresText}
+              onChange={(event) => update({ featuresText: event.target.value })}
+            />
+          </Field>
+        </div>
 
-        <FieldLabel title="Адрес" />
-        <input
-          className={textFieldClass}
-          maxLength={200}
-          value={draft.venueAddress}
-          onChange={(event) => update({ venueAddress: event.target.value })}
-        />
-
-        <FieldLabel title="Общие правила" />
-        <textarea
-          className={`min-h-24 ${textFieldClass}`}
-          maxLength={2000}
-          value={draft.rulesText}
-          onChange={(event) => update({ rulesText: event.target.value })}
-        />
-
-        <FieldLabel title="Особенности" />
-        <textarea
-          className={`min-h-32 ${textFieldClass}`}
-          maxLength={4000}
-          value={draft.featuresText}
-          onChange={(event) => update({ featuresText: event.target.value })}
-        />
-        <p className="text-xs text-[var(--tg-theme-hint-color)]">
-          Каждая строка выводится игроку отдельным пунктом.
-        </p>
-
-        <FieldLabel title="Афиша" />
+        <SectionLabel title="Картинка афиши" />
         <input
           ref={posterInputRef}
           accept="image/*"
@@ -564,11 +539,15 @@ export default function TMAEventsPage() {
             if (file) void pickPoster(file);
           }}
         />
-        <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg border border-[var(--tg-theme-hint-color)]/30 p-3 text-sm text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={() => posterInputRef.current?.click()}
-        >
+        {draft.posterDataUrl || draft.posterUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            alt="Афиша"
+            className="max-h-48 w-full rounded-[14px] object-cover"
+            src={draft.posterDataUrl || toOwnOriginMediaUrl(draft.posterUrl)}
+          />
+        ) : null}
+        <button className="tma-btn tma-btn--link" type="button" onClick={() => posterInputRef.current?.click()}>
           <ImageIcon size={16} />
           {draft.posterDataUrl
             ? "Новая картинка выбрана"
@@ -576,45 +555,30 @@ export default function TMAEventsPage() {
               ? "Заменить картинку"
               : "Загрузить картинку"}
         </button>
-        {draft.posterDataUrl || draft.posterUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            alt="Афиша"
-            className="max-h-40 w-full rounded-lg object-cover"
-            src={draft.posterDataUrl || toOwnOriginMediaUrl(draft.posterUrl)}
-          />
-        ) : null}
 
         {/* Somebody writes days ahead asking for a seat. The ticket is held here, and
             the player hears about it the moment the poster goes up. */}
-        <section className="space-y-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3">
-          <p className="text-sm font-semibold">Отложенные билеты</p>
-
+        <SectionLabel meta="только резиденты" title="Отложенные билеты" />
+        <div className="tma-card">
           {draft.id ? (
             <>
               {reservations.length > 0 ? (
-                <ul className="space-y-1.5">
+                <div className="tma-card tma-card--flush tma-card--inset">
                   {reservations.map((held) => (
-                    <li
-                      key={held.id}
-                      className="flex items-center justify-between gap-2 rounded bg-[var(--tg-theme-bg-color)] p-2"
-                    >
-                      <span className="min-w-0 text-sm">
-                        <span className="block truncate font-semibold text-[var(--tg-theme-text-color,#111)]">
-                          {held.nickname}
-                        </span>
-                        <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                    <div key={held.id} className="tma-row">
+                      <span className="tma-row__body">
+                        <span className="tma-row__title">{held.nickname}</span>
+                        <span className="tma-row__sub">
                           {held.ticketType === "vip"
                             ? "VIP"
                             : held.ticketType === "duo"
                               ? "1+1"
                               : "обычный"}{" "}
-                          ·{" "}
-                          {held.notified ? "оповещён" : "ждёт публикации"}
+                          · {held.notified ? "оповещён" : "ждёт публикации"}
                         </span>
                       </span>
                       <button
-                        className="shrink-0 rounded px-2 py-1 text-xs font-semibold text-[var(--tg-theme-destructive-text-color,#e5484d)]"
+                        className="tma-btn tma-btn--auto tma-btn--danger-text !min-h-9 !bg-transparent !px-2 !text-sm"
                         type="button"
                         onClick={() =>
                           void changeReservations({
@@ -625,39 +589,36 @@ export default function TMAEventsPage() {
                       >
                         Снять
                       </button>
-                    </li>
+                    </div>
                   ))}
-                </ul>
+                </div>
               ) : (
-                <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                  Пока никому не отложено.
-                </p>
+                <p className="tma-hint">Пока никому не отложено.</p>
               )}
 
               {/* A nickname needs the whole width to be read back; the ticket is two
                   words and sits under it. */}
               <input
-                className={textFieldClass}
+                aria-label="Ник резидента"
                 placeholder="Ник резидента"
                 value={reservedNickname}
                 onChange={(item) => setReservedNickname(item.target.value)}
               />
-              <select
-                className={textFieldClass}
-                value={reservedTicket}
-                onChange={(item) =>
-                  setReservedTicket(
-                    isReservableTicket(item.target.value) ? item.target.value : "regular",
-                  )
-                }
-              >
-                <option value="regular">Обычный билет</option>
-                <option value="vip">VIP билет</option>
-                <option value="duo">Билет 1+1</option>
-              </select>
+              <div className="tma-segment">
+                {(["regular", "vip", "duo"] as const).map((ticket) => (
+                  <button
+                    key={ticket}
+                    aria-pressed={reservedTicket === ticket}
+                    type="button"
+                    onClick={() => setReservedTicket(isReservableTicket(ticket) ? ticket : "regular")}
+                  >
+                    {ticket === "vip" ? "VIP" : ticket === "duo" ? "1+1" : "Обычный"}
+                  </button>
+                ))}
+              </div>
 
               <button
-                className="w-full rounded bg-[var(--tg-theme-button-color)] p-2 text-sm font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+                className="tma-btn tma-btn--inset tma-btn--link"
                 disabled={!reservedNickname.trim()}
                 type="button"
                 onClick={() =>
@@ -674,47 +635,42 @@ export default function TMAEventsPage() {
               >
                 Отложить билет
               </button>
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                Только резиденты клуба. Сообщение уйдёт, когда афишу опубликуют.
-              </p>
+              <p className="tma-hint">Сообщение уйдёт, когда афишу опубликуют.</p>
             </>
           ) : (
-            <p className="text-xs text-[var(--tg-theme-hint-color)]">
-              Сохраните афишу — и сможете откладывать билеты.
-            </p>
+            <p className="tma-hint">Сохраните афишу — и сможете откладывать билеты.</p>
           )}
-        </section>
+        </div>
 
-        <label className="flex items-center gap-3 py-2">
-          <input
-            checked={draft.isPublished}
-            className="h-5 w-5"
-            type="checkbox"
-            onChange={(event) => update({ isPublished: event.target.checked })}
-          />
-          <span className="text-sm">Показывать игрокам</span>
-        </label>
+        <SectionLabel title="Публикация" />
+        <ToggleRow
+          checked={draft.isPublished}
+          label="Показывать игрокам"
+          onChange={(checked) => update({ isPublished: checked })}
+        />
 
         {/* A draft can go up by itself at a set time; a poster already up has nothing
             left to wait for. */}
         {!draft.isPublished ? (
-          <div>
-            <FieldLabel title="Время публикации афиши (МСК)" />
-            <input
-              className={textFieldClass}
-              type="datetime-local"
-              value={draft.publishAt}
-              onChange={(event) => update({ publishAt: event.target.value })}
-            />
-            <p className="mt-1 text-xs text-[var(--tg-theme-hint-color)]">
-              {draft.publishAt
-                ? "Афиша сама появится у игроков в это время — с задержкой до 5 минут."
-                : "Оставьте пустым, чтобы опубликовать вручную."}
-            </p>
+          <div className="tma-card">
+            <Field
+              hint={
+                draft.publishAt
+                  ? "Афиша сама появится у игроков в это время — с задержкой до 5 минут."
+                  : "Оставьте пустым, чтобы опубликовать вручную."
+              }
+              title="Опубликовать автоматически (МСК)"
+            >
+              <input
+                type="datetime-local"
+                value={draft.publishAt}
+                onChange={(event) => update({ publishAt: event.target.value })}
+              />
+            </Field>
             {/* A phone's date picker has no way to empty the field once it is set. */}
             {draft.publishAt ? (
               <button
-                className="mt-1 text-xs font-semibold text-[var(--tg-theme-button-color)]"
+                className="tma-btn tma-btn--ghost tma-btn--link !min-h-9 !text-sm"
                 type="button"
                 onClick={() => update({ publishAt: "" })}
               >
@@ -725,110 +681,120 @@ export default function TMAEventsPage() {
         ) : null}
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-3 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-          disabled={saving}
-          type="button"
-          onClick={() => void save()}
-        >
-          {saving ? <Loader2 className="animate-spin" size={18} /> : null}
-          {draft.id ? "Сохранить афишу" : "Создать афишу"}
-        </button>
-
-        <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-4 py-3 text-sm font-semibold disabled:opacity-60"
+          className="tma-btn tma-btn--link"
           disabled={saving || !draft.title.trim()}
           type="button"
           onClick={saveTemplate}
         >
           <Copy size={16} /> Сохранить как шаблон
         </button>
+
+        <div className="tma-cta-bar">
+          <button
+            className="tma-btn tma-btn--primary tma-btn--big"
+            disabled={saving}
+            type="button"
+            onClick={() => void save()}
+          >
+            {saving ? <Loader2 className="animate-spin" size={18} /> : null}
+            {draft.id ? "Сохранить афишу" : "Создать афишу"}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <CalendarPlus size={20} /> Афиши
-        </h1>
-        <button
-          aria-label="Новая афиша"
-          className="bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-2 rounded-full"
-          type="button"
-          onClick={() => {
-            setDraft(EMPTY_DRAFT);
-            setReservations([]);
-          }}
-        >
-          <CalendarPlus size={20} />
-        </button>
-      </div>
+    <div className="tma-screen">
+      <ScreenHeader title="Ещё" />
+      <MoreTabs current="events" />
+
+      <button
+        aria-label="Новая афиша"
+        className="tma-btn tma-btn--primary"
+        type="button"
+        onClick={() => {
+          setDraft(EMPTY_DRAFT);
+          setReservations([]);
+        }}
+      >
+        <CalendarPlus size={18} /> Новая афиша
+      </button>
 
       {events.length === 0 ? (
-        <div className="py-10 text-center text-[var(--tg-theme-hint-color)]">
-          Пока ни одной афиши. Создайте первую кнопкой сверху.
-        </div>
+        <div className="tma-empty">Пока ни одной афиши. Создайте первую кнопкой выше.</div>
       ) : null}
 
-      <div className="space-y-2">
-        {events.map((event) => (
-          <div key={event.id} className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-lg space-y-2">
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <p className="font-semibold truncate">{event.title}</p>
-                <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                  {formatEventDayLabel(event.startsAt)}, {formatEventTimeLabel(event.startsAt)}
-                </p>
-              </div>
-              <span className="shrink-0 text-xs flex items-center gap-1 text-[var(--tg-theme-hint-color)]">
-                <Users size={13} /> {event.signupsCount}
-                {event.maxPlayers ? ` / ${event.maxPlayers}` : ""}
+      {events.map((event) => (
+        <div key={event.id} className="tma-card">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="truncate text-[16px] font-bold">{event.title}</span>
+              <span className="tma-hint">
+                {formatEventDayLabel(event.startsAt)}, {formatEventTimeLabel(event.startsAt)}
               </span>
             </div>
-
-            <div className="flex gap-2">
-              <button
-                className="flex-1 flex items-center justify-center gap-1 rounded p-2 text-sm bg-[var(--tg-theme-bg-color)]"
-                type="button"
-                onClick={() => {
-                  setDraft(toDraft(event));
-                  void loadReservations(event.id);
-                }}
-              >
-                <Pencil size={14} /> Правка
-              </button>
-              <button
-                className="flex-1 flex items-center justify-center gap-1 rounded p-2 text-sm bg-[var(--tg-theme-bg-color)]"
-                type="button"
-                onClick={() => void togglePublished(event)}
-              >
-                {event.isPublished ? <EyeOff size={14} /> : <Eye size={14} />}
-                {event.isPublished ? "Скрыть" : "Показать"}
-              </button>
-              <button
-                className="flex items-center justify-center rounded p-2 text-sm bg-[var(--tg-theme-bg-color)] text-red-400"
-                type="button"
-                onClick={() => remove(event)}
-              >
-                <Trash2 size={14} />
-              </button>
-            </div>
-
-            {!event.isPublished ? (
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                {event.publishAt
-                  ? `Черновик — опубликуется ${formatEventDayLabel(event.publishAt)} в ${formatEventTimeLabel(event.publishAt)}`
-                  : "Черновик — игроки не видят"}
-              </p>
-            ) : null}
+            {event.isPublished ? (
+              <span className="tma-badge tma-badge--green">Опубликована</span>
+            ) : (
+              <span className="tma-badge">Черновик</span>
+            )}
           </div>
-        ))}
-      </div>
+
+          <span className="flex items-center gap-1.5 text-sm">
+            <Users className="tma-muted" size={14} /> {event.signupsCount}
+            {event.maxPlayers ? ` / ${event.maxPlayers}` : ""} записались
+          </span>
+
+          {!event.isPublished ? (
+            <span className="tma-hint">
+              {event.publishAt
+                ? `Опубликуется ${formatEventDayLabel(event.publishAt)} в ${formatEventTimeLabel(event.publishAt)}`
+                : "Игроки не видят"}
+            </span>
+          ) : null}
+
+          <div className="flex gap-2">
+            <button
+              className="tma-btn tma-btn--inset !min-h-10 flex-1 !text-sm"
+              type="button"
+              onClick={() => {
+                setDraft(toDraft(event));
+                void loadReservations(event.id);
+              }}
+            >
+              <Pencil size={14} /> Правка
+            </button>
+            <button
+              className="tma-btn tma-btn--inset !min-h-10 flex-1 !text-sm"
+              type="button"
+              onClick={() => void togglePublished(event)}
+            >
+              {event.isPublished ? <EyeOff size={14} /> : <Eye size={14} />}
+              {event.isPublished ? "Скрыть" : "Показать"}
+            </button>
+            <button
+              aria-label={`Удалить афишу «${event.title}»`}
+              className="tma-btn tma-btn--inset tma-btn--auto tma-btn--danger-text !min-h-10"
+              type="button"
+              onClick={() => remove(event)}
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
-function FieldLabel({ title }: { title: string }): ReactNode {
-  return <p className="pt-2 text-sm font-medium text-[var(--tg-theme-hint-color)]">{title}</p>;
+/** A field with its name over it, and an optional line of help under it. */
+function Field({ children, hint, title }: { children: ReactNode; hint?: string; title: string }): ReactNode {
+  return (
+    <label className="tma-field">
+      <span className="tma-field__label">{title}</span>
+      {children}
+      {hint ? <span className="tma-hint text-xs">{hint}</span> : null}
+    </label>
+  );
 }

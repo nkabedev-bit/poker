@@ -10,7 +10,7 @@ describe("TMABotPage", () => {
     vi.restoreAllMocks();
   });
 
-  it("paints its labels and inputs from the Telegram theme", async () => {
+  it("names the schedule and the rating link fields", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -23,17 +23,12 @@ describe("TMABotPage", () => {
 
     render(<TMABotPage />);
 
-    const scheduleLabel = (await screen.findByText("Расписание следующих турниров")).closest("label");
-    const ratingLabel = screen.getByText("Ссылка на Google-таблицу с рейтингом").closest("label");
+    // Each setting is a real field with its name on it, so the desk (and a screen
+    // reader) can tell the schedule from the rating link.
+    const schedule = await screen.findByLabelText(/Расписание следующих турниров/);
+    const rating = screen.getByLabelText(/Ссылка на Google-таблицу с рейтингом/);
 
-    // Colours come from Telegram's theme rather than a fixed light palette, so the
-    // screen reads in both the light and the dark one.
-    expect(scheduleLabel?.className).toContain("text-[var(--tg-theme-text-color)]");
-    expect(ratingLabel?.className).toContain("text-[var(--tg-theme-text-color)]");
-
-    const ratingInput = screen.getByPlaceholderText("https://docs.google.com/spreadsheets/...");
-
-    expect(ratingInput.className).toContain("bg-[var(--tg-theme-secondary-bg-color)]");
-    expect(ratingInput.className).toContain("text-[var(--tg-theme-text-color)]");
+    expect(schedule.tagName).toBe("TEXTAREA");
+    expect(rating.getAttribute("placeholder")).toBe("https://docs.google.com/spreadsheets/...");
   });
 });
