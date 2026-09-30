@@ -322,3 +322,70 @@ describe("the settling list", () => {
     ).toBe(false);
   });
 });
+
+// A card read at the desk opens that player's bill. The desk used to be able to scan the
+// next card straight over it; the bill must never become a screen with no way out.
+describe("a scanned card's bill", () => {
+  const PRICES = getFinancePrices({ addonPrice: 500, buyIn: 1000, rebuyPrice: 1000 });
+  const SCANNED = buildCardSession(
+    {
+      addons: 0,
+      bountyCount: 0,
+      cardCode: "MJ-005",
+      finishPlace: null,
+      id: "player-5",
+      name: "Держатель",
+      rebuys: 0,
+      seat: 1,
+      stack: 20000,
+      status: "active",
+      table: 1,
+    },
+    "MJ-005",
+    PRICES,
+  );
+
+  beforeEach(() => {
+    window.Telegram = { WebApp: createTelegramWebApp() };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = String(input);
+        if (url.startsWith("/api/tma/cards?")) return Response.json({ session: SCANNED });
+        if (url.startsWith("/api/tma/cards")) return Response.json({ cardsEnabled: true, issued: [SCANNED] });
+        if (url.startsWith("/api/tma/event-signups")) return Response.json({ signups: [] });
+
+        return Response.json({ players: [], tablesCount: 1 });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    delete window.Telegram;
+  });
+
+  async function scanByHand() {
+    await openManualEntry();
+    fireEvent.change(screen.getByPlaceholderText("001"), { target: { value: "5" } });
+    fireEvent.click(screen.getByText("Найти"));
+    await screen.findByText("Принять карту обратно");
+  }
+
+  it("lets the desk go back to the cashier without taking the card", async () => {
+    await scanByHand();
+
+    fireEvent.click(screen.getByRole("button", { name: /Касса/ }));
+
+    expect(await screen.findByText("Сканировать карту")).toBeTruthy();
+    expect(screen.queryByText("Принять карту обратно")).toBeNull();
+  });
+
+  it("offers to scan the next card straight from the bill", async () => {
+    await scanByHand();
+
+    expect(screen.getByRole("button", { name: /Сканировать другую карту/ })).toBeTruthy();
+  });
+});

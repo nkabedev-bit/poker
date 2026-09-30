@@ -541,8 +541,16 @@ export default function TMACardsPage() {
     <div className="tma-screen">
       <ScreenHeader
         back={
-          session && !scannedCode
-            ? { label: "Касса", onClick: () => setSession(null) }
+          session
+            ? {
+                label: "Касса",
+                // Leaving a scanned bill puts the card down too: the desk goes back to
+                // the evening's list, the card stays with the player.
+                onClick: () => {
+                  setSession(null);
+                  setScannedCode(null);
+                },
+              }
             : undefined
         }
         title={session ? "Счёт игрока" : "Касса"}
@@ -711,6 +719,13 @@ export default function TMACardsPage() {
               >
                 <RotateCcw size={16} /> Принять карту обратно
               </button>
+              {/* The next player is already at the desk: their card is read straight
+                  over this one, as it always could be. */}
+              {cardsEnabled ? (
+                <button className="tma-btn tma-btn--inset" disabled={busy} type="button" onClick={scan}>
+                  <QrCode size={18} /> Сканировать другую карту
+                </button>
+              ) : null}
             </div>
           ) : (
             <button className="tma-btn" type="button" onClick={() => setSession(null)}>
