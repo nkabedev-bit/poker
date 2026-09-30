@@ -1,10 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
-import { ArrowRightLeft, BadgeMinus, BadgePlus, CheckSquare, ChevronLeft, ClipboardList, RotateCcw, Plus, Trash2, Users } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowRightLeft,
+  BadgeMinus,
+  BadgePlus,
+  CheckSquare,
+  ChevronRight,
+  ClipboardList,
+  Plus,
+  RotateCcw,
+  Search,
+  Skull,
+  Trash2,
+  TriangleAlert,
+} from "lucide-react";
 import {
   formatPlayerNameWithRegistrationNumber,
   isVipRegistrationNumber,
@@ -12,6 +26,10 @@ import {
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { isVipTable, nameSeat } from "@/lib/tables/seating";
 import { changeTableFormat, readTableFormatsFrom, type TableFormats } from "../table-formats";
+import { ScreenHeader, SectionLabel, TableChips } from "../ui";
+
+// The room list's own filter, next to the tables: everyone who is out.
+const ELIMINATED_FILTER = "out";
 
 // Addon chip amount credited by the TMA admin app: fixed, no manual input — the
 // admin only confirms the "add N chips to player X?" dialog.
@@ -123,6 +141,9 @@ export default function TMAPlayersPage() {
   const [addonSelection, setAddonSelection] = useState<string[]>([]);
   const [isBulkAddonSaving, setIsBulkAddonSaving] = useState(false);
   
+  const [search, setSearch] = useState("");
+  const seatingRef = useRef<HTMLDivElement>(null);
+
   // Form State
   const [name, setName] = useState("");
 
@@ -507,62 +528,79 @@ export default function TMAPlayersPage() {
     }
   };
 
+  // Every table of the evening, and any a player still sits at after the room shrank.
   const tableOptions = useMemo(
-    () => Array.from({ length: tablesCount }, (_, index) => index + 1),
-    [tablesCount],
+    () =>
+      Array.from(
+        new Set([
+          ...Array.from({ length: tablesCount }, (_, index) => index + 1),
+          ...players.map((player) => Number(player.table)).filter((table) => table > 0),
+        ]),
+      ).sort((a, b) => a - b),
+    [players, tablesCount],
   );
-  const selectedTableNumber = tableFilter ? Number(tableFilter) : null;
-  const visiblePlayers = selectedTableNumber
-    ? players.filter((player) => player.table === selectedTableNumber)
-    : players;
-  const activeCount = visiblePlayers.filter(p => p.status === "active").length;
-  const elimCount = visiblePlayers.filter(p => p.status === "eliminated").length;
+  const visiblePlayers =
+    tableFilter === ELIMINATED_FILTER
+      ? players.filter((player) => player.status === "eliminated")
+      : tableFilter
+        ? players.filter((player) => player.table === Number(tableFilter))
+        : players;
+  const activeCount = players.filter((p) => p.status === "active").length;
+  const elimCount = players.filter((p) => p.status === "eliminated").length;
+  const unseatedCount = players.filter((p) => p.status === "active" && !(p.table && p.seat)).length;
 
-  if (loading) return <div>Загрузка...</div>;
+  if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   if (showAddForm) {
     return (
-      <div className="space-y-4">
-        <h2 className="text-xl font-bold mb-4">Новый игрок</h2>
-        <div>
-          <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-1" htmlFor="new-player-name">Имя</label>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{
+            label: "Зал",
+            onClick: () => {
+              setNewTicket("regular");
+              setNewSeat(null);
+              setShowAddForm(false);
+            },
+          }}
+          title="Новый игрок"
+        />
+
+        <label className="tma-field" htmlFor="new-player-name">
+          <span className="tma-field__label">Ник</span>
           <input
             id="new-player-name"
+            placeholder="Ник в клубе"
             type="text"
-            className="w-full rounded border-none bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold text-[var(--tg-theme-text-color,#111)] outline-none"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Иван Иванов"
           />
-        </div>
-        <div className="space-y-2">
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">Билет</p>
-          <div className="grid grid-cols-3 gap-2">
-            {NEW_PLAYER_TICKETS.map((ticket) => (
-              <button
-                key={ticket}
-                className={`rounded-lg p-3 text-sm font-semibold ${
-                  newTicket === ticket
-                    ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
-                    : "bg-[var(--tg-theme-secondary-bg-color)]"
-                }`}
-                type="button"
-                onClick={() => {
-                  setNewTicket(ticket);
-                  setNewSeat(null);
-                }}
-              >
-                {NEW_PLAYER_TICKET_LABELS[ticket]}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
-            {NEW_PLAYER_TICKET_HINTS[newTicket]}
-          </p>
-        </div>
+        </label>
+        <p className="tma-hint tma-hint--pad">
+          По нику найдём анкету игрока — тогда ему зачтутся достижения.
+        </p>
 
-        <div className="space-y-2">
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
+        <SectionLabel title="Билет" />
+        <div className="tma-segment">
+          {NEW_PLAYER_TICKETS.map((ticket) => (
+            <button
+              key={ticket}
+              aria-pressed={newTicket === ticket}
+              type="button"
+              onClick={() => {
+                setNewTicket(ticket);
+                setNewSeat(null);
+              }}
+            >
+              {NEW_PLAYER_TICKET_LABELS[ticket]}
+            </button>
+          ))}
+        </div>
+        <p className="tma-hint tma-hint--pad">{NEW_PLAYER_TICKET_HINTS[newTicket]}</p>
+
+        <SectionLabel meta="можно выдать позже с картой" title="Место" />
+        <div className="tma-card">
+          <p className="tma-hint">
             {newSeat
               ? `Сажаем за стол ${newSeat.table}, место ${nameSeat(tableFormats, newSeat.table, newSeat.seat)} — игрок сразу получит номер.`
               : "Выберите место — игрок сразу получит номер. Можно пропустить: место и номер выдадут вместе с картой."}
@@ -581,17 +619,7 @@ export default function TMAPlayersPage() {
             onTakenSeat={(takenBy) => getTelegramWebApp()?.showAlert(`Место занято: ${takenBy}`)}
           />
         </div>
-
-        <button 
-          onClick={() => {
-            setNewTicket("regular");
-            setNewSeat(null);
-            setShowAddForm(false);
-          }}
-          className="mt-4 w-full p-3 text-[var(--tg-theme-button-color)]"
-        >
-          Отмена
-        </button>
+        <p className="tma-hint tma-hint--pad">Кнопка «Добавить игрока» — внизу экрана Telegram.</p>
       </div>
     );
   }
@@ -601,84 +629,51 @@ export default function TMAPlayersPage() {
     const selectedCount = addonSelection.length;
 
     return (
-      <div className="space-y-4 pb-24">
-        <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={closeAddonSelection}
-        >
-          <ChevronLeft size={18} /> Назад
-        </button>
+      <div className="tma-screen">
+        <ScreenHeader back={{ label: "Зал", onClick: closeAddonSelection }} title="Аддон списком" />
 
-        <div>
-          <h2 className="text-lg font-bold">Аддон списком</h2>
-          <p className="text-xs text-[var(--tg-theme-hint-color)]">
-            По {ADDON_CHIPS.toLocaleString("ru-RU")} фишек каждому отмеченному
-          </p>
-        </div>
+        <p className="tma-hint tma-hint--pad">
+          По {ADDON_CHIPS.toLocaleString("ru-RU")} фишек каждому отмеченному. Серые — лимит
+          аддонов исчерпан.
+        </p>
 
-        <label className="block text-xs text-[var(--tg-theme-hint-color)]">
-          Фильтр по столу
-          <select
-            className="mt-1 w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
-            value={tableFilter}
-            onChange={(event) => setTableFilter(event.target.value)}
-          >
-            <option value="">Все столы</option>
-            {tableOptions.map((tableNumber) => (
-              <option key={tableNumber} value={tableNumber}>
-                Стол {tableNumber}
-              </option>
-            ))}
-          </select>
-        </label>
+        <TableChips tables={tableOptions} value={tableFilter} onChange={setTableFilter} />
 
-        <div className="space-y-2">
+        <div className="tma-card tma-card--flush">
           {candidates.map((player) => {
             const available = canReceiveAddon(player);
             const checked = addonSelection.includes(player.id);
 
             return (
-              <label
-                key={player.id}
-                className={`flex items-center gap-3 p-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] ${available ? "" : "opacity-50"}`}
-              >
+              <label key={player.id} className={`tma-row${available ? "" : " tma-row--dim"}`}>
                 <input
                   aria-label={`Выбрать ${player.name}`}
                   checked={checked}
-                  className="w-5 h-5 accent-[var(--tg-theme-button-color)]"
                   disabled={!available}
                   type="checkbox"
                   onChange={() => toggleAddonSelection(player.id)}
                 />
-                <span className="min-w-0 flex-1">
-                  {/* Stated rather than inherited: the row's own colour left the
-                      nickname washed out against its grey background. */}
-                  <span className="block truncate font-semibold text-[var(--tg-theme-text-color,#111)]">
-                    {formatPlayerNameWithRegistrationNumber(player)}
-                  </span>
-                  <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                <span className="tma-row__body">
+                  <PlayerName player={player} />
+                  <span className="tma-row__sub">
                     {player.seat
                       ? `Ст. ${player.table} · м. ${nameSeat(tableFormats, Number(player.table), player.seat)}`
                       : "Ждёт посадки"}{" "}
-                    ·
-                    Аддоны {Math.max(0, Number(player.addons ?? 0))}/{maxAddons}
+                    · аддоны {Math.max(0, Number(player.addons ?? 0))}/{maxAddons}
                     {available ? "" : " · лимит"}
                   </span>
                 </span>
               </label>
             );
           })}
-          {candidates.length === 0 && (
-            <div className="text-center text-[var(--tg-theme-hint-color)] py-10">Нет активных игроков</div>
-          )}
+          {candidates.length === 0 && <div className="tma-empty">Нет активных игроков</div>}
         </div>
 
         {/* Sticky inside the scroller, not pinned to the window: pinned, it slid under
             the navigation bar. */}
-        <div className="sticky bottom-0 -mx-4 border-t border-[var(--tg-theme-hint-color)]/15 bg-[var(--tg-theme-bg-color)] p-3">
+        <div className="tma-cta-bar">
           <button
-            className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
+            className="tma-btn tma-btn--primary tma-btn--big"
             disabled={selectedCount === 0 || isBulkAddonSaving}
             type="button"
             onClick={() => void submitBulkAddon()}
@@ -705,50 +700,75 @@ export default function TMAPlayersPage() {
     const otherTicket = defaultTicket === "vip" ? "regular" : "vip";
 
     return (
-      <div className="space-y-4">
-        <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={() => setSeatTicketChoiceOpen(false)}
-        >
-          <ChevronLeft size={18} /> Назад
-        </button>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{ disabled: isMovingSeat, label: "Назад", onClick: () => setSeatTicketChoiceOpen(false) }}
+          title="Пересадка"
+        />
 
-        <h1 className="text-xl font-bold">
-          {selectedPlayer.name} — стол {moveSeat.table}, место{" "}
-          {nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}
-        </h1>
-        <p className="text-sm text-[var(--tg-theme-hint-color)]">
-          {hasNumber
-            ? `У игрока ${TICKET_LABELS[readPlayerTicket(selectedPlayer)]} и номер #${selectedPlayer.registrationNumber}. Номер идёт за билетом, а не за столом — менять его нужно, только если игрок действительно перешёл на другой билет.`
-            : "У игрока ещё нет номера для розыгрыша. Номер выдаётся по билету: VIP-билет получает номер из VIP-диапазона, обычный — из обычного."}
-        </p>
+        <div className="tma-card">
+          <span className="tma-hint">Пересаживаем</span>
+          <span className="text-[20px] font-bold">
+            {selectedPlayer.name}
+            {hasNumber ? <span className="tma-muted font-medium"> #{selectedPlayer.registrationNumber}</span> : null}
+          </span>
+          <span className="flex items-center gap-2 text-sm">
+            <span className="tma-badge">
+              {selectedPlayer.seat
+                ? `Стол ${selectedPlayer.table} · м. ${nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)}`
+                : "без места"}
+            </span>
+            <ArrowRight className="tma-muted" size={16} />
+            <span className="tma-badge tma-badge--blue">
+              {movingToVipTable ? "VIP стол" : "Стол"} {moveSeat.table} · м.{" "}
+              {nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}
+            </span>
+          </span>
+        </div>
 
+        <div className="tma-note tma-note--amber">
+          <TriangleAlert size={18} />
+          <span>
+            {hasNumber
+              ? `У игрока ${TICKET_LABELS[readPlayerTicket(selectedPlayer)]} и номер #${selectedPlayer.registrationNumber}. Номер идёт за билетом, а не за столом — менять его нужно, только если игрок действительно перешёл на другой билет.`
+              : "У игрока ещё нет номера для розыгрыша. Номер выдаётся по билету: VIP-билет получает номер из VIP-диапазона, обычный — из обычного."}
+          </span>
+        </div>
+
+        <SectionLabel title="Билет" />
         <button
-          className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 text-left font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+          className="tma-choice tma-choice--primary"
           disabled={isMovingSeat}
           type="button"
           onClick={() => void submitMoveSeat(defaultTicket)}
         >
-          {hasNumber ? `Оставить ${TICKET_LABELS[defaultTicket]}` : TICKET_LABELS[defaultTicket]}
-          <span className="block text-xs font-normal opacity-80">
-            {hasNumber
-              ? "Пересадить, номер и цена не меняются"
-              : `Выдать номер${defaultTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">
+              {hasNumber ? `Оставить ${TICKET_LABELS[defaultTicket]}` : TICKET_LABELS[defaultTicket]}
+            </span>
+            <span className="tma-choice__sub">
+              {hasNumber
+                ? "Пересадить, номер и цена не меняются"
+                : `Выдать номер${defaultTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
+            </span>
           </span>
         </button>
 
         <button
-          className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left font-semibold disabled:opacity-60"
+          className="tma-choice"
           disabled={isMovingSeat}
           type="button"
           onClick={() => void submitMoveSeat(otherTicket)}
         >
-          {hasNumber ? `Сменить на ${TICKET_LABELS[otherTicket]}` : TICKET_LABELS[otherTicket]}
-          <span className="block text-xs font-normal text-[var(--tg-theme-hint-color)]">
-            {hasNumber
-              ? `Новый номер${otherTicket === "vip" ? " из VIP-диапазона, игрок попадёт в VIP-розыгрыш" : " из обычных"}, цена билета изменится`
-              : `Выдать номер${otherTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">
+              {hasNumber ? `Сменить на ${TICKET_LABELS[otherTicket]}` : TICKET_LABELS[otherTicket]}
+            </span>
+            <span className="tma-choice__sub">
+              {hasNumber
+                ? `Новый номер${otherTicket === "vip" ? " из VIP-диапазона, игрок попадёт в VIP-розыгрыш" : " из обычных"}, цена билета изменится`
+                : `Выдать номер${otherTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
+            </span>
           </span>
         </button>
       </div>
@@ -756,157 +776,161 @@ export default function TMAPlayersPage() {
   }
 
   if (selectedPlayer && restoreChoiceOpen) {
-    const restoreDisabledClass = isRestoring ? " opacity-60 cursor-not-allowed" : "";
-
     return (
-      <div className="space-y-4">
-        <button
-          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${restoreDisabledClass}`}
-          disabled={isRestoring}
-          type="button"
-          onClick={() => setRestoreChoiceOpen(false)}
-        >
-          <ChevronLeft size={18} /> Назад
-        </button>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{ disabled: isRestoring, label: "Назад", onClick: () => setRestoreChoiceOpen(false) }}
+          title="Вернуть в игру"
+        />
 
-        <h2 className="text-lg font-bold">
-          Почему возвращается <span className="text-red-400">{selectedPlayer.name}</span>?
-        </h2>
+        <div className="tma-card">
+          <span className="text-[20px] font-bold">{formatPlayerNameWithRegistrationNumber(selectedPlayer)}</span>
+          <span className="tma-row__badges">
+            <span className="tma-badge tma-badge--red">Выбыл</span>
+          </span>
+        </div>
+
+        <SectionLabel title={`Почему возвращается ${selectedPlayer.name}?`} />
 
         <button
-          className={`w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] p-4 rounded-lg text-left${restoreDisabledClass}`}
+          className="tma-choice"
           disabled={isRestoring}
           type="button"
           onClick={() => void submitRestorePlayer("none")}
         >
-          <div className="font-semibold">Вылет по ошибке</div>
-          <div className="text-xs text-[var(--tg-theme-hint-color)]">Выбывание стирается, ре-энтри не засчитывается</div>
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">Вылет по ошибке</span>
+            <span className="tma-choice__sub">Выбывание стирается, ре-энтри не засчитывается</span>
+          </span>
         </button>
 
         <button
-          className={`w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-4 rounded-lg text-left disabled:bg-[var(--tg-theme-secondary-bg-color)] disabled:text-[var(--tg-theme-hint-color)]${restoreDisabledClass}`}
+          className="tma-choice"
           disabled={isRestoring || !reentryAvailable}
           type="button"
           onClick={() => void submitRestorePlayer("single")}
         >
-          <div className="font-semibold">Ребай</div>
-          <div className="text-xs opacity-80">
-            {reentryAvailable ? "Выбивание остаётся, игроку засчитывается ре-энтри" : "Ре-энтри сейчас недоступен"}
-          </div>
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">Ребай</span>
+            <span className="tma-choice__sub">
+              {reentryAvailable ? "Выбивание остаётся, игроку засчитывается ре-энтри" : "Ре-энтри сейчас недоступен"}
+            </span>
+          </span>
         </button>
 
         <button
-          className={`w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-4 rounded-lg text-left disabled:bg-[var(--tg-theme-secondary-bg-color)] disabled:text-[var(--tg-theme-hint-color)]${restoreDisabledClass}`}
+          className="tma-choice"
           disabled={isRestoring || !doubleReentryAvailable}
           type="button"
           onClick={() => void submitRestorePlayer("double")}
         >
-          <div className="font-semibold">Двойной ребай (x2)</div>
-          <div className="text-xs opacity-80">
-            {doubleReentryAvailable ? "Ре-энтри + отметка x2" : "x2 недоступен на текущем уровне"}
-          </div>
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">Двойной ребай (x2)</span>
+            <span className="tma-choice__sub">
+              {doubleReentryAvailable ? "Ре-энтри + отметка x2" : "x2 недоступен на текущем уровне"}
+            </span>
+          </span>
         </button>
       </div>
     );
   }
 
   if (selectedPlayer) {
-    return (
-      <div className="space-y-4">
-        <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={closePlayerDetails}
-        >
-          <ChevronLeft size={18} /> Назад
-        </button>
+    const isActive = selectedPlayer.status === "active";
+    const canCancelAddon = addonEnabled && selectedPlayerAddons > 0;
+    const moveTargetIsCurrent =
+      moveSeat?.table === selectedPlayer.table && moveSeat?.seat === selectedPlayer.seat;
 
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
-          <div>
-            <h1 className="text-xl font-bold">{formatPlayerNameWithRegistrationNumber(selectedPlayer)}</h1>
-            <p className="text-sm text-[var(--tg-theme-hint-color)]">
-              {selectedPlayer.status === "active" ? "Активен" : "Выбыл"}
-            </p>
+    return (
+      <div className="tma-screen">
+        <ScreenHeader back={{ label: "Назад", onClick: closePlayerDetails }} title="Игрок" />
+
+        <div className="flex items-center gap-3">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[var(--tma-surface-2)] text-lg font-bold">
+            {initialsOf(selectedPlayer.name)}
+          </span>
+          <div className="flex min-w-0 flex-col gap-1">
+            <span className="truncate text-[20px] font-bold">
+              {formatPlayerNameWithRegistrationNumber(selectedPlayer)}
+            </span>
+            <span className="tma-row__badges">
+              {isActive ? (
+                <span className="tma-badge tma-badge--green">● В игре</span>
+              ) : (
+                <span className="tma-badge tma-badge--red">Выбыл</span>
+              )}
+              {readPlayerTicket(selectedPlayer) === "vip" ? (
+                <span className="tma-badge tma-badge--gold">VIP билет</span>
+              ) : (
+                <span className="tma-badge">Обычный билет</span>
+              )}
+              {isActive && selectedPlayer.seat ? (
+                <span className="tma-badge">
+                  Стол {selectedPlayer.table} · м. {nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)}
+                </span>
+              ) : null}
+            </span>
           </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Стек</div>
-              <div className="font-semibold">{selectedPlayer.stack.toLocaleString("ru-RU")}</div>
+        </div>
+
+        <div className="tma-card">
+          <div className="tma-stats tma-stats--inline">
+            <div className="tma-stat">
+              <span className="tma-stat__label">Стек</span>
+              <span className="tma-stat__value">{selectedPlayer.stack.toLocaleString("ru-RU")}</span>
             </div>
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Аддоны</div>
-              <div className="font-semibold">{selectedPlayerAddons} / {maxAddons}</div>
+            <div className="tma-stat">
+              <span className="tma-stat__label">Аддоны</span>
+              <span className="tma-stat__value">{selectedPlayerAddons} / {maxAddons}</span>
             </div>
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Ребаи</div>
-              <div className="font-semibold">{selectedPlayerRebuys}</div>
+            <div className="tma-stat">
+              <span className="tma-stat__label">Ребаи</span>
+              <span className="tma-stat__value">{selectedPlayerRebuys}</span>
             </div>
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Двойные ребаи</div>
-              <div className="font-semibold">{selectedPlayerDoubleRebuys}</div>
+            <div className="tma-stat">
+              <span className="tma-stat__label">Двойные ребаи</span>
+              <span className="tma-stat__value">{selectedPlayerDoubleRebuys}</span>
             </div>
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Стол</div>
-              <div className="font-semibold">{selectedPlayer.table}</div>
-            </div>
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)]">Место</div>
-              <div className="font-semibold">
-                {selectedPlayer.seat
-                  ? nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)
-                  : null}
-              </div>
-            </div>
-            {/* Last, so the pairs above stay put whether tonight pays bounties or not. */}
+            {/* Last, so the figures above stay put whether tonight pays bounties or not. */}
             {isBounty ? (
-              <div>
-                <div className="text-[var(--tg-theme-hint-color)]">Баунти</div>
-                <div className="font-semibold">{selectedPlayerBounties}</div>
+              <div className="tma-stat">
+                <span className="tma-stat__label">Баунти</span>
+                <span className="tma-stat__value">{selectedPlayerBounties}</span>
               </div>
             ) : null}
           </div>
         </div>
 
-        {selectedPlayer.status === "active" && (
-          <div className="bg-[var(--tg-theme-secondary-bg-color)] rounded-lg p-4 space-y-3">
-            <p className="text-xs text-[var(--tg-theme-hint-color)]">
-              Пересадить: нажмите на свободное место
-            </p>
-            <SeatingPicker
-              changingTable={changingTable}
-              ignorePlayerId={selectedPlayer.id}
-              players={players}
-              selected={moveSeat}
-              tableFormats={tableFormats}
-              tablesCount={tablesCount}
-              onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
-              onSelect={(choice) => {
-                getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-                setMoveSeat(choice);
-              }}
-              onTakenSeat={(takenBy) => getTelegramWebApp()?.showAlert(`Место занято: ${takenBy}`)}
-            />
+        {isActive ? (
+          <div className="tma-tiles">
             <button
-              className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
-              disabled={
-                isMovingSeat ||
-                !moveSeat ||
-                (moveSeat.table === selectedPlayer.table && moveSeat.seat === selectedPlayer.seat)
-              }
+              className="tma-tile"
+              disabled={!selectedPlayerCanAddon}
               type="button"
-              onClick={startMoveSeat}
+              onClick={() => void submitAddon()}
             >
-              <ArrowRightLeft size={18} />
-              {moveSeat
-                ? `Пересадить: стол ${moveSeat.table}, место ${nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}`
-                : "Выберите место"}
+              <BadgePlus size={22} />
+              {addonEnabled && selectedPlayerAddons >= maxAddons ? "Аддон · лимит" : "Добавить аддон"}
             </button>
+            <button
+              className="tma-tile"
+              type="button"
+              onClick={() => seatingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+            >
+              <ArrowRightLeft className="text-[var(--tma-link)]" size={22} />
+              Пересадить
+            </button>
+            <Link
+              className="tma-tile tma-tile--danger"
+              href={`/tma/eliminations?out=${encodeURIComponent(selectedPlayer.id)}`}
+            >
+              <Skull size={22} />
+              Выбыл
+            </Link>
           </div>
-        )}
-
-        {selectedPlayer.status === "eliminated" && (
+        ) : (
           <button
-            className="w-full bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-3 rounded flex items-center justify-center gap-2"
+            className="tma-btn tma-btn--primary tma-btn--big"
             type="button"
             onClick={() => setRestoreChoiceOpen(true)}
           >
@@ -914,130 +938,285 @@ export default function TMAPlayersPage() {
           </button>
         )}
 
-        {selectedPlayer.status === "active" ? (
-          <button
-            className="w-full bg-[var(--tg-theme-button-color)] disabled:bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-button-text-color)] disabled:text-[var(--tg-theme-hint-color)] p-3 rounded flex items-center justify-center gap-2"
-            disabled={!selectedPlayerCanAddon}
-            type="button"
-            onClick={() => void submitAddon()}
-          >
-            <BadgePlus size={18} /> Добавить аддон
-          </button>
+        {isActive ? (
+          <>
+            <div ref={seatingRef}>
+              <SectionLabel meta="нажмите на свободное место" title="Пересадка" />
+            </div>
+            <div className="tma-card">
+              <SeatingPicker
+                changingTable={changingTable}
+                ignorePlayerId={selectedPlayer.id}
+                players={players}
+                selected={moveSeat}
+                tableFormats={tableFormats}
+                tablesCount={tablesCount}
+                onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
+                onSelect={(choice) => {
+                  getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+                  setMoveSeat(choice);
+                }}
+                onTakenSeat={(takenBy) => getTelegramWebApp()?.showAlert(`Место занято: ${takenBy}`)}
+              />
+            </div>
+          </>
         ) : null}
 
-        {/* Out or still playing, the addon stays on the bill until it is taken back. */}
-        {addonEnabled && selectedPlayerAddons > 0 ? (
-          <button
-            className="w-full bg-[var(--tg-theme-secondary-bg-color)] text-red-400 p-3 rounded flex items-center justify-center gap-2"
-            type="button"
-            onClick={() => void submitCancelAddon()}
-          >
-            <BadgeMinus size={18} /> Отменить аддон
-          </button>
+        {canCancelAddon || isActive ? (
+          <div className="tma-btn-row">
+            {/* Out or still playing, the addon stays on the bill until it is taken back. */}
+            {canCancelAddon ? (
+              <button
+                className="tma-btn tma-btn--danger-text"
+                type="button"
+                onClick={() => void submitCancelAddon()}
+              >
+                <BadgeMinus size={18} /> Отменить аддон
+              </button>
+            ) : null}
+            {isActive ? (
+              <button
+                className="tma-btn tma-btn--danger-text"
+                type="button"
+                onClick={() => handleDelete(selectedPlayer.id)}
+              >
+                <Trash2 size={18} /> Удалить
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+
+        {isActive ? (
+          <div className="tma-cta-bar">
+            <button
+              className="tma-btn tma-btn--primary tma-btn--big"
+              disabled={isMovingSeat || !moveSeat || moveTargetIsCurrent}
+              type="button"
+              onClick={startMoveSeat}
+            >
+              <ArrowRightLeft size={18} />
+              {moveSeat && !moveTargetIsCurrent
+                ? `Пересадить: стол ${moveSeat.table}, место ${nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}`
+                : "Выберите место для пересадки"}
+            </button>
+          </div>
         ) : null}
       </div>
     );
   }
 
+  const openPlayer = (player: Player) => {
+    setMoveSeat(player.table && player.seat ? { seat: player.seat, table: player.table } : null);
+    setSeatTicketChoiceOpen(false);
+    setSelectedPlayerId(player.id);
+    getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+  };
+
+  const query = search.trim().toLowerCase();
+  const matchesSearch = (player: Player) =>
+    !query ||
+    player.name.toLowerCase().includes(query) ||
+    String(player.registrationNumber ?? "") === query.replace(/^#/, "");
+  const shownPlayers = visiblePlayers.filter(matchesSearch);
+  const seatedTables = Array.from(
+    new Set(
+      shownPlayers
+        .filter((player) => player.status === "active" && player.table && player.seat)
+        .map((player) => Number(player.table)),
+    ),
+  ).sort((a, b) => a - b);
+  const unseated = shownPlayers.filter((player) => player.status === "active" && !(player.table && player.seat));
+  const eliminated = shownPlayers.filter((player) => player.status === "eliminated");
+
   return (
-    <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Users size={20} /> Игроки сегодня
-        </h1>
-        <div className="flex items-center gap-2">
-        {addonEnabled && (
-          <button
-            aria-label="Аддон списком"
-            className="bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] p-2 rounded-full"
-            type="button"
-            onClick={() => {
-              setAddonSelection([]);
-              setAddonSelectionOpen(true);
-              getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-            }}
-          >
-            <CheckSquare size={20} />
-          </button>
-        )}
-        <button 
-          aria-label="Добавить игрока"
-          onClick={() => {
-            setShowAddForm(true);
-            getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-          }}
-          className="bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] p-2 rounded-full"
-        >
-          <Plus size={20} />
-        </button>
-        </div>
-      </div>
-
-      <Link
-        className="mb-4 flex items-center justify-center gap-2 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg text-sm font-medium"
-        href="/tma/signups"
-      >
-        <ClipboardList size={16} /> Заявки на турнир
-      </Link>
-
-      <div className="flex justify-between text-sm text-[var(--tg-theme-hint-color)] mb-4 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg">
-        <span>Активных: <strong className="text-[var(--tg-theme-text-color)]">{activeCount}</strong></span>
-        <span>Выбыло: <strong className="text-[var(--tg-theme-text-color)]">{elimCount}</strong></span>
-      </div>
-
-      <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-4">
-        Фильтр по столу
-        <select
-          className="mt-1 w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
-          value={tableFilter}
-          onChange={(event) => setTableFilter(event.target.value)}
-        >
-          <option value="">Все столы</option>
-          {tableOptions.map((tableNumber) => (
-            <option key={tableNumber} value={tableNumber}>
-              Стол {tableNumber}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <div className="space-y-2">
-        {visiblePlayers.map((p) => (
-          <div
-            key={p.id}
-            className="flex items-center justify-between p-3 bg-[var(--tg-theme-secondary-bg-color)] rounded-lg"
-          >
+    <div className="tma-screen">
+      <ScreenHeader
+        actions={
+          <>
+            {addonEnabled && (
+              <button
+                aria-label="Аддон списком"
+                className="tma-icon-btn"
+                type="button"
+                onClick={() => {
+                  setAddonSelection([]);
+                  // Nobody who is out can take an add-on, so their filter does not carry over.
+                  if (tableFilter === ELIMINATED_FILTER) setTableFilter("");
+                  setAddonSelectionOpen(true);
+                  getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+                }}
+              >
+                <CheckSquare size={20} />
+              </button>
+            )}
             <button
-              className="flex items-center gap-3 min-w-0 text-left flex-1"
+              aria-label="Добавить игрока"
+              className="tma-icon-btn tma-icon-btn--primary"
               type="button"
               onClick={() => {
-                setMoveSeat(p.table && p.seat ? { seat: p.seat, table: p.table } : null);
-                setSeatTicketChoiceOpen(false);
-                setSelectedPlayerId(p.id);
+                setShowAddForm(true);
                 getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
               }}
             >
-              <div className={`w-3 h-3 rounded-full ${p.status === "active" ? "bg-green-500" : "bg-red-500"}`} />
-              <div className="min-w-0">
-                <div className="font-semibold">{formatPlayerNameWithRegistrationNumber(p)}</div>
-                <div className="text-xs text-[var(--tg-theme-hint-color)]">
-                  {p.status === "active" ? `Ст. ${p.table} / Место ${p.seat ? nameSeat(tableFormats, Number(p.table), p.seat) : "—"} / Стек: ${p.stack}` : "Выбыл"}
-                </div>
-              </div>
+              <Plus size={20} />
             </button>
-            {p.status === "active" && (
-               <button onClick={() => handleDelete(p.id)} className="text-red-400 p-2">
-                 <Trash2 size={16} />
-               </button>
-            )}
-          </div>
-        ))}
-        {visiblePlayers.length === 0 && (
-          <div className="text-center text-[var(--tg-theme-hint-color)] py-10">
-            Нет игроков
-          </div>
-        )}
+          </>
+        }
+        title="Зал"
+      />
+
+      <div className="tma-stats">
+        <div className="tma-stat tma-stat--tile">
+          <span className="tma-stat__label">В игре</span>
+          <span className="tma-stat__value">{activeCount}</span>
+        </div>
+        <div className="tma-stat tma-stat--tile">
+          <span className="tma-stat__label">Выбыло</span>
+          <span className="tma-stat__value">{elimCount}</span>
+        </div>
+        <div className="tma-stat tma-stat--tile">
+          <span className="tma-stat__label">Без места</span>
+          <span className={`tma-stat__value${unseatedCount > 0 ? " tma-stat__value--amber" : ""}`}>
+            {unseatedCount}
+          </span>
+        </div>
       </div>
+
+      <Link className="tma-banner" href="/tma/signups">
+        <ClipboardList size={18} />
+        <span className="tma-banner__text">Заявки на турнир</span>
+        <ChevronRight size={18} />
+      </Link>
+
+      <label className="tma-search">
+        <Search size={18} />
+        <input
+          aria-label="Поиск игрока"
+          placeholder="Поиск по нику или номеру"
+          type="search"
+          value={search}
+          onChange={(event) => setSearch(event.target.value)}
+        />
+      </label>
+
+      <TableChips
+        extra={[{ label: "Выбывшие", value: ELIMINATED_FILTER }]}
+        tables={tableOptions}
+        value={tableFilter}
+        onChange={setTableFilter}
+      />
+
+      {seatedTables.map((tableNumber) => {
+        const atTable = shownPlayers
+          .filter((player) => player.status === "active" && Number(player.table) === tableNumber && player.seat)
+          .sort((a, b) => a.seat - b.seat);
+
+        return (
+          <div key={tableNumber} className="tma-card tma-card--flush">
+            <div className="tma-card__head">
+              <span>
+                {isVipTable(tableNumber, tablesCount) ? "VIP · " : ""}Стол {tableNumber}
+              </span>
+              <span className="tma-card__head-meta">{atTable.length} игр.</span>
+            </div>
+            {atTable.map((player) => (
+              <PlayerRow
+                key={player.id}
+                lead={nameSeat(tableFormats, tableNumber, player.seat)}
+                player={player}
+                onOpen={openPlayer}
+              />
+            ))}
+          </div>
+        );
+      })}
+
+      {unseated.length > 0 ? (
+        <div className="tma-card tma-card--flush">
+          <div className="tma-card__head">
+            <span>Без места</span>
+            <span className="tma-card__head-meta">{unseated.length}</span>
+          </div>
+          {unseated.map((player) => (
+            <PlayerRow key={player.id} lead="—" player={player} onOpen={openPlayer} />
+          ))}
+        </div>
+      ) : null}
+
+      {eliminated.length > 0 ? (
+        <div className="tma-card tma-card--flush">
+          <div className="tma-card__head">
+            <span>Выбывшие</span>
+            <span className="tma-card__head-meta">{eliminated.length}</span>
+          </div>
+          {eliminated.map((player) => (
+            <PlayerRow key={player.id} out player={player} onOpen={openPlayer} />
+          ))}
+        </div>
+      ) : null}
+
+      {shownPlayers.length === 0 && (
+        <div className="tma-empty">{query ? "Никого не нашли" : "Нет игроков"}</div>
+      )}
     </div>
+  );
+}
+
+/** The two letters on a player's card, in place of a photo. */
+function initialsOf(name: string) {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "");
+  return letters.join("") || "?";
+}
+
+/** The nickname, with the number the room calls the player by after it. */
+function PlayerName({ player }: { player: Player }) {
+  const number = Number(player.registrationNumber);
+
+  return (
+    <span className="tma-row__title">
+      <span>{player.name}</span>
+      {Number.isInteger(number) && number > 0 ? <span className="tma-muted font-medium"> #{number}</span> : null}
+    </span>
+  );
+}
+
+/** One player in the room list: the chair, the name, what they bought and their stack. */
+function PlayerRow({
+  lead,
+  onOpen,
+  out = false,
+  player,
+}: {
+  lead?: string;
+  onOpen: (player: Player) => void;
+  out?: boolean;
+  player: Player;
+}) {
+  const addons = Math.max(0, Number(player.addons ?? 0));
+  const doubles = Math.max(0, Number(player.doubleRebuys ?? 0));
+  const rebuys = Math.max(0, Number(player.rebuys ?? 0) - doubles);
+
+  return (
+    <button className="tma-row" type="button" onClick={() => onOpen(player)}>
+      <span className={`tma-row__lead${out ? " tma-row__lead--out" : ""}`}>
+        {out ? <Skull size={16} /> : lead}
+      </span>
+      <span className="tma-row__body">
+        <PlayerName player={player} />
+        {addons + rebuys + doubles > 0 || out ? (
+          <span className="tma-row__badges">
+            {out ? <span className="tma-badge tma-badge--red">выбыл</span> : null}
+            {addons > 0 ? <span className="tma-badge">A{addons}</span> : null}
+            {rebuys > 0 ? <span className="tma-badge">R{rebuys}</span> : null}
+            {doubles > 0 ? <span className="tma-badge">x2·{doubles}</span> : null}
+          </span>
+        ) : null}
+      </span>
+      {out ? null : <span className="tma-row__end">{player.stack.toLocaleString("ru-RU")}</span>}
+    </button>
   );
 }

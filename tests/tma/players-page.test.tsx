@@ -61,13 +61,13 @@ describe("TMAPlayersPage", () => {
     await screen.findByText("Table 1 Player");
     expect(screen.getByText("Table 2 Player")).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Фильтр по столу"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Стол 1" }));
 
     expect(screen.getByText("Table 1 Player")).toBeTruthy();
     expect(screen.getByText("Eliminated Table 1")).toBeTruthy();
     expect(screen.queryByText("Table 2 Player")).toBeNull();
 
-    fireEvent.change(screen.getByLabelText("Фильтр по столу"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Все" }));
 
     await waitFor(() => expect(screen.getByText("Table 2 Player")).toBeTruthy());
   });
@@ -211,7 +211,7 @@ describe("TMAPlayersPage", () => {
     render(<TMAPlayersPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Добавить игрока" }));
-    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Гость" } });
+    fireEvent.change(screen.getByLabelText("Ник"), { target: { value: "Гость" } });
     fireEvent.click(screen.getByRole("button", { name: "1+1" }));
     fireEvent.click(await screen.findByRole("button", { name: "Стол 2, место 5, свободно" }));
 
@@ -243,7 +243,7 @@ describe("TMAPlayersPage", () => {
     render(<TMAPlayersPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Добавить игрока" }));
-    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Гость" } });
+    fireEvent.change(screen.getByLabelText("Ник"), { target: { value: "Гость" } });
     fireEvent.click(screen.getByRole("button", { name: "VIP" }));
 
     const mainButton = window.Telegram?.WebApp?.MainButton.onClick as ReturnType<typeof vi.fn>;
@@ -320,7 +320,7 @@ describe("TMAPlayersPage", () => {
     render(<TMAPlayersPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /добавить игрока/i }));
-    fireEvent.change(screen.getByLabelText("Имя"), { target: { value: "Late Player" } });
+    fireEvent.change(screen.getByLabelText("Ник"), { target: { value: "Late Player" } });
 
     await waitFor(() => expect(mainButtonClick).toEqual(expect.any(Function)));
     await act(async () => {
