@@ -24,19 +24,19 @@ describe("PlayerAvatar", () => {
     expect(photo.getAttribute("src")).toBe("/media/player-avatars/thumbs/42.webp?v=7");
   });
 
-  it("wears the first letter when there is no photo", () => {
+  it("wears the initials when there is no photo", () => {
     render(<PlayerAvatar name="kabedev" />);
 
-    expect(screen.getByText("K")).toBeTruthy();
+    expect(screen.getByText("KA")).toBeTruthy();
   });
 
-  it("wears the first letter when the photo will not load", () => {
+  it("wears the initials when the photo will not load", () => {
     render(<PlayerAvatar name="kabedev" photoUrl={STORED} />);
 
     fireEvent.error(screen.getByRole("presentation", { hidden: true }));
 
     expect(screen.queryByRole("presentation", { hidden: true })).toBeNull();
-    expect(screen.getByText("K")).toBeTruthy();
+    expect(screen.getByText("KA")).toBeTruthy();
   });
 
   // A player who uploads a new photo gets a new address; it deserves its own try.

@@ -1,5 +1,6 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Lock } from "lucide-react";
 import { AchievementIcon } from "./achievement-icon";
 import {
   formatAchievementRarity,
@@ -13,14 +14,28 @@ export function formatAchievementValue(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-const EARNED =
-  "border-[#e9c07a]/45 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] shadow-[0_10px_28px_rgba(233,192,122,0.12)]";
-const LOCKED = "border-white/[0.06] bg-white/[0.03]";
+/** The round badge an award sits in: gold and lit once earned, dashed and locked until then. */
+function AwardBadge({ earned, icon }: { earned: boolean; icon: Achievement["icon"] }) {
+  return (
+    <span
+      className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full border ${
+        earned
+          ? "border-club-gold/50 bg-club-gold/[0.14] text-club-gold"
+          : "border-dashed border-club-line bg-club-raised text-club-faint"
+      }`}
+    >
+      {earned ? <AchievementIcon name={icon} size={24} /> : <Lock size={22} strokeWidth={1.8} />}
+    </span>
+  );
+}
+
+const TILE =
+  "relative flex h-full flex-col items-center gap-2 overflow-hidden rounded-[20px] border border-club-line bg-club-surface px-2 py-4 text-center";
 
 /**
- * One award, earned or not — the same card on a player's own screens and on anyone's.
+ * One award, earned or not — the same tile on a player's own screens and on anyone's.
  * A tap opens the players who hold it; the rarity line waits until the club's count has
- * loaded, and the card stands without it.
+ * loaded, and the tile stands without it.
  */
 export function AchievementCard({
   achievement,
@@ -30,40 +45,33 @@ export function AchievementCard({
   rarity?: AchievementRarity | null;
 }) {
   const shown = Math.min(achievement.value, achievement.goal);
+  const share = achievement.goal > 0 ? shown / achievement.goal : 0;
 
   return (
     <Link
-      className={`relative block h-full overflow-hidden rounded-[22px] border p-[18px] transition-transform active:scale-[0.98] ${
-        achievement.earned ? `${EARNED} client-glint-once` : LOCKED
-      }`}
+      className={`${TILE} transition-transform active:scale-[0.97] ${achievement.earned ? "client-glint-once" : ""}`}
       href={`/client/achievements/${achievement.id}`}
     >
-      <AchievementIcon
-        className={achievement.earned ? "text-[#e9c07a]" : "text-white/30"}
-        name={achievement.icon}
-      />
-      <p
-        className={`mt-3 text-[15px] font-bold uppercase leading-tight ${
-          achievement.earned ? "text-white" : "text-white/55"
-        }`}
-      >
+      <AwardBadge earned={achievement.earned} icon={achievement.icon} />
+      <p className={`text-[13px] font-extrabold leading-tight ${achievement.earned ? "" : "text-club-muted"}`}>
         {achievement.title}
       </p>
-      <p className="mt-1 text-[12px] leading-snug text-white/35">{achievement.description}</p>
-      <span
-        className={`mt-3 inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-semibold ${
-          achievement.earned ? "border-[#e9c07a]/45 text-[#e9c07a]" : "border-white/[0.09] text-white/45"
-        }`}
-      >
-        {formatAchievementValue(shown)} / {achievement.goal}
-      </span>
-      {/* A div, not a p: the global reset zeroes a paragraph's margin over Tailwind's. */}
-      {rarity ? (
-        <div className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-snug text-white/40">
-          <Users aria-hidden className="mt-px shrink-0" size={12} />
-          {formatAchievementRarity(rarity.holders[achievement.id] ?? 0, rarity.players)}
-        </div>
-      ) : null}
+      <p className="text-[11px] leading-snug text-club-faint">{achievement.description}</p>
+      <div className="mt-auto flex w-full flex-col items-center gap-1.5">
+        <span className={`text-[11px] font-bold ${achievement.earned ? "text-club-gold" : "text-club-muted"}`}>
+          {formatAchievementValue(shown)} / {achievement.goal}
+        </span>
+        {achievement.earned ? null : (
+          <div className="h-[3px] w-16 overflow-hidden rounded-full bg-white/[0.08]">
+            <div className="h-full rounded-full bg-club-gold" style={{ width: `${Math.round(share * 100)}%` }} />
+          </div>
+        )}
+        {rarity ? (
+          <div className="text-[10px] leading-snug text-club-faint">
+            {formatAchievementRarity(rarity.holders[achievement.id] ?? 0, rarity.players)}
+          </div>
+        ) : null}
+      </div>
     </Link>
   );
 }
@@ -72,27 +80,57 @@ export function MedalCard({ medal }: { medal: Medal }) {
   const earned = medal.count > 0;
 
   return (
-    <div
-      className={`relative overflow-hidden rounded-[22px] border p-[18px] ${
-        earned ? `${EARNED} client-glint-once` : LOCKED
-      }`}
-    >
-      <AchievementIcon className={earned ? "text-[#e9c07a]" : "text-white/30"} name={medal.icon} />
-      <p
-        className={`mt-3 text-[15px] font-bold uppercase leading-tight ${
-          earned ? "text-white" : "text-white/55"
-        }`}
-      >
-        {medal.title}
-      </p>
-      <p className="mt-1 text-[12px] leading-snug text-white/35">{medal.description}</p>
+    <div className={`${TILE} ${earned ? "client-glint-once" : ""}`}>
+      <AwardBadge earned={earned} icon={medal.icon} />
+      <p className={`text-[13px] font-extrabold leading-tight ${earned ? "" : "text-club-muted"}`}>{medal.title}</p>
+      <p className="text-[11px] leading-snug text-club-faint">{medal.description}</p>
       <span
-        className={`mt-3 inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-semibold ${
-          earned ? "border-[#e9c07a]/45 text-[#e9c07a]" : "border-white/[0.09] text-white/45"
+        className={`mt-auto rounded-full border px-2.5 py-0.5 font-display text-[12px] font-semibold ${
+          earned ? "border-club-gold/50 text-club-gold" : "border-club-line text-club-faint"
         }`}
       >
         x{medal.count}
       </span>
+    </div>
+  );
+}
+
+/**
+ * The head of a collection screen: a ring filled by the share collected, and the count.
+ * `count` is what is drawn in the middle of the line, so a screen may count it up.
+ */
+export function CollectionSummary({
+  count,
+  earned,
+  hint,
+  label,
+  total,
+}: {
+  count?: ReactNode;
+  earned: number;
+  hint?: ReactNode;
+  label: string;
+  total: number;
+}) {
+  const percent = total > 0 ? Math.round((earned / total) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-[18px] rounded-[22px] border border-club-line bg-club-surface p-[18px]">
+      <div
+        className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-full"
+        style={{ background: `conic-gradient(#e2bc6e 0 ${percent}%, rgba(255,255,255,0.08) ${percent}% 100%)` }}
+      >
+        <div className="flex h-[62px] w-[62px] items-center justify-center rounded-full bg-club-surface font-display text-[17px] font-semibold">
+          {percent}%
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <p className="text-[12px] text-club-muted">{label}</p>
+        <p className="font-display text-[24px] font-semibold">
+          {count ?? earned} <span className="text-[15px] text-club-muted">из {total}</span>
+        </p>
+        {hint ? <p className="mt-1 text-[12px] text-club-faint">{hint}</p> : null}
+      </div>
     </div>
   );
 }

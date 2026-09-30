@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Lock, Spade, X } from "lucide-react";
+import { Lock, Spade, X } from "lucide-react";
+import { CLUB_FONT_CLASSES } from "../fonts";
 import { GhostButton, GlassCard, PrimaryButton } from "./ui";
 import {
   formatFavoriteHand,
@@ -43,10 +44,10 @@ function CardFace({ draft }: { draft: Draft }) {
   return (
     <span
       key={complete ? `${draft.rank}${draft.suit}` : "draft"}
-      className={`flex h-9 min-w-[44px] items-center justify-center gap-0.5 rounded-lg bg-white px-2 text-[17px] font-extrabold leading-none ${
+      className={`flex h-[52px] w-[38px] flex-col items-center justify-center rounded-md bg-club-card font-display text-[17px] font-bold leading-none shadow-[0_2px_6px_rgba(0,0,0,0.5)] ${
         complete ? "client-card-flip" : ""
       }`}
-      style={{ color: red ? "#d4152b" : "#121212" }}
+      style={{ color: red ? "#c8213f" : "#15100f" }}
     >
       {draft.rank || draft.suit ? (
         <>
@@ -61,13 +62,7 @@ function CardFace({ draft }: { draft: Draft }) {
 }
 
 const choiceClass =
-  "flex h-10 items-center justify-center rounded-xl border font-bold transition active:scale-95 disabled:opacity-25";
-
-function choiceColours(chosen: boolean) {
-  return chosen
-    ? "border-white bg-white text-[#121212]"
-    : "border-white/[0.08] bg-white/[0.04] text-white";
-}
+  "flex items-center justify-center rounded-xl border transition active:scale-95 disabled:opacity-25";
 
 /**
  * One card being picked: thirteen ranks, four suits, and the card as it stands. The card
@@ -89,13 +84,9 @@ function CardPicker({
     Boolean(other && rank === other.rank && suit === other.suit);
 
   return (
-    <div
-      aria-label={title}
-      className="space-y-2.5 rounded-2xl border border-white/[0.07] bg-black/30 p-3"
-      role="group"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[13px] font-bold text-white/70">{title}</span>
+    <div aria-label={title} className="flex flex-col gap-2" role="group">
+      <div className="flex items-end justify-between gap-3">
+        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">{title}</span>
         <CardFace draft={draft} />
       </div>
 
@@ -104,7 +95,11 @@ function CardPicker({
           <button
             key={rank}
             aria-pressed={draft.rank === rank}
-            className={`${choiceClass} ${choiceColours(draft.rank === rank)} text-[15px]`}
+            className={`${choiceClass} h-11 font-display text-[14px] font-semibold ${
+              draft.rank === rank
+                ? "border-club-text bg-club-text text-[#15100f]"
+                : "border-club-line bg-club-surface text-club-text"
+            }`}
             disabled={isOther(rank, draft.suit)}
             type="button"
             onClick={() => onChange({ ...draft, rank })}
@@ -123,11 +118,10 @@ function CardPicker({
               key={suit}
               aria-label={SUIT_NAMES[suit]}
               aria-pressed={chosen}
-              className={`${choiceClass} ${choiceColours(chosen)} text-[22px]`}
+              className={`${choiceClass} h-12 text-[22px] ${
+                chosen ? "border-[1.5px] border-club-rose bg-club-crimson/12" : "border-club-line bg-club-surface"
+              } ${isRedSuit(suit) ? "text-club-rose" : "text-club-text"}`}
               disabled={isOther(draft.rank, suit)}
-              // Red suits stay red; black ones are drawn white on the dark button so they
-              // can be seen at all, and black once the button turns white.
-              style={isRedSuit(suit) ? { color: "#e0384f" } : undefined}
               type="button"
               onClick={() => onChange({ ...draft, suit })}
             >
@@ -187,20 +181,19 @@ export function FavoriteHandPicker({
     <div
       aria-label="Любимая рука"
       aria-modal="true"
-      className="client-app fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center sm:px-4"
+      className={`client-app ${CLUB_FONT_CLASSES} fixed inset-0 z-50 flex items-end justify-center bg-[rgba(5,3,4,0.72)] backdrop-blur-sm sm:items-center sm:px-4`}
       role="dialog"
     >
-      <GlassCard className="client-sheet-up max-h-[92dvh] w-full max-w-[420px] space-y-3 overflow-y-auto border border-[#c8163f]/40 !rounded-b-none pb-[calc(env(safe-area-inset-bottom)+20px)] sm:!rounded-b-[22px] sm:pb-5">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.2em] text-white/40">
-              Профиль
-            </div>
-            <div className="mt-1 text-[22px] font-bold tracking-tight">Любимая рука</div>
+      <div className="client-sheet-up flex max-h-[92dvh] w-full max-w-[420px] flex-col gap-[18px] overflow-y-auto rounded-t-[28px] border-t border-club-line bg-[#151012] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-2.5 text-club-text sm:rounded-[28px] sm:border sm:pb-5">
+        <span aria-hidden className="h-[5px] w-10 self-center rounded-full bg-white/[0.18]" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">Профиль</div>
+            <div className="font-display text-[20px] font-semibold">Любимая рука</div>
           </div>
           <button
             aria-label="Закрыть"
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#c8163f]/60 bg-black/40"
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-[14px] border border-club-line bg-white/[0.06]"
             type="button"
             onClick={onClose}
           >
@@ -211,29 +204,33 @@ export function FavoriteHandPicker({
         <CardPicker draft={first} other={secondCard} title="Первая карта" onChange={setFirst} />
         <CardPicker draft={second} other={firstCard} title="Вторая карта" onChange={setSecond} />
 
-        <div className="text-[12px] leading-relaxed text-white/40">
+        <p className="text-[12px] leading-relaxed text-club-muted">
           Две карты, которые считаете своими. Показываются на аватарке — в профиле, рейтинге,
           у столов и в результатах игр.
+        </p>
+
+        {error ? <div className="text-center text-sm text-club-rose">{error}</div> : null}
+
+        <div className="flex flex-col gap-2">
+          <PrimaryButton
+            disabled={!ready}
+            loading={saving}
+            onClick={() => firstCard && secondCard && void save(formatFavoriteHand([firstCard, secondCard]))}
+          >
+            Сохранить
+          </PrimaryButton>
+          <div className="flex gap-2">
+            {stored ? (
+              <GhostButton disabled={saving} onClick={() => void save(null)}>
+                Убрать руку
+              </GhostButton>
+            ) : null}
+            <GhostButton disabled={saving} onClick={onClose}>
+              Отмена
+            </GhostButton>
+          </div>
         </div>
-
-        {error ? <div className="text-center text-sm text-rose-300">{error}</div> : null}
-
-        <PrimaryButton
-          disabled={!ready}
-          loading={saving}
-          onClick={() => firstCard && secondCard && void save(formatFavoriteHand([firstCard, secondCard]))}
-        >
-          Сохранить
-        </PrimaryButton>
-        {stored ? (
-          <GhostButton disabled={saving} onClick={() => void save(null)}>
-            Убрать руку
-          </GhostButton>
-        ) : null}
-        <GhostButton disabled={saving} onClick={onClose}>
-          Отмена
-        </GhostButton>
-      </GlassCard>
+      </div>
     </div>,
     document.body,
   );
@@ -258,11 +255,13 @@ export function FavoriteHandCard({
     const left = Math.max(1, TIER_GAMES.member - Math.max(0, games));
 
     return (
-      <GlassCard className="flex items-center gap-3 !p-[18px]">
-        <Lock className="shrink-0 text-white/35" size={20} />
-        <div>
-          <div className="text-[15px] font-bold text-white/70">Любимая рука</div>
-          <div className="mt-0.5 text-[12px] text-white/40">
+      <GlassCard className="flex items-center gap-3.5">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-club-raised text-club-faint">
+          <Lock size={18} />
+        </span>
+        <div className="flex flex-col gap-0.5">
+          <div className="text-[15px] font-extrabold text-club-muted">Любимая рука</div>
+          <div className="text-[12px] text-club-faint">
             Откроется со статуса MEMBER — ещё {countWord(left, ["игра", "игры", "игр"])}
           </div>
         </div>
@@ -274,37 +273,39 @@ export function FavoriteHandCard({
 
   return (
     <button
-      className="block w-full text-left transition-transform active:scale-[0.99]"
+      className="flex w-full items-center gap-4 rounded-[20px] border border-club-line bg-club-surface p-4 text-left transition-transform active:scale-[0.99]"
       type="button"
       onClick={onOpen}
     >
-      <GlassCard className="flex items-center justify-between gap-3 !p-[18px]">
-        <div className="flex items-center gap-3">
-          <Spade className="shrink-0 text-[#e9c07a]" size={22} />
-          <div>
-            <div className="text-[15px] font-bold">Любимая рука</div>
-            <div className="mt-0.5 text-[12px] text-white/40">
-              {cards ? "На вашей аватарке по всему приложению" : "Выберите две карты для аватарки"}
-            </div>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          {cards ? (
-            <span className="flex gap-1 text-[16px] font-extrabold">
-              {cards.map((card) => (
-                <span
-                  key={`${card.rank}${card.suit}`}
-                  style={{ color: isRedSuit(card.suit) ? "#e0384f" : "#ffffff" }}
-                >
-                  {formatRank(card.rank)}
-                  {SUIT_SYMBOLS[card.suit]}
-                </span>
-              ))}
+      {cards ? (
+        <span className="flex shrink-0">
+          {cards.map((card, index) => (
+            <span
+              key={`${card.rank}${card.suit}`}
+              className="flex h-[46px] w-[34px] flex-col items-center justify-center rounded-md bg-club-card font-display leading-none shadow-[0_2px_6px_rgba(0,0,0,0.5)]"
+              style={{
+                color: isRedSuit(card.suit) ? "#c8213f" : "#15100f",
+                marginLeft: index === 0 ? 0 : -10,
+                transform: `rotate(${index === 0 ? -6 : 6}deg)`,
+              }}
+            >
+              <span className="text-[16px] font-bold">{formatRank(card.rank)}</span>
+              <span className="text-[15px]">{SUIT_SYMBOLS[card.suit]}</span>
             </span>
-          ) : null}
-          <ChevronRight className="text-white/35" size={19} />
+          ))}
+        </span>
+      ) : (
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-club-raised text-club-gold">
+          <Spade size={20} />
+        </span>
+      )}
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <div className="text-[15px] font-extrabold">Любимая рука</div>
+        <div className="text-[12px] text-club-muted">
+          {cards ? "На вашей аватарке по всему приложению" : "Выберите две карты для аватарки"}
         </div>
-      </GlassCard>
+      </div>
+      <span className="shrink-0 text-[13px] font-extrabold text-club-rose">{cards ? "Изменить" : "Выбрать"}</span>
     </button>
   );
 }

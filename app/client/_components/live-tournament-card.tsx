@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, Pause, Users } from "lucide-react";
+import { ChevronRight, Pause } from "lucide-react";
 import { formatClock, getLevelDuration } from "@/lib/timer/calculate";
 import type { LiveTournament } from "./use-live-tournament";
 
@@ -50,95 +50,95 @@ export function LiveTournamentCard({
   const levelLeft = levelSeconds > 0 ? Math.min(1, live.remainingSeconds / levelSeconds) : 0;
   // The last seconds of a running level beat on the clock; a held clock keeps still.
   const lastSeconds = !live.isPaused && live.remainingSeconds > 0 && live.remainingSeconds <= LAST_SECONDS;
+  const ante = live.currentLevel?.ante ?? 0;
   const body = (
-    <article className="relative overflow-hidden rounded-[22px] border border-[#c8163f]/35 bg-[linear-gradient(120deg,rgba(26,11,16,0.96),rgba(12,6,9,0.96))] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
+    <article className="relative overflow-hidden rounded-[22px] border border-club-rose/45 bg-club-surface shadow-[0_14px_40px_rgba(200,33,63,0.18)]">
       <span key={levelKey} aria-hidden className="client-sweep pointer-events-none absolute inset-0 z-10" />
-      <div className="flex">
-        <div className="min-w-0 flex-1 p-4">
-          <div className="flex items-center gap-2">
-            <p className="min-w-0 truncate text-[17px] font-extrabold tracking-tight">
-              {live.tournamentName}
-            </p>
-            <span className="flex shrink-0 items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-[#f05a7e]">
-              {/* The ring that goes out and fades, the way a broadcast says it is live. */}
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#f05a7e] opacity-75" />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#f05a7e]" />
-              </span>
-              идёт игра
-            </span>
-          </div>
 
-          {href ? (
-            <p className="mt-0.5 flex items-center gap-0.5 text-[13px] text-white/40">
-              открыть турнир
-              <ChevronRight size={14} />
-            </p>
-          ) : null}
-
-          <div className="mt-3.5 flex flex-wrap gap-x-5 gap-y-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">
-                {(live.currentLevel?.ante ?? 0) > 0
-                  ? `Анте ${formatBlind(live.currentLevel?.ante)}`
-                  : "Блайнды"}
-              </p>
-              <p className="overflow-hidden text-[15px] font-bold tabular-nums">
-                <span key={levelKey} className="client-flip-up">
-                  {live.isBreak
-                    ? "перерыв"
-                    : `${formatBlind(live.currentLevel?.smallBlind)}/${formatBlind(live.currentLevel?.bigBlind)}`}
-                </span>
-              </p>
-            </div>
-
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">В игре</p>
-              <p className="flex items-center gap-1 overflow-hidden text-[15px] font-bold tabular-nums">
-                <Users className="text-white/35" size={13} />
-                <span key={live.activePlayers} className="client-flip-down">
-                  {live.activePlayers}
-                </span>
-                {live.totalPlayers > live.activePlayers ? (
-                  <span className="text-[13px] font-semibold text-white/35">
-                    /{live.totalPlayers}
-                  </span>
-                ) : null}
-              </p>
-            </div>
-
-            {registrationLeft ? (
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-wider text-white/35">
-                  Запись ещё
-                </p>
-                <p className="text-[15px] font-bold tabular-nums">{registrationLeft}</p>
-              </div>
-            ) : null}
-          </div>
-        </div>
-
-        <div className="flex w-[104px] shrink-0 flex-col items-center justify-center gap-1 bg-[linear-gradient(160deg,#c8163f,#7d0d26)] px-2 py-4 text-center">
-          <p className="text-[10px] font-bold uppercase leading-tight tracking-wider text-white/70">
-            {live.isBreak ? "перерыв" : `${live.roundNumber} уровень`}
-          </p>
-          <p className="text-[26px] font-extrabold leading-none tabular-nums">
-            <span className={lastSeconds ? "client-tick" : undefined}>
-              {formatClock(live.remainingSeconds)}
-            </span>
-          </p>
-          {/* What is left of the level, running down with the clock. */}
-          <span className="mt-1 h-[3px] w-[70%] overflow-hidden rounded-full bg-black/25">
-            <span
-              className="block h-full origin-left rounded-full bg-white/85 transition-transform duration-1000 ease-linear"
-              style={{ transform: `scaleX(${levelLeft})` }}
-            />
+      <div className="flex items-center justify-between px-4 pt-3.5">
+        <span className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-[0.14em] text-club-rose">
+          {/* The ring that goes out and fades, the way a broadcast says it is live. */}
+          <span className="relative flex h-2 w-2">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-club-rose opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-club-rose" />
           </span>
-          {live.isPaused ? (
-            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-white/75">
-              <Pause size={10} /> пауза
-            </p>
-          ) : null}
+          идёт игра
+        </span>
+        {live.isPaused ? (
+          <span className="inline-flex items-center gap-1 text-[11px] font-extrabold uppercase tracking-[0.1em] text-club-gold">
+            <Pause size={11} /> пауза
+          </span>
+        ) : href ? (
+          <span className="inline-flex items-center gap-0.5 text-[13px] font-bold text-club-muted">
+            Открыть
+            <ChevronRight size={16} />
+          </span>
+        ) : null}
+      </div>
+
+      <div className="flex items-end justify-between gap-3 px-4 pb-3.5 pt-2.5">
+        <div className="flex min-w-0 flex-col gap-1">
+          <p className="truncate text-[16px] font-extrabold">{live.tournamentName}</p>
+          <p className="overflow-hidden text-[13px] text-club-muted">
+            <span key={levelKey} className="client-flip-up inline-block">
+              {live.isBreak ? (
+                <span>перерыв</span>
+              ) : (
+                <>
+                  <span>{live.roundNumber} уровень</span> · блайнды{" "}
+                  <span className="tabular-nums">
+                    {formatBlind(live.currentLevel?.smallBlind)}/{formatBlind(live.currentLevel?.bigBlind)}
+                  </span>
+                  {ante > 0 ? (
+                    <>
+                      {" · "}
+                      <span>Анте {formatBlind(ante)}</span>
+                    </>
+                  ) : null}
+                </>
+              )}
+            </span>
+          </p>
+        </div>
+        <p className="shrink-0 font-display text-[34px] font-semibold leading-none tracking-[-0.02em] tabular-nums">
+          <span className={lastSeconds ? "client-tick" : undefined}>{formatClock(live.remainingSeconds)}</span>
+        </p>
+      </div>
+
+      {/* What is left of the level, running down with the clock. */}
+      <div className="px-4">
+        <span className="block h-1 overflow-hidden rounded-full bg-white/[0.08]">
+          <span
+            className="block h-full origin-left rounded-full bg-club-rose transition-transform duration-1000 ease-linear"
+            style={{ transform: `scaleX(${levelLeft})` }}
+          />
+        </span>
+      </div>
+
+      <div className="mt-3.5 grid grid-cols-2 gap-px border-t border-club-line bg-club-line">
+        <div className="flex flex-col gap-1 bg-club-surface px-4 py-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">В игре</p>
+          <p className="flex items-baseline overflow-hidden font-display text-[17px] font-semibold tabular-nums">
+            <span key={live.activePlayers} className="client-flip-down inline-block">
+              {live.activePlayers}
+            </span>
+            {live.totalPlayers > live.activePlayers ? (
+              <span className="text-[13px] text-club-faint">&nbsp;/ {live.totalPlayers}</span>
+            ) : null}
+          </p>
+        </div>
+        <div className="flex flex-col gap-1 bg-club-surface px-4 py-3">
+          {registrationLeft ? (
+            <>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">Запись ещё</p>
+              <p className="font-display text-[17px] font-semibold tabular-nums">{registrationLeft}</p>
+            </>
+          ) : (
+            <>
+              <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">Запись</p>
+              <p className="font-display text-[17px] font-semibold text-club-muted">закрыта</p>
+            </>
+          )}
         </div>
       </div>
     </article>

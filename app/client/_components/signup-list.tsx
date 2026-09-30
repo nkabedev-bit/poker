@@ -17,8 +17,8 @@ function Entry({ player }: { player: SignupListEntry }) {
   // A "1+1" guest is only the name the buyer wrote down: there is no account behind it,
   // and a namesake's profile would be somebody else's.
   const profileKey = player.isGuest ? "" : buildNicknameKey(player.name);
-  const rowClassName = `flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
-    player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
+  const rowClassName = `flex min-h-[52px] items-center gap-3 rounded-[14px] px-3 py-2 ${
+    player.isMe ? "bg-club-crimson/12" : ""
   }`;
   const row = (
     <>
@@ -28,12 +28,12 @@ function Entry({ player }: { player: SignupListEntry }) {
         photoUrl={player.avatarUrl ?? undefined}
         size={34}
       />
-      <p className="min-w-0 flex-1 truncate text-[14px] font-semibold">
+      <p className="min-w-0 flex-1 truncate pl-1 text-[14px] font-bold">
         {player.name}
-        {player.isGuest ? <span className="text-white/35"> · гость</span> : null}
+        {player.isGuest ? <span className="font-semibold text-club-faint"> · гость</span> : null}
       </p>
       {ticket ? (
-        <span className="shrink-0 rounded-lg border border-[#e9c07a]/35 bg-[#e9c07a]/10 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
+        <span className="shrink-0 rounded-full border border-club-gold/40 px-2 py-0.5 text-[11px] font-bold text-club-gold">
           {ticket}
         </span>
       ) : null}
@@ -73,16 +73,16 @@ export function SignupList({
   if (players.length === 0 && waitlist.length === 0) {
     return (
       <GlassCard className="py-7 text-center">
-        <p className="text-sm text-white/45">Пока никто не записался. Будьте первым.</p>
+        <p className="text-sm text-club-muted">Пока никто не записался. Будьте первым.</p>
       </GlassCard>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-2.5">
       {players.length > 0 ? (
-        <GlassCard className="!p-3">
-          <ul className="space-y-0.5">
+        <GlassCard className="!px-1 !py-1.5">
+          <ul className="flex flex-col">
             {players.map((player) => (
               <Entry key={player.key} player={player} />
             ))}
@@ -91,11 +91,11 @@ export function SignupList({
       ) : null}
 
       {waitlist.length > 0 ? (
-        <GlassCard className="!p-3">
-          <p className="mb-1.5 px-1.5 text-[12px] font-bold uppercase tracking-wider text-white/35">
+        <GlassCard className="!px-1 !py-1.5">
+          <p className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">
             Лист ожидания
           </p>
-          <ul className="space-y-0.5">
+          <ul className="flex flex-col">
             {waitlist.map((player) => (
               <Entry key={player.key} player={player} />
             ))}

@@ -11,16 +11,12 @@ export function ArchiveMedals({ medals }: { medals: Medal[] }) {
   if (medals.length === 0) return null;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <span className="h-px flex-1 bg-white/[0.08]" />
-        <p className="text-center text-[13px] font-semibold uppercase tracking-wide text-white/40">
-          Медали за архивные турниры
-        </p>
-        <span className="h-px flex-1 bg-white/[0.08]" />
-      </div>
+    <div className="flex flex-col gap-2.5">
+      <p className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">
+        Медали за архивные турниры
+      </p>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-3 gap-2.5">
         {medals.map((medal) => (
           <MedalCard key={medal.key} medal={medal} />
         ))}

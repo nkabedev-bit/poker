@@ -39,10 +39,10 @@ export function formatOfferClock(secondsLeft: number) {
 }
 
 const TONES: Record<OfferUrgency, { box: string; color: string; speed: string }> = {
-  calm: { box: "border-emerald-400/40 bg-emerald-400/10", color: "#34d399", speed: "2.4s" },
-  soon: { box: "border-[#f5b041]/50 bg-[#f5b041]/10", color: "#f5b041", speed: "1.2s" },
-  last: { box: "border-[#f05a7e]/55 bg-[#f05a7e]/12", color: "#f05a7e", speed: "0.8s" },
-  over: { box: "border-white/15 bg-white/[0.06]", color: "rgba(255,255,255,0.35)", speed: "0s" },
+  calm: { box: "border-club-mint/40 bg-club-mint/10", color: "#62d49c", speed: "2.4s" },
+  soon: { box: "border-club-gold/50 bg-club-gold/10", color: "#e2bc6e", speed: "1.2s" },
+  last: { box: "border-club-rose/55 bg-club-crimson/12", color: "#f0647c", speed: "0.8s" },
+  over: { box: "border-club-line bg-white/[0.05]", color: "#8a7e7a", speed: "0s" },
 };
 
 const RING_RADIUS = 19;
@@ -79,7 +79,7 @@ export function OfferCountdown({ expiresAt, onExpire }: { expiresAt: string; onE
 
   return (
     <div
-      className={`relative flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 transition-colors duration-500 ${tone.box} ${
+      className={`relative flex items-center gap-3.5 rounded-[18px] border px-4 py-3.5 transition-colors duration-500 ${tone.box} ${
         over ? "" : "client-breathe"
       }`}
       style={{ "--client-breathe-speed": tone.speed, "--client-glow": tone.color } as CSSProperties}
@@ -99,17 +99,17 @@ export function OfferCountdown({ expiresAt, onExpire }: { expiresAt: string; onE
         />
       </svg>
 
-      <div className="min-w-0 text-left">
-        <div className="text-[15px] font-bold" style={{ color: over ? "rgba(255,255,255,0.7)" : tone.color }}>
+      <div className="flex min-w-0 flex-col gap-1 text-left">
+        <div className="text-[15px] font-extrabold" style={{ color: over ? "#a99d98" : tone.color }}>
           {over ? "Время вышло" : "Освободилось место — очередь дошла до вас"}
         </div>
-        <div className="mt-1 text-[13px] font-semibold text-white/60">
+        <div className="text-[13px] font-semibold text-club-muted">
           {over ? (
             "Место ушло следующему в очереди."
           ) : (
             <>
               Держим его за вами ещё{" "}
-              <b className={`tabular-nums text-white ${clock.urgency === "last" ? "client-blink" : ""}`}>
+              <b className={`tabular-nums text-club-text ${clock.urgency === "last" ? "client-blink" : ""}`}>
                 {formatOfferClock(clock.secondsLeft)}
               </b>
               , до {formatEventTimeLabel(expiresAt)}. Потом место уйдёт следующему в очереди.

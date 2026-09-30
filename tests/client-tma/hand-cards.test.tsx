@@ -16,14 +16,14 @@ describe("the favourite hand on an avatar", () => {
 
     expect(cards.map((card) => card.textContent)).toEqual(["Q♠", "10♥"]);
     // Spades print black, hearts red — the way the club's own deck does.
-    expect(cards[0]?.style.color).toBe("rgb(18, 18, 18)");
-    expect(cards[1]?.style.color).toBe("rgb(212, 21, 43)");
+    expect(cards[0]?.style.color).toBe("rgb(21, 16, 15)");
+    expect(cards[1]?.style.color).toBe("rgb(200, 33, 63)");
   });
 
   it("shows only the face when the player has not picked a hand", () => {
     render(<PlayerAvatar name="Vera" size={34} />);
 
-    expect(screen.getByText("V")).toBeTruthy();
+    expect(screen.getByText("VE")).toBeTruthy();
     expect(screen.queryByRole("img", { name: /Любимая рука/ })).toBeNull();
   });
 
@@ -41,17 +41,17 @@ describe("the favourite hand on an avatar", () => {
     expect(parseInt(card.style.width, 10)).toBeGreaterThanOrEqual(13);
   });
 
-  // A profile draws the face 72 pixels across; the fan stays in its lower-left quarter
+  // A profile draws the face 72 pixels across; the fan stays in its lower-right quarter
   // instead of reaching across the face.
   it("keeps the cards to the corner of a profile's face", () => {
     render(<PlayerAvatar hand="AsAh" name="Chura" size={72} />);
 
     const fan = screen.getByRole("img", { name: /Любимая рука/ });
     const px = (value: string) => parseInt(value, 10);
-    const right = px(fan.style.left) + px(fan.style.width);
+    const left = 72 - px(fan.style.right) - px(fan.style.width);
     const top = 72 - px(fan.style.bottom) - px(fan.style.height);
 
-    expect(right).toBeLessThanOrEqual(72 / 2);
+    expect(left).toBeGreaterThanOrEqual(72 / 2);
     expect(top).toBeGreaterThanOrEqual(72 / 2);
   });
 });

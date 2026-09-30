@@ -32,12 +32,12 @@ describe("EventCard", () => {
   it("shows the seats taken out of the seats announced", () => {
     render(<EventCard event={event()} />);
 
-    expect(screen.getByText("20/27 забронировано")).toBeTruthy();
+    expect(screen.getByText("20 из 27")).toBeTruthy();
   });
 
   it("says nothing about seats when the poster names no limit", () => {
     render(<EventCard event={event({ maxPlayers: null })} />);
 
-    expect(screen.queryByText(/забронировано/)).toBeNull();
+    expect(screen.queryByText(/ из \d/)).toBeNull();
   });
 });

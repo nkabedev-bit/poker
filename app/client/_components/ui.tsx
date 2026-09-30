@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { CalendarDays, ChevronRight, Loader2 } from "lucide-react";
 
-/** Panel used for every block that is not a poster: soft, dark, barely lit. */
+/** Panel used for every block that is not a poster: a flat, warm-dark surface. */
 export function GlassCard({
   children,
   className = "",
@@ -11,11 +11,29 @@ export function GlassCard({
   className?: string;
 }) {
   return (
-    <div
-      className={`rounded-[22px] border border-white/[0.07] bg-white/[0.045] p-5 shadow-[0_10px_34px_rgba(0,0,0,0.5)] ${className}`}
-    >
+    <div className={`rounded-[20px] border border-club-line bg-club-surface p-4 ${className}`}>
       {children}
     </div>
+  );
+}
+
+const PRIMARY_BUTTON =
+  "flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl bg-club-crimson px-5 text-[15px] font-extrabold text-white shadow-[0_10px_24px_rgba(200,33,63,0.35)] transition active:scale-[0.985]";
+
+/** A link that looks like the main button: "Записаться" on a card that opens a screen. */
+export function PrimaryLink({
+  children,
+  className = "",
+  href,
+}: {
+  children: ReactNode;
+  className?: string;
+  href: string;
+}) {
+  return (
+    <Link className={`${PRIMARY_BUTTON} ${className}`} href={href}>
+      {children}
+    </Link>
   );
 }
 
@@ -29,11 +47,23 @@ export function PrimaryButton({
     <button
       {...props}
       disabled={props.disabled || loading}
-      className={`flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-b from-[#c8163f] to-[#7d0d26] px-4 py-4 text-[15px] font-bold tracking-wide text-white shadow-[0_10px_28px_rgba(200,22,63,0.35)] transition active:scale-[0.985] disabled:opacity-45 disabled:shadow-none ${className}`}
+      className={`${PRIMARY_BUTTON} disabled:opacity-45 disabled:shadow-none ${className}`}
     >
       {loading ? <Loader2 className="animate-spin" size={18} /> : null}
       {children}
     </button>
+  );
+}
+
+const GHOST_BUTTON =
+  "flex min-h-[52px] w-full items-center justify-center gap-2 rounded-2xl border border-club-line bg-white/[0.06] px-5 text-[15px] font-extrabold text-club-text transition active:scale-[0.985]";
+
+/** A quiet link shaped like a button: "К расписанию турниров". */
+export function GhostLink({ children, href }: { children: ReactNode; href: string }) {
+  return (
+    <Link className={GHOST_BUTTON} href={href}>
+      {children}
+    </Link>
   );
 }
 
@@ -43,10 +73,7 @@ export function GhostButton({
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
-    <button
-      {...props}
-      className={`flex w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3.5 text-sm font-semibold text-white/75 transition active:scale-[0.985] disabled:opacity-45 ${className}`}
-    >
+    <button {...props} className={`${GHOST_BUTTON} disabled:opacity-45 ${className}`}>
       {children}
     </button>
   );
@@ -55,7 +82,7 @@ export function GhostButton({
 /** The red plate a poster carries: "Новый формат!", "Глубокие стеки!". */
 export function Badge({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center rounded-xl bg-gradient-to-r from-[#c8163f] to-[#8d0f2b] px-3 py-1.5 text-[12px] font-bold text-white shadow-[0_6px_18px_rgba(200,22,63,0.35)]">
+    <span className="inline-flex h-7 items-center rounded-full bg-club-crimson px-3 text-[12px] font-bold text-white">
       {children}
     </span>
   );
@@ -64,31 +91,211 @@ export function Badge({ children }: { children: ReactNode }) {
 /** Date, time and seat pills that sit on top of a poster. */
 export function Chip({ children }: { children: ReactNode }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-[12px] font-medium text-white/90 backdrop-blur-md">
+    <span className="inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full bg-black/55 px-2.5 text-[12px] font-semibold text-club-text backdrop-blur-md">
       {children}
     </span>
   );
 }
 
-export function SectionHeader({ href, title }: { href?: string; title: string }) {
-  const content = (
-    <>
-      <h2 className="text-[19px] font-bold tracking-tight text-white">{title}</h2>
-      {href ? <ChevronRight className="text-white/35" size={19} /> : null}
-    </>
-  );
+export type PillTone = "neutral" | "gold" | "goldOutline" | "mint" | "rose" | "muted";
 
-  return href ? (
-    <Link className="flex items-center gap-1" href={href}>
-      {content}
+const PILL_TONES: Record<PillTone, string> = {
+  gold: "border-transparent bg-club-gold/10 text-club-gold",
+  goldOutline: "border-club-gold/50 bg-transparent text-club-gold",
+  mint: "border-club-mint/35 bg-club-mint/12 text-club-mint",
+  muted: "border-club-line bg-transparent text-club-muted",
+  neutral: "border-transparent bg-white/[0.06] text-club-muted",
+  rose: "border-club-rose/45 bg-club-crimson/15 text-club-rose",
+};
+
+/** A small rounded label: a date, a status, a tier. */
+export function Pill({
+  children,
+  className = "",
+  tone = "neutral",
+}: {
+  children: ReactNode;
+  className?: string;
+  tone?: PillTone;
+}) {
+  return (
+    <span
+      className={`inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 text-[12px] font-semibold ${PILL_TONES[tone]} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Small uppercase caption over a figure or a block: "В ИГРЕ", "СЛЕДУЮЩАЯ ИГРА". */
+export function Eyebrow({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <p className={`text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint ${className}`}>
+      {children}
+    </p>
+  );
+}
+
+/** A thin bar that fills with a share: seats taken, a level run down, progress. */
+export function ProgressBar({
+  className = "",
+  color = "bg-club-crimson",
+  height = 4,
+  value,
+}: {
+  className?: string;
+  color?: string;
+  height?: number;
+  /** 0..1 */
+  value: number;
+}) {
+  const share = Math.max(0, Math.min(1, value));
+
+  return (
+    <div className={`overflow-hidden rounded-full bg-white/[0.08] ${className}`} style={{ height }}>
+      <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.round(share * 100)}%` }} />
+    </div>
+  );
+}
+
+/** One of the figures in a row of numbers: games, knockouts, top-9. */
+export function StatCell({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex flex-col items-center gap-1 px-1 py-3.5">
+      <span className="font-display text-[24px] font-semibold tabular-nums">{value}</span>
+      <span className="text-[12px] text-club-muted">{label}</span>
+    </div>
+  );
+}
+
+/** Three figures in one panel, split by hairlines. */
+export function StatStrip({ children }: { children: ReactNode }) {
+  return (
+    <div className="grid grid-cols-3 divide-x divide-club-line rounded-[20px] border border-club-line bg-club-surface">
+      {children}
+    </div>
+  );
+}
+
+/** The tinted square an icon sits in at the start of a menu row. */
+export function IconTile({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return (
+    <span
+      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-club-raised text-club-gold ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** A row of a grouped menu: icon, title, a line under it, a value and a chevron. */
+export function MenuRow({
+  children,
+  href,
+  icon,
+  subtitle,
+  title,
+  value,
+}: {
+  /** Anything that goes under the subtitle, such as a progress bar. */
+  children?: ReactNode;
+  href: string;
+  icon: ReactNode;
+  subtitle?: ReactNode;
+  title: ReactNode;
+  value?: ReactNode;
+}) {
+  return (
+    <Link className="flex min-h-[68px] items-center gap-3.5 px-3.5 py-3 transition active:bg-white/[0.03]" href={href}>
+      <IconTile>{icon}</IconTile>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <p className="text-[15px] font-bold">{title}</p>
+        {subtitle ? <p className="text-[12px] text-club-muted">{subtitle}</p> : null}
+        {children}
+      </div>
+      {value != null ? (
+        <span className="whitespace-nowrap font-display text-[14px] font-semibold text-club-muted">{value}</span>
+      ) : null}
+      <ChevronRight className="shrink-0 text-club-faint" size={18} />
     </Link>
-  ) : (
-    <div className="flex items-center gap-1">{content}</div>
+  );
+}
+
+/** A panel holding menu rows, with hairlines between them. */
+export function MenuGroup({ children }: { children: ReactNode }) {
+  return (
+    <div className="overflow-hidden rounded-[20px] border border-club-line bg-club-surface [&>*+*]:border-t [&>*+*]:border-club-line">
+      {children}
+    </div>
+  );
+}
+
+export function SectionHeader({
+  href,
+  linkLabel = "Все",
+  title,
+}: {
+  href?: string;
+  linkLabel?: string;
+  title: string;
+}) {
+  return (
+    <div className="flex min-h-11 items-center justify-between gap-3">
+      <h2 className="font-display text-[17px] font-semibold tracking-[-0.01em]">{title}</h2>
+      {href ? (
+        <Link className="inline-flex h-11 items-center gap-0.5 text-[13px] font-semibold text-club-muted" href={href}>
+          {linkLabel}
+          <ChevronRight size={16} />
+        </Link>
+      ) : null}
+    </div>
   );
 }
 
 export function PageTitle({ children }: { children: ReactNode }) {
-  return <h1 className="text-[28px] font-bold tracking-tight">{children}</h1>;
+  return <h1 className="font-display text-[26px] font-semibold tracking-[-0.02em]">{children}</h1>;
+}
+
+/** A screen's title with the line under it that says what the screen is for. */
+export function PageHeading({ subtitle, title }: { subtitle?: ReactNode; title: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <PageTitle>{title}</PageTitle>
+      {subtitle ? <p className="text-[14px] text-club-muted">{subtitle}</p> : null}
+    </div>
+  );
+}
+
+/** A segmented switch: "Актуальные / Прошедшие", "По рейтингу / По нокаутам". */
+export function Segmented<T extends string>({
+  onChange,
+  options,
+  value,
+}: {
+  onChange: (value: T) => void;
+  options: readonly { label: string; value: T }[];
+  value: T;
+}) {
+  return (
+    <div className="flex gap-1 rounded-2xl border border-club-line bg-club-surface p-1">
+      {options.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            aria-pressed={active}
+            className={`h-10 flex-1 rounded-xl text-[14px] font-bold transition-colors ${
+              active ? "bg-club-crimson text-white" : "text-club-muted"
+            }`}
+            type="button"
+            onClick={() => onChange(option.value)}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 export function ScreenMessage({
@@ -108,15 +315,15 @@ export function ScreenMessage({
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-4 py-16 text-center">
       <div
-        className={`flex h-[72px] w-[72px] items-center justify-center rounded-[24px] border border-white/[0.07] bg-white/[0.04] text-[#e0416a] ${
+        className={`flex h-[72px] w-[72px] items-center justify-center rounded-[22px] border border-club-line bg-club-surface text-club-rose ${
           lively ? "client-float client-glint relative overflow-hidden" : ""
         }`}
       >
         {icon}
       </div>
-      <div className="space-y-1.5">
-        <h2 className="text-xl font-bold">{title}</h2>
-        {subtitle ? <p className="mx-auto max-w-xs text-sm text-white/50">{subtitle}</p> : null}
+      <div className="flex flex-col gap-1.5">
+        <h2 className="font-display text-[20px] font-semibold">{title}</h2>
+        {subtitle ? <p className="mx-auto max-w-xs text-sm text-club-muted">{subtitle}</p> : null}
       </div>
       {action ? <div className="w-full max-w-xs pt-2">{action}</div> : null}
     </div>
@@ -126,9 +333,9 @@ export function ScreenMessage({
 /** Shown wherever the upcoming-games list is empty: the schedule is simply not out yet. */
 export function NoEventsCard() {
   return (
-    <GlassCard className="py-8 text-center">
-      <CalendarDays className="mx-auto mb-3 text-white/25" size={30} />
-      <p className="text-[17px] font-bold">Опубликуем расписание в понедельник в 19:00</p>
+    <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
+      <CalendarDays className="text-club-faint" size={30} />
+      <p className="text-[16px] font-bold">Опубликуем расписание в понедельник в 19:00</p>
     </GlassCard>
   );
 }

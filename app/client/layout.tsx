@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
 import { WelcomeSplash } from "./_components/welcome-splash";
+import { CLUB_FONT_CLASSES } from "./fonts";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -79,14 +80,11 @@ export const ClientTMAContext = createContext<{ initData: string; telegramUser: 
 export const useClientTMA = () => useContext(ClientTMAContext);
 
 const NAV_ITEMS = [
-  { href: "/client", label: "Главная", icon: House, match: (p: string) => p === "/client" },
-  { href: "/client/tournaments", label: "Турниры", icon: Trophy, match: (p: string) => p.includes("/tournaments") || p.includes("/events") },
-  { href: "/client/battle-pass", label: "Боевой пропуск", icon: Swords, match: (p: string) => p.includes("/battle-pass") },
-  { href: "/client/profile", label: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
+  { href: "/client", label: "Главная", short: "Главная", icon: House, match: (p: string) => p === "/client" },
+  { href: "/client/tournaments", label: "Турниры", short: "Турниры", icon: Trophy, match: (p: string) => p.includes("/tournaments") || p.includes("/events") },
+  { href: "/client/battle-pass", label: "Боевой пропуск", short: "Пропуск", icon: Swords, match: (p: string) => p.includes("/battle-pass") },
+  { href: "/client/profile", label: "Профиль", short: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
-
-/** How far the tab bar's pill travels per tab: a tab's width and the gap after it. */
-const NAV_STEP_PX = 78;
 
 /** How long to wait for Telegram before deciding this is an ordinary browser. */
 const TELEGRAM_WAIT_MS = 1200;
@@ -321,47 +319,52 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         onReady={initTg}
       />
 
-      <div className="client-app relative flex h-[100dvh] flex-col overflow-hidden bg-[#0a0608] text-white">
-        {/* Club colours: a crimson glow bleeding into near-black felt */}
+      <div
+        className={`client-app ${CLUB_FONT_CLASSES} relative flex h-[100dvh] flex-col overflow-hidden bg-club-ink text-club-text`}
+      >
+        {/* Club colours: a crimson glow over the top of a near-black room. */}
         <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -top-40 inset-x-0 h-80 rounded-full bg-[#b8163c]/20 blur-[90px]" />
-          <div className="absolute inset-0 bg-[radial-gradient(120%_60%_at_50%_0%,rgba(200,22,63,0.14),transparent_60%)]" />
+          <div className="absolute -left-20 -right-20 -top-[260px] h-[420px] rounded-[50%] bg-[radial-gradient(closest-side,rgba(200,33,63,0.22),rgba(200,33,63,0))]" />
         </div>
 
-        <header className="relative z-10 flex items-center justify-center gap-2 px-5 pt-[calc(env(safe-area-inset-top)+16px)] pb-2">
+        <header className="relative z-10 flex h-[calc(env(safe-area-inset-top)+68px)] shrink-0 items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
           {pathname !== "/client" ? (
             <button
               aria-label="Назад"
-              className="absolute left-5 flex items-center gap-1 rounded-full border border-white/[0.09] bg-white/[0.06] py-1.5 pl-2 pr-3.5 text-[13px] font-semibold text-white/80 backdrop-blur-xl transition active:scale-95"
+              className="absolute left-4 flex h-11 w-11 items-center justify-center rounded-[14px] border border-club-line bg-white/[0.06] text-club-text transition active:scale-95"
               type="button"
               onClick={() => goBackRef.current()}
             >
-              <ChevronLeft size={17} /> Назад
+              <ChevronLeft size={22} strokeWidth={2} />
             </button>
           ) : null}
-          <span className="text-[13px] font-semibold tracking-[0.38em] text-[#e9c07a]">MAJESTIC</span>
+          <span className="pl-[0.34em] font-display text-[13px] font-semibold tracking-[0.34em] text-club-gold">
+            MAJESTIC
+          </span>
         </header>
 
         {door === "loading" ? (
-          <div className="relative z-10 flex flex-1 items-center justify-center text-white/40">
+          <div className="relative z-10 flex flex-1 items-center justify-center text-club-faint">
             Загрузка…
           </div>
         ) : (
           <ClientTMAContext.Provider value={{ initData: initData ?? "", telegramUser }}>
-            <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-5 pb-[calc(7rem+env(safe-area-inset-bottom))]">
+            <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-[calc(110px+env(safe-area-inset-bottom))]">
               {children}
             </main>
 
-            {/* A floating capsule rather than a full-width bar: the content keeps
-                running underneath it, which is what makes the screen feel deep. */}
-            <nav className="fixed inset-x-0 bottom-[max(env(safe-area-inset-bottom),18px)] z-20 mx-auto flex w-fit items-center gap-1 rounded-full border border-white/[0.08] bg-[#160c11]/90 p-1.5 shadow-[0_16px_40px_rgba(0,0,0,0.6)] backdrop-blur-2xl">
+            <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-club-line bg-[rgba(18,13,15,0.96)] px-2 pb-[max(env(safe-area-inset-bottom),12px)] backdrop-blur-xl">
+              {/* One pill slides between the tabs: a quarter of the bar wide, it moves
+                  a whole tab at a time and keeps the icon's highlight centred. */}
               <span
                 aria-hidden
-                className={`client-nav-pill pointer-events-none absolute left-1.5 top-1.5 h-[52px] w-[74px] rounded-full bg-gradient-to-b from-[#c8163f] to-[#8d0f2b] shadow-[0_8px_22px_rgba(200,22,63,0.45)] ${
+                className={`client-nav-pill pointer-events-none absolute left-2 top-2 flex w-[calc((100%-16px)/4)] justify-center ${
                   activeTab < 0 ? "opacity-0" : ""
                 }`}
-                style={{ transform: `translateX(${pillTab * NAV_STEP_PX}px)` }}
-              />
+                style={{ transform: `translateX(${pillTab * 100}%)` }}
+              >
+                <span className="h-8 w-14 rounded-full bg-club-crimson/20" />
+              </span>
               {NAV_ITEMS.map((item, index) => {
                 const Icon = item.icon;
                 const active = index === activeTab;
@@ -370,14 +373,17 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     key={item.href}
                     href={item.href}
                     aria-label={item.label}
-                    className={`relative flex h-[52px] w-[74px] items-center justify-center rounded-full transition-colors duration-300 ${
-                      active ? "text-white" : "text-white/40"
+                    className={`relative flex flex-1 basis-0 flex-col items-center gap-1 pt-2 transition-colors duration-300 ${
+                      active ? "text-club-text" : "text-club-faint"
                     }`}
                     onClick={() => {
                       if (!active) tickClientSelection();
                     }}
                   >
-                    <Icon className={active ? "client-icon-pop" : undefined} size={22} strokeWidth={active ? 2.4 : 1.9} />
+                    <span className={`flex h-8 w-14 items-center justify-center ${active ? "text-club-rose" : ""}`}>
+                      <Icon className={active ? "client-icon-pop" : undefined} size={22} strokeWidth={active ? 2.1 : 1.8} />
+                    </span>
+                    <span className={`text-[11px] ${active ? "font-extrabold" : "font-semibold"}`}>{item.short}</span>
                   </Link>
                 );
               })}

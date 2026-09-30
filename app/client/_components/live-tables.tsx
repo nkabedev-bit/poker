@@ -12,8 +12,8 @@ function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: Liv
   // The desk's spelling of the name is the one the evening's results are saved under,
   // so it finds the same profile the rating and the game page open.
   const profileKey = buildNicknameKey(player.name);
-  const rowClassName = `relative flex items-center gap-2.5 rounded-2xl px-2.5 py-2 ${
-    player.isMe ? "bg-[#c8163f]/15 ring-1 ring-inset ring-[#c8163f]/35" : ""
+  const rowClassName = `relative flex min-h-[52px] items-center gap-3 rounded-[14px] px-3.5 py-2 ${
+    player.isMe ? "bg-club-crimson/12" : ""
   } ${justOut ? "client-bust client-rise" : ""}`;
   const row = (
     <>
@@ -26,11 +26,18 @@ function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: Liv
         />
       </span>
 
-      <div className="min-w-0 flex-1">
-        <p className={`truncate text-[14px] font-semibold ${out ? "text-white/40" : ""}`}>
-          {player.name}
-        </p>
-        <p className="text-[11px] text-white/35">
+      <div className="flex min-w-0 flex-1 flex-col pl-1">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className={`min-w-0 truncate text-[14px] font-bold ${out ? "text-club-faint" : ""}`}>
+            {player.name}
+          </span>
+          {player.isMe ? (
+            <span className="shrink-0 rounded-md bg-club-crimson px-1.5 py-px text-[10px] font-extrabold uppercase text-white">
+              вы
+            </span>
+          ) : null}
+        </span>
+        <p className="text-[11px] text-club-faint">
           {player.registrationNumber ? `#${player.registrationNumber}` : null}
           {player.registrationNumber && player.seat ? " · " : null}
           {player.seat ? `место ${player.seat}` : null}
@@ -41,7 +48,7 @@ function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: Liv
           evening would be noise. */}
       {player.bounties ? (
         <span
-          className={`flex shrink-0 items-center gap-1 text-[13px] font-bold text-[#e9c07a] ${
+          className={`flex shrink-0 items-center gap-1 text-[12px] font-extrabold text-club-gold ${
             out ? "opacity-45" : ""
           }`}
         >
@@ -52,11 +59,11 @@ function PlayerRow({ justOut = false, player }: { justOut?: boolean; player: Liv
       ) : null}
 
       {out ? (
-        <span className="shrink-0 rounded-lg border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-white/45">
+        <span className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-club-faint">
           вылетел
         </span>
       ) : (
-        <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-400/80" />
+        <span className="h-2 w-2 shrink-0 rounded-full bg-club-mint" />
       )}
     </>
   );
@@ -96,44 +103,44 @@ export function LiveTables({
   if (tables.length === 0 && eliminated.length === 0) {
     return (
       <GlassCard className="py-7 text-center">
-        <p className="text-sm text-white/45">Игроков за столами пока нет.</p>
+        <p className="text-sm text-club-muted">Игроков за столами пока нет.</p>
       </GlassCard>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="flex flex-col gap-2.5">
       {tables.map((table) => (
-        <GlassCard className="!p-3" key={table.number ?? "unseated"}>
-          <div className="mb-1.5 flex items-center justify-between px-1.5">
-            <p className="text-[15px] font-bold tracking-tight">
+        <div className="rounded-[20px] border border-club-line bg-club-surface px-1 py-2" key={table.number ?? "unseated"}>
+          <div className="flex items-center justify-between px-3.5 pb-2 pt-1.5">
+            <p className="font-display text-[15px] font-semibold">
               {table.number ? `Стол ${table.number}` : "Без стола"}
             </p>
-            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-white/40">
+            <span className="flex items-center gap-1.5 text-[12px] font-semibold text-club-muted">
               <Users size={13} />
               {table.players.length}
             </span>
           </div>
-          <ul className="space-y-0.5">
+          <ul className="flex flex-col">
             {table.players.map((player) => (
               <PlayerRow key={player.id} player={player} />
             ))}
           </ul>
-        </GlassCard>
+        </div>
       ))}
 
       {eliminated.length > 0 ? (
-        <GlassCard className="!p-3">
-          <div className="mb-1.5 flex items-center justify-between px-1.5">
-            <p className="text-[15px] font-bold tracking-tight text-white/45">Вылетели</p>
-            <span className="text-[12px] font-semibold text-white/35">{eliminated.length}</span>
+        <div className="rounded-[20px] border border-club-line bg-club-surface px-1 py-2">
+          <div className="flex items-center justify-between px-3.5 pb-2 pt-1.5">
+            <p className="font-display text-[15px] font-semibold text-club-muted">Вылетели</p>
+            <span className="text-[12px] font-semibold text-club-faint">{eliminated.length}</span>
           </div>
-          <ul className="space-y-0.5">
+          <ul className="flex flex-col">
             {eliminated.map((player) => (
               <PlayerRow key={player.id} justOut={justOut?.has(player.id)} player={player} />
             ))}
           </ul>
-        </GlassCard>
+        </div>
       ) : null}
     </div>
   );

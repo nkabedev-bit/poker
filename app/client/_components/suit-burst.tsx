@@ -46,7 +46,7 @@ export function useSuitBurst(count = 26) {
         const speed = 80 + Math.random() * 120;
 
         return {
-          color: suit === "♥" || suit === "♦" ? "#f05a7e" : index % 3 ? "#ffffff" : "#e9c07a",
+          color: suit === "♥" || suit === "♦" ? "#f0647c" : index % 3 ? "#f4eee6" : "#e2bc6e",
           delay: Math.round(Math.random() * 90),
           dx: Math.round(Math.cos(angle) * speed),
           dy: Math.round(Math.sin(angle) * speed - 30),

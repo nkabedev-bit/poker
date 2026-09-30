@@ -52,8 +52,8 @@ describe("client mini-app layout: нижнее меню", () => {
     const { container } = render(<ClientLayout>screen</ClientLayout>);
     await screen.findAllByRole("link");
 
-    // The fourth tab: three tabs and their gaps to the left of it.
-    expect(pill(container).style.transform).toBe("translateX(234px)");
+    // The fourth tab: three tab widths to the left of it.
+    expect(pill(container).style.transform).toBe("translateX(300%)");
     expect(pill(container).className).not.toContain("opacity-0");
   });
 
@@ -67,7 +67,7 @@ describe("client mini-app layout: нижнее меню", () => {
 
     expect(pill(container).className).toContain("opacity-0");
     // Still under «Турниры», so it comes back from there rather than from the first tab.
-    expect(pill(container).style.transform).toBe("translateX(78px)");
+    expect(pill(container).style.transform).toBe("translateX(100%)");
   });
 
   it("ticks the phone on a move to another tab, and not on the tab already open", async () => {

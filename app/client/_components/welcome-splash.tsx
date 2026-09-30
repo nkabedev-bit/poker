@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { CLUB_FONT_CLASSES } from "../fonts";
 import { usePathname } from "next/navigation";
 import { Check } from "lucide-react";
 
@@ -65,15 +66,15 @@ export function WelcomeSplash() {
   // Drawn on the page's body, over the tab bar, which sits in a stacking layer of its own.
   return createPortal(
     <div
-      className="client-app client-welcome fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-[#0a0608]/95 px-8 text-center text-white"
+      className={`client-app ${CLUB_FONT_CLASSES} client-welcome fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-club-ink/95 px-8 text-center text-club-text`}
       role="status"
     >
-      <span className="client-pop-in flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-b from-[#c8163f] to-[#7d0d26] shadow-[0_14px_40px_rgba(200,22,63,0.45)]">
+      <span className="client-pop-in flex h-20 w-20 items-center justify-center rounded-full bg-club-crimson shadow-[0_14px_40px_rgba(200,33,63,0.45)]">
         <Check className="client-check-draw" size={38} strokeWidth={3} />
       </span>
       <div className="flex flex-col gap-1.5">
-        <div className="text-[22px] font-bold tracking-tight">Добро пожаловать в Majestic</div>
-        <div className="text-sm text-white/55">Анкета сохранена — запись на турниры открыта.</div>
+        <div className="font-display text-[22px] font-semibold">Добро пожаловать в Majestic</div>
+        <div className="text-sm text-club-muted">Анкета сохранена — запись на турниры открыта.</div>
       </div>
     </div>,
     document.body,

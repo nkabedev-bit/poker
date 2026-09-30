@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { CLUB_FONT_CLASSES } from "../fonts";
 import { getClientTelegramWebApp } from "../layout";
 import { AchievementIcon } from "./achievement-icon";
 import { PrimaryButton } from "./ui";
@@ -50,7 +51,7 @@ export function AwardCelebration({
     <div
       aria-label={KICKERS[award.shelf]}
       aria-modal="true"
-      className="client-app fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#050304]/90 px-6 text-center text-white backdrop-blur-sm"
+      className={`client-app ${CLUB_FONT_CLASSES} fixed inset-0 z-50 flex items-center justify-center overflow-hidden bg-[#050304]/90 px-6 text-center text-club-text backdrop-blur-sm`}
       role="dialog"
     >
       <div key={awardKey} className="relative flex w-full max-w-[340px] flex-col items-center">
@@ -64,19 +65,19 @@ export function AwardCelebration({
         </div>
 
         <div
-          className="client-rise relative mt-6 text-[11px] font-bold uppercase tracking-[0.22em] text-[#e9c07a]"
+          className="client-rise relative mt-6 text-[11px] font-bold uppercase tracking-[0.22em] text-club-gold"
           style={{ animationDelay: "250ms" }}
         >
           {KICKERS[award.shelf]}
         </div>
         <div
-          className="client-rise relative mt-1.5 text-[24px] font-extrabold uppercase leading-tight"
+          className="client-rise relative mt-1.5 font-display text-[24px] font-bold uppercase leading-tight"
           style={{ animationDelay: "330ms", color: tierColor }}
         >
           {award.title}
         </div>
         <div
-          className="client-rise relative mt-1.5 text-[13px] leading-snug text-white/60"
+          className="client-rise relative mt-1.5 text-[13px] leading-snug text-club-muted"
           style={{ animationDelay: "400ms" }}
         >
           {award.description}
@@ -86,7 +87,7 @@ export function AwardCelebration({
           <PrimaryButton onClick={onDone}>{left > 1 ? "Дальше" : "Забрать"}</PrimaryButton>
         </div>
         {left > 1 ? (
-          <div className="relative mt-3 text-[12px] text-white/40">
+          <div className="relative mt-3 text-[12px] text-club-faint">
             Ещё {countWord(left - 1, ["награда", "награды", "наград"])}
           </div>
         ) : null}

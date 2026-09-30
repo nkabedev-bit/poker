@@ -286,6 +286,29 @@ export function formatEventTimeLabel(iso: string) {
   }).format(new Date(iso));
 }
 
+/** "Сб, 4 октября" — the day of a poster with its weekday, as a chip says it. */
+export function formatEventShortDateLabel(iso: string) {
+  const weekday = new Intl.DateTimeFormat("ru-RU", { weekday: "short", timeZone: MOSCOW_TIME_ZONE })
+    .format(new Date(iso))
+    .replace(".", "");
+
+  return `${weekday.slice(0, 1).toUpperCase()}${weekday.slice(1)}, ${formatEventDayLabel(iso)}`;
+}
+
+/** The three lines of a calendar tile: "Вт", "06", "окт". */
+export function formatEventDateParts(iso: string) {
+  const date = new Date(iso);
+  const part = (options: Intl.DateTimeFormatOptions) =>
+    new Intl.DateTimeFormat("ru-RU", { ...options, timeZone: MOSCOW_TIME_ZONE }).format(date).replace(".", "");
+  const weekday = part({ weekday: "short" });
+
+  return {
+    day: part({ day: "2-digit" }),
+    month: part({ month: "short" }),
+    weekday: `${weekday.slice(0, 1).toUpperCase()}${weekday.slice(1)}`,
+  };
+}
+
 export function formatEventWeekdayLabel(iso: string) {
   return new Intl.DateTimeFormat("ru-RU", {
     weekday: "long",

@@ -130,7 +130,7 @@ export function countAnnouncedSeats(
  * reading "30/27" looks like a broken number rather than a busy night.
  */
 export function formatSeatsTaken(taken: number, total: number) {
-  return `${Math.min(taken, total)}/${total} забронировано`;
+  return `${Math.min(taken, total)} из ${total}`;
 }
 
 /** "27 мест" — the count a poster or a chip shows on its own. */

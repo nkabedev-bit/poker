@@ -127,8 +127,8 @@ describe("LiveTables", () => {
       />,
     );
 
-    expect(screen.getByText("Выбыл").className).toContain("text-white/40");
-    expect(screen.getByText("Играет").className).not.toContain("text-white/40");
+    expect(screen.getByText("Выбыл").className).toContain("text-club-faint");
+    expect(screen.getByText("Играет").className).not.toContain("text-club-faint");
   });
 
   it("opens the profile of anybody at the tables, the knocked-out too", () => {

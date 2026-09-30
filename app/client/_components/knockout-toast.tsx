@@ -43,10 +43,10 @@ export function KnockoutToast({ news, onDone }: { news: KnockoutNews | null; onD
   return (
     <div
       key={news.id}
-      className="client-toast fixed inset-x-4 top-[calc(env(safe-area-inset-top)+58px)] z-30 mx-auto flex max-w-[420px] items-center gap-2.5 rounded-2xl border border-white/10 bg-[#160c11]/95 px-4 py-3 text-[14px] font-semibold shadow-[0_14px_34px_rgba(0,0,0,0.6)] backdrop-blur-xl"
+      className="client-toast fixed inset-x-4 top-[calc(env(safe-area-inset-top)+58px)] z-30 mx-auto flex max-w-[420px] items-center gap-2.5 rounded-2xl border border-club-line bg-club-raised/95 px-3.5 py-3 text-[14px] font-semibold shadow-[0_14px_34px_rgba(0,0,0,0.6)] backdrop-blur-xl"
       role="status"
     >
-      <Skull className="shrink-0 text-[#f05a7e]" size={18} />
+      <Skull className="shrink-0 text-club-rose" size={18} />
       <span className="min-w-0 truncate">
         {news.name} вылетел · осталось {news.left}
       </span>
