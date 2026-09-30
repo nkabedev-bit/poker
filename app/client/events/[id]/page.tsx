@@ -47,7 +47,6 @@ import {
 } from "../../_components/ui";
 import {
   countAnnouncedSeats,
-  describeAnnouncedSeats,
   formatSeatsCount,
 } from "@/lib/events/seats";
 import {
@@ -531,12 +530,6 @@ export default function ClientEventPage() {
   const hasInviteLinks = Boolean(shownInviteLinks?.telegram || shownInviteLinks?.web);
   const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
   const announcedSeats = countAnnouncedSeats(event);
-  // The split is worth a line only when the poster sells more than the regular seats —
-  // otherwise it repeats the total the chip already shows.
-  const seatsBreakdown =
-    announcedSeats && (announcedSeats.duoTickets > 0 || announcedSeats.vip > 0)
-      ? describeAnnouncedSeats(announcedSeats)
-      : null;
   // The buyer keeps the ticket when their partner backs out, so the screen has to let
   // them name somebody else without cancelling and starting over.
   const needsPartner = event.signedUp && event.ticketType === "duo" && !event.partnerName;
@@ -714,6 +707,7 @@ export default function ClientEventPage() {
               has knockouts to call out. */}
           <KnockoutToast news={knockouts[0] ?? null} onDone={nextKnockout} />
           <LiveTournamentCard live={live} />
+          {room ? <MySeat room={room} /> : null}
           {room ? (
             <>
               <h2 className="flex min-h-11 items-center gap-2 font-display text-[17px] font-semibold">
@@ -729,11 +723,14 @@ export default function ClientEventPage() {
       ) : null}
 
       <section className="flex flex-col gap-2.5">
-        <SectionHeader title={event.signedUp || event.reservedTicket ? "Ваш билет" : "Билет"} />
-        {seatsBreakdown ? <p className="-mt-2 text-[13px] text-club-muted">{seatsBreakdown}</p> : null}
-        {!event.signedUp && !event.reservedTicket && ticketsInRow > 1 ? (
-          <p className="-mt-1 text-[13px] text-club-muted">{freeSeatsLine}</p>
-        ) : null}
+        {/* The global reset zeroes a paragraph's margin, so the line sits under the
+            heading by the gap of a wrapper of its own. */}
+        <div className="flex flex-col">
+          <SectionHeader title={event.signedUp || event.reservedTicket ? "Ваш билет" : "Билет"} />
+          {!event.signedUp && !event.reservedTicket && ticketsInRow > 1 ? (
+            <p className="text-[13px] text-club-muted">{freeSeatsLine}</p>
+          ) : null}
+        </div>
         {event.signedUp || event.reservedTicket ? (
           <>
             <TicketOption
@@ -1135,6 +1132,34 @@ export default function ClientEventPage() {
   );
 }
 
+/**
+ * Where the player sits tonight, read off the room: their number and their table. Only
+ * a player at a table has one; the knocked-out and the onlookers see nothing here.
+ */
+function MySeat({ room }: { room: LiveRoom }) {
+  const table = room.tables.find((item) => item.players.some((player) => player.isMe));
+  const me = table?.players.find((player) => player.isMe);
+  if (!table || !me) return null;
+
+  return (
+    <div className="grid grid-cols-2 gap-2.5">
+      <div className="flex flex-col gap-2 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] p-4">
+        <Eyebrow className="!text-club-gold">Ваш номер</Eyebrow>
+        <p className="font-display text-[30px] font-semibold leading-none text-club-gold">
+          {me.registrationNumber ?? "—"}
+        </p>
+      </div>
+      <div className="flex flex-col gap-2 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] p-4">
+        <Eyebrow className="!text-club-gold">Ваш стол</Eyebrow>
+        <p className="font-display text-[30px] font-semibold leading-none text-club-gold">
+          {table.number ?? "—"}
+          {me.seat ? <span className="text-[15px] text-club-muted"> · место {me.seat}</span> : null}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** "Кто идёт": the faces of the first few, and the whole list on a tap. */
 function WhoIsComing({ players, waitlist }: { players: SignupListEntry[]; waitlist: SignupListEntry[] }) {
   const [open, setOpen] = useState(false);
@@ -1157,7 +1182,7 @@ function WhoIsComing({ players, waitlist }: { players: SignupListEntry[]; waitli
               <span
                 key={player.key}
                 className="rounded-full shadow-[0_0_0_3px_#171113]"
-                style={{ marginLeft: index === 0 ? 0 : -10 }}
+                style={{ marginLeft: index === 0 ? 0 : -8 }}
               >
                 <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={36} />
               </span>
@@ -1263,7 +1288,7 @@ function ChoiceRow({
       aria-pressed={chosen}
       className={`relative flex min-h-[72px] w-full items-center gap-3.5 overflow-hidden rounded-[18px] border-[1.5px] px-4 py-3.5 text-left transition-[background-color,border-color,opacity,transform] duration-300 ${
         chosen ? "border-club-rose bg-club-crimson/10" : "border-club-line bg-club-surface"
-      } ${disabled ? "opacity-50" : ""} ${className}`}
+      } ${disabled && !chosen ? "opacity-50" : ""} ${className}`}
       disabled={disabled || !onSelect}
       type="button"
       onClick={onSelect}

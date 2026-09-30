@@ -10,7 +10,7 @@ const FACE_COLORS = ["#4A2A33", "#2F3A45", "#3E3528", "#2D3B34", "#3A2F45", "#45
 
 /** "Дмитрий Кабедев" → "ДК", "Shark_PTZ" → "SH". */
 export function playerInitials(name: string) {
-  const words = name.trim().split(/[\s_.-]+/u).filter(Boolean);
+  const words = name.trim().split(/\s+/u).filter(Boolean);
   if (words.length === 0) return "?";
   if (words.length > 1) return `${[...words[0]][0]}${[...words[1]][0]}`.toUpperCase();
 

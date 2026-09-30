@@ -129,7 +129,7 @@ export function CollectionSummary({
         <p className="font-display text-[24px] font-semibold">
           {count ?? earned} <span className="text-[15px] text-club-muted">из {total}</span>
         </p>
-        {hint ? <p className="mt-1 text-[12px] text-club-faint">{hint}</p> : null}
+        {hint ? <div className="mt-1 text-[12px] text-club-faint">{hint}</div> : null}
       </div>
     </div>
   );
