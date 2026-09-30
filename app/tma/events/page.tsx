@@ -419,7 +419,8 @@ export default function TMAEventsPage() {
               onChange={(event) => update({ badge: event.target.value })}
             />
           </Field>
-          <div className="grid grid-cols-2 gap-2">
+          {/* One under the other: a phone's date and time field needs the whole width. */}
+          <div className="flex flex-col gap-2.5">
             <Field title="Начало (МСК)">
               <input
                 type="datetime-local"

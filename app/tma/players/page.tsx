@@ -864,10 +864,14 @@ export default function TMAPlayersPage() {
               ) : (
                 <span className="tma-badge">Обычный билет</span>
               )}
-              {isActive && selectedPlayer.seat ? (
+              {selectedPlayer.seat ? (
                 <span className="tma-badge">
                   Стол {selectedPlayer.table} · м. {nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)}
                 </span>
+              ) : selectedPlayer.table ? (
+                <span className="tma-badge">Стол {selectedPlayer.table}</span>
+              ) : isActive ? (
+                <span className="tma-badge tma-badge--amber">без места</span>
               ) : null}
             </span>
           </div>
