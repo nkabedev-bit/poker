@@ -13,7 +13,8 @@ import {
   type MysteryPrize,
 } from "@/lib/mystery/prizes";
 import { useVisiblePolling } from "../use-visible-polling";
-import { ChevronLeft, Skull, Search, Undo2, CheckSquare, Square } from "lucide-react";
+import { Check, Search, Skull, Undo2, Users } from "lucide-react";
+import { ScreenHeader, SectionLabel, TableChips } from "../ui";
 
 type Player = { id: string; name: string; progressiveKnockouts?: number; rebuys?: number; doubleRebuys?: number; status: "active" | "eliminated"; table?: number | null; label?: string | null };
 type BountyType = "standard" | "mystery" | "dealer" | "wanted" | "progressive";
@@ -116,7 +117,8 @@ export default function TMAEliminationsPage() {
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void fetchPlayers();
+      // A card link reads the roster itself, just below.
+      if (!new URLSearchParams(window.location.search).get("out")) void fetchPlayers();
       const storedId = localStorage.getItem("tma_last_elim");
       const storedPlayerName = localStorage.getItem("tma_last_elim_player_name");
       const storedSheet = localStorage.getItem("tma_last_elim_sheet");
@@ -158,7 +160,11 @@ export default function TMAEliminationsPage() {
     [bountyType, maxReentries, reentryAvailable, reentryEnabled],
   );
 
-  const startElimination = (p: Player) => {
+  // `data` is the roster just read, for a knockout started from a player's card before
+  // the screen's own state has caught up with it.
+  const startElimination = (p: Player, data?: PlayersResponse) => {
+    const bounty = data ? Boolean(data.isBounty) : isBounty;
+    const type = data ? ((data.bountyType as BountyType) || "standard") : bountyType;
     const tg = getTelegramWebApp();
     tg?.HapticFeedback?.impactOccurred?.("medium");
     setEliminatedPlayer(p);
@@ -174,10 +180,29 @@ export default function TMAEliminationsPage() {
     // Dealer Revenge — only when the eliminated player carries the dealer label. In
     // Wanted Bounty every knockout pays (bounty points for a first bullet, wanted
     // points for a re-entered player), so the killer is always asked for.
-    const needsKillerStep =
-      isBounty && (bountyType === "dealer" ? isDealerLabel(p.label) : true);
+    const needsKillerStep = bounty && (type === "dealer" ? isDealerLabel(p.label) : true);
     setStep(needsKillerStep ? 1 : 2);
   };
+
+  // Opened from a player's card with "Выбыл": straight to who knocked them out. The link
+  // is used up at once, so a reload does not start the same knockout again.
+  useEffect(() => {
+    const outId = new URLSearchParams(window.location.search).get("out");
+    if (!outId) return;
+
+    const timeout = window.setTimeout(() => {
+      // Taken off inside the timer: React's development double run cancels the first
+      // one, and the link must still be there for the second.
+      window.history.replaceState(null, "", window.location.pathname);
+      void fetchPlayers().then((data) => {
+        const player = data?.players?.find((item) => item.id === outId && item.status === "active");
+        if (player && data) startElimination(player, data);
+      });
+    }, 0);
+    return () => window.clearTimeout(timeout);
+    // Once, for the card that opened the screen.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const returnToEliminationsList = useCallback(() => {
     setStep(0);
@@ -408,7 +433,6 @@ export default function TMAEliminationsPage() {
     });
   };
 
-  const disabledClass = isSubmitting ? " opacity-60 cursor-not-allowed" : "";
 
   // Wanted Bounty: the double (x2) re-entry is a once-per-tournament option, so the
   // button is hidden as soon as the player has a double on record. Other modes keep
@@ -463,128 +487,234 @@ export default function TMAEliminationsPage() {
     mainButton.hide();
   }, [step, isBounty, bountyType, isMulti, selectedKillers, eliminatedPlayer, confirmElimination, isSubmitting]);
 
-  if (step === 0) {
-    return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-bold flex items-center gap-2 mb-4">
-          <Skull size={20} /> Выбывания
-        </h1>
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl text-sm mb-4">
-          Нажмите на игрока, чтобы зафиксировать его вылет из турнира.
-        </div>
+  const hasPrizeStep = isBounty && bountyType === "mystery";
+  const flowSteps = [
+    { key: "out", label: "Вылет" },
+    ...(step === 1 || selectedKillers.length > 0 ? [{ key: "killer", label: "Выбил" }] : []),
+    ...(hasPrizeStep && selectedKillers.length > 0 ? [{ key: "prize", label: "Приз" }] : []),
+    { key: "done", label: "Итог" },
+  ];
+  const currentFlowStep = step === 1 ? "killer" : step === 4 ? "prize" : "done";
+  const flowProgress = (
+    <div aria-hidden="true" className="tma-steps">
+      {flowSteps.map((item, index) => {
+        const currentIndex = flowSteps.findIndex((entry) => entry.key === currentFlowStep);
+        const state = index < currentIndex ? " tma-steps__item--done" : index === currentIndex ? " tma-steps__item--current" : "";
 
-        <label className="block text-xs text-[var(--tg-theme-hint-color)] mb-4">
-          Фильтр по столу
-          <select
-            className="mt-1 w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)] border-none rounded p-3 outline-none"
-            value={tableFilter}
-            onChange={(event) => setTableFilter(event.target.value)}
-          >
-            <option value="">Все столы</option>
-            {tableOptions.map((tableNumber) => (
-              <option key={tableNumber} value={tableNumber}>
-                Стол {tableNumber}
-              </option>
-            ))}
-          </select>
+        return (
+          <span key={item.key} className={`tma-steps__item${state}`}>
+            <span className="tma-steps__bar" />
+            {index + 1} {item.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+
+  if (step === 0) {
+    const query = search.trim().toLowerCase();
+    const listed = visibleActivePlayers.filter((player) => !query || player.name.toLowerCase().includes(query));
+    // Players without a table go last: the room is worked table by table.
+    const tables = Array.from(new Set(listed.map((player) => Number(player.table) || 0))).sort(
+      (a, b) => (a || Infinity) - (b || Infinity),
+    );
+
+    return (
+      <div className="tma-screen">
+        <ScreenHeader title="Кто вылетел?" />
+
+        <label className="tma-search">
+          <Search size={18} />
+          <input
+            aria-label="Поиск игрока"
+            placeholder="Поиск по нику"
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </label>
-        
-        {lastElimId && (
-          <button
-            className={`w-full bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-hint-color)] p-3 rounded-lg flex items-center justify-center gap-2 mb-4${disabledClass}`}
-            disabled={isSubmitting}
-            onClick={() => {
-              if (!isSubmitting) void handleUndo();
-            }}
-          >
-            <Undo2 size={16} /> Отменить последнее выбывание
-          </button>
+
+        <TableChips tables={tableOptions} value={tableFilter} onChange={setTableFilter} />
+
+        {tables.map((tableNumber) => {
+          const atTable = listed.filter((player) => (Number(player.table) || 0) === tableNumber);
+
+          return (
+            <div key={tableNumber} className="tma-card tma-card--flush">
+              <div className="tma-card__head">
+                <span>{tableNumber ? `Стол ${tableNumber}` : "Без стола"}</span>
+                <span className="tma-card__head-meta">{atTable.length} игр.</span>
+              </div>
+              {atTable.map((p) => (
+                <button
+                  key={p.id}
+                  className="tma-row"
+                  disabled={isSubmitting}
+                  type="button"
+                  onClick={() => {
+                    if (!isSubmitting) startElimination(p);
+                  }}
+                >
+                  <span className="tma-row__body">
+                    <span className="tma-row__title">{p.name}</span>
+                    {(p.rebuys ?? 0) > 0 || isDealerLabel(p.label) ? (
+                      <span className="tma-row__sub">
+                        {[
+                          isDealerLabel(p.label) ? "дилер" : "",
+                          (p.rebuys ?? 0) > 0 ? `ре-энтри: ${p.rebuys}` : "",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    ) : null}
+                  </span>
+                  <Skull className="tma-danger-text" size={18} />
+                </button>
+              ))}
+            </div>
+          );
+        })}
+
+        {listed.length === 0 && (
+          <div className="tma-empty">
+            {query
+              ? "Никого не нашли"
+              : tableFilter
+                ? "Нет активных игроков за этим столом"
+                : "Все выбыли"}
+          </div>
         )}
 
-        <div className="space-y-2">
-          {visibleActivePlayers.map(p => (
-            <button 
-              disabled={isSubmitting}
-              key={p.id} 
-              onClick={() => {
-                if (!isSubmitting) startElimination(p);
-              }}
-              className={`w-full text-left p-4 bg-[var(--tg-theme-secondary-bg-color)] rounded-lg font-semibold${disabledClass}`}
-            >
-              🟢 {p.name}
-            </button>
-          ))}
-          {visibleActivePlayers.length === 0 && <div className="py-10 text-center text-[var(--tg-theme-hint-color)]">{selectedTableNumber ? "Нет активных игроков за этим столом" : "Все выбыли"}</div>}
-        </div>
+        {lastElimId && (
+          <div className="tma-cta-bar">
+            <div className="tma-undo">
+              <span className="tma-undo__text">
+                Последний вылет: <b>{lastElimPlayerName ?? "—"}</b>
+              </span>
+              <button
+                aria-label="Отменить последнее выбывание"
+                disabled={isSubmitting}
+                type="button"
+                onClick={() => {
+                  if (!isSubmitting) void handleUndo();
+                }}
+              >
+                <Undo2 className="mr-1 inline" size={16} />
+                Отменить
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
 
   if (step === 1) {
-    const filtered = activePlayers.filter(
-      (p) =>
-        p.id !== eliminatedPlayer?.id &&
-        (!selectedTableNumber || p.table === eliminatedPlayer?.table) &&
-        p.name.toLowerCase().includes(search.toLowerCase()),
-    );
+    const filtered = activePlayers
+      .filter(
+        (p) =>
+          p.id !== eliminatedPlayer?.id &&
+          (!selectedTableNumber || p.table === eliminatedPlayer?.table) &&
+          p.name.toLowerCase().includes(search.toLowerCase()),
+      )
+      // Whoever knocked the player out sat at the same table, so its players come first.
+      .sort(
+        (a, b) =>
+          Number(b.table === eliminatedPlayer?.table) - Number(a.table === eliminatedPlayer?.table),
+      );
     return (
-      <div className="space-y-4">
-        <button
-          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${disabledClass}`}
-          disabled={isSubmitting}
-          type="button"
-          onClick={() => {
-            if (!isSubmitting) returnToEliminationsList();
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{
+            ariaLabel: "Назад к списку",
+            disabled: isSubmitting,
+            label: "Вылеты",
+            onClick: () => {
+              if (!isSubmitting) returnToEliminationsList();
+            },
           }}
-        >
-          <ChevronLeft size={18} /> Назад к списку
-        </button>
+          title="Кто выбил?"
+        />
 
-        <h2 className="text-lg font-bold">Кто выбил: <span className="text-red-400">{eliminatedPlayer?.name}</span>?</h2>
-        
-        <div className="relative">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
-            size={18}
-          />
-          <input 
-            type="text" 
-            placeholder="Поиск..." 
-            className="w-full bg-[var(--tg-theme-secondary-bg-color)] border-none rounded-lg p-3 pl-10 outline-none"
+        {flowProgress}
+
+        <div className="tma-card">
+          <span className="tma-hint">Вылетает</span>
+          <span className="tma-danger-text text-[20px] font-bold">
+            {eliminatedPlayer?.name}
+            {eliminatedPlayer?.table ? (
+              <span className="tma-muted text-sm font-medium"> · стол {eliminatedPlayer.table}</span>
+            ) : null}
+          </span>
+        </div>
+
+        <label className="tma-search">
+          <Search size={18} />
+          <input
+            placeholder="Поиск..."
+            type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-        </div>
+        </label>
 
-        <div className="flex gap-2">
-          <button
-            disabled={isSubmitting}
-            onClick={() => {
-              if (!isSubmitting) setIsMulti(!isMulti);
-            }}
-            className={`flex-1 p-3 rounded-lg text-sm font-medium ${isMulti ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]" : "bg-[var(--tg-theme-secondary-bg-color)] text-[var(--tg-theme-text-color)]"}${disabledClass}`}
-          >
-            👥 Поделить баунти
-          </button>
-        </div>
+        <button
+          aria-pressed={isMulti}
+          className={`tma-btn${isMulti ? " tma-btn--primary" : ""}`}
+          disabled={isSubmitting}
+          type="button"
+          onClick={() => {
+            if (!isSubmitting) setIsMulti(!isMulti);
+          }}
+        >
+          <Users size={18} /> Поделить баунти: {isMulti ? "вкл" : "выкл"}
+        </button>
+        {isMulti ? (
+          <p className="tma-hint tma-hint--pad">
+            Отметьте всех, кто выбил, и нажмите «Далее» внизу экрана.
+          </p>
+        ) : null}
 
-        <div className="space-y-2 mt-4">
+        <div className="tma-card tma-card--flush">
+          <div className="tma-card__head">
+            <span>
+              {selectedTableNumber
+                ? `Соседи по столу ${eliminatedPlayer?.table ?? ""}`
+                : eliminatedPlayer?.table
+                  ? `Сначала стол ${eliminatedPlayer.table}`
+                  : "Игроки в игре"}
+            </span>
+            <span className="tma-card__head-meta">{filtered.length}</span>
+          </div>
           {filtered.map(p => {
             const isSelected = selectedKillers.some(k => k.id === p.id);
             return (
-              <button 
+              <button
+                key={p.id}
+                aria-pressed={isMulti ? isSelected : undefined}
+                className="tma-row"
                 disabled={isSubmitting}
-                key={p.id} 
+                type="button"
                 onClick={() => {
                   if (!isSubmitting) toggleKiller(p);
                 }}
-                className={`w-full text-left p-4 rounded-lg flex items-center justify-between ${isSelected ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]" : "bg-[var(--tg-theme-secondary-bg-color)]"}${disabledClass}`}
               >
-                <span>{p.name}</span>
-                {isMulti && (isSelected ? <CheckSquare size={18} /> : <Square size={18} />)}
+                <span className="tma-row__body">
+                  <span className="tma-row__title">{p.name}</span>
+                </span>
+                {isMulti ? (
+                  <span
+                    className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${
+                      isSelected ? "bg-[var(--tma-accent)] text-white" : "border-2 border-[var(--tma-surface-3)]"
+                    }`}
+                  >
+                    {isSelected ? <Check size={16} /> : null}
+                  </span>
+                ) : null}
               </button>
             );
           })}
+          {filtered.length === 0 ? <div className="tma-empty">Никого не нашли</div> : null}
         </div>
       </div>
     );
@@ -592,185 +722,173 @@ export default function TMAEliminationsPage() {
 
   if (step === 2) {
     return (
-      <div className="space-y-6 text-center pt-8">
-        <h2 className="text-2xl font-bold mb-6">✅ Всё верно?</h2>
-        
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-6 rounded-xl space-y-4">
-          <div>
-            <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">Выбывает</div>
-            <div className="text-xl font-bold text-red-400">{eliminatedPlayer?.name}</div>
-            <div className="text-sm mt-1">Место: #{activePlayers.length}</div>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{
+            disabled: isSubmitting,
+            label: "Отмена",
+            onClick: () => {
+              if (!isSubmitting) returnToEliminationsList();
+            },
+          }}
+          title="Итог вылета"
+        />
+
+        {flowProgress}
+
+        <h2 className="px-1 text-[22px] font-bold">Всё верно?</h2>
+
+        <div className="tma-card">
+          <div className="flex items-center justify-between">
+            <span className="tma-hint">Выбывает</span>
+            <span className="tma-badge">Место #{activePlayers.length}</span>
           </div>
-          <div className="h-px bg-[var(--tg-theme-hint-color)] opacity-20"></div>
+          <div className="tma-danger-text text-[22px] font-bold">{eliminatedPlayer?.name}</div>
           {isBounty ? (
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">Баунти</div>
+            <>
+              <div className="tma-divider" />
+              <span className="tma-hint">Баунти</span>
               {selectedKillers.length === 0 ? (
                 <div className="text-lg font-bold">Никто</div>
               ) : (
-                <div className="space-y-1">
+                <div className="flex flex-col gap-1">
                   {selectedKillers.map(k => (
                     <div key={k.id} className="text-lg font-bold">
-                      {k.name} <span className="text-sm text-[var(--tg-theme-hint-color)]">({(1 / selectedKillers.length).toFixed(2)})</span>
+                      {k.name} <span className="tma-muted text-sm font-medium">({(1 / selectedKillers.length).toFixed(2)})</span>
                     </div>
                   ))}
                 </div>
               )}
               {bountyType === "mystery" && selectedKillers.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎲 Что выпало</div>
-                  <div className="space-y-1">
-                    {selectedKillers.map((killer) => (
-                      <div key={killer.id} className="text-lg font-bold text-yellow-400">
-                        {killer.name}: {mysteryPrizes[killer.id]
-                          ? describeMysteryPrize(mysteryPrizes[killer.id])
-                          : "не выбрано"}
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <PrizeLine label="Что выпало">
+                  {selectedKillers.map((killer) => (
+                    <div key={killer.id}>
+                      {killer.name}: {mysteryPrizes[killer.id]
+                        ? describeMysteryPrize(mysteryPrizes[killer.id])
+                        : "не выбрано"}
+                    </div>
+                  ))}
+                </PrizeLine>
               )}
               {bountyType === "dealer" && isDealerLabel(eliminatedPlayer?.label) && selectedKillers.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🎯 Выбит дилер</div>
-                  <div className="text-xl font-bold text-yellow-400">
-                    {selectedKillers.length > 1
-                      ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
-                      : `+${DEALER_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
-                  </div>
-                </div>
+                <PrizeLine label="Выбит дилер">
+                  {selectedKillers.length > 1
+                    ? `по ${Number((DEALER_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
+                    : `+${DEALER_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
+                </PrizeLine>
               )}
               {bountyType === "progressive" && selectedKillers.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🔥 Голова игрока</div>
-                  <div className="text-xl font-bold text-yellow-400">
-                    {selectedKillers.length > 1
-                      ? `по ${Number((getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts) / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
-                      : `+${getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts)} PTS + 2ББ в стек`}
-                  </div>
-                  <div className="text-[var(--tg-theme-hint-color)] text-xs mt-1">
-                    После последней паузы — 1ББ
-                  </div>
-                </div>
+                <PrizeLine hint="После последней паузы — 1ББ" label="Голова игрока">
+                  {selectedKillers.length > 1
+                    ? `по ${Number((getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts) / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
+                    : `+${getProgressiveHeadPoints(eliminatedPlayer?.progressiveKnockouts)} PTS + 2ББ в стек`}
+                </PrizeLine>
               )}
               {bountyType === "wanted" && selectedKillers.length > 0 && (
                 (eliminatedPlayer?.rebuys ?? 0) > 0 ? (
-                  <div className="mt-3">
-                    <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">🤠 Выбит wanted-игрок</div>
-                    <div className="text-xl font-bold text-yellow-400">
-                      {selectedKillers.length > 1
-                        ? `по ${Number((WANTED_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
-                        : `+${WANTED_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
-                    </div>
-                  </div>
+                  <PrizeLine label="Выбит wanted-игрок">
+                    {selectedKillers.length > 1
+                      ? `по ${Number((WANTED_KNOCKOUT_POINTS / selectedKillers.length).toFixed(2))} PTS + доля 3ББ каждому`
+                      : `+${WANTED_KNOCKOUT_POINTS} PTS + 3ББ в стек`}
+                  </PrizeLine>
                 ) : (
-                  <div className="mt-3">
-                    <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">♠️ Выбит игрок</div>
-                    <div className="text-xl font-bold text-yellow-400">
-                      {selectedKillers.length > 1
-                        ? `по ${Number((ptsBountyPoints / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
-                        : `+${ptsBountyPoints} PTS + 2ББ в стек`}
-                    </div>
-                  </div>
+                  <PrizeLine label="Выбит игрок">
+                    {selectedKillers.length > 1
+                      ? `по ${Number((ptsBountyPoints / selectedKillers.length).toFixed(2))} PTS + доля 2ББ каждому`
+                      : `+${ptsBountyPoints} PTS + 2ББ в стек`}
+                  </PrizeLine>
                 )
               )}
-            </div>
+            </>
           ) : null}
         </div>
 
-        <button
-          disabled={isSubmitting}
-          onClick={() => {
-            if (!isSubmitting) void confirmElimination();
-          }}
-          className={`w-full p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
-        >
-          {isSubmitting ? "Сохраняем..." : "Подтвердить выбывание"}
-        </button>
+        <p className="tma-hint tma-hint--pad">
+          Если у игрока есть ре-энтри, приложение спросит о нём следующим шагом. Отменить
+          вылет можно сразу после записи — внизу списка вылетов.
+        </p>
 
-        <button 
-          disabled={isSubmitting}
-          onClick={() => {
-            if (!isSubmitting) returnToEliminationsList();
-          }}
-          className={`text-[var(--tg-theme-hint-color)] underline mt-4${disabledClass}`}
-        >
-          Отмена (назад)
-        </button>
+        <div className="tma-cta-bar">
+          <button
+            className="tma-btn tma-btn--danger tma-btn--big"
+            disabled={isSubmitting}
+            type="button"
+            onClick={() => {
+              if (!isSubmitting) void confirmElimination();
+            }}
+          >
+            {isSubmitting ? "Сохраняем..." : "Подтвердить выбывание"}
+          </button>
+        </div>
       </div>
     );
   }
 
   if (step === 3) {
     return (
-      <div className="space-y-6 text-center pt-8">
-        <h2 className="text-2xl font-bold">Использует ли игрок ре-энтри?</h2>
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-6 rounded-xl">
-          <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">Игрок</div>
-          <div className="text-xl font-bold text-red-400">{eliminatedPlayer?.name}</div>
-        </div>
-        {canOfferDoubleReentry ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                disabled={isSubmitting}
-                onClick={() => {
-                  if (!isSubmitting) void submitElimination(true, false);
-                }}
-                className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
-              >
-                {isSubmitting ? "Сохраняем..." : "Одинарный"}
-              </button>
-              <button
-                disabled={isSubmitting}
-                onClick={() => {
-                  if (!isSubmitting) void submitElimination(true, true);
-                }}
-                className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
-              >
-                {isSubmitting ? "Сохраняем..." : "Двойной (x2)"}
-              </button>
-            </div>
-            <button
-              disabled={isSubmitting}
-              onClick={() => {
-                if (!isSubmitting) void submitElimination(false);
-              }}
-              className={`w-full p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
-            >
-              {isSubmitting ? "Сохраняем..." : "Нет"}
-            </button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              disabled={isSubmitting}
-              onClick={() => {
-                if (!isSubmitting) void submitElimination(true);
-              }}
-              className={`p-4 bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)] rounded-lg font-semibold${disabledClass}`}
-            >
-              {isSubmitting ? "Сохраняем..." : "Да"}
-            </button>
-            <button
-              disabled={isSubmitting}
-              onClick={() => {
-                if (!isSubmitting) void submitElimination(false);
-              }}
-              className={`p-4 bg-red-900/30 text-red-400 rounded-lg font-semibold${disabledClass}`}
-            >
-              {isSubmitting ? "Сохраняем..." : "Нет"}
-            </button>
-          </div>
-        )}
-        <button
-          disabled={isSubmitting}
-          onClick={() => {
-            if (!isSubmitting) setStep(2);
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{
+            disabled: isSubmitting,
+            label: "Назад",
+            onClick: () => {
+              if (!isSubmitting) setStep(2);
+            },
           }}
-          className={`text-[var(--tg-theme-hint-color)] underline mt-4${disabledClass}`}
+          title="Ре-энтри"
+        />
+
+        <div className="tma-card">
+          <span className="tma-hint">Игрок</span>
+          <span className="tma-danger-text text-[22px] font-bold">{eliminatedPlayer?.name}</span>
+        </div>
+
+        <SectionLabel title="Использует ли игрок ре-энтри?" />
+
+        <button
+          className="tma-choice tma-choice--primary"
+          disabled={isSubmitting}
+          type="button"
+          onClick={() => {
+            if (!isSubmitting) void submitElimination(true, false);
+          }}
         >
-          Назад
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">
+              {isSubmitting ? "Сохраняем..." : canOfferDoubleReentry ? "Одинарный ре-энтри" : "Да, ре-энтри"}
+            </span>
+            <span className="tma-choice__sub">Выбивание остаётся, ребай засчитывается</span>
+          </span>
+        </button>
+
+        {canOfferDoubleReentry ? (
+          <button
+            className="tma-choice"
+            disabled={isSubmitting}
+            type="button"
+            onClick={() => {
+              if (!isSubmitting) void submitElimination(true, true);
+            }}
+          >
+            <span className="tma-choice__body">
+              <span className="tma-choice__title">{isSubmitting ? "Сохраняем..." : "Двойной (x2)"}</span>
+              <span className="tma-choice__sub">Ре-энтри с отметкой x2</span>
+            </span>
+          </button>
+        ) : null}
+
+        <button
+          className="tma-choice tma-choice--danger"
+          disabled={isSubmitting}
+          type="button"
+          onClick={() => {
+            if (!isSubmitting) void submitElimination(false);
+          }}
+        >
+          <span className="tma-choice__body">
+            <span className="tma-choice__title">{isSubmitting ? "Сохраняем..." : "Нет, вылетает"}</span>
+            <span className="tma-choice__sub">Место в турнире фиксируется</span>
+          </span>
         </button>
       </div>
     );
@@ -840,161 +958,150 @@ export default function TMAEliminationsPage() {
       setStep(1);
     };
 
-    const optionClass =
-      "w-full rounded-lg bg-[var(--tg-theme-bg-color)] p-4 text-lg font-semibold text-[var(--tg-theme-text-color)]";
-
     return (
-      <div className="space-y-6 pt-8">
-        <button
-          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${disabledClass}`}
-          disabled={isSubmitting}
-          type="button"
-          onClick={goBack}
-        >
-          <ChevronLeft size={18} /> Назад
-        </button>
+      <div className="tma-screen">
+        <ScreenHeader back={{ disabled: isSubmitting, label: "Назад", onClick: goBack }} title="Мистери-баунти" />
 
-        <h2 className="text-center text-2xl font-bold">🎲 Что получает игрок?</h2>
+        {flowProgress}
 
-        <div className="space-y-4 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-6">
-          <div className="text-center">
-            <div className="text-[var(--tg-theme-hint-color)] text-sm mb-1">
-              Выбил {eliminatedPlayer?.name}
-              {selectedKillers.length > 1
-                ? ` · конверт ${prizeKillerIndex + 1} из ${selectedKillers.length}`
-                : ""}
-            </div>
-            <div className="text-xl font-bold">{prizeKiller.name}</div>
-            {/* Which half of the Joker the dealer is on, so nobody loses count. */}
-            {jokerDraft ? (
-              <div className="mt-2 text-sm font-semibold text-[var(--tg-theme-button-color)]">
-                🃏 Джокер · приз {Math.min(jokerDraft.length + 1, MYSTERY_JOKER_PRIZES)} из{" "}
-                {MYSTERY_JOKER_PRIZES}
-                {jokerDraft.length > 0 ? `: уже ${describeMysteryPrize(jokerDraft[0])}` : ""}
-              </div>
-            ) : null}
-          </div>
-
-          {prizeStage === "kind" && (
-            <div className="space-y-2">
-              <button className={optionClass} type="button" onClick={() => setPrizeStage("bigBlinds")}>
-                Большой блайнд
-              </button>
-              <button className={optionClass} type="button" onClick={() => setPrizeStage("points")}>
-                Рейтинговые очки
-              </button>
-              <button className={optionClass} type="button" onClick={() => setPrizeStage("pass")}>
-                Проходка
-              </button>
-              {/* A Joker inside a Joker is not a card this club deals, so while one is
-                  being dealt the deck shows the four ordinary cards only. */}
-              {jokerDraft ? null : (
-                <button
-                  className={optionClass}
-                  type="button"
-                  onClick={() => setPrizeStage("jokerConfirm")}
-                >
-                  🃏 Джокер
-                </button>
-              )}
-              <button className={optionClass} type="button" onClick={() => savePrize({ kind: "other" })}>
-                Другое
-              </button>
-            </div>
-          )}
-
-          {prizeStage === "jokerConfirm" && (
-            <div className="space-y-3">
-              <div className="text-center text-[var(--tg-theme-text-color)]">
-                На карте точно <span className="font-bold">Джокер</span>?
-              </div>
-              <div className="text-center text-sm text-[var(--tg-theme-hint-color)]">
-                {prizeKiller.name} получит два приза — их нужно будет отметить по очереди.
-              </div>
-              <button
-                className={`${optionClass} !bg-[var(--tg-theme-button-color)] !text-[var(--tg-theme-button-text-color)]`}
-                type="button"
-                onClick={() => {
-                  setJokerDraft([]);
-                  setPrizeStage("kind");
-                  getTelegramWebApp()?.HapticFeedback?.impactOccurred?.("medium");
-                }}
-              >
-                Да, Джокер
-              </button>
-              <button className={optionClass} type="button" onClick={() => setPrizeStage("kind")}>
-                Нет, вернуться
-              </button>
-            </div>
-          )}
-
-          {prizeStage === "bigBlinds" && (
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)] text-sm mb-2 text-center">
-                Сколько больших блайндов?
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {MYSTERY_BIG_BLIND_AMOUNTS.map((amount) => (
-                  <button
-                    key={amount}
-                    className={optionClass}
-                    type="button"
-                    onClick={() => savePrize({ amount, kind: "bigBlinds" })}
-                  >
-                    {amount} ББ
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {prizeStage === "points" && (
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)] text-sm mb-2 text-center">
-                Сколько очков?
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {MYSTERY_POINT_AMOUNTS.map((amount) => (
-                  <button
-                    key={amount}
-                    className={optionClass}
-                    type="button"
-                    onClick={() => savePrize({ amount, kind: "points" })}
-                  >
-                    {amount}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {prizeStage === "pass" && (
-            <div>
-              <div className="text-[var(--tg-theme-hint-color)] text-sm mb-2 text-center">
-                Какая проходка?
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  className={optionClass}
-                  type="button"
-                  onClick={() => savePrize({ kind: "pass", pass: "regular" })}
-                >
-                  Стандарт
-                </button>
-                <button
-                  className={optionClass}
-                  type="button"
-                  onClick={() => savePrize({ kind: "pass", pass: "vip" })}
-                >
-                  VIP
-                </button>
-              </div>
-            </div>
-          )}
+        <div className="tma-card">
+          <span className="tma-hint">
+            Выбил {eliminatedPlayer?.name}
+            {selectedKillers.length > 1
+              ? ` · конверт ${prizeKillerIndex + 1} из ${selectedKillers.length}`
+              : ""}
+          </span>
+          <span className="text-[20px] font-bold">Что вытянул {prizeKiller.name}?</span>
+          {/* Which half of the Joker the dealer is on, so nobody loses count. */}
+          {jokerDraft ? (
+            <span className="tma-badge tma-badge--blue self-start">
+              Джокер · приз {Math.min(jokerDraft.length + 1, MYSTERY_JOKER_PRIZES)} из{" "}
+              {MYSTERY_JOKER_PRIZES}
+              {jokerDraft.length > 0 ? `: уже ${describeMysteryPrize(jokerDraft[0])}` : ""}
+            </span>
+          ) : null}
         </div>
+
+        {prizeStage === "kind" && (
+          <div className="tma-options">
+            <button className="tma-option" type="button" onClick={() => setPrizeStage("bigBlinds")}>
+              Большой блайнд
+            </button>
+            <button className="tma-option" type="button" onClick={() => setPrizeStage("points")}>
+              Рейтинговые очки
+            </button>
+            <button className="tma-option" type="button" onClick={() => setPrizeStage("pass")}>
+              Проходка
+            </button>
+            {/* A Joker inside a Joker is not a card this club deals, so while one is
+                being dealt the deck shows the four ordinary cards only. */}
+            {jokerDraft ? null : (
+              <button className="tma-option" type="button" onClick={() => setPrizeStage("jokerConfirm")}>
+                🃏 Джокер
+              </button>
+            )}
+            <button className="tma-option" type="button" onClick={() => savePrize({ kind: "other" })}>
+              Другое
+            </button>
+          </div>
+        )}
+
+        {prizeStage === "jokerConfirm" && (
+          <div className="flex flex-col gap-2">
+            <div className="text-center">
+              На карте точно <span className="font-bold">Джокер</span>?
+            </div>
+            <div className="tma-hint text-center">
+              {prizeKiller.name} получит два приза — их нужно будет отметить по очереди.
+            </div>
+            <button
+              className="tma-option tma-option--primary"
+              type="button"
+              onClick={() => {
+                setJokerDraft([]);
+                setPrizeStage("kind");
+                getTelegramWebApp()?.HapticFeedback?.impactOccurred?.("medium");
+              }}
+            >
+              Да, Джокер
+            </button>
+            <button className="tma-option" type="button" onClick={() => setPrizeStage("kind")}>
+              Нет, вернуться
+            </button>
+          </div>
+        )}
+
+        {prizeStage === "bigBlinds" && (
+          <>
+            <SectionLabel title="Сколько больших блайндов?" />
+            <div className="tma-options tma-options--3">
+              {MYSTERY_BIG_BLIND_AMOUNTS.map((amount) => (
+                <button
+                  key={amount}
+                  className="tma-option"
+                  type="button"
+                  onClick={() => savePrize({ amount, kind: "bigBlinds" })}
+                >
+                  {amount} ББ
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {prizeStage === "points" && (
+          <>
+            <SectionLabel title="Сколько очков?" />
+            <div className="tma-options tma-options--3">
+              {MYSTERY_POINT_AMOUNTS.map((amount) => (
+                <button
+                  key={amount}
+                  className="tma-option"
+                  type="button"
+                  onClick={() => savePrize({ amount, kind: "points" })}
+                >
+                  {amount}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {prizeStage === "pass" && (
+          <>
+            <SectionLabel title="Какая проходка?" />
+            <div className="tma-options tma-options--2">
+              <button
+                className="tma-option"
+                type="button"
+                onClick={() => savePrize({ kind: "pass", pass: "regular" })}
+              >
+                Стандарт
+              </button>
+              <button
+                className="tma-option"
+                type="button"
+                onClick={() => savePrize({ kind: "pass", pass: "vip" })}
+              >
+                VIP
+              </button>
+            </div>
+          </>
+        )}
       </div>
     );
   }
 
   return null;
+}
+
+/** What a knockout pays in tonight's bounty mode, under the killers' names. */
+function PrizeLine({ children, hint, label }: { children: React.ReactNode; hint?: string; label: string }) {
+  return (
+    <div className="flex flex-col gap-1 pt-1">
+      <span className="tma-hint">{label}</span>
+      <div className="text-lg font-bold text-[var(--tma-gold)]">{children}</div>
+      {hint ? <span className="tma-hint text-xs">{hint}</span> : null}
+    </div>
+  );
 }

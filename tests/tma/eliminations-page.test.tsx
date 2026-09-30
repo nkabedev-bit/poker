@@ -313,7 +313,7 @@ describe("TMAEliminationsPage", () => {
     await screen.findByRole("button", { name: /table 1 out/i });
     expect(screen.getByRole("button", { name: /table 2 killer/i })).toBeTruthy();
 
-    fireEvent.change(screen.getByLabelText("Фильтр по столу"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Стол 1" }));
 
     expect(screen.getByRole("button", { name: /table 1 out/i })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /table 2 killer/i })).toBeNull();
@@ -617,6 +617,53 @@ describe("TMAEliminationsPage", () => {
       "/api/tma/pulse",
       "/api/tma/players",
     ]);
+  });
+
+  // "Выбыл" on a player's card in the room opens this screen for that player, so the
+  // desk does not look them up a second time.
+  it("starts the knockout of the player the room's card sent over", async () => {
+    window.history.replaceState(null, "", "/tma/eliminations?out=player-2");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          isBounty: true,
+          players: [
+            { id: "player-1", name: "Killer One", status: "active" },
+            { id: "player-2", name: "Sent Over", status: "active" },
+          ],
+        }),
+      ),
+    );
+
+    render(<TMAEliminationsPage />);
+
+    await screen.findByText("Кто выбил?");
+    expect(screen.getByText("Sent Over")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /killer one/i })).toBeTruthy();
+    // The link is used up, so a reload does not start the same knockout again.
+    expect(window.location.search).toBe("");
+  });
+
+  it("ignores a card link to a player who is already out", async () => {
+    window.history.replaceState(null, "", "/tma/eliminations?out=player-2");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({
+          isBounty: true,
+          players: [
+            { id: "player-1", name: "Still Playing", status: "active" },
+            { id: "player-2", name: "Gone Already", status: "eliminated" },
+          ],
+        }),
+      ),
+    );
+
+    render(<TMAEliminationsPage />);
+
+    await screen.findByRole("button", { name: /still playing/i });
+    expect(screen.queryByText("Кто выбил?")).toBeNull();
   });
 
   it("asks to confirm undo with the eliminated player name", async () => {
