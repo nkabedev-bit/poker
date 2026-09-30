@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getClientTelegramWebApp, useClientTMA } from "../layout";
 import { PlayerAvatar } from "../_components/player-avatar";
-import { GlassCard, PageTitle, PrimaryButton } from "../_components/ui";
+import { Check } from "lucide-react";
+import { Eyebrow, PageHeading, PrimaryButton } from "../_components/ui";
 import { rememberWelcome } from "../_components/welcome-splash";
 import { isValidBirthDate, maskBirthDateInput } from "@/lib/client-bot/registration";
 
@@ -149,16 +150,31 @@ export default function ClientOnboardingPage() {
     }
   };
 
+  // What the questionnaire asks for, counted as it fills in: the inviter is optional
+  // and the agreement is a tick, not a field.
+  const filled = [fullName, nickname, phone, birthDate, discoverySource].filter((value) => value.trim()).length;
+
   return (
-    <div className="client-stagger space-y-5 pt-1">
-      <div className="space-y-1.5">
-        <PageTitle>Анкета игрока</PageTitle>
-        <p className="text-sm text-white/45">
-          Заполните один раз — после этого откроется запись на турниры.
+    <div className="client-stagger flex flex-col gap-6 pt-1">
+      <div className="flex flex-col gap-2.5">
+        <PageHeading subtitle="Заполните один раз — после этого откроется запись на турниры" title="Анкета игрока" />
+        <div className="mt-1.5 flex gap-1.5">
+          {Array.from({ length: FIELDS_TOTAL }, (_, index) => (
+            <span
+              key={index}
+              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                index < filled ? "bg-club-crimson" : "bg-white/10"
+              }`}
+            />
+          ))}
+        </div>
+        <p className="text-[12px] text-club-faint">
+          Заполнено {filled} из {FIELDS_TOTAL} полей
         </p>
       </div>
 
-      <GlassCard className="space-y-4">
+      <section className="flex flex-col gap-4">
+        <Eyebrow>О вас</Eyebrow>
         <Field label="Имя и фамилия">
           <input
             className={inputClass}
@@ -180,37 +196,61 @@ export default function ClientOnboardingPage() {
           />
         </Field>
 
-        <Field label="Номер телефона">
-          <input
-            className={inputClass}
-            inputMode="tel"
-            placeholder="+7 900 000-00-00"
-            value={phone}
-            onChange={(event) => setPhone(event.target.value)}
-          />
-        </Field>
+        <div className="grid grid-cols-2 gap-2.5">
+          <Field label="Телефон">
+            <input
+              className={inputClass}
+              inputMode="tel"
+              placeholder="+7 900 000-00-00"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+            />
+          </Field>
 
-        <Field label="Дата рождения">
-          <input
-            className={inputClass}
-            inputMode="numeric"
-            maxLength={10}
-            placeholder="ДД.ММ.ГГГГ"
-            value={birthDate}
-            onChange={(event) => setBirthDate(maskBirthDateInput(event.target.value))}
-          />
-        </Field>
+          <Field label="Дата рождения">
+            <input
+              className={inputClass}
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="ДД.ММ.ГГГГ"
+              value={birthDate}
+              onChange={(event) => setBirthDate(maskBirthDateInput(event.target.value))}
+            />
+          </Field>
+        </div>
+      </section>
 
-        <Field label="Как вы о нас узнали?">
-          <input
-            className={inputClass}
-            placeholder="Друзья, соцсети, реклама…"
-            value={discoverySource}
-            onChange={(event) => setDiscoverySource(event.target.value)}
-          />
-        </Field>
+      <section className="flex flex-col gap-3">
+        <Eyebrow>Как вы о нас узнали?</Eyebrow>
+        {/* The common answers are a tap away; anything else is typed in below them. */}
+        <div className="flex flex-wrap gap-2">
+          {DISCOVERY_SOURCES.map((source) => {
+            const chosen = discoverySource.trim() === source;
 
-        <Field label="Если вас пригласил игрок, что состоит в клубе — укажите его ник">
+            return (
+              <button
+                key={source}
+                aria-pressed={chosen}
+                className={`h-10 rounded-xl border px-3.5 text-[13px] font-bold transition-colors ${
+                  chosen ? "border-club-text bg-club-text text-[#15100f]" : "border-club-line bg-club-surface text-club-text"
+                }`}
+                type="button"
+                onClick={() => setDiscoverySource(chosen ? "" : source)}
+              >
+                {source}
+              </button>
+            );
+          })}
+        </div>
+        <input
+          aria-label="Как вы о нас узнали"
+          className={inputClass}
+          placeholder="Друзья, соцсети, реклама…"
+          value={discoverySource}
+          onChange={(event) => setDiscoverySource(event.target.value)}
+        />
+
+        <Field hint="Если вас пригласил игрок, что состоит в клубе — укажите его ник" label="Кто вас пригласил?">
           <input
             autoComplete="off"
             className={inputClass}
@@ -222,35 +262,36 @@ export default function ClientOnboardingPage() {
         </Field>
 
         {inviterMatches.length > 0 ? (
-          <div className="space-y-1.5">
+          <div className="flex flex-col gap-1.5">
             {inviterMatches.map((match) => (
               <button
                 key={match.key}
-                className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
+                className="flex h-14 w-full items-center gap-3 rounded-[14px] border border-club-line bg-club-surface px-3 text-left"
                 type="button"
                 onClick={() => pickInviter(match)}
               >
-                <PlayerAvatar name={match.name} photoUrl={match.avatarUrl ?? undefined} size={30} />
-                <span className="truncate text-sm font-semibold">{match.name}</span>
+                <PlayerAvatar name={match.name} photoUrl={match.avatarUrl ?? undefined} size={34} />
+                <span className="truncate text-[15px] font-bold">{match.name}</span>
               </button>
             ))}
           </div>
         ) : null}
-      </GlassCard>
+      </section>
 
-      <GlassCard className="space-y-3">
+      <section className="flex flex-col gap-2">
+        <Eyebrow>Согласия</Eyebrow>
+        <Toggle checked={agreementAccepted} onChange={setAgreementAccepted}>
+          {AGREEMENT_TEXT}
+        </Toggle>
         <Toggle checked={ratingConsent} onChange={setRatingConsent}>
           Согласие на участие в рейтинге Majestic
         </Toggle>
         <Toggle checked={notificationsConsent} onChange={setNotificationsConsent}>
           Согласие на уведомления о будущих играх
         </Toggle>
-        <Toggle checked={agreementAccepted} onChange={setAgreementAccepted}>
-          {AGREEMENT_TEXT}
-        </Toggle>
-      </GlassCard>
+      </section>
 
-      {error ? <p className="text-center text-sm text-rose-300">{error}</p> : null}
+      {error ? <p className="text-center text-sm text-club-rose">{error}</p> : null}
 
       <PrimaryButton disabled={!agreementAccepted} loading={submitting} onClick={() => void submit()}>
         Сохранить анкету
@@ -259,8 +300,13 @@ export default function ClientOnboardingPage() {
   );
 }
 
+/** The fields the progress bar counts: name, nickname, phone, birthday, how they found us. */
+const FIELDS_TOTAL = 5;
+
+const DISCOVERY_SOURCES = ["Друзья", "Соцсети", "Реклама", "Другое"] as const;
+
 const inputClass =
-  "w-full rounded-2xl border border-white/[0.07] bg-black/30 px-4 py-3.5 text-[15px] text-white placeholder:text-white/25 outline-none focus:border-[#c8163f]";
+  "h-[52px] w-full rounded-[14px] border border-club-line bg-club-surface px-4 text-[15px] font-semibold text-club-text outline-none placeholder:font-medium placeholder:text-club-faint focus:border-club-rose";
 
 function Field({
   children,
@@ -271,11 +317,12 @@ function Field({
   hint?: string;
   label: string;
 }) {
+  // A label is a grid with an 8px gap by the global style, which is the spacing wanted.
   return (
-    <label className="block space-y-2">
-      <span className="text-sm font-semibold text-white/75">{label}</span>
+    <label className="min-w-0">
+      <span className="text-[13px] font-bold text-club-text">{label}</span>
       {children}
-      {hint ? <span className="block text-[12px] leading-relaxed text-white/35">{hint}</span> : null}
+      {hint ? <span className="text-[12px] leading-relaxed text-club-muted">{hint}</span> : null}
     </label>
   );
 }
@@ -289,15 +336,27 @@ function Toggle({
   children: React.ReactNode;
   onChange: (value: boolean) => void;
 }) {
+  // The global style makes a label a grid, so the box and the words sit in a flex row
+  // of their own inside it.
   return (
-    <label className="flex cursor-pointer items-start gap-3">
-      <input
-        checked={checked}
-        className="mt-0.5 h-5 w-5 shrink-0 accent-[#c8163f]"
-        type="checkbox"
-        onChange={(event) => onChange(event.target.checked)}
-      />
-      <span className="text-sm leading-relaxed text-white/70">{children}</span>
+    <label className="cursor-pointer rounded-2xl border border-club-line bg-club-surface p-3.5">
+      <div className="flex items-start gap-3">
+        <input
+          checked={checked}
+          className="peer sr-only"
+          type="checkbox"
+          onChange={(event) => onChange(event.target.checked)}
+        />
+        <span
+          aria-hidden
+          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-club-rose ${
+            checked ? "bg-club-crimson text-white" : "border-2 border-club-faint"
+          }`}
+        >
+          {checked ? <Check size={15} strokeWidth={3} /> : null}
+        </span>
+        <span className="text-[13px] leading-relaxed text-club-text">{children}</span>
+      </div>
     </label>
   );
 }

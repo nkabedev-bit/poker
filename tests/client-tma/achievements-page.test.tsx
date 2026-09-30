@@ -29,7 +29,12 @@ function respondWithStats(stats: Record<string, number>, rarity: Rarity | null =
 }
 
 describe("client mini-app: достижения", () => {
-  afterEach(() => {
+  /** The count under the ring, which is split between a number and "из N". */
+function summaryLine(text: string) {
+  return (_: string, element: Element | null) => element?.tagName === "P" && element.textContent === text;
+}
+
+afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -58,7 +63,7 @@ describe("client mini-app: достижения", () => {
     render(<ClientAchievementsPage />);
 
     // Дебют! and Первый вайб out of the full list.
-    expect(await screen.findByText(new RegExp(`2 / ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy();
+    expect(await screen.findByText(summaryLine(`2 из ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy();
   });
 
   it("shows progress towards a goal that is still ahead", async () => {
@@ -121,7 +126,7 @@ describe("client mini-app: достижения", () => {
     render(<ClientAchievementsPage />);
 
     await waitFor(() =>
-      expect(screen.getByText(new RegExp(`0 / ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy(),
+      expect(screen.getByText(summaryLine(`0 из ${ACHIEVEMENTS_TOTAL}`))).toBeTruthy(),
     );
   });
 });

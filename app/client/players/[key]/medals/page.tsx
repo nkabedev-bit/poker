@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Medal as MedalIcon } from "lucide-react";
 import { useClientTMA } from "../../../layout";
-import { LoadingScreen, PageTitle } from "../../../_components/ui";
-import { MedalCard } from "../../../_components/award-cards";
+import { LoadingScreen, PageHeading } from "../../../_components/ui";
+import { MedalCard, CollectionSummary } from "../../../_components/award-cards";
 import {
   countEarnedMedals,
   getArchiveMedals,
@@ -52,15 +51,12 @@ export default function PlayerMedalsPage() {
   if (loading || !medals) return <LoadingScreen shape="grid" />;
 
   return (
-    <div className="client-stagger space-y-6 pt-1">
-      <div>
-        <PageTitle>Медали</PageTitle>
-        <p className="mt-1 flex items-center gap-2 text-sm text-white/40">
-          <MedalIcon size={15} /> {name} · {countEarnedMedals(medals)} из {MEDALS_TOTAL}
-        </p>
-      </div>
+    <div className="client-stagger flex flex-col gap-6 pt-1">
+      <PageHeading subtitle={name} title="Медали" />
 
-      <div className="grid grid-cols-2 gap-3">
+      <CollectionSummary earned={countEarnedMedals(medals)} label="Получено" total={MEDALS_TOTAL} />
+
+      <div className="grid grid-cols-3 gap-2.5">
         {medals.map((medal) => (
           <MedalCard key={medal.key} medal={medal} />
         ))}

@@ -1,4 +1,4 @@
-import { GlassCard, PageTitle } from "../_components/ui";
+import { GlassCard, PageHeading } from "../_components/ui";
 import {
   ABOUT_CLUB_OUTRO,
   ABOUT_CLUB_PHOTO,
@@ -11,27 +11,27 @@ import {
 function Block({ block }: { block: AboutBlock }) {
   if (block.kind === "accent") {
     return (
-      <GlassCard className="border-[#c8163f]/40 bg-[linear-gradient(135deg,rgba(200,22,63,0.18),rgba(200,22,63,0.04))] !p-[18px]">
-        <p className="text-sm font-semibold leading-relaxed text-white/85">{block.text}</p>
+      <GlassCard className="border-club-rose/40 bg-club-crimson/10">
+        <p className="text-sm font-semibold leading-relaxed text-club-text">{block.text}</p>
       </GlassCard>
     );
   }
 
   if (block.kind === "group") {
     return (
-      <GlassCard className="!p-[18px]">
-        <p className="text-[15px] font-bold">{block.title}</p>
-        <p className="mt-1.5 text-sm leading-relaxed text-white/55">{block.text}</p>
+      <GlassCard className="flex flex-col gap-1.5">
+        <p className="text-[15px] font-extrabold">{block.title}</p>
+        <p className="text-sm leading-relaxed text-club-muted">{block.text}</p>
       </GlassCard>
     );
   }
 
   if (block.kind === "list") {
     return (
-      <ul className="space-y-2">
+      <ul className="flex flex-col gap-2">
         {block.items.map((item) => (
-          <li key={item} className="flex gap-2.5 text-sm leading-relaxed text-white/55">
-            <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#e9c07a]" />
+          <li key={item} className="flex gap-2.5 text-sm leading-relaxed text-club-muted">
+            <span aria-hidden className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-club-gold" />
             <span>{item}</span>
           </li>
         ))}
@@ -39,14 +39,14 @@ function Block({ block }: { block: AboutBlock }) {
     );
   }
 
-  return <p className="text-sm leading-relaxed text-white/55">{block.text}</p>;
+  return <p className="text-sm leading-relaxed text-club-muted">{block.text}</p>;
 }
 
 export default function ClientAboutPage() {
   return (
-    <div className="client-stagger space-y-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
 
-      <div className="overflow-hidden rounded-[22px] border border-white/[0.07] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
+      <div className="overflow-hidden rounded-3xl border border-club-line">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt="Турнирный вечер в MAJESTIC Poker Club"
@@ -55,15 +55,12 @@ export default function ClientAboutPage() {
         />
       </div>
 
-      <div className="space-y-2">
-        <PageTitle>{ABOUT_CLUB_TITLE}</PageTitle>
-        <p className="text-sm leading-relaxed text-white/55">{ABOUT_CLUB_SUBTITLE}</p>
-      </div>
+      <PageHeading subtitle={ABOUT_CLUB_SUBTITLE} title={ABOUT_CLUB_TITLE} />
 
       {ABOUT_CLUB_SECTIONS.map((section, sectionIndex) => (
-        <section key={section.title ?? `intro-${sectionIndex}`} className="space-y-3">
+        <section key={section.title ?? `intro-${sectionIndex}`} className="flex flex-col gap-3">
           {section.title ? (
-            <h2 className="text-[19px] font-bold tracking-tight text-white">{section.title}</h2>
+            <h2 className="font-display text-[17px] font-semibold">{section.title}</h2>
           ) : null}
           {section.blocks.map((block, blockIndex) => (
             <Block key={`${sectionIndex}-${blockIndex}`} block={block} />
@@ -71,8 +68,8 @@ export default function ClientAboutPage() {
         </section>
       ))}
 
-      <GlassCard className="bg-[linear-gradient(135deg,rgba(233,192,122,0.16),rgba(200,22,63,0.08))] py-7 text-center">
-        <p className="text-[15px] font-bold uppercase leading-relaxed tracking-[0.12em] text-[#e9c07a]">
+      <GlassCard className="border-club-gold/30 bg-club-gold/[0.08] py-7 text-center">
+        <p className="font-display text-[15px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-club-gold">
           {ABOUT_CLUB_OUTRO}
         </p>
       </GlassCard>

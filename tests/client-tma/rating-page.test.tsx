@@ -67,11 +67,11 @@ describe("the rating", () => {
 
     expect(rowOrder(container)).toEqual(["1-Mr.Shark", "2-River", "3-Ace"]);
 
-    fireEvent.click(screen.getByRole("button", { name: "Рейтинг" }));
+    fireEvent.click(screen.getByRole("button", { name: "По рейтингу" }));
     expect(rowOrder(container)).toEqual(["2-River", "1-Mr.Shark", "3-Ace"]);
     expect(tickClientSelection).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Рейтинг" }));
+    fireEvent.click(screen.getByRole("button", { name: "По рейтингу" }));
     expect(tickClientSelection).toHaveBeenCalledTimes(1);
   });
 });

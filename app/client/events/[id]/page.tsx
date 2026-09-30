@@ -1,9 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { CalendarDays, Check, Clock, Copy, MapPin, Ticket, Users } from "lucide-react";
+import {
+  CalendarDays,
+  Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  Info,
+  MapPin,
+  ScrollText,
+  Search,
+  Sparkles,
+  Ticket,
+  Users,
+} from "lucide-react";
 import {
   getClientTelegramWebApp,
   showClientAlert,
@@ -22,13 +35,15 @@ import {
 import { useSuitBurst } from "../../_components/suit-burst";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import {
-  Badge,
   Chip,
+  Eyebrow,
   GhostButton,
   GlassCard,
+  IconTile,
   LoadingScreen,
   PrimaryButton,
   ScreenMessage,
+  SectionHeader,
 } from "../../_components/ui";
 import {
   countAnnouncedSeats,
@@ -37,6 +52,7 @@ import {
 } from "@/lib/events/seats";
 import {
   formatEventDayLabel,
+  formatEventShortDateLabel,
   formatEventTimeLabel,
   isEventEveningOpen,
   isUpcomingEvent,
@@ -111,14 +127,6 @@ type PartnerMatch = { avatarUrl: string | null; key: string; name: string };
 const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
   regular: "Обычная проходка",
   vip: "VIP проходка",
-};
-
-// Three tickets still have to fit a phone, so the row gets tighter as the poster adds
-// kinds rather than wrapping one of them onto a line of its own.
-const TICKET_GRID: Record<number, string> = {
-  1: "grid grid-cols-1 gap-3",
-  2: "grid grid-cols-2 gap-3",
-  3: "grid grid-cols-3 gap-2",
 };
 
 const TICKET_TITLES: Record<HeldTicket, string> = {
@@ -609,16 +617,50 @@ export default function ClientEventPage() {
     .map((line) => line.trim())
     .filter(Boolean);
 
+  const priceOf = (ticket: TicketType) =>
+    ticket === "vip" ? event.vipBuyIn : ticket === "duo" ? event.duoBuyIn : event.buyIn;
+  // What the chosen ticket comes to at the desk: nothing when a pass covers it.
+  const chosenPrice = usePass !== "none" ? 0 : priceOf(ticketType);
+  const freeSeatsLine = [
+    `Обычных — ${freeSeats.regular === null ? "есть места" : freeSeats.regular > 0 ? `${freeSeats.regular} свободно` : "разобрали"}`,
+    ...(offersDuo ? [`1+1 — ${freeSeats.duo > 0 ? freeSeats.duo : "разобрали"}`] : []),
+    ...(offersVip
+      ? [`VIP — ${freeSeats.vip === null ? "есть места" : freeSeats.vip > 0 ? `${freeSeats.vip} свободно` : "разобрали"}`]
+      : []),
+  ].join(" · ");
+  const aboutItems = [
+    ...(featureLines.length > 0 || event.startingStack
+      ? [{
+          body: (
+            <>
+              {event.startingStack ? (
+                <p>Стартовый стек {event.startingStack.toLocaleString("ru-RU")} фишек</p>
+              ) : null}
+              {featureLines.map((line, index) => (
+                <p key={index}>{line}</p>
+              ))}
+            </>
+          ),
+          icon: <Sparkles size={20} />,
+          title: "Особенности",
+        }]
+      : []),
+    ...(event.rulesText
+      ? [{ body: <p className="whitespace-pre-wrap">{event.rulesText}</p>, icon: <ScrollText size={20} />, title: "Общие правила" }]
+      : []),
+    ...(event.venueAddress
+      ? [{ body: <p>{event.venueAddress}</p>, icon: <MapPin size={20} />, title: "Где проходит турнир?" }]
+      : []),
+  ];
+
   return (
-    <div className="client-stagger space-y-5 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
 
       {invite ? (
         // Waits on the player's answer, so it breathes in gold like a held ticket.
-        <GlassCard className="client-breathe relative space-y-3 border-[#e9c07a]/35 !p-4">
-          <p className="text-[15px] font-bold">
-            {invite.hostName} зовёт вас по билету 1+1
-          </p>
-          <p className="text-[13px] leading-relaxed text-white/60">
+        <div className="client-breathe relative flex flex-col gap-3 rounded-[20px] border border-club-gold/35 bg-club-gold/[0.08] p-4">
+          <p className="text-[15px] font-extrabold">{invite.hostName} зовёт вас по билету 1+1</p>
+          <p className="text-[13px] leading-relaxed text-club-muted">
             Место уже оплачено на двоих. Подтвердите, что придёте — администратор будет
             ждать вас обоих.
           </p>
@@ -630,116 +672,71 @@ export default function ClientEventPage() {
               Не смогу
             </GhostButton>
           </div>
-        </GlassCard>
+        </div>
       ) : null}
 
-      <div className="relative min-h-[210px] overflow-hidden rounded-[22px] border border-white/[0.07] bg-[#1a0b10] shadow-[0_12px_36px_rgba(0,0,0,0.5)]">
+      <div className="relative h-[230px] overflow-hidden rounded-3xl bg-[#3a0e1a]">
         {event.posterUrl ? (
           <PosterImage drift url={event.posterUrl} />
         ) : (
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-[#4a0f1e] via-[#20080e] to-[#0a0608]" />
+          <span aria-hidden className="pointer-events-none absolute -right-8 -top-12 text-[280px] leading-none text-white/[0.06]">
+            ♠
+          </span>
         )}
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(13,10,11,0)_25%,rgba(13,10,11,0.9)_100%)]" />
 
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(100deg,rgba(6,3,4,0.95)_0%,rgba(6,3,4,0.86)_38%,rgba(6,3,4,0.35)_72%,rgba(6,3,4,0.1)_100%)]" />
-
-        <div className="relative flex h-full flex-col gap-3 p-5">
-          <h1 className="max-w-[70%] text-[27px] font-extrabold uppercase leading-[1.05] tracking-tight">
+        <div className="absolute inset-x-[18px] bottom-[18px] flex flex-col gap-3">
+          {event.badge ? <Eyebrow className="!text-club-gold">{event.badge}</Eyebrow> : null}
+          <h1 className="font-display text-[28px] font-bold uppercase leading-[1.05] tracking-[-0.01em]">
             {event.title}
           </h1>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-1.5">
             <Chip>
-              <CalendarDays size={13} /> {formatEventDayLabel(event.startsAt)}
+              <CalendarDays size={14} /> {formatEventShortDateLabel(event.startsAt)}
             </Chip>
             <Chip>
-              <Clock size={13} /> {formatEventTimeLabel(event.startsAt)}
+              <Clock size={14} /> {formatEventTimeLabel(event.startsAt)}
             </Chip>
             {announcedSeats ? (
               <Chip>
-                <Users size={13} /> {formatSeatsCount(announcedSeats.total)}
+                <Users size={14} /> {formatSeatsCount(announcedSeats.total)}
               </Chip>
             ) : null}
           </div>
-          <div className="mt-auto">{event.badge ? <Badge>{event.badge}</Badge> : null}</div>
         </div>
       </div>
 
       {/* Once the cards are in the air the room takes the place of the sign-up list: who
           is still in, table by table, and who has already gone out. */}
       {live ? (
-        <section className="space-y-2">
+        <section className="flex flex-col gap-2.5">
           {/* Fixed to the top of the screen; it sits here because only a game under way
               has knockouts to call out. */}
           <KnockoutToast news={knockouts[0] ?? null} onDone={nextKnockout} />
           <LiveTournamentCard live={live} />
           {room ? (
             <>
-              <h2 className="pt-1 text-[19px] font-bold tracking-tight">За столами</h2>
+              <h2 className="flex min-h-11 items-center gap-2 font-display text-[17px] font-semibold">
+                За столами
+                <span className="font-body text-[15px] font-semibold text-club-faint">{countPlayersIn(room)}</span>
+              </h2>
               <LiveTables eliminated={room.eliminated} justOut={justOut} tables={room.tables} />
             </>
           ) : null}
         </section>
       ) : stillAhead && (signups.players.length > 0 || signups.waitlist.length > 0) ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">
-            Кто идёт
-            <span className="ml-2 text-[15px] font-semibold text-white/35">
-              {signups.players.length}
-            </span>
-          </h2>
-          <SignupList players={signups.players} waitlist={signups.waitlist} />
-        </section>
+        <WhoIsComing players={signups.players} waitlist={signups.waitlist} />
       ) : null}
 
-      {event.venueAddress ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Где проходит турнир?</h2>
-          <GlassCard className="!p-4">
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
-              <p className="text-sm text-white/80">{event.venueAddress}</p>
-            </div>
-          </GlassCard>
-        </section>
-      ) : null}
-
-      {event.rulesText ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Общие правила</h2>
-          <GlassCard className="!p-4">
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-white/80">
-              {event.rulesText}
-            </p>
-          </GlassCard>
-        </section>
-      ) : null}
-
-      {featureLines.length > 0 || event.startingStack ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Особенности</h2>
-          <GlassCard className="space-y-2 !p-4">
-            {featureLines.map((line, index) => (
-              <p key={index} className="text-sm leading-relaxed text-white/80">
-                {line}
-              </p>
-            ))}
-            {event.startingStack ? (
-              <p className="text-sm text-white/80">
-                Стартовый стек {event.startingStack.toLocaleString("ru-RU")} фишек
-              </p>
-            ) : null}
-          </GlassCard>
-        </section>
-      ) : null}
-
-      <section className="space-y-2">
-        <h2 className="text-[19px] font-bold tracking-tight">Билеты</h2>
-        {seatsBreakdown ? (
-          <p className="px-1 text-xs text-white/40">{seatsBreakdown}</p>
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader title={event.signedUp || event.reservedTicket ? "Ваш билет" : "Билет"} />
+        {seatsBreakdown ? <p className="-mt-2 text-[13px] text-club-muted">{seatsBreakdown}</p> : null}
+        {!event.signedUp && !event.reservedTicket && ticketsInRow > 1 ? (
+          <p className="-mt-1 text-[13px] text-club-muted">{freeSeatsLine}</p>
         ) : null}
         {event.signedUp || event.reservedTicket ? (
-          <div className={TICKET_GRID[ticketsInRow]}>
-            <TicketCard
-              compact={ticketsInRow > 2}
+          <>
+            <TicketOption
               kind="regular"
               price={event.buyIn}
               seats={freeSeats.regular}
@@ -747,22 +744,16 @@ export default function ClientEventPage() {
               state={heldTicket === "regular" ? "chosen" : "muted"}
             />
             {offersDuo ? (
-              <TicketCard
-                compact={ticketsInRow > 2}
+              <TicketOption
                 kind="duo"
                 price={event.duoBuyIn}
                 seats={freeSeats.duo}
                 stamp={heldTicket === "duo" || heldTicket === "duo_plus_one" ? heldStamp : undefined}
-                state={
-                  heldTicket === "duo" || heldTicket === "duo_plus_one"
-                    ? "chosen"
-                    : "muted"
-                }
+                state={heldTicket === "duo" || heldTicket === "duo_plus_one" ? "chosen" : "muted"}
               />
             ) : null}
             {offersVip ? (
-              <TicketCard
-                compact={ticketsInRow > 2}
+              <TicketOption
                 kind="vip"
                 price={event.vipBuyIn}
                 seats={freeSeats.vip}
@@ -770,149 +761,136 @@ export default function ClientEventPage() {
                 state={heldTicket === "vip" ? "chosen" : "muted"}
               />
             ) : null}
-          </div>
+          </>
         ) : (
           <>
-            <div className={TICKET_GRID[ticketsInRow]}>
-              <TicketCard
-                compact={ticketsInRow > 2}
-                kind="regular"
-                onSelect={() => selectTicket("regular")}
-                price={event.buyIn}
-                seats={freeSeats.regular}
-                state={ticketType === "regular" ? "chosen" : "idle"}
-              />
-              {offersDuo ? (
-                <TicketCard
-                  compact={ticketsInRow > 2}
-                  kind="duo"
-                  onSelect={() => selectTicket("duo")}
-                  price={event.duoBuyIn}
-                  seats={freeSeats.duo}
-                  state={ticketType === "duo" ? "chosen" : "idle"}
-                />
-              ) : null}
-              {offersVip ? (
-                <TicketCard
-                  compact={ticketsInRow > 2}
-                  kind="vip"
-                  onSelect={() => selectTicket("vip")}
-                  price={event.vipBuyIn}
-                  seats={freeSeats.vip}
-                  state={ticketType === "vip" ? "chosen" : "idle"}
-                />
-              ) : null}
-            </div>
+            <TicketOption
+              kind="regular"
+              onSelect={() => selectTicket("regular")}
+              price={event.buyIn}
+              seats={freeSeats.regular}
+              state={ticketType === "regular" ? "chosen" : "idle"}
+            />
             {offersDuo ? (
-              <p className="px-1 text-xs text-white/40">
-                Билет 1+1 — вход для двоих по одной цене.
-              </p>
+              <TicketOption
+                kind="duo"
+                onSelect={() => selectTicket("duo")}
+                price={event.duoBuyIn}
+                seats={freeSeats.duo}
+                state={ticketType === "duo" ? "chosen" : "idle"}
+              />
             ) : null}
             {offersVip ? (
-              <p className="px-1 text-xs text-white/40">
-                Место за столом выдаёт администратор в день игры.
-              </p>
+              <TicketOption
+                kind="vip"
+                onSelect={() => selectTicket("vip")}
+                price={event.vipBuyIn}
+                seats={freeSeats.vip}
+                state={ticketType === "vip" ? "chosen" : "idle"}
+              />
             ) : null}
           </>
         )}
 
         {(reservedDuo || ticketType === "duo") && (!event.signedUp || needsPartner) ? (
-          <GlassCard className="space-y-3 !p-4">
-            <p className="block text-sm font-bold">Кто придёт с вами?</p>
+          <GlassCard className="flex flex-col gap-4">
+            <div className="flex flex-col gap-1.5">
+              <p className="font-display text-[18px] font-semibold">Кто придёт с вами?</p>
+              <p className="text-[13px] text-club-muted">Билет 1+1 — вход для двоих, цена делится пополам</p>
+            </div>
 
             {/* The friend worth bringing is often the one who has not joined yet, so the
                 two cases are asked apart rather than guessed from what was typed. */}
-            <div className="grid grid-cols-2 gap-2">
+            <div className="flex gap-1 rounded-2xl border border-club-line bg-club-ink/40 p-1">
               {(["member", "invite"] as const).map((mode) => (
                 <button
                   key={mode}
-                  className={`rounded-2xl px-3 py-2.5 text-[13px] font-semibold transition ${
-                    partnerMode === mode
-                      ? "bg-[#c8163f] text-white"
-                      : "border border-white/[0.09] bg-white/[0.04] text-white/70"
+                  aria-pressed={partnerMode === mode}
+                  className={`h-10 flex-1 rounded-xl text-[14px] font-bold transition-colors ${
+                    partnerMode === mode ? "bg-club-text text-[#15100f]" : "text-club-muted"
                   }`}
                   type="button"
                   onClick={() => setPartnerMode(mode)}
                 >
-                  {mode === "member" ? "Резидент клуба" : "Нет аккаунта в Majestic"}
+                  {mode === "member" ? "Резидент клуба" : "Нет аккаунта"}
                 </button>
               ))}
             </div>
 
             {partnerMode === "invite" ? (
-              <div className="space-y-2">
-                <p className="text-[12px] leading-relaxed text-white/50">
+              <div className="flex flex-col gap-2.5">
+                <p className="text-[13px] leading-relaxed text-club-muted">
                   Запишитесь — и получите ссылку-приглашение. Друг откроет её,
                   зарегистрируется и увидит приглашение на этот турнир.
                 </p>
 
                 {hasInviteLinks ? (
-                  <div className="space-y-1.5">
+                  <div className="flex flex-col gap-2">
                     {shownInviteLinks?.telegram ? (
                       <InviteLink href={shownInviteLinks.telegram} label="Телеграм" />
                     ) : null}
                     {shownInviteLinks?.web ? (
-                      <InviteLink
-                        href={shownInviteLinks.web}
-                        label="Нет доступа к телеграмму"
-                      />
+                      <InviteLink href={shownInviteLinks.web} label="Нет доступа к телеграму" />
                     ) : null}
-                    <p className="text-[11px] leading-relaxed text-white/40">
-                      Отправьте другу ссылку-приглашение — ту, что подходит: есть ли у
-                      него доступ к телеграмму. Ссылка одноразовая: кто откроет первым,
-                      тот и придёт с вами.
-                    </p>
+                    <InfoNote>
+                      Отправьте другу ссылку-приглашение — ту, что подходит. Ссылка одноразовая:
+                      кто откроет первым, тот и придёт с вами.
+                    </InfoNote>
                   </div>
                 ) : null}
               </div>
             ) : (
               <>
-            <label className="block text-sm font-bold" htmlFor="duo-partner">
-              Ник напарника
-            </label>
-            <input
-              autoComplete="off"
-              className="w-full rounded-2xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-[15px] outline-none placeholder:text-white/30 focus:border-[#f05a7e]/60"
-              id="duo-partner"
-              maxLength={MAX_PARTNER_NAME_LENGTH}
-              onChange={(item) => typePartner(item.target.value)}
-              placeholder="Ник в клубе или имя гостя"
-              value={partnerName}
-            />
-
-            {partnerMatches.length > 0 ? (
-              <div className="space-y-1.5">
-                {partnerMatches.map((match) => (
-                  <button
-                    key={match.key}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-left"
-                    type="button"
-                    onClick={() => pickPartner(match)}
-                  >
-                    <PlayerAvatar
-                      name={match.name}
-                      photoUrl={match.avatarUrl ?? undefined}
-                      size={30}
+                <div className="flex flex-col gap-2">
+                  <span className="text-[13px] font-bold">Ник напарника</span>
+                  <div className="flex h-[52px] items-center gap-2.5 rounded-[14px] border border-club-line bg-club-ink/40 px-4 focus-within:border-club-rose">
+                    <Search className="shrink-0 text-club-faint" size={18} />
+                    <input
+                      aria-label="Ник напарника"
+                      autoComplete="off"
+                      className="min-w-0 flex-1 bg-transparent text-[15px] font-semibold text-club-text outline-none placeholder:font-medium placeholder:text-club-faint"
+                      id="duo-partner"
+                      maxLength={MAX_PARTNER_NAME_LENGTH}
+                      onChange={(item) => typePartner(item.target.value)}
+                      placeholder="Ник в клубе или имя гостя"
+                      value={partnerName}
                     />
-                    <span className="truncate text-sm font-semibold">{match.name}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
+                  </div>
+                </div>
 
-            {typedMember ? (
-              <p className="text-[11px] font-semibold leading-relaxed text-[#e9c07a]">
-                {typedMember.name} есть в клубе — нажмите на него в списке выше, чтобы ему
-                пришло приглашение. Иначе он придёт гостем и ничего не увидит в приложении.
-              </p>
-            ) : (
-              <p className="text-[11px] leading-relaxed text-white/45">
-                {partnerKey
-                  ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
-                  : "Гость без аккаунта — администратор впустит его по вашему билету."}{" "}
-                Вход для обоих, цена делится пополам.
-              </p>
-            )}
+                {partnerMatches.length > 0 ? (
+                  <div className="flex flex-col gap-1.5">
+                    {partnerMatches.map((match) => (
+                      <button
+                        key={match.key}
+                        className="flex h-14 w-full items-center gap-3 rounded-[14px] border border-club-line px-3 text-left"
+                        type="button"
+                        onClick={() => pickPartner(match)}
+                      >
+                        <PlayerAvatar name={match.name} photoUrl={match.avatarUrl ?? undefined} size={34} />
+                        <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{match.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : partnerKey ? (
+                  <div className="flex h-14 items-center gap-3 rounded-[14px] border border-club-rose bg-club-crimson/10 px-3">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-bold">{partnerName}</span>
+                    <Check className="shrink-0 text-club-rose" size={18} strokeWidth={2.5} />
+                  </div>
+                ) : null}
+
+                {typedMember ? (
+                  <InfoNote tone="gold">
+                    {typedMember.name} есть в клубе — нажмите на него в списке выше, чтобы ему
+                    пришло приглашение. Иначе он придёт гостем и ничего не увидит в приложении.
+                  </InfoNote>
+                ) : (
+                  <InfoNote tone={partnerKey ? "mint" : "neutral"}>
+                    {partnerKey
+                      ? "Игрок клуба — ему придёт приглашение, и он подтвердит, что придёт."
+                      : "Гость без аккаунта — администратор впустит его по вашему билету."}
+                  </InfoNote>
+                )}
               </>
             )}
           </GlassCard>
@@ -922,189 +900,187 @@ export default function ClientEventPage() {
       {/* A pass never buys a pair, whether the player picked the "1+1" themselves or the
           club is holding one for them. */}
       {passOptions.length > 0 && !event.signedUp && (heldTicket ?? ticketType) !== "duo" ? (
-        <section className="space-y-2">
-          <h2 className="text-[19px] font-bold tracking-tight">Бесплатные проходки</h2>
-          <GlassCard className="space-y-2 !p-3">
+        <section className="flex flex-col gap-2.5">
+          <SectionHeader title="Бесплатная проходка" />
+          <div className="flex flex-col gap-2">
             {passOptions.map((option) => (
-              <button
+              <ChoiceRow
                 key={option.value}
-                className={`flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${
-                  usePass === option.value
-                    ? "border-[#f05a7e]/60 bg-[#f05a7e]/12"
-                    : "border-white/[0.07] bg-white/[0.03]"
-                } ${option.disabled ? "opacity-45" : ""}`}
+                chosen={usePass === option.value}
                 disabled={option.disabled}
-                type="button"
-                onClick={() => selectPass(option.value)}
-              >
-                <span className="min-w-0">
-                  <span className="block text-sm font-bold">{option.title}</span>
-                  {option.note ? (
-                    <span className="block text-xs text-white/45">{option.note}</span>
-                  ) : null}
-                </span>
-                <span
-                  className={`h-[18px] w-[18px] shrink-0 rounded-full border-2 ${
-                    usePass === option.value
-                      ? "border-[#f05a7e] bg-[#f05a7e]"
-                      : "border-white/25"
-                  }`}
-                />
-              </button>
+                note={option.note}
+                title={option.title}
+                onSelect={() => selectPass(option.value)}
+              />
             ))}
-            <p className="px-1 pt-1 text-[11px] leading-relaxed text-white/45">
-              Проходка закрывает билет своего типа: VIP-проходка — VIP билет, обычная —
-              обычный. Использовать её можно только на вход в турнир: права на бесплатный
-              ре-энтри или аддон она не даёт.
-            </p>
-          </GlassCard>
+          </div>
+          <InfoNote>
+            Проходка закрывает билет своего типа и действует только на вход: права на
+            бесплатный ре-энтри или аддон она не даёт.
+          </InfoNote>
         </section>
       ) : null}
 
       {event.signedUp && event.usePass !== "none" ? (
-        <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
-          <Ticket className="shrink-0 text-[#f05a7e]" size={18} />
-          <p className="text-sm text-white/80">
+        <div className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3">
+          <Ticket className="shrink-0 text-club-rose" size={18} />
+          <p className="text-[13px] text-club-muted">
             Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру, а
             до тех пор она закреплена за этой записью.
           </p>
         </div>
       ) : null}
 
-      {needsPartner ? (
-        <PrimaryButton
-          disabled={partnerMissing}
-          loading={submitting}
-          onClick={() => void toggleSignup(true)}
-        >
-          {partnerMissing ? "Укажите напарника" : "Позвать напарника"}
-        </PrimaryButton>
-      ) : null}
+      <div className="flex flex-col gap-3">
+        {needsPartner ? (
+          <PrimaryButton
+            disabled={partnerMissing}
+            loading={submitting}
+            onClick={() => void toggleSignup(true)}
+          >
+            {partnerMissing ? "Укажите напарника" : "Позвать напарника"}
+          </PrimaryButton>
+        ) : null}
 
-      {signupBan ? (
-        // Said before they tap rather than after: the player is not signing up tonight,
-        // and the screen owes them the reason and the date it ends.
-        <div className="rounded-2xl border border-[#c8163f]/40 bg-[#c8163f]/10 px-4 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-[#f05a7e]">
-          {signupBan.message}
-        </div>
-      ) : event.signedUp ? (
-        <div className="space-y-3">
-          <div
-            className={`relative rounded-2xl border border-emerald-400/30 bg-emerald-400/10 px-4 py-3.5 text-center text-[15px] font-bold text-emerald-300 ${
-              celebrating ? "client-pop-in" : ""
-            }`}
-          >
-            {burst}
-            <span className="inline-flex items-center justify-center gap-1.5">
-              <Check
-                className={`shrink-0 ${celebrating ? "client-check-draw" : ""}`}
-                size={17}
-                strokeWidth={3}
-              />
-              Вы записаны · {TICKET_TITLES[event.ticketType]} билет
-            </span>
-            {event.partnerName ? (
-              <span className="mt-1 block text-[13px] font-semibold text-emerald-300/80">
-                С вами: {event.partnerName}
-                {event.partnerIsMember
-                  ? event.partnerConfirmed
-                    ? " · подтвердил"
-                    : " · ждём ответа"
-                  : " · гость"}
+        {signupBan ? (
+          // Said before they tap rather than after: the player is not signing up tonight,
+          // and the screen owes them the reason and the date it ends.
+          <div className="rounded-[18px] border border-club-rose/45 bg-club-crimson/10 px-4 py-3.5 text-center text-[14px] font-semibold leading-relaxed text-club-rose">
+            {signupBan.message}
+          </div>
+        ) : event.signedUp ? (
+          <>
+            <div
+              className={`relative rounded-[18px] border border-club-mint/35 bg-club-mint/10 px-4 py-3.5 text-center text-[15px] font-extrabold text-club-mint ${
+                celebrating ? "client-pop-in" : ""
+              }`}
+            >
+              {burst}
+              <span className="inline-flex items-center justify-center gap-1.5">
+                <Check
+                  className={`shrink-0 ${celebrating ? "client-check-draw" : ""}`}
+                  size={17}
+                  strokeWidth={3}
+                />
+                Вы записаны · {TICKET_TITLES[event.ticketType]} билет
               </span>
-            ) : null}
-          </div>
-          {/* Sat down at a table, or out already: the seat is being played in. */}
-          {event.cancellationClosed ? null : (
-            <>
-              <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-                Отменить запись
-              </GhostButton>
-              {needsPartner ? (
-                <p className="px-2 text-center text-xs text-white/40">
-                  Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого.
+              {event.partnerName ? (
+                <span className="mt-1 block text-[13px] font-semibold text-club-mint/80">
+                  С вами: {event.partnerName}
+                  {event.partnerIsMember
+                    ? event.partnerConfirmed
+                      ? " · подтвердил"
+                      : " · ждём ответа"
+                    : " · гость"}
+                </span>
+              ) : null}
+            </div>
+            {/* Sat down at a table, or out already: the seat is being played in. */}
+            {event.cancellationClosed ? null : (
+              <>
+                <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+                  Отменить запись
+                </GhostButton>
+                <p className="px-2 text-center text-[12px] text-club-faint">
+                  {needsPartner
+                    ? "Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого."
+                    : "Чтобы сменить билет или проходку, отмените запись и запишитесь заново."}
                 </p>
-              ) : (
-                <p className="px-2 text-center text-xs text-white/40">
-                  Чтобы сменить билет или проходку, отмените запись и запишитесь заново.
-                </p>
-              )}
-            </>
-          )}
-        </div>
-      ) : event.reservedTicket ? (
-        // The club promised this seat to somebody who asked ahead; all that is left is
-        // for them to say they are coming.
-        <div className="space-y-3">
-          <div className="client-breathe relative rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
-            Вам отложен{" "}
-            {event.reservedTicket === "vip"
-              ? "VIP-билет"
-              : event.reservedTicket === "duo"
-                ? "билет 1+1"
-                : "обычный билет"}
-            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              {reservedDuo
-                ? "Место держим за вами — впишите напарника и подтвердите."
-                : "Место держим за вами — подтвердите участие."}
-            </span>
-          </div>
-          <PrimaryButton
-            disabled={reservedPartnerMissing}
-            loading={submitting}
-            onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
-          >
-            {reservedPartnerMissing ? "Укажите напарника" : "Подтвердить участие"}
-          </PrimaryButton>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Не смогу прийти
-          </GhostButton>
-        </div>
-      ) : queuedTicket && event.waitlistOfferExpiresAt ? (
-        // The queue reached them and the place is held for nobody else until the half
-        // hour runs out. The room reads full to everyone else, so this seat is theirs
-        // to take rather than to race anyone for.
-        <div className="space-y-3">
-          {/* Counting down on the phone; when the time is up the club is asked once where
-              the queue went, and the screen follows. */}
-          <OfferCountdown expiresAt={event.waitlistOfferExpiresAt} onExpire={() => void load()} />
-          <PrimaryButton
-            disabled={queuedPartnerMissing}
-            loading={submitting}
-            onClick={() => void toggleSignup(true, false, queuedTicket)}
-          >
-            {queuedPartnerMissing
-              ? "Укажите напарника"
-              : `Записаться · ${TICKET_TITLES[queuedTicket]}`}
-          </PrimaryButton>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Отказаться от места
-          </GhostButton>
-        </div>
-      ) : event.waitlisted ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-[#e9c07a]/30 bg-[#e9c07a]/10 px-4 py-3.5 text-center text-[15px] font-bold text-[#e9c07a]">
-            Вы в листе ожидания
-            <span className="mt-1 block text-[13px] font-semibold text-[#e9c07a]/75">
-              Как освободится место, оно уйдёт по очереди — первому, кто в ней стоит.
-              Когда дойдёт до вас, сообщим и полчаса будем держать место за вами.
-            </span>
-          </div>
-          <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
-            Выйти из листа ожидания
-          </GhostButton>
-        </div>
-      ) : event.seatGivenAway ? (
-        // They did not come and the desk gave their place to somebody waiting. Saying
-        // so beats the screen insisting they are signed up for a seat that is taken.
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-white/15 bg-white/[0.06] px-4 py-3.5 text-center text-[15px] font-bold text-white/70">
-            Место передали другому игроку
-            <span className="mt-1 block text-[13px] font-semibold text-white/45">
-              Вас не было к началу, и место ушло тому, кто ждал в очереди.
-            </span>
-          </div>
-          {soldOut ? (
+              </>
+            )}
+          </>
+        ) : event.reservedTicket ? (
+          // The club promised this seat to somebody who asked ahead; all that is left is
+          // for them to say they are coming.
+          <>
+            <div className="client-breathe relative rounded-[18px] border border-club-gold/35 bg-club-gold/10 px-4 py-3.5 text-center text-[15px] font-extrabold text-club-gold">
+              Вам отложен{" "}
+              {event.reservedTicket === "vip"
+                ? "VIP-билет"
+                : event.reservedTicket === "duo"
+                  ? "билет 1+1"
+                  : "обычный билет"}
+              <span className="mt-1 block text-[13px] font-semibold text-club-gold/75">
+                {reservedDuo
+                  ? "Место держим за вами — впишите напарника и подтвердите."
+                  : "Место держим за вами — подтвердите участие."}
+              </span>
+            </div>
+            <PrimaryButton
+              disabled={reservedPartnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true, false, event.reservedTicket ?? "regular")}
+            >
+              {reservedPartnerMissing ? "Укажите напарника" : "Подтвердить участие"}
+            </PrimaryButton>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Не смогу прийти
+            </GhostButton>
+          </>
+        ) : queuedTicket && event.waitlistOfferExpiresAt ? (
+          // The queue reached them and the place is held for nobody else until the half
+          // hour runs out. The room reads full to everyone else, so this seat is theirs
+          // to take rather than to race anyone for.
+          <>
+            {/* Counting down on the phone; when the time is up the club is asked once where
+                the queue went, and the screen follows. */}
+            <OfferCountdown expiresAt={event.waitlistOfferExpiresAt} onExpire={() => void load()} />
+            <PrimaryButton
+              disabled={queuedPartnerMissing}
+              loading={submitting}
+              onClick={() => void toggleSignup(true, false, queuedTicket)}
+            >
+              {queuedPartnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[queuedTicket]}`}
+            </PrimaryButton>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Отказаться от места
+            </GhostButton>
+          </>
+        ) : event.waitlisted ? (
+          <>
+            <div className="rounded-[18px] border border-club-gold/35 bg-club-gold/10 px-4 py-3.5 text-center text-[15px] font-extrabold text-club-gold">
+              Вы в листе ожидания
+              <span className="mt-1 block text-[13px] font-semibold text-club-gold/75">
+                Как освободится место, оно уйдёт по очереди — первому, кто в ней стоит.
+                Когда дойдёт до вас, сообщим и полчаса будем держать место за вами.
+              </span>
+            </div>
+            <GhostButton disabled={submitting} onClick={() => void toggleSignup(false)}>
+              Выйти из листа ожидания
+            </GhostButton>
+          </>
+        ) : event.seatGivenAway ? (
+          // They did not come and the desk gave their place to somebody waiting. Saying
+          // so beats the screen insisting they are signed up for a seat that is taken.
+          <>
+            <div className="rounded-[18px] border border-club-line bg-club-surface px-4 py-3.5 text-center text-[15px] font-extrabold text-club-muted">
+              Место передали другому игроку
+              <span className="mt-1 block text-[13px] font-semibold text-club-faint">
+                Вас не было к началу, и место ушло тому, кто ждал в очереди.
+              </span>
+            </div>
+            {soldOut ? (
+              <PrimaryButton
+                disabled={partnerMissing}
+                loading={submitting}
+                onClick={() => void toggleSignup(true, true)}
+              >
+                Встать в лист ожидания
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton
+                disabled={partnerMissing}
+                loading={submitting}
+                onClick={() => void toggleSignup(true)}
+              >
+                {partnerMissing ? "Укажите напарника" : `Записаться снова · ${TICKET_TITLES[ticketType]}`}
+              </PrimaryButton>
+            )}
+          </>
+        ) : soldOut ? (
+          // Sold out is where the club used to lose the player: nothing on the screen
+          // said "tell me if a place comes free".
+          <>
             <PrimaryButton
               disabled={partnerMissing}
               loading={submitting}
@@ -1112,59 +1088,145 @@ export default function ClientEventPage() {
             >
               Встать в лист ожидания
             </PrimaryButton>
-          ) : (
+            <p className="px-2 text-center text-[12px] text-club-faint">
+              {ticketType === "vip"
+                ? "VIP-места разобрали."
+                : ticketType === "duo"
+                  ? "Билеты 1+1 разобрали."
+                  : "Места разобрали."}{" "}
+              Если кто-то отменит запись, мы вам сообщим.
+            </p>
+          </>
+        ) : (
+          <div className="flex items-center gap-3 rounded-[20px] border border-club-line bg-club-surface p-3 pl-4">
+            <div className="flex min-w-0 flex-col gap-0.5">
+              <span className="truncate text-[12px] text-club-muted">
+                {TICKET_TITLES[ticketType]}
+                {usePass !== "none" ? " · по проходке" : ""}
+              </span>
+              <span className="font-display text-[17px] font-semibold">
+                {chosenPrice === null ? "—" : `${chosenPrice.toLocaleString("ru-RU")} ₽`}
+              </span>
+            </div>
             <PrimaryButton
+              className="flex-1"
               disabled={partnerMissing}
               loading={submitting}
               onClick={() => void toggleSignup(true)}
             >
-              {partnerMissing ? "Укажите напарника" : `Записаться снова · ${TICKET_TITLES[ticketType]}`}
+              {/* Keyed by its words, so a change of ticket rolls them over in place. */}
+              <SwapLabel text={partnerMissing ? "Укажите напарника" : "Записаться"} />
             </PrimaryButton>
-          )}
-        </div>
-      ) : soldOut ? (
-        // Sold out is where the club used to lose the player: nothing on the screen
-        // said "tell me if a place comes free".
-        <div className="space-y-3">
-          <PrimaryButton
-            disabled={partnerMissing}
-            loading={submitting}
-            onClick={() => void toggleSignup(true, true)}
-          >
-            Встать в лист ожидания
-          </PrimaryButton>
-          <p className="px-2 text-center text-xs text-white/40">
-            {ticketType === "vip"
-              ? "VIP-места разобрали."
-              : ticketType === "duo"
-                ? "Билеты 1+1 разобрали."
-                : "Места разобрали."}{" "}
-            Если кто-то отменит запись, мы вам сообщим.
-          </p>
-        </div>
-      ) : (
-        <PrimaryButton
-          disabled={partnerMissing}
-          loading={submitting}
-          onClick={() => void toggleSignup(true)}
-        >
-          {/* Keyed by its words, so a change of ticket rolls them over in place. */}
-          <SwapLabel text={partnerMissing ? "Укажите напарника" : `Записаться · ${TICKET_TITLES[ticketType]}`} />
-        </PrimaryButton>
-      )}
+          </div>
+        )}
 
-      <p className="px-2 pb-2 text-center text-xs text-white/40">
-        Номер участника и стол выдаст администратор в день игры.
-      </p>
+        <p className="px-2 text-center text-[11px] text-club-faint">
+          Номер участника и стол выдаст администратор в день игры
+        </p>
+      </div>
+
+      {aboutItems.length > 0 ? (
+        <section className="flex flex-col gap-2.5">
+          <SectionHeader title="О турнире" />
+          <Accordion items={aboutItems} />
+        </section>
+      ) : null}
     </div>
   );
 }
 
-const TICKET_ACCENTS: Record<TicketType, string> = {
-  duo: "#7ad0f0",
-  regular: "#f05a7e",
-  vip: "#e9c07a",
-};
+/** "Кто идёт": the faces of the first few, and the whole list on a tap. */
+function WhoIsComing({ players, waitlist }: { players: SignupListEntry[]; waitlist: SignupListEntry[] }) {
+  const [open, setOpen] = useState(false);
+  const faces = players.slice(0, 5);
+
+  return (
+    <section className="flex flex-col gap-2.5">
+      <button
+        aria-expanded={open}
+        className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3 text-left"
+        type="button"
+        onClick={() => {
+          tickClientSelection();
+          setOpen((current) => !current);
+        }}
+      >
+        {faces.length > 0 ? (
+          <span className="flex shrink-0">
+            {faces.map((player, index) => (
+              <span
+                key={player.key}
+                className="rounded-full shadow-[0_0_0_3px_#171113]"
+                style={{ marginLeft: index === 0 ? 0 : -10 }}
+              >
+                <PlayerAvatar name={player.name} photoUrl={player.avatarUrl ?? undefined} size={36} />
+              </span>
+            ))}
+          </span>
+        ) : null}
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[14px] font-extrabold">Кто идёт · {players.length}</span>
+          {waitlist.length > 0 ? (
+            <span className="text-[12px] text-club-muted">и {waitlist.length} в листе ожидания</span>
+          ) : null}
+        </span>
+        <ChevronDown
+          className={`shrink-0 text-club-faint transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+          size={18}
+        />
+      </button>
+      {open ? <SignupList players={players} waitlist={waitlist} /> : null}
+    </section>
+  );
+}
+
+/** Sections that open one at a time, the first open to begin with. */
+function Accordion({ items }: { items: Array<{ body: ReactNode; icon: ReactNode; title: string }> }) {
+  const [open, setOpen] = useState(0);
+
+  return (
+    <div className="overflow-hidden rounded-[20px] border border-club-line bg-club-surface">
+      {items.map((item, index) => (
+        <div key={item.title} className={index > 0 ? "border-t border-club-line" : undefined}>
+          <button
+            aria-expanded={open === index}
+            className="flex min-h-[60px] w-full items-center gap-3.5 px-4 py-2.5 text-left"
+            type="button"
+            onClick={() => setOpen((current) => (current === index ? -1 : index))}
+          >
+            <IconTile className="!text-club-muted">{item.icon}</IconTile>
+            <span className="flex-1 text-[15px] font-bold">{item.title}</span>
+            <ChevronDown
+              className={`shrink-0 text-club-faint transition-transform duration-300 ${open === index ? "rotate-180" : ""}`}
+              size={18}
+            />
+          </button>
+          {open === index ? (
+            <div className="flex flex-col gap-1.5 pb-4 pl-[70px] pr-4 text-[14px] leading-relaxed text-club-muted">
+              {item.body}
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const NOTE_TONES = {
+  gold: { box: "bg-club-gold/10", icon: "text-club-gold" },
+  mint: { box: "bg-club-mint/[0.08]", icon: "text-club-mint" },
+  neutral: { box: "bg-white/[0.04]", icon: "text-club-faint" },
+} as const;
+
+/** A quiet line of explanation with an "i" in front of it. */
+function InfoNote({ children, tone = "neutral" }: { children: ReactNode; tone?: keyof typeof NOTE_TONES }) {
+  return (
+    <div className={`flex gap-2.5 rounded-[14px] px-3.5 py-3 ${NOTE_TONES[tone].box}`}>
+      <Info className={`mt-px shrink-0 ${NOTE_TONES[tone].icon}`} size={16} />
+      <p className="text-[12px] leading-relaxed text-club-muted">{children}</p>
+    </div>
+  );
+}
 
 /** The "вы записаны" stamp on the ticket a player holds, and whether it is landing now. */
 type TicketStamp = "landing" | "resting";
@@ -1172,9 +1234,56 @@ type TicketStamp = "landing" | "resting";
 /** How few seats of a kind have to be left before they start to pulse. */
 const LAST_SEATS = 3;
 
+const TICKET_NOTES: Record<TicketType, string> = {
+  duo: "Вход для двоих по одной цене",
+  regular: "Вход для одного игрока",
+  vip: "Место за столом выдаёт администратор",
+};
+
+/** One line of a single choice: a radio, a title with a note under it, and whatever sits on the right. */
+function ChoiceRow({
+  chosen,
+  className = "",
+  disabled,
+  note,
+  onSelect,
+  right,
+  title,
+}: {
+  chosen: boolean;
+  className?: string;
+  disabled?: boolean;
+  note?: string | null;
+  onSelect?: () => void;
+  right?: ReactNode;
+  title: ReactNode;
+}) {
+  return (
+    <button
+      aria-pressed={chosen}
+      className={`relative flex min-h-[72px] w-full items-center gap-3.5 overflow-hidden rounded-[18px] border-[1.5px] px-4 py-3.5 text-left transition-[background-color,border-color,opacity,transform] duration-300 ${
+        chosen ? "border-club-rose bg-club-crimson/10" : "border-club-line bg-club-surface"
+      } ${disabled ? "opacity-50" : ""} ${className}`}
+      disabled={disabled || !onSelect}
+      type="button"
+      onClick={onSelect}
+    >
+      <span
+        className={`h-[22px] w-[22px] shrink-0 rounded-full transition-colors ${
+          chosen ? "border-[6px] border-club-crimson bg-club-crimson shadow-[inset_0_0_0_3px_#fff]" : "border-2 border-club-faint"
+        }`}
+      />
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[16px] font-extrabold">{title}</span>
+        {note ? <span className="text-[12px] text-club-muted">{note}</span> : null}
+      </span>
+      {right}
+    </button>
+  );
+}
+
 /** One ticket the poster sells: its price, what is left of it, and whether it is picked. */
-function TicketCard({
-  compact,
+function TicketOption({
   kind,
   onSelect,
   price,
@@ -1182,8 +1291,6 @@ function TicketCard({
   stamp,
   state,
 }: {
-  /** Set when three kinds share the row and the card has to give up some width. */
-  compact?: boolean;
   kind: TicketType;
   onSelect?: () => void;
   price: number | null;
@@ -1192,7 +1299,6 @@ function TicketCard({
   state: "chosen" | "idle" | "muted";
 }) {
   const soldOut = seats !== null && seats <= 0;
-  const accent = TICKET_ACCENTS[kind];
   const chosen = state === "chosen";
   // The last seats of a kind pulse; a ticket that is sold out or not on the table keeps
   // still. VIP catches the light while it is on sale — the ticket the club would rather sell.
@@ -1200,59 +1306,42 @@ function TicketCard({
   const glints = kind === "vip" && !soldOut && state !== "muted";
 
   return (
-    <button
-      className={`relative overflow-hidden rounded-[20px] border text-left transition-[transform,background-color,border-color,box-shadow,opacity] duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${
-        compact ? "p-3" : "p-[18px]"
-      } ${
-        chosen
-          ? "-translate-y-[3px] scale-[1.03] border-white/25 bg-white/[0.09]"
-          : "border-white/[0.07] bg-white/[0.03]"
-      } ${soldOut && !chosen ? "opacity-45" : ""} ${glints ? "client-glint" : ""} ${
-        stamp === "landing" ? "client-jolt" : ""
+    <ChoiceRow
+      chosen={chosen}
+      className={`${glints ? "client-glint" : ""} ${stamp === "landing" ? "client-jolt" : ""} ${
+        state === "muted" ? "opacity-50" : ""
       }`}
       disabled={!onSelect || (soldOut && !chosen)}
-      style={chosen ? { boxShadow: `0 12px 26px -10px ${accent}` } : undefined}
-      type="button"
-      onClick={onSelect}
-    >
-      {/* The picked ticket lights up in its own colour from the inside. */}
-      <span
-        aria-hidden
-        className={`pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity duration-300 ${
-          chosen ? "opacity-90" : "opacity-0"
-        }`}
-        style={{ boxShadow: `inset 0 0 0 1.5px ${accent}, inset 0 0 18px -6px ${accent}` }}
-      />
-      <p
-        className="text-[11px] uppercase tracking-wider"
-        style={{ color: state === "muted" ? "rgba(255,255,255,0.35)" : accent }}
-      >
-        {TICKET_TITLES[kind]}
-      </p>
-      <p
-        className={`mt-2 font-extrabold leading-none ${compact ? "text-[19px]" : "text-[24px]"}`}
-      >
-        {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
-      </p>
-      {/* The stamp takes the seats line's place: what is left of a ticket the player
-          already holds is not theirs to worry about. */}
-      <p
-        className={`mt-2 ${compact ? "text-[11px]" : "text-[12px]"} ${
-          lastSeats ? "client-blink text-[#ff8aa2]" : "text-white/45"
-        } ${stamp ? "invisible" : ""}`}
-      >
-        {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
-      </p>
-      {stamp ? (
-        <span
-          className={`pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2 -rotate-[8deg] whitespace-nowrap rounded-md border-2 border-emerald-300 bg-[#0a0608]/75 px-1.5 py-0.5 font-extrabold uppercase tracking-[0.08em] text-emerald-300 ${
-            compact ? "bottom-2 text-[9px]" : "bottom-3.5 text-[10px]"
-          } ${stamp === "landing" ? "client-stamp-in" : ""}`}
-        >
-          Вы записаны
+      note={TICKET_NOTES[kind]}
+      right={
+        <span className="flex shrink-0 flex-col items-end gap-1">
+          <span className="font-display text-[15px] font-semibold">
+            {price ? `${price.toLocaleString("ru-RU")} ₽` : "—"}
+          </span>
+          {/* The stamp takes the seats line's place: what is left of a ticket the player
+              already holds is not theirs to worry about. */}
+          {stamp ? (
+            <span
+              className={`inline-block rounded-md border-[1.5px] border-club-mint px-1.5 py-px text-[10px] font-extrabold uppercase tracking-[0.06em] text-club-mint ${
+                stamp === "landing" ? "client-stamp-in" : ""
+              }`}
+            >
+              Вы записаны
+            </span>
+          ) : (
+            <span
+              className={`text-[11px] font-bold ${
+                lastSeats ? "client-blink text-club-rose" : soldOut ? "text-club-faint" : "text-club-mint"
+              }`}
+            >
+              {kind === "duo" ? duoSeatsLabel(seats) : seatsLabel(seats)}
+            </span>
+          )}
         </span>
-      ) : null}
-    </button>
+      }
+      title={TICKET_TITLES[kind]}
+      onSelect={onSelect}
+    />
   );
 }
 
@@ -1287,19 +1376,19 @@ function InviteLink({ href, label }: { href: string; label: string }) {
 
   return (
     <button
-      className={`flex w-full items-center gap-2 rounded-2xl border px-3 py-2.5 text-left transition-colors duration-300 ${
-        copied ? "border-emerald-400/40 bg-emerald-400/10" : "border-white/[0.09] bg-white/[0.04]"
+      className={`flex w-full items-center gap-3 rounded-[14px] border px-3.5 py-3 text-left transition-colors duration-300 ${
+        copied ? "border-club-mint/40 bg-club-mint/10" : "border-club-line bg-club-ink/40"
       }`}
       type="button"
       onClick={copy}
     >
-      <span className="min-w-0 flex-1">
-        <span className="block text-[12px] font-semibold text-white/70">{label}</span>
-        <span className="block truncate text-[11px] text-white/35">{href}</span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="text-[13px] font-bold">{label}</span>
+        <span className="truncate text-[11px] text-club-faint">{href}</span>
       </span>
       <span
         className={`flex shrink-0 items-center gap-1 text-[12px] font-bold ${
-          copied ? "text-emerald-300" : "text-[#f05a7e]"
+          copied ? "text-club-mint" : "text-club-rose"
         }`}
       >
         {copied ? (

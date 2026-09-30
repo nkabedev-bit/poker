@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Trophy } from "lucide-react";
 import { tickClientSelection, useClientTMA } from "../layout";
-import { GhostButton, GlassCard, LoadingScreen, NoEventsCard, PageTitle } from "../_components/ui";
+import { GhostButton, GlassCard, LoadingScreen, NoEventsCard, PageHeading } from "../_components/ui";
 import { EventCard, type EventCardData } from "../_components/event-card";
 import { PastGameCard, type PastGameCardData } from "../_components/past-game-card";
 
@@ -98,14 +98,14 @@ export default function ClientTournamentsPage() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <div className="client-stagger space-y-4 pt-1">
-      <PageTitle>Турниры</PageTitle>
+    <div className="client-stagger flex flex-col gap-5 pt-1">
+      <PageHeading subtitle="Расписание клуба и запись на игры" title="Турниры" />
 
-      <div className="relative grid grid-cols-2 gap-1 rounded-full border border-white/[0.08] bg-white/[0.04] p-1">
+      <div className="relative grid grid-cols-2 gap-1 rounded-2xl border border-club-line bg-club-surface p-1">
         {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
         <span
           aria-hidden
-          className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-full bg-gradient-to-b from-[#c8163f]/80 to-[#7d0d26]/80 shadow-[0_6px_18px_rgba(200,22,63,0.35)] transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+          className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-xl bg-club-crimson transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
             tab === "past" ? "translate-x-[calc(100%+4px)]" : ""
           }`}
         />
@@ -116,8 +116,8 @@ export default function ClientTournamentsPage() {
             <button
               key={item.id}
               aria-pressed={active}
-              className={`relative rounded-full py-2.5 text-[15px] font-semibold transition-colors duration-300 ${
-                active ? "text-white" : "text-white/50"
+              className={`relative h-10 rounded-xl text-[14px] font-bold transition-colors duration-300 ${
+                active ? "text-white" : "text-club-muted"
               }`}
               type="button"
               onClick={() => chooseTab(item.id)}
@@ -132,21 +132,30 @@ export default function ClientTournamentsPage() {
           Only the first showing waits for its turn in the screen's cascade. */}
       <div
         key={tab}
-        className={`flex flex-col gap-4 ${tab === "past" ? "client-slide-from-right" : "client-slide-from-left"}`}
+        className={`flex flex-col gap-2.5 ${tab === "past" ? "client-slide-from-right" : "client-slide-from-left"}`}
         style={switched ? { animationDelay: "0ms" } : undefined}
       >
         {tab === "current" ? (
           events.length === 0 ? (
             <NoEventsCard />
           ) : (
-            events.map((event) => <EventCard key={event.id} event={event} />)
+            groupByWeek(events, new Date()).map((group) => (
+              <section key={group.label} className="flex flex-col gap-2">
+                <h2 className="px-1 pt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">
+                  {group.label}
+                </h2>
+                {group.events.map((event) => (
+                  <EventCard key={event.id} event={event} />
+                ))}
+              </section>
+            ))
           )
         ) : !past ? (
           <LoadingScreen />
         ) : past.games.length === 0 ? (
-          <GlassCard className="py-8 text-center">
-            <Trophy className="mx-auto mb-3 text-white/25" size={28} />
-            <div className="text-sm text-white/45">Прошедших турниров пока нет.</div>
+          <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
+            <Trophy className="text-club-faint" size={28} />
+            <div className="text-sm text-club-muted">Прошедших турниров пока нет.</div>
           </GlassCard>
         ) : (
           <>
@@ -163,4 +172,46 @@ export default function ClientTournamentsPage() {
       </div>
     </div>
   );
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** Days since 1970 by the club's calendar, Moscow's, so a week turns over at its midnight. */
+function moscowDayNumber(time: Date) {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    day: "2-digit",
+    month: "2-digit",
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+  })
+    .format(time)
+    .split("-")
+    .map(Number);
+
+  return Math.floor(Date.UTC(year, month - 1, day) / DAY_MS);
+}
+
+/** Monday of the week a day falls in, as a day number. 1 January 1970 was a Thursday. */
+function weekStart(dayNumber: number) {
+  return dayNumber - ((dayNumber + 3) % 7);
+}
+
+/** The calendar in the club's weeks: this one, the next, and everything after. */
+function groupByWeek(events: EventCardData[], now: Date) {
+  const thisWeek = weekStart(moscowDayNumber(now));
+  const groups: Array<{ events: EventCardData[]; label: string }> = [];
+
+  for (const event of events) {
+    const weeksAhead = Math.round((weekStart(moscowDayNumber(new Date(event.startsAt))) - thisWeek) / 7);
+    const label = weeksAhead <= 0 ? "Эта неделя" : weeksAhead === 1 ? "Следующая неделя" : "Позже";
+    const group = groups.at(-1);
+
+    if (group?.label === label) {
+      group.events.push(event);
+    } else {
+      groups.push({ events: [event], label });
+    }
+  }
+
+  return groups;
 }

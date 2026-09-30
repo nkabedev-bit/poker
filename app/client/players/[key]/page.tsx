@@ -1,11 +1,25 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronRight, Crosshair, Medal, Spade, Trophy } from "lucide-react";
+import { Medal, Star, Trophy } from "lucide-react";
 import { useClientTMA } from "../../layout";
-import { GhostButton, GlassCard, LoadingScreen, PageTitle, ScreenMessage } from "../../_components/ui";
+import {
+  GhostButton,
+  GlassCard,
+  LoadingScreen,
+  MenuGroup,
+  MenuRow,
+  PageTitle,
+  Pill,
+  ScreenMessage,
+  SectionHeader,
+  StatCell,
+  StatStrip,
+} from "../../_components/ui";
+import { PlayedGameRow } from "../../_components/played-game-row";
+import { countWord } from "@/lib/raffle/raffle-scenes";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { CountUp } from "../../_components/count-up";
 import {
@@ -15,9 +29,9 @@ import {
   type PlayerStats,
 } from "@/lib/client/achievements";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
-import { formatEventDayLabel } from "@/lib/events/types";
+import { formatEventShortDateLabel } from "@/lib/events/types";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
+import { TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 import type { RatingPlayer } from "../../_components/rating-row";
 
 type PlayerGame = { knockouts: number; place: number | null; startedAt: string };
@@ -107,146 +121,92 @@ export default function ClientPlayerPage() {
   )?.place;
 
   return (
-    <div className="client-stagger space-y-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
       <PageTitle>Профиль</PageTitle>
 
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col items-center gap-3 pt-1 text-center">
         <PlayerAvatar
           hand={player.hand}
           name={player.name}
           photoUrl={player.avatarUrl ?? undefined}
-          size={72}
+          ring={player.tier === "champion" ? "gold" : player.isMe ? "crimson" : undefined}
+          size={104}
         />
-        <div className="min-w-0">
-          <p className="truncate text-[22px] font-bold tracking-tight">
-            {player.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
+        <div className="mt-2.5 flex flex-col items-center gap-2">
+          <p className="max-w-full truncate font-display text-[24px] font-semibold tracking-[-0.02em]">
             {player.name}
           </p>
-          <p className="flex items-center gap-2 text-sm text-white/40">
-            {player.isMe ? "Это вы" : "Игрок клуба"}
+          <div className="flex items-center gap-2">
+            <span className="text-[14px] text-club-muted">{player.isMe ? "Это вы" : "Игрок клуба"}</span>
             {player.tier ? (
-              <span
-                className="rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase"
-                style={{ borderColor: TIER_COLORS[player.tier], color: TIER_COLORS[player.tier] }}
-              >
+              <Pill tone="goldOutline">
+                {player.tier === "champion" ? "👑 " : ""}
                 {TIER_TITLES[player.tier]}
-              </span>
+              </Pill>
             ) : null}
-          </p>
+          </div>
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile icon={<Spade size={18} />} label="Игр" value={stats.games} />
-        <StatTile
-          icon={<Crosshair size={18} />}
-          label="Нокаутов"
-          value={Math.round(stats.eliminations)}
+      <StatStrip>
+        <StatCell label="Игр" value={<CountUp value={stats.games} />} />
+        <StatCell label="Нокаутов" value={<CountUp value={Math.round(stats.eliminations)} />} />
+        <StatCell label="Топ-9" value={<CountUp value={stats.top9} />} />
+      </StatStrip>
+
+      <div className="grid grid-cols-2 gap-2.5">
+        <GoldTile icon={<Trophy size={20} />} label="Место в рейтинге" value={place ?? "—"} />
+        <GoldTile icon={<Medal size={20} />} label="Побед" value={<CountUp value={stats.wins} />} />
+      </div>
+
+      <MenuGroup>
+        <MenuRow
+          href={`/client/players/${playerKey}/medals`}
+          icon={<Medal size={20} />}
+          subtitle="Кубки за победы в турнирах"
+          title="Медали"
+          value={`${medalsEarned} / ${MEDALS_TOTAL}`}
         />
-        <StatTile icon={<Medal size={18} />} label="Топ-9" value={stats.top9} />
-      </div>
-
-      <Link
-        className="block transition-transform active:scale-[0.99]"
-        href={`/client/players/${playerKey}/medals`}
-      >
-        <GlassCard className="flex items-center justify-between gap-3 !p-[18px]">
-          <div className="flex items-center gap-3">
-            <Medal className="text-[#e9c07a]" size={22} />
-            <div>
-              <p className="text-[15px] font-bold">Медали</p>
-              <p className="mt-0.5 text-[12px] text-white/40">Кубки за победы в турнирах</p>
+        <MenuRow
+          href={`/client/players/${playerKey}/achievements`}
+          icon={<Star size={20} />}
+          subtitle={earned === achievements.length ? "Собрана вся коллекция клуба" : "Награды клуба и прогресс"}
+          title="Достижения"
+          value={<CountUp suffix={` / ${achievements.length}`} value={earned} />}
+        >
+          <div className="mt-1.5 w-[140px]">
+            <div className="h-1 overflow-hidden rounded-full bg-white/[0.08]">
+              <div
+                className="client-fill-x h-full rounded-full bg-club-gold"
+                style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
+              />
             </div>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-white/45">
-              {medalsEarned} / {MEDALS_TOTAL}
-            </span>
-            <ChevronRight className="text-white/35" size={19} />
-          </div>
-        </GlassCard>
-      </Link>
+        </MenuRow>
+      </MenuGroup>
 
-      <Link
-        className="block transition-transform active:scale-[0.99]"
-        href={`/client/players/${playerKey}/achievements`}
-      >
-        <GlassCard className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Достижения</h2>
-              <ChevronRight className="text-white/35" size={19} />
-            </div>
-            <span className="text-sm text-white/45">
-              <CountUp suffix={` / ${achievements.length}`} value={earned} />
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
-            <div
-              className="client-fill-x h-full rounded-full bg-[#e9c07a]"
-              style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
-            />
-          </div>
-          <p className="text-[12px] text-white/40">
-            {earned === achievements.length
-              ? "Собрана вся коллекция клуба"
-              : "Посмотреть все награды клуба и прогресс по ним"}
-          </p>
-        </GlassCard>
-      </Link>
-
-      <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="!p-[18px]">
-          <Trophy className="text-[#e9c07a]" size={20} />
-          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-            {place ?? "—"}
-          </p>
-          <p className="mt-2 text-[12px] text-white/50">Место в рейтинге</p>
-        </GlassCard>
-        <GlassCard className="!p-[18px]">
-          <Medal className="text-[#e9c07a]" size={20} />
-          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-            <CountUp value={stats.wins} />
-          </p>
-          <p className="mt-2 text-[12px] text-white/50">Побед</p>
-        </GlassCard>
-      </div>
-
-      <section className="space-y-3">
-        <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader title="История игр" />
 
         {player.games.length > 0 ? (
-          <div className="client-stagger-rows space-y-2">
+          <div className="client-stagger-rows flex flex-col gap-2">
             {player.games.map((game) => (
-              <Link
+              <PlayedGameRow
                 key={game.startedAt}
-                className="flex items-center gap-3 rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
                 href={`/client/games/${encodeURIComponent(game.startedAt)}`}
-              >
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate font-semibold">
-                    {formatEventDayLabel(game.startedAt)}
-                  </span>
-                  <span className="mt-1 block text-xs text-white/45">
-                    {game.knockouts > 0
-                      ? `${Math.round(game.knockouts)} нокаутов`
-                      : "без нокаутов"}
-                  </span>
-                </span>
-                <span className="shrink-0 text-right">
-                  <span className="block text-[20px] font-extrabold leading-none text-[#e9c07a]">
-                    {game.place ?? "—"}
-                  </span>
-                  <span className="mt-1 block text-[10px] uppercase tracking-wider text-white/35">
-                    место
-                  </span>
-                </span>
-              </Link>
+                place={game.place}
+                subtitle={
+                  game.knockouts > 0
+                    ? countWord(Math.round(game.knockouts), ["нокаут", "нокаута", "нокаутов"])
+                    : "без нокаутов"
+                }
+                title={formatEventShortDateLabel(game.startedAt)}
+              />
             ))}
           </div>
         ) : (
           <GlassCard className="py-7 text-center">
-            <p className="text-sm text-white/45">Игр пока нет.</p>
+            <p className="text-sm text-club-muted">Игр пока нет.</p>
           </GlassCard>
         )}
       </section>
@@ -254,22 +214,13 @@ export default function ClientPlayerPage() {
   );
 }
 
-function StatTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: number;
-}) {
+/** A figure in gold with its icon over it: the place in the rating, the wins. */
+function GoldTile({ icon, label, value }: { icon: ReactNode; label: string; value: ReactNode }) {
   return (
-    <GlassCard className="!p-[18px]">
-      <span className="text-[#e9c07a]">{icon}</span>
-      <p className="mt-2.5 text-[26px] font-extrabold leading-none">
-        <CountUp value={value} />
-      </p>
-      <p className="mt-2 text-[12px] text-white/50">{label}</p>
-    </GlassCard>
+    <div className="flex flex-col gap-2.5 rounded-[20px] border border-club-line bg-club-surface p-4">
+      <span className="text-club-gold">{icon}</span>
+      <p className="font-display text-[26px] font-semibold leading-none text-club-gold">{value}</p>
+      <p className="text-[12px] text-club-muted">{label}</p>
+    </div>
   );
 }

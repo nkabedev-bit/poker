@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { Trophy } from "lucide-react";
 import { useClientTMA } from "../../../layout";
-import { LoadingScreen, PageTitle } from "../../../_components/ui";
-import { AchievementCard } from "../../../_components/award-cards";
+import { LoadingScreen, PageHeading } from "../../../_components/ui";
+import { AchievementCard, CollectionSummary } from "../../../_components/award-cards";
 import { useAchievementRarity } from "../../../_components/use-achievement-rarity";
 import {
   countEarnedAchievements,
@@ -53,18 +52,15 @@ export default function PlayerAchievementsPage() {
   const all = sections.flatMap((section) => section.achievements);
 
   return (
-    <div className="client-stagger space-y-6 pt-1">
-      <div>
-        <PageTitle>Достижения</PageTitle>
-        <p className="mt-1 flex items-center gap-2 text-sm text-white/40">
-          <Trophy size={15} /> {name} · {countEarnedAchievements(all)} из {all.length}
-        </p>
-      </div>
+    <div className="client-stagger flex flex-col gap-6 pt-1">
+      <PageHeading subtitle={name} title="Достижения" />
+
+      <CollectionSummary earned={countEarnedAchievements(all)} label="Выполнено" total={all.length} />
 
       {sections.map((section) => (
-        <section key={section.title} className="space-y-3">
-          <h2 className="text-[19px] font-bold tracking-tight">{section.title}</h2>
-          <div className="grid grid-cols-2 gap-3">
+        <section key={section.title} className="flex flex-col gap-2.5">
+          <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">{section.title}</h2>
+          <div className="grid grid-cols-3 gap-2.5">
             {section.achievements.map((achievement) => (
               <AchievementCard achievement={achievement} key={achievement.id} rarity={rarity} />
             ))}

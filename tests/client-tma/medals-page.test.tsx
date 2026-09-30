@@ -15,7 +15,12 @@ function respondWithMedals(medals: Record<string, number>, archiveMedals: Record
 }
 
 describe("client mini-app: медали", () => {
-  afterEach(() => {
+  /** The count under the ring, which is split between a number and "из N". */
+function summaryLine(text: string) {
+  return (_: string, element: Element | null) => element?.tagName === "P" && element.textContent === text;
+}
+
+afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
   });
@@ -53,7 +58,7 @@ describe("client mini-app: медали", () => {
 
     render(<ClientMedalsPage />);
 
-    expect(await screen.findByText(/2 \/ 7/)).toBeTruthy();
+    expect(await screen.findByText(summaryLine("2 из 7"))).toBeTruthy();
   });
 
   it("shows an empty collection when the profile does not load", async () => {
@@ -61,7 +66,7 @@ describe("client mini-app: медали", () => {
 
     render(<ClientMedalsPage />);
 
-    await waitFor(() => expect(screen.getByText(/0 \/ 7/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(summaryLine("0 из 7"))).toBeTruthy());
   });
 
   it("shows the archive tournaments under their own heading", async () => {
@@ -81,6 +86,6 @@ describe("client mini-app: медали", () => {
 
     render(<ClientMedalsPage />);
 
-    expect(await screen.findByText(/0 \/ 7/)).toBeTruthy();
+    expect(await screen.findByText(summaryLine("0 из 7"))).toBeTruthy();
   });
 });

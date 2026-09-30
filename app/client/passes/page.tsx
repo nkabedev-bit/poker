@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Ticket, TriangleAlert } from "lucide-react";
 import { useClientTMA } from "../layout";
-import { GhostButton, GlassCard, LoadingScreen, PageTitle } from "../_components/ui";
+import { GhostLink, LoadingScreen, PageHeading, SectionHeader } from "../_components/ui";
 import { CountUp } from "../_components/count-up";
-import { formatEventDayLabel } from "@/lib/events/types";
+import { formatEventDateParts } from "@/lib/events/types";
 
 /** A pass written down for a game the player signed up for and has not played yet. */
 type PassHold = { eventId: string; pass: "regular" | "vip"; startsAt: string; title: string };
@@ -53,74 +53,102 @@ export default function ClientPassesPage() {
   const held = freeEntries.heldFor;
 
   return (
-    <div className="client-stagger space-y-5 pt-1">
-      <PageTitle>Бесплатные проходки</PageTitle>
+    <div className="client-stagger flex flex-col gap-6 pt-1">
+      <PageHeading subtitle="Входы в турнир, которые начислил клуб" title="Бесплатные проходки" />
 
-      <div className="grid grid-cols-2 gap-3">
-        <GlassCard className="!p-[18px]">
-          <p className="text-[11px] uppercase tracking-wider text-white/40">Обычные</p>
-          <p className="mt-2 text-[30px] font-extrabold leading-none">
-            <CountUp value={freeEntries.regular} />
-          </p>
-        </GlassCard>
-        <GlassCard className="border-[#e9c07a]/40 bg-[linear-gradient(180deg,rgba(233,192,122,0.16),rgba(233,192,122,0.02))] !p-[18px]">
-          <p className="text-[11px] uppercase tracking-wider text-[#e9c07a]">VIP</p>
-          <p className="mt-2 text-[30px] font-extrabold leading-none text-[#e9c07a]">
-            <CountUp value={freeEntries.vip} />
-          </p>
-        </GlassCard>
+      <div className="flex gap-2.5">
+        <PassStub count={freeEntries.regular} title="Обычные" />
+        <PassStub count={freeEntries.vip} gold title="VIP" />
       </div>
 
       {/* A pass written down for a game is taken out of the count above, and the page
           says where it went — otherwise it would simply look lost. */}
       {held.length > 0 ? (
-        <GlassCard className="!p-4">
-          <div className="flex items-start gap-3">
-            <Ticket className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
-            <div className="space-y-1.5">
-              <p className="text-sm font-bold">Закреплены за записями</p>
-              {held.map((hold) => (
-                <p key={hold.eventId} className="text-sm leading-relaxed text-white/75">
-                  {HELD_PASS_TITLES[hold.pass]} — {hold.title}, {formatEventDayLabel(hold.startsAt)}
-                </p>
-              ))}
-              <p className="text-xs leading-relaxed text-white/45">
-                Если отмените запись или не придёте на игру, проходка снова станет свободной.
-              </p>
-            </div>
-          </div>
-        </GlassCard>
+        <section className="flex flex-col gap-2.5">
+          <SectionHeader title="Закреплены за записями" />
+          {held.map((hold) => {
+            const date = formatEventDateParts(hold.startsAt);
+
+            return (
+              <Link
+                key={hold.eventId}
+                className="flex items-center gap-3.5 rounded-[18px] border border-club-line bg-club-surface px-4 py-3.5"
+                href={`/client/events/${hold.eventId}`}
+              >
+                <div className="flex h-[72px] w-[60px] shrink-0 flex-col items-center justify-center gap-0.5 rounded-2xl bg-club-raised">
+                  <span className="text-[10px] font-extrabold uppercase tracking-[0.1em] text-club-faint">{date.weekday}</span>
+                  <span className="font-display text-[24px] font-semibold leading-none">{date.day}</span>
+                  <span className="text-[11px] font-bold text-club-muted">{date.month}</span>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <p className="truncate text-[15px] font-extrabold">{hold.title}</p>
+                  <p className="text-[13px] text-club-muted">{HELD_PASS_TITLES[hold.pass]} проходка</p>
+                </div>
+              </Link>
+            );
+          })}
+          <p className="text-[12px] leading-relaxed text-club-muted">
+            Если отмените запись или не придёте на игру, проходка снова станет свободной.
+          </p>
+        </section>
       ) : null}
 
-      <GlassCard className="!p-4">
-        <div className="flex items-start gap-3">
-          <TriangleAlert className="mt-0.5 shrink-0 text-[#f05a7e]" size={19} />
-          <div className="space-y-1.5">
-            <p className="text-sm font-bold">Внимание</p>
-            <p className="text-sm leading-relaxed text-white/75">
-              Проходки можно использовать только на вход в турнир. Проходка не даёт права на
-              бесплатный ре-энтри или аддон.
-            </p>
-          </div>
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader title="Как это работает" />
+        <div className="flex flex-col gap-3.5 rounded-[20px] border border-club-line bg-club-surface p-4">
+          {total === 0 && held.length === 0 ? (
+            <Step number={0}>Проходки выдаёт клуб. Как только вам их начислят, они появятся здесь.</Step>
+          ) : null}
+          <Step number={1}>Выберите проходку, когда записываетесь на турнир</Step>
+          <Step number={2}>Её спишут в день игры, когда администратор выдаст вам карту</Step>
         </div>
-      </GlassCard>
-
-      <GlassCard className="!p-4">
-        <div className="flex items-start gap-3">
-          <Ticket className="mt-0.5 shrink-0 text-[#e9c07a]" size={19} />
-          <p className="text-sm leading-relaxed text-white/75">
-            {total > 0
-              ? "Выберите проходку, когда записываетесь на турнир. Её спишут в день игры, когда администратор выдаст вам карту."
-              : held.length > 0
-                ? "Свободных проходок нет: все закреплены за записями. Проходку спишут в день игры, когда администратор выдаст вам карту."
-                : "Проходки выдаёт клуб. Как только вам их начислят, они появятся здесь."}
+        <div className="flex gap-3 rounded-[18px] border border-club-rose/35 bg-club-crimson/10 px-4 py-3.5">
+          <TriangleAlert className="mt-px shrink-0 text-club-rose" size={18} />
+          <p className="text-[13px] leading-relaxed">
+            Проходки можно использовать только на вход в турнир. Проходка не даёт права на
+            бесплатный ре-энтри или аддон.
           </p>
         </div>
-      </GlassCard>
+      </section>
 
-      <Link className="block" href="/client">
-        <GhostButton>К расписанию турниров</GhostButton>
-      </Link>
+      <GhostLink href="/client/tournaments">К расписанию турниров</GhostLink>
+    </div>
+  );
+}
+
+/** A pass count on a ticket stub: the two notches in its sides are what make it a ticket. */
+function PassStub({ count, gold = false, title }: { count: number; gold?: boolean; title: string }) {
+  const edge = gold ? "border-club-gold/45" : "border-club-line";
+
+  return (
+    <div
+      className={`relative flex h-[150px] flex-1 basis-0 flex-col justify-between overflow-hidden rounded-[20px] border p-[18px] ${edge} ${
+        gold ? "bg-club-gold/10 text-club-gold" : "bg-club-surface text-club-text"
+      }`}
+    >
+      <span className={`absolute -left-[11px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border bg-club-ink ${edge}`} />
+      <span className={`absolute -right-[11px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border bg-club-ink ${edge}`} />
+      <div className="flex items-center justify-between">
+        <p className="text-[11px] font-bold uppercase tracking-[0.12em]">{title}</p>
+        <Ticket size={18} />
+      </div>
+      <p className="font-display text-[48px] font-semibold leading-none">
+        <CountUp value={count} />
+      </p>
+    </div>
+  );
+}
+
+/** One numbered line of "how it works". Zero is a note without a number. */
+function Step({ children, number }: { children: ReactNode; number: number }) {
+  return (
+    <div className="flex gap-3.5">
+      {number > 0 ? (
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-club-raised font-display text-[13px] font-semibold">
+          {number}
+        </span>
+      ) : null}
+      <p className="text-[14px] leading-relaxed text-club-muted">{children}</p>
     </div>
   );
 }

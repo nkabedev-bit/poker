@@ -79,7 +79,7 @@ describe("client home: the APC cup announcement", () => {
     const card = await screen.findByRole("link", { name: /Кубке клубов APC/ });
     expect(card.getAttribute("href")).toBe(APC_CUP_POST_URL);
     expect(card.getAttribute("target")).toBe("_blank");
-    expect(card.textContent).toContain("Нажмите, чтобы узнать подробности");
+    expect(card.textContent).toContain("Объявление клуба");
   });
 
   it("is gone from 10:00 Moscow time on 7 October", async () => {

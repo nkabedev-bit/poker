@@ -72,7 +72,7 @@ describe("a past game", () => {
       "Fil",
     ]);
 
-    const tableNames = [...container.querySelectorAll("section.space-y-2 a")].map(
+    const tableNames = [...container.querySelectorAll("[data-results-table] a")].map(
       (link) => within(link as HTMLElement).getByText(/Ghost|Pauli|Chura|Vera|Fil/).textContent,
     );
     expect(tableNames).toEqual(["Ghost", "Pauli"]);
@@ -84,7 +84,7 @@ describe("a past game", () => {
 
     await screen.findByText("Old One");
     expect(screen.queryByText("Результаты")).toBeNull();
-    expect(container.querySelectorAll("section.space-y-2 a")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-results-table] a")).toHaveLength(2);
   });
 
   // The sheets gave the evening a date and nothing more; midday UTC only marks that.

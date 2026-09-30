@@ -6,10 +6,9 @@ import {
   CalendarDays,
   Camera,
   ChevronRight,
-  Crosshair,
   Loader2,
   Medal,
-  Spade,
+  Star,
   Ticket,
   Trophy,
 } from "lucide-react";
@@ -20,7 +19,22 @@ import {
   tickClientSelection,
   useClientTMA,
 } from "../layout";
-import { GlassCard, LoadingScreen, PageTitle, SectionHeader } from "../_components/ui";
+import {
+  Eyebrow,
+  GhostButton,
+  GlassCard,
+  LoadingScreen,
+  MenuGroup,
+  MenuRow,
+  PageTitle,
+  Pill,
+  SectionHeader,
+  StatCell,
+  StatStrip,
+} from "../_components/ui";
+import { ClubCard } from "../_components/club-card";
+import { PlayedGameRow } from "../_components/played-game-row";
+import { countWord } from "@/lib/raffle/raffle-scenes";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { CountUp } from "../_components/count-up";
 import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
@@ -28,8 +42,8 @@ import { AwardCelebration } from "../_components/award-celebration";
 import { useAwardNews } from "../_components/use-award-news";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import { shrinkPhoto } from "@/lib/media/shrink-photo";
-import { TIER_COLORS, TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
-import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
+import { type PlayerTier } from "@/lib/players/tier";
+import { withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
 import { listHeldAwards, type AwardShelf } from "@/lib/client/award-news";
 import {
@@ -39,7 +53,7 @@ import {
   type PlayerStats,
 } from "@/lib/client/achievements";
 import {
-  formatEventDayLabel,
+  formatEventShortDateLabel,
   formatEventTimeLabel,
   type TournamentEvent,
 } from "@/lib/events/types";
@@ -246,37 +260,42 @@ export default function ClientProfilePage() {
     avatarUrl: me?.avatarUrl,
     telegramPhotoUrl: telegramUser?.photo_url,
   });
-  const ownPhoto = photoUrl;
-  const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], ownPhoto);
-  const myRating = rating?.me ? withOwnPhoto([rating.me], ownPhoto)[0] : undefined;
-  const meInTop = topPlayers.some((player) => player.isMe);
+  const myRating = rating?.me ? withOwnPhoto([rating.me], photoUrl)[0] : undefined;
   const upcoming = me?.history.active ?? [];
   const passesTotal = (me?.freeEntries?.regular ?? 0) + (me?.freeEntries?.vip ?? 0);
 
+  const tier = me?.tier ?? null;
+  const achievementsShare = achievements.length > 0 ? earned / achievements.length : 0;
+
   return (
-    <div className="client-stagger space-y-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
       <PageTitle>Профиль</PageTitle>
 
-      <div className="flex items-center gap-4">
-        {/* The player's own photo wins over the one Telegram hands us. */}
-        <button
-          aria-label="Изменить фото"
-          className="relative shrink-0 rounded-full active:scale-[0.98]"
-          disabled={avatarBusy}
-          type="button"
-          onClick={() => photoInputRef.current?.click()}
-        >
-          <PlayerAvatar
-            dealHand={handDealt}
-            hand={me?.favoriteHand}
-            name={name}
-            photoUrl={photoUrl}
-            size={72}
-          />
-          <span className="absolute -bottom-0.5 -right-0.5 grid h-7 w-7 place-items-center rounded-full border-2 border-[#0a0608] bg-[#c8163f] text-white">
-            {avatarBusy ? <Loader2 className="animate-spin" size={14} /> : <Camera size={14} />}
-          </span>
-        </button>
+      <div className="flex flex-col gap-3">
+        <ClubCard
+          avatar={
+            // The player's own photo wins over the one Telegram hands us.
+            <button
+              aria-label="Изменить фото"
+              className="relative shrink-0 rounded-full active:scale-[0.98]"
+              disabled={avatarBusy}
+              type="button"
+              onClick={() => photoInputRef.current?.click()}
+            >
+              <PlayerAvatar
+                dealHand={handDealt}
+                hand={me?.favoriteHand}
+                name={name}
+                photoUrl={photoUrl}
+                ring="gold"
+                size={64}
+              />
+            </button>
+          }
+          name={name}
+          subtitle={`${me?.username ? `@${me.username} · ` : ""}игрок клуба`}
+          tier={tier}
+        />
 
         <input
           accept="image/*"
@@ -289,39 +308,33 @@ export default function ClientProfilePage() {
             if (file) void uploadAvatar(file);
           }}
         />
-        <div className="min-w-0">
-          <p className="truncate text-[22px] font-bold tracking-tight">
-            {me?.tier === "champion" ? <span className="mr-1.5">👑</span> : null}
-            {name}
-          </p>
-          <p className="flex items-center gap-2 text-sm text-white/40">
-            {me?.username ? `@${me.username}` : "Игрок клуба"}
-            {me?.tier ? (
-              <span
-                className="rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase"
-                style={{ borderColor: TIER_COLORS[me.tier], color: TIER_COLORS[me.tier] }}
-              >
-                {TIER_TITLES[me.tier]}
-              </span>
-            ) : null}
-          </p>
-          {me?.avatarIsCustom ? (
-            <button
-              className="mt-1 text-xs text-white/35 underline underline-offset-2"
-              disabled={avatarBusy}
-              type="button"
-              onClick={() => void resetAvatar()}
-            >
-              Вернуть фото из Telegram
-            </button>
-          ) : null}
-        </div>
+
+        <GhostButton disabled={avatarBusy} onClick={() => photoInputRef.current?.click()}>
+          {avatarBusy ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
+          Сменить фото
+        </GhostButton>
+        {me?.avatarIsCustom ? (
+          <button
+            className="h-8 self-start text-[12px] text-club-faint underline underline-offset-2"
+            disabled={avatarBusy}
+            type="button"
+            onClick={() => void resetAvatar()}
+          >
+            Вернуть фото из Telegram
+          </button>
+        ) : null}
       </div>
+
+      <StatStrip>
+        <StatCell label="Игр" value={<CountUp value={stats.games} />} />
+        <StatCell label="Нокаутов" value={<CountUp value={Math.round(stats.eliminations)} />} />
+        <StatCell label="Топ-9" value={<CountUp value={stats.top9} />} />
+      </StatStrip>
 
       <FavoriteHandCard
         games={stats.games}
         hand={me?.favoriteHand ?? null}
-        tier={me?.tier ?? null}
+        tier={tier}
         onOpen={() => setHandPickerOpen(true)}
       />
 
@@ -335,130 +348,82 @@ export default function ClientProfilePage() {
         />
       ) : null}
 
-      <div className="grid grid-cols-3 gap-3">
-        <StatTile icon={<Spade size={18} />} label="Игр" value={stats.games} />
-        <StatTile icon={<Crosshair size={18} />} label="Нокаутов" value={Math.round(stats.eliminations)} />
-        <StatTile icon={<Medal size={18} />} label="Топ-9" value={stats.top9} />
-      </div>
-
-      <Link className="block active:scale-[0.99] transition-transform" href="/client/medals">
-        <GlassCard className="flex items-center justify-between gap-3 !p-[18px]">
-          <div className="flex items-center gap-3">
-            <Medal className="text-[#e9c07a]" size={22} />
-            <div>
-              <p className="text-[15px] font-bold">Медали</p>
-              <p className="mt-0.5 text-[12px] text-white/40">Кубки за победы в турнирах</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm text-white/45">{medalsEarned} / {MEDALS_TOTAL}</span>
-            <ChevronRight className="text-white/35" size={19} />
-          </div>
-        </GlassCard>
-      </Link>
-
-      <Link className="block active:scale-[0.99] transition-transform" href="/client/achievements">
-        <GlassCard className="space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              <h2 className="text-lg font-bold">Достижения</h2>
-              <ChevronRight className="text-white/35" size={19} />
-            </div>
-            <span className="text-sm text-white/45">
-              <CountUp suffix={` / ${achievements.length}`} value={earned} />
-            </span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]">
-            <div
-              className="client-fill-x h-full rounded-full bg-[#e9c07a]"
-              style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
-            />
-          </div>
-          <p className="text-[12px] text-white/40">
-            {earned === achievements.length
-              ? "Собрана вся коллекция клуба"
-              : "Посмотреть все награды клуба и прогресс по ним"}
-          </p>
-        </GlassCard>
-      </Link>
-
-      <div className="grid grid-cols-2 gap-3">
-        <Link className="block active:scale-[0.99] transition-transform" href="/client/passes">
-          <GlassCard className="h-full !p-[18px]">
-            <Ticket className="text-[#e9c07a]" size={20} />
-            <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-              <CountUp value={passesTotal} />
-            </p>
-            <p className="mt-2 text-[12px] text-white/50">Бесплатные проходки</p>
-            <p className="text-[11px] text-white/25">
-              {passesTotal > 0 ? "Посмотреть" : "Пока нет"}
-            </p>
-          </GlassCard>
-        </Link>
-        <GlassCard className="!p-[18px]">
-          <Trophy className="text-[#e9c07a]" size={20} />
-          <p className="mt-2.5 text-[26px] font-extrabold leading-none text-[#e9c07a]">
-            {/* The place climbs up from the bottom of the table to where the player is. */}
-            {myRating?.place ? (
-              <CountUp
-                from={Math.max(rating?.players.length ?? 0, myRating.place)}
-                value={myRating.place}
-              />
-            ) : (
-              "—"
-            )}
-          </p>
-          <p className="mt-2 text-[12px] text-white/50">Место в рейтинге</p>
-        </GlassCard>
-      </div>
-
       {me?.registered ? (
-        <GlassCard>
-          <p className="text-sm font-semibold">Вы в игре прямо сейчас</p>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div className="rounded-[18px] border border-white/[0.07] bg-black/30 p-4">
-              <p className="text-[26px] font-extrabold leading-none text-[#e9c07a]">
+        <div className="flex flex-col gap-2.5 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] p-4">
+          <p className="flex items-center gap-2 text-[14px] font-extrabold">
+            <span className="h-2 w-2 rounded-full bg-club-rose" />
+            Вы в игре прямо сейчас
+          </p>
+          <div className="flex gap-6">
+            <div className="flex flex-col gap-1">
+              <Eyebrow>Номер</Eyebrow>
+              <p className="font-display text-[26px] font-semibold text-club-gold">
                 {me.registered.registrationNumber ?? "—"}
               </p>
-              <p className="mt-2 text-[11px] uppercase tracking-wider text-white/40">Номер</p>
             </div>
-            <div className="rounded-[18px] border border-white/[0.07] bg-black/30 p-4">
-              <p className="text-[26px] font-extrabold leading-none text-[#e9c07a]">{me.registered.table ?? "—"}</p>
-              <p className="mt-2 text-[11px] uppercase tracking-wider text-white/40">Стол</p>
+            <div className="flex flex-col gap-1">
+              <Eyebrow>Стол</Eyebrow>
+              <p className="font-display text-[26px] font-semibold text-club-gold">{me.registered.table ?? "—"}</p>
             </div>
           </div>
-        </GlassCard>
+        </div>
       ) : null}
 
-      <section className="space-y-3">
-        <SectionHeader href="/client/rating" title="Рейтинг" />
-        {topPlayers.length > 0 ? (
-          <div className="client-stagger-rows space-y-2">
-            {topPlayers.map((player) => (
-              <RatingRow key={`${player.place}-${player.name}`} player={player} />
-            ))}
-            {myRating && !meInTop ? (
-              <>
-                <p className="text-center text-white/25">· · ·</p>
-                <RatingRow player={myRating} />
-              </>
-            ) : null}
+      <MenuGroup>
+        <MenuRow
+          href="/client/medals"
+          icon={<Medal size={20} />}
+          subtitle="Кубки за победы в турнирах"
+          title="Медали"
+          value={`${medalsEarned} / ${MEDALS_TOTAL}`}
+        />
+        <MenuRow
+          href="/client/achievements"
+          icon={<Star size={20} />}
+          subtitle={earned === achievements.length ? "Собрана вся коллекция клуба" : "Награды клуба и прогресс"}
+          title="Достижения"
+          value={<CountUp suffix={` / ${achievements.length}`} value={earned} />}
+        >
+          <div className="mt-1.5 w-[140px]">
+            <div className="h-1 overflow-hidden rounded-full bg-white/[0.08]">
+              <div
+                className="client-fill-x h-full rounded-full bg-club-gold"
+                style={{ width: `${Math.round(achievementsShare * 100)}%` }}
+              />
+            </div>
           </div>
-        ) : (
-          <GlassCard className="py-7 text-center">
-            <p className="text-sm text-white/45">Рейтинг наполнится после первых игр.</p>
-          </GlassCard>
-        )}
-      </section>
+        </MenuRow>
+        <MenuRow
+          href="/client/passes"
+          icon={<Ticket className="text-club-rose" size={20} />}
+          subtitle={passesTotal > 0 ? "Обычные и VIP" : "Пока нет"}
+          title="Бесплатные проходки"
+          value={<CountUp value={passesTotal} />}
+        />
+        <MenuRow
+          href="/client/rating"
+          icon={<Trophy className="text-club-rose" size={20} />}
+          subtitle="Место в сезоне"
+          title="Рейтинг"
+          value={
+            // The place climbs up from the bottom of the table to where the player is.
+            myRating?.place ? (
+              <CountUp from={Math.max(rating?.players.length ?? 0, myRating.place)} value={myRating.place} />
+            ) : (
+              "—"
+            )
+          }
+        />
+      </MenuGroup>
 
-      <section className="space-y-3">
-        <h2 className="text-[19px] font-bold tracking-tight">История игр</h2>
+      <section className="flex flex-col gap-2.5">
+        <SectionHeader title="История игр" />
 
-        <div className="relative grid grid-cols-2 gap-1 rounded-full bg-white/[0.05] p-1">
+        <div className="relative grid grid-cols-2 gap-1 rounded-2xl border border-club-line bg-club-surface p-1">
           {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
           <span
             aria-hidden
-            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-full bg-white transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+            className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-xl bg-club-text transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
               historyTab === "past" ? "translate-x-[calc(100%+4px)]" : ""
             }`}
           />
@@ -483,82 +448,62 @@ export default function ClientProfilePage() {
         >
           {historyTab === "active" ? (
             upcoming.length > 0 ? (
-              <div className="client-stagger-rows space-y-2">
+              <div className="client-stagger-rows flex flex-col gap-2">
                 {upcoming.map((item) => (
                   <Link
                     key={item.event.id}
-                    className="block rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
+                    className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3.5"
                     href={`/client/events/${item.event.id}`}
                   >
-                    <p className="font-semibold">{item.event.title}</p>
-                    <p className="mt-1 text-xs text-white/45">
-                      {formatEventDayLabel(item.event.startsAt)},{" "}
-                      {formatEventTimeLabel(item.event.startsAt)}
-                    </p>
-                    {/* A ticket the club is holding is not a sign-up: it is still waiting
-                        on the player, and a card that looks like the rest never gets
-                        answered. */}
-                    {item.status === "reserved" ? (
-                      <p className="client-breathe relative mt-2 inline-flex rounded-xl border border-[#e9c07a]/45 bg-[#e9c07a]/15 px-2.5 py-1 text-[11px] font-bold text-[#e9c07a]">
-                        Билет отложен · подтвердите
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                      <p className="truncate text-[15px] font-extrabold">{item.event.title}</p>
+                      <p className="text-[12px] text-club-muted">
+                        {formatEventShortDateLabel(item.event.startsAt)}, {formatEventTimeLabel(item.event.startsAt)}
                       </p>
-                    ) : null}
+                      {/* A ticket the club is holding is not a sign-up: it is still waiting
+                          on the player, and a card that looks like the rest never gets
+                          answered. */}
+                      {item.status === "reserved" ? (
+                        <div className="mt-1">
+                          <Pill className="client-breathe relative !border-club-gold/40" tone="gold">
+                            Билет отложен · подтвердите
+                          </Pill>
+                        </div>
+                      ) : null}
+                    </div>
+                    <ChevronRight className="shrink-0 text-club-faint" size={18} />
                   </Link>
                 ))}
               </div>
             ) : (
-              <GlassCard className="py-8 text-center">
-                <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
-                <p className="text-sm text-white/45">Вы пока никуда не записаны.</p>
+              <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
+                <CalendarDays className="text-club-faint" size={26} />
+                <p className="text-sm text-club-muted">Вы пока никуда не записаны.</p>
               </GlassCard>
             )
           ) : played.length > 0 ? (
-            <div className="client-stagger-rows space-y-2">
+            <div className="client-stagger-rows flex flex-col gap-2">
               {played.map((game) => (
-                <Link
+                <PlayedGameRow
                   key={game.startedAt}
-                  className="flex items-center gap-3 rounded-[18px] border border-white/[0.07] bg-white/[0.04] p-4"
                   href={`/client/games/${encodeURIComponent(game.startedAt)}`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{game.title}</span>
-                    <span className="mt-1 block text-xs text-white/45">
-                      {formatEventDayLabel(game.playedOn)}
-                      {game.points > 0 ? ` · ${game.points.toLocaleString("ru-RU")} очков` : ""}
-                    </span>
-                  </span>
-                  <span className="shrink-0 text-right">
-                    <span className="block text-[20px] font-extrabold leading-none text-[#e9c07a]">
-                      {game.place ?? "—"}
-                    </span>
-                    <span className="mt-1 block text-[10px] uppercase tracking-wider text-white/35">
-                      место
-                    </span>
-                  </span>
-                </Link>
+                  place={game.place}
+                  subtitle={`${formatEventShortDateLabel(game.playedOn)}${
+                    game.knockouts > 0 ? ` · ${countWord(game.knockouts, ["нокаут", "нокаута", "нокаутов"])}` : ""
+                  }${game.points > 0 ? ` · ${game.points.toLocaleString("ru-RU")} очков` : ""}`}
+                  title={game.title}
+                />
               ))}
             </div>
           ) : (
-            <GlassCard className="py-8 text-center">
-              <CalendarDays className="mx-auto mb-3 text-white/25" size={26} />
-              <p className="text-sm text-white/45">Сыгранных турниров пока нет.</p>
+            <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
+              <CalendarDays className="text-club-faint" size={26} />
+              <p className="text-sm text-club-muted">Сыгранных турниров пока нет.</p>
             </GlassCard>
           )}
         </div>
       </section>
     </div>
-  );
-}
-
-function StatTile({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
-  return (
-    <GlassCard className="!p-4 text-center">
-      <span className="flex justify-center text-white/35">{icon}</span>
-      <p className="mt-2.5 text-[26px] font-extrabold leading-none">
-        <CountUp value={value} />
-      </p>
-      <p className="mt-2 text-[11px] text-white/45">{label}</p>
-    </GlassCard>
   );
 }
 
@@ -573,8 +518,9 @@ function TabButton({
 }) {
   return (
     <button
-      className={`relative rounded-full py-2.5 text-sm font-bold transition-colors duration-300 ${
-        active ? "text-[#0a0608]" : "text-white/50"
+      aria-pressed={active}
+      className={`relative h-10 rounded-xl text-[14px] font-bold transition-colors duration-300 ${
+        active ? "text-[#15100f]" : "text-club-muted"
       }`}
       type="button"
       onClick={onClick}

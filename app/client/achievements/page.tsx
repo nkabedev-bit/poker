@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Trophy } from "lucide-react";
 import { useClientTMA } from "../layout";
-import { LoadingScreen } from "../_components/ui";
-import { AchievementCard } from "../_components/award-cards";
+import { LoadingScreen, PageTitle } from "../_components/ui";
+import { AchievementCard, CollectionSummary } from "../_components/award-cards";
 import { CountUp } from "../_components/count-up";
 import { useAchievementRarity } from "../_components/use-achievement-rarity";
 import { AwardCelebration } from "../_components/award-celebration";
@@ -57,36 +56,25 @@ export default function ClientAchievementsPage() {
   const sections = getAchievementSections(stats ?? EMPTY_PLAYER_STATS);
   const all = sections.flatMap((section) => section.achievements);
   const earned = countEarnedAchievements(all);
-  const progress = all.length > 0 ? Math.round((earned / all.length) * 100) : 0;
 
   return (
-    <div className="client-stagger space-y-7 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
       {news ? <AwardCelebration award={news} left={newsLeft} onDone={dismissNews} /> : null}
 
-      <div className="relative overflow-hidden rounded-[22px] bg-[linear-gradient(120deg,#c8163f,#7d0d26)] p-5 shadow-[0_14px_38px_rgba(200,22,63,0.35)]">
-        <Trophy
-          aria-hidden
-          className="pointer-events-none absolute -right-4 -top-3 text-white/15"
-          size={132}
-          strokeWidth={1.2}
-        />
-        <p className="text-[26px] font-bold tracking-tight">Достижения</p>
-        <div className="mt-4 h-1.5 w-full max-w-[60%] overflow-hidden rounded-full bg-black/25">
-          <div className="client-fill-x h-full rounded-full bg-white/85" style={{ width: `${progress}%` }} />
-        </div>
-        <p className="mt-3 flex items-center gap-2 text-[15px] font-bold">
-          Выполнено
-          <Trophy size={16} />
-          <CountUp suffix={` / ${all.length}`} value={earned} />
-        </p>
-      </div>
+      <PageTitle>Достижения</PageTitle>
+
+      <CollectionSummary
+        count={<CountUp value={earned} />}
+        earned={earned}
+        hint="Нажмите на награду — увидите, у кого она есть"
+        label="Выполнено"
+        total={all.length}
+      />
 
       {sections.map((section) => (
-        <section key={section.title} className="space-y-3">
-          <h2 className="text-center text-[13px] font-semibold uppercase tracking-[0.18em] text-white/35">
-            {section.title}
-          </h2>
-          <div className="grid grid-cols-2 gap-3">
+        <section key={section.title} className="flex flex-col gap-2.5">
+          <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">{section.title}</h2>
+          <div className="grid grid-cols-3 gap-2.5">
             {section.achievements.map((achievement) => (
               <AchievementCard key={achievement.id} achievement={achievement} rarity={rarity} />
             ))}

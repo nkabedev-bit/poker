@@ -60,16 +60,16 @@ export default function ClientNewsPage() {
   }
 
   return (
-    <div className="client-stagger space-y-5 pt-1">
+    <div className="client-stagger flex flex-col gap-5 pt-1">
       <PageTitle>Объявления</PageTitle>
 
-      <div className="client-stagger-rows space-y-3">
+      <div className="client-stagger-rows flex flex-col gap-2.5">
         {announcements.map((item) => (
-          <GlassCard key={item.id} className="space-y-2">
-            <p className="text-[12px] uppercase tracking-wider text-white/35">
+          <GlassCard key={item.id} className="flex flex-col gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">
               {formatWhen(item.createdAt)}
             </p>
-            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-white/85">
+            <p className="whitespace-pre-wrap text-[15px] leading-relaxed text-club-text">
               {item.message}
             </p>
           </GlassCard>

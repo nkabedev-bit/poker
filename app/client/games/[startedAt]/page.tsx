@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { CalendarDays, Clock, Crosshair, Crown, Trophy, Users, Zap } from "lucide-react";
 import { useClientTMA } from "../../layout";
-import { GhostButton, LoadingScreen, ScreenMessage } from "../../_components/ui";
+import { GhostButton, LoadingScreen, Pill, ScreenMessage, SectionHeader } from "../../_components/ui";
+import { RatingRow } from "../../_components/rating-row";
 import { PlayerAvatar } from "../../_components/player-avatar";
 import { useSuitBurst } from "../../_components/suit-burst";
 import {
@@ -16,7 +17,6 @@ import {
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { type PlayerTier } from "@/lib/players/tier";
 import { hasKnownStartTime } from "@/lib/results/imported-games";
-import { TierBadge } from "../../_components/tier-badge";
 
 type ResultRow = {
   avatarUrl: string | null;
@@ -35,11 +35,8 @@ type GameResponse = {
   rows: ResultRow[];
 };
 
-const PODIUM: Record<number, string> = {
-  1: "bg-gradient-to-b from-[#f3d07a] to-[#b8862f] text-[#3a2600]",
-  2: "bg-gradient-to-b from-[#e6e8ec] to-[#9aa0a8] text-[#2a2d31]",
-  3: "bg-gradient-to-b from-[#e0a06a] to-[#a3592a] text-[#3a1c00]",
-};
+/** Gold, silver and bronze: the ring round a face and the edge of its step. */
+const PODIUM_COLORS: Record<number, string> = { 1: "#e2bc6e", 2: "#c9cdd3", 3: "#c98b5e" };
 
 /** The podium is read left to right as the room sees it: second, first, third. */
 const PODIUM_ORDER = [2, 1, 3] as const;
@@ -50,9 +47,9 @@ const PODIUM_ORDER = [2, 1, 3] as const;
  * order, so the winner arrives last.
  */
 const PODIUM_STEP: Record<number, { avatar: number; landsMs: number; risesMs: number; step: string }> = {
-  1: { avatar: 76, landsMs: 750, risesMs: 360, step: "h-24" },
-  2: { avatar: 60, landsMs: 600, risesMs: 180, step: "h-16" },
-  3: { avatar: 60, landsMs: 450, risesMs: 0, step: "h-12" },
+  1: { avatar: 64, landsMs: 750, risesMs: 360, step: "h-[116px]" },
+  2: { avatar: 52, landsMs: 600, risesMs: 180, step: "h-[88px]" },
+  3: { avatar: 52, landsMs: 450, risesMs: 0, step: "h-[70px]" },
 };
 
 /** When a player who made the podium gets their suits: once everybody has landed. */
@@ -79,7 +76,7 @@ function Podium({ rows }: { rows: ResultRow[] }) {
 
   // The top padding is the winner's crown's room.
   return (
-    <div className="grid grid-cols-3 items-end gap-2 pt-8">
+    <div className="grid grid-cols-3 items-end gap-2.5 pt-8">
       {PODIUM_ORDER.map((place) => {
         const row = rows.find((item) => item.place === place);
         if (!row) return <div key={place} />;
@@ -96,15 +93,18 @@ function Podium({ rows }: { rows: ResultRow[] }) {
             {place === 1 ? (
               <Crown
                 aria-hidden
-                className="client-crown-in absolute -top-7 left-1/2 -translate-x-1/2 text-[#e9c07a]"
-                fill="rgba(233,192,122,0.25)"
+                className="client-crown-in absolute -top-7 left-1/2 -translate-x-1/2 text-club-gold"
+                fill="rgba(226,188,110,0.25)"
                 size={24}
                 strokeWidth={1.8}
               />
             ) : null}
             <span
-              className={`client-drop rounded-full p-[3px] ${PODIUM[place]}`}
-              style={{ animationDelay: `${landsMs}ms` }}
+              className="client-drop rounded-full"
+              style={{
+                animationDelay: `${landsMs}ms`,
+                boxShadow: `0 0 0 2px #0d0a0b, 0 0 0 4px ${PODIUM_COLORS[place]}`,
+              }}
             >
               <PlayerAvatar
                 hand={row.hand}
@@ -114,18 +114,18 @@ function Podium({ rows }: { rows: ResultRow[] }) {
               />
             </span>
             <span
-              className={`client-rise w-full truncate text-[14px] font-bold ${row.isMe ? "text-[#e9c07a]" : ""}`}
+              className={`client-rise w-full truncate text-[13px] font-extrabold ${row.isMe ? "text-club-rose" : ""}`}
               style={{ animationDelay: `${landsMs + 120}ms` }}
             >
               {row.playerName}
             </span>
             <span
-              className="client-rise flex items-center gap-2.5 text-[12px] font-semibold text-white/60"
+              className="client-rise flex items-center gap-2.5 text-[12px] font-bold text-club-muted"
               style={{ animationDelay: `${landsMs + 160}ms` }}
             >
               <span className="flex items-center gap-0.5">
                 {row.points.toLocaleString("ru-RU")}
-                <Zap className="text-[#e9c07a]" fill="currentColor" size={11} />
+                <Zap className="text-club-gold" fill="currentColor" size={11} />
               </span>
               <span className="flex items-center gap-0.5">
                 <Crosshair size={11} />
@@ -133,8 +133,12 @@ function Podium({ rows }: { rows: ResultRow[] }) {
               </span>
             </span>
             <span
-              className={`client-podium-step flex w-full items-start justify-center rounded-t-2xl pt-2 text-[20px] font-extrabold ${PODIUM[place]} ${PODIUM_STEP[place].step}`}
-              style={{ animationDelay: `${risesMs}ms` }}
+              className={`client-podium-step flex w-full items-center justify-center rounded-b-md rounded-t-2xl border border-club-line bg-club-surface font-display text-[22px] font-bold ${PODIUM_STEP[place].step}`}
+              style={{
+                animationDelay: `${risesMs}ms`,
+                borderTop: `2px solid ${PODIUM_COLORS[place]}`,
+                color: PODIUM_COLORS[place],
+              }}
             >
               {place}
             </span>
@@ -149,9 +153,9 @@ function Podium({ rows }: { rows: ResultRow[] }) {
 function SummaryCell({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1.5 px-3 first:pl-0 last:pr-0">
-      <span className="text-[#e9c07a]">{icon}</span>
-      <span className="truncate text-[16px] font-bold">{value}</span>
-      <span className="truncate text-[12px] capitalize text-white/40">{label}</span>
+      <span className="text-club-gold">{icon}</span>
+      <span className="truncate font-display text-[15px] font-semibold">{value}</span>
+      <span className="truncate text-[12px] capitalize text-club-muted">{label}</span>
     </div>
   );
 }
@@ -205,19 +209,13 @@ export default function ClientGamePage() {
   const startKnown = hasKnownStartTime(data.game.startedAt);
 
   return (
-    <div className="client-stagger space-y-5 pt-1">
-      <div className="space-y-3">
+    <div className="client-stagger flex flex-col gap-6 pt-1">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-2">
-          <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[12px] font-semibold text-white/60">
-            Завершён
-          </span>
-          {data.game.countsForRating === false ? (
-            <span className="rounded-full border border-white/15 bg-white/[0.05] px-3 py-1 text-[12px] font-semibold text-white/60">
-              Вне рейтинга
-            </span>
-          ) : null}
+          <Pill tone="muted">Завершён</Pill>
+          {data.game.countsForRating === false ? <Pill tone="muted">Вне рейтинга</Pill> : null}
         </div>
-        <h1 className="text-[28px] font-extrabold uppercase leading-[1.05] tracking-tight">
+        <h1 className="font-display text-[26px] font-bold uppercase leading-[1.05] tracking-[-0.01em]">
           {data.game.title}
         </h1>
       </div>
@@ -225,7 +223,7 @@ export default function ClientGamePage() {
       {/* The date is the longest value ("26 сентября"), so its column is the widest. A game
           imported from the sheets has no start time, and its summary goes without one. */}
       <div
-        className={`grid divide-x divide-white/[0.08] rounded-[20px] border border-white/[0.07] bg-white/[0.04] p-4 ${
+        className={`grid divide-x divide-club-line rounded-[20px] border border-club-line bg-club-surface p-4 ${
           startKnown ? "grid-cols-[1.6fr_1fr_1fr]" : "grid-cols-[1.6fr_1fr]"
         }`}
       >
@@ -245,64 +243,38 @@ export default function ClientGamePage() {
       </div>
 
       {podium.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-[20px] font-bold tracking-tight">Результаты</h2>
+        <section className="flex flex-col gap-2">
+          <SectionHeader title="Результаты" />
           <Podium rows={podium} />
         </section>
       ) : null}
 
       {table.length > 0 ? (
-        <section className="space-y-2">
-          <div className="flex items-center gap-3 rounded-[18px] bg-gradient-to-r from-[#c8163f] to-[#7d0d26] px-3 py-3 text-[12px] font-bold">
-            <span className="w-8 text-center">#</span>
-            <span className="flex-1">Игрок</span>
-            <span className="w-[52px] text-right">Нокауты</span>
-            <span className="w-[74px] text-right">Очки</span>
+        <section className="flex flex-col gap-1.5" data-results-table>
+          <div className="flex items-center gap-3 px-3.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-club-faint">
+            <span className="w-[26px] text-center">#</span>
+            <span className="flex-1 pl-[54px]">Игрок</span>
+            <span className="w-10 text-right">KO</span>
+            <span className="w-16 text-right">Очки</span>
           </div>
 
-          <div className="client-stagger-rows space-y-2">
+          <div className="client-stagger-rows flex flex-col gap-1.5">
             {table.map((row) => (
-              <Link
+              <RatingRow
                 key={`${row.place}-${row.playerName}`}
-                className={`flex items-center gap-3 rounded-[18px] border px-3 py-2.5 ${
-                  row.isMe
-                    ? "border-[#e9c07a] bg-[#e9c07a]/[0.08]"
-                    : "border-white/[0.07] bg-white/[0.04]"
-                }`}
-                href={profileHref(row.playerName)}
-              >
-                <span
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[13px] font-extrabold ${
-                    (row.place && PODIUM[row.place]) || "bg-white/[0.06] text-white/60"
-                  }`}
-                >
-                  {row.place ?? "—"}
-                </span>
-
-                <PlayerAvatar
-                  hand={row.hand}
-                  name={row.playerName}
-                  photoUrl={row.avatarUrl ?? undefined}
-                  size={34}
-                />
-
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-[15px] font-semibold">{row.playerName}</span>
-                  <TierBadge tier={row.tier} />
-                </span>
-
-                {/* Narrower than its header, as in the rating: both end at the same edge,
-                    and the name gets the room back. */}
-                <span className="w-9 shrink-0 text-right text-[15px] font-bold text-white/75">
-                  {Math.round(row.knockouts)}
-                </span>
-
-                <span className="flex w-[74px] shrink-0 items-center justify-end gap-1 text-[15px] font-bold">
-                  {row.points.toLocaleString("ru-RU")}
-                  <Zap className="text-[#e9c07a]" fill="currentColor" size={13} />
-                </span>
-
-              </Link>
+                player={{
+                  avatarUrl: row.avatarUrl,
+                  eliminations: Math.round(row.knockouts),
+                  games: 0,
+                  hand: row.hand,
+                  isMe: row.isMe,
+                  name: row.playerName,
+                  place: row.place,
+                  points: row.points,
+                  tier: row.tier,
+                  top9: 0,
+                }}
+              />
             ))}
           </div>
         </section>
