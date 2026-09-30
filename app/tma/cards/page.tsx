@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Armchair,
   Check,
   ChevronLeft,
   CreditCard,
@@ -15,6 +14,7 @@ import {
   UserPlus,
   Wallet,
 } from "lucide-react";
+import { ScreenHeader, SectionLabel } from "../ui";
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { ClientProfileCard } from "../client-profile-card";
 import { formatEventTimeLabel } from "@/lib/events/types";
@@ -434,26 +434,37 @@ export default function TMACardsPage() {
     });
   };
 
-  if (loading) return <div>Загрузка...</div>;
+  if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   // Seating takes over the screen: the admin is picking one chair, and everything else
   // would only be in the way.
   if (seating) {
     return (
-      <div className="space-y-4">
-        <h1 className="text-xl font-bold flex items-center gap-2">
-          <Armchair size={20} /> Куда сажаем
-        </h1>
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{
+            disabled: busy,
+            label: "Касса",
+            onClick: () => {
+              setSeating(null);
+              setSeatChoice(null);
+            },
+          }}
+          title="Куда сажаем"
+        />
 
-        <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-          <p className="text-lg font-bold">{targetName(seating)}</p>
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">
-            {TICKET_LABELS[ticketType]} · карта {scannedCode}
-          </p>
+        <div className="tma-card">
+          <span className="text-[20px] font-bold">{targetName(seating)}</span>
+          <span className="tma-row__badges">
+            <span className={`tma-badge${ticketType === "vip" ? " tma-badge--gold" : ""}`}>
+              {TICKET_LABELS[ticketType]}
+            </span>
+            {scannedCode ? <span className="tma-badge">карта {scannedCode}</span> : null}
+          </span>
         </div>
 
         <button
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold disabled:opacity-60"
+          className="tma-btn tma-btn--link"
           disabled={busy}
           type="button"
           onClick={() => void seatAtRandom(seating)}
@@ -461,45 +472,37 @@ export default function TMACardsPage() {
           <Dices size={18} /> Посадить на случайное место
         </button>
 
-        <SeatingPicker
-          changingTable={changingTable}
-          ignorePlayerId={seating.kind === "player" ? seating.player.id : undefined}
-          players={players}
-          selected={seatChoice}
-          tableFormats={tableFormats}
-          tablesCount={tablesCount}
-          onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
-          onSelect={(choice) => {
-            getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-            setSeatChoice(choice);
-          }}
-          onTakenSeat={(name) =>
-            getTelegramWebApp()?.showAlert(`Место занято: ${name}`)
-          }
-        />
+        <div className="tma-card">
+          <SeatingPicker
+            changingTable={changingTable}
+            ignorePlayerId={seating.kind === "player" ? seating.player.id : undefined}
+            players={players}
+            selected={seatChoice}
+            tableFormats={tableFormats}
+            tablesCount={tablesCount}
+            onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
+            onSelect={(choice) => {
+              getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
+              setSeatChoice(choice);
+            }}
+            onTakenSeat={(name) =>
+              getTelegramWebApp()?.showAlert(`Место занято: ${name}`)
+            }
+          />
+        </div>
 
-        <button
-          className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-          disabled={busy || !seatChoice}
-          type="button"
-          onClick={() => seatChoice && void handOverCard(seating, seatChoice)}
-        >
-          {seatChoice
-            ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
-            : "Выберите место"}
-        </button>
-
-        <button
-          className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm"
-          disabled={busy}
-          type="button"
-          onClick={() => {
-            setSeating(null);
-            setSeatChoice(null);
-          }}
-        >
-          Отмена
-        </button>
+        <div className="tma-cta-bar">
+          <button
+            className="tma-btn tma-btn--primary tma-btn--big"
+            disabled={busy || !seatChoice}
+            type="button"
+            onClick={() => seatChoice && void handOverCard(seating, seatChoice)}
+          >
+            {seatChoice
+              ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
+              : "Выберите место"}
+          </button>
+        </div>
       </div>
     );
   }
@@ -524,30 +527,31 @@ export default function TMACardsPage() {
   const unpaidCount = settling.filter((card) => !card.paid).length;
 
   const searchBox = (
-    <div className="relative">
-      <Search
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--tg-theme-hint-color)]"
-        size={18}
-      />
+    <label className="tma-search">
+      <Search size={18} />
       <input
-        className="w-full rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 pl-10 outline-none"
         placeholder="Поиск по нику"
         value={search}
         onChange={(event) => setSearch(event.target.value)}
       />
-    </div>
+    </label>
   );
 
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold flex items-center gap-2">
-        <CreditCard size={20} /> Карты
-      </h1>
+    <div className="tma-screen">
+      <ScreenHeader
+        back={
+          session && !scannedCode
+            ? { label: "Касса", onClick: () => setSession(null) }
+            : undefined
+        }
+        title={session ? "Счёт игрока" : "Касса"}
+      />
 
-      {cardsEnabled ? (
+      {cardsEnabled && !session ? (
         <>
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-button-color)] px-4 py-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+            className="tma-btn tma-btn--primary tma-btn--big"
             disabled={busy}
             type="button"
             onClick={scan}
@@ -556,33 +560,36 @@ export default function TMACardsPage() {
           </button>
 
           <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm"
+            className="tma-btn"
             type="button"
             onClick={() => setManualOpen((open) => !open)}
           >
             <Keyboard size={16} /> {manualOpen ? "Скрыть ручной ввод" : "Ввести код вручную"}
           </button>
         </>
-      ) : (
-        <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-sm text-[var(--tg-theme-hint-color)]">
-          Сегодня без карт: найдите игрока по нику в списке ниже.
-        </p>
-      )}
+      ) : null}
 
-      {manualOpen ? (
+      {!cardsEnabled && !session ? (
+        <div className="tma-note">
+          <CreditCard size={18} />
+          <span>Сегодня без карт: найдите игрока по нику в списке ниже.</span>
+        </div>
+      ) : null}
+
+      {manualOpen && !session ? (
         <div className="flex gap-2">
           {/* The prefix is picked rather than typed a hundred times a night — the club
               prints guest cards as a run of their own, and G-05 is not MJ-05. */}
-          <div className="flex flex-1 items-center gap-1 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] px-2">
+          <div className="tma-search flex-1 !px-1.5">
             {CARD_CODE_PREFIXES.map((prefix) => (
               <button
                 key={prefix}
                 aria-label={`Карты ${prefix}`}
                 aria-pressed={manualPrefix === prefix}
-                className={`shrink-0 rounded-md px-2 py-1.5 text-sm font-semibold ${
+                className={`h-8 shrink-0 rounded-lg border-0 px-2.5 text-sm font-semibold ${
                   manualPrefix === prefix
-                    ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
-                    : "text-[var(--tg-theme-hint-color)]"
+                    ? "bg-[var(--tma-accent)] text-white"
+                    : "bg-transparent text-[var(--tma-hint)]"
                 }`}
                 type="button"
                 onClick={() => setManualPrefix(prefix)}
@@ -590,9 +597,9 @@ export default function TMACardsPage() {
                 {prefix}
               </button>
             ))}
-            <span className="font-semibold text-[var(--tg-theme-hint-color)]">-</span>
+            <span className="font-semibold">-</span>
             <input
-              className="w-full bg-transparent py-3 font-semibold outline-none"
+              className="font-semibold text-[var(--tma-text)]"
               inputMode="numeric"
               placeholder="001"
               value={manualCode}
@@ -600,7 +607,7 @@ export default function TMACardsPage() {
             />
           </div>
           <button
-            className="shrink-0 rounded-lg bg-[var(--tg-theme-button-color)] px-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
+            className="tma-btn tma-btn--primary tma-btn--auto"
             disabled={busy || !manualCode.trim()}
             type="button"
             onClick={() => {
@@ -613,46 +620,47 @@ export default function TMACardsPage() {
         </div>
       ) : null}
 
-      {scannedCode ? (
-        <p className="text-center text-xs text-[var(--tg-theme-hint-color)]">
-          Карта {scannedCode}
-        </p>
-      ) : cardsEnabled ? (
-        <p className="text-center text-sm text-[var(--tg-theme-hint-color)]">
+      {!session && scannedCode ? (
+        <p className="tma-hint text-center">Карта {scannedCode}</p>
+      ) : !session && cardsEnabled ? (
+        <p className="tma-hint text-center">
           Отсканируйте карту, чтобы выдать её игроку или принять обратно.
         </p>
       ) : null}
 
       {session ? (
-        <div className="space-y-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-          <div>
-            <p className="text-lg font-bold">{session.name}</p>
-            <p className="text-sm text-[var(--tg-theme-hint-color)]">
-              {session.registrationNumber ? `#${session.registrationNumber}` : "без номера"}
-              {session.table ? ` · стол ${session.table}` : ""}
-              {session.seat ? ` · место ${nameSeat(tableFormats, Number(session.table), session.seat)}` : ""}
-            </p>
-          </div>
+        <>
+          <div className="tma-card">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="truncate text-[20px] font-bold">{session.name}</span>
+                <span className="tma-hint">
+                  {session.registrationNumber ? `#${session.registrationNumber}` : "без номера"}
+                  {session.table ? ` · стол ${session.table}` : ""}
+                  {session.seat ? ` · место ${nameSeat(tableFormats, Number(session.table), session.seat)}` : ""}
+                </span>
+              </div>
+              {scannedCode ? <span className="tma-badge">Карта {scannedCode}</span> : null}
+            </div>
 
-          <div className="flex items-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3">
-            <Ticket className="text-[var(--tg-theme-button-color)]" size={18} />
-            <span className="font-semibold">{TICKET_LABELS[session.ticketType]}</span>
-            {session.freePass ? (
-              <span className="ml-auto rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-500">
-                0 ₽ · проходка
-              </span>
-            ) : null}
-          </div>
+            <div className="flex items-center gap-2 rounded-[10px] bg-[var(--tma-surface-2)] px-3 py-2.5">
+              <Ticket className="text-[var(--tma-link)]" size={18} />
+              <span className="font-semibold">{TICKET_LABELS[session.ticketType]}</span>
+              {session.freePass ? (
+                <span className="tma-badge tma-badge--green ml-auto">0 ₽ · проходка</span>
+              ) : null}
+            </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Counter label="Ре-энтри" value={session.reentries} />
-            <Counter label="Двойных" value={session.doubleReentries} />
-            <Counter label="Аддонов" value={session.addons} />
+            <div className="tma-stats">
+              <Counter label="Ре-энтри" value={session.reentries} />
+              <Counter label="Двойных" value={session.doubleReentries} />
+              <Counter label="Аддонов" value={session.addons} />
+            </div>
           </div>
 
           {/* The bill the admin reads out at the desk: every line the player bought,
               then what they hand over. */}
-          <div className="space-y-1.5 rounded-lg bg-[var(--tg-theme-bg-color)] p-3">
+          <div className="tma-card">
             <ChargeRow
               label={session.charge.ticket.free ? "Вход (проходка)" : "Вход"}
               line={session.charge.ticket}
@@ -661,9 +669,10 @@ export default function TMACardsPage() {
             <ChargeRow label="Двойные" line={session.charge.doubleReentries} />
             <ChargeRow label="Аддоны" line={session.charge.addons} />
 
-            <div className="mt-2 flex items-baseline justify-between border-t border-[var(--tg-theme-hint-color)]/25 pt-2">
+            <div className="tma-divider" />
+            <div className="flex items-baseline justify-between">
               <span className="font-semibold">{session.paid ? "Оплачено" : "К оплате"}</span>
-              <span className={`text-2xl font-bold ${session.paid ? "text-green-500" : ""}`}>
+              <span className={`tma-num text-[28px] font-bold ${session.paid ? "text-[var(--tma-green)]" : ""}`}>
                 {session.charge.total.toLocaleString("ru-RU")} ₽
               </span>
             </div>
@@ -679,38 +688,36 @@ export default function TMACardsPage() {
               the questionnaire is where the phone and the Telegram they gave the club
               are. A scanned card is someone standing at the desk, so it stays short. */}
           {!scannedCode ? (
-            <div className="space-y-2">
-              <p className="text-sm font-semibold">Анкета</p>
+            <>
+              <SectionLabel title="Анкета" />
               <ClientProfileCard
                 accountId={session.accountId}
-                className="rounded-lg bg-[var(--tg-theme-bg-color)] p-3"
+                className="tma-card"
                 telegramId={session.telegramId}
               />
-            </div>
+            </>
           ) : null}
 
           {/* Which way out depends on how the bill was opened, not on whether the player
               holds a card: a scan is the desk taking the card back, a tap is the desk
               looking something up and returning to the list. */}
           {scannedCode ? (
-            <button
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold disabled:opacity-60"
-              disabled={busy}
-              type="button"
-              onClick={release}
-            >
-              <RotateCcw size={16} /> Принять карту обратно
-            </button>
+            <div className="tma-cta-bar">
+              <button
+                className="tma-btn tma-btn--primary tma-btn--big"
+                disabled={busy}
+                type="button"
+                onClick={release}
+              >
+                <RotateCcw size={16} /> Принять карту обратно
+              </button>
+            </div>
           ) : (
-            <button
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-bg-color)] p-3 font-semibold"
-              type="button"
-              onClick={() => setSession(null)}
-            >
+            <button className="tma-btn" type="button" onClick={() => setSession(null)}>
               <ChevronLeft size={16} /> К списку
             </button>
           )}
-        </div>
+        </>
       ) : null}
 
       {/* Only when no card is in hand: while one is scanned the screen is about that
@@ -718,101 +725,91 @@ export default function TMACardsPage() {
       {!cardsEnabled && !session ? searchBox : null}
 
       {settling.length > 0 && !scannedCode && !session ? (
-        <section className="space-y-2">
-          <p className="text-sm font-semibold">
-            {cardsEnabled ? "Выданные карты" : "За столами"} ({settling.length})
-            {unpaidCount > 0 ? (
-              <span className="font-normal text-[var(--tg-theme-hint-color)]">
-                {" "}
-                · не оплатили {unpaidCount}
+        <section className="flex flex-col gap-2">
+          <p className="tma-section-label">
+            <span>
+              <span className="tma-section-label__title">
+                {cardsEnabled ? "Выданные карты" : "За столами"} ({settling.length})
               </span>
-            ) : null}
+              {unpaidCount > 0 ? (
+                <span className="tma-danger-text">
+                  {" "}
+                  · не оплатили {unpaidCount}
+                </span>
+              ) : null}
+            </span>
           </p>
           {settling.map((card) => (
-              <div
-                key={card.playerId}
-                /* Three states the desk reads at a glance, in the order the list is
-                   sorted: red — busted and still owing, catch them; plain — playing on;
-                   green — settled, parked at the bottom, the latest payment first. */
-                className={`space-y-2 rounded-lg p-3 ${
-                  card.paid
-                    ? "bg-green-500/10 ring-1 ring-green-500/30"
-                    : card.eliminated
-                      ? "bg-red-500/10 ring-1 ring-red-500/50"
-                      : "bg-[var(--tg-theme-secondary-bg-color)]"
-                }`}
+            <div
+              key={card.playerId}
+              /* Three states the desk reads at a glance, in the order the list is
+                 sorted: red — busted and still owing, catch them; plain — playing on;
+                 green — settled, parked at the bottom, the latest payment first. */
+              className={`tma-card !gap-2 !p-3 ${
+                card.paid ? "tma-row--paid" : card.eliminated ? "tma-row--owes" : ""
+              }`}
+            >
+              {/* The row opens the bill behind the number: the desk is asked "за что
+                  столько?" across the table and should not have to remember. The
+                  player's questionnaire opens under it, to reach whoever has left. The
+                  paid toggle stays outside it, so settling up is still one tap. */}
+              <button
+                className="flex w-full items-center justify-between gap-3 border-0 bg-transparent p-0 text-left"
+                type="button"
+                onClick={() => setSession(card)}
               >
-                {/* The row opens the bill behind the number: the desk is asked "за что
-                    столько?" across the table and should not have to remember. The
-                    player's questionnaire opens under it, to reach whoever has left. The
-                    paid toggle stays outside it, so settling up is still one tap. */}
-                <button
-                  className="flex w-full items-baseline justify-between gap-3 text-left"
-                  type="button"
-                  onClick={() => setSession(card)}
+                <span className="tma-row__body">
+                  <span className="flex items-center gap-2">
+                    <span className="tma-row__title">{card.name}</span>
+                    {/* Knocked out and still owing: the desk has to catch them before
+                        they leave, so the row shouts it instead of whispering it in
+                        the line of small print underneath. */}
+                    {card.paid ? (
+                      <span className="tma-badge tma-badge--green">ОПЛАЧЕНО</span>
+                    ) : card.eliminated ? (
+                      <span className="tma-badge tma-badge--red">ВЫБЫЛ</span>
+                    ) : null}
+                  </span>
+                  <span className="tma-row__sub">
+                    {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
+                    {card.table ? ` · стол ${card.table}` : ""}
+                    {card.seat ? ` · место ${nameSeat(tableFormats, Number(card.table), card.seat)}` : ""}
+                    {/* Busted but already settled: the badge slot is taken by the
+                        green tick, so the fact still gets said here. */}
+                    {card.paid && card.eliminated ? " · выбыл" : ""}
+                    {/* The time is what the settled block is ordered by, so the order
+                        explains itself. */}
+                    {card.paid && card.paidAt
+                      ? ` · оплатил в ${formatEventTimeLabel(card.paidAt)}`
+                      : ""}
+                  </span>
+                </span>
+                <span
+                  className={`tma-num shrink-0 text-lg font-bold ${card.paid ? "text-[var(--tma-green)]" : ""}`}
                 >
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-2">
-                      <span className="truncate font-semibold">{card.name}</span>
-                      {/* Knocked out and still owing: the desk has to catch them before
-                          they leave, so the row shouts it instead of whispering it in
-                          the line of small print underneath. */}
-                      {card.paid ? (
-                        <span className="shrink-0 rounded-full bg-green-500/20 px-2 py-0.5 text-[11px] font-bold text-green-500">
-                          ОПЛАЧЕНО
-                        </span>
-                      ) : card.eliminated ? (
-                        <span className="shrink-0 rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-bold text-red-500">
-                          ВЫБЫЛ
-                        </span>
-                      ) : null}
-                    </span>
-                    <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                      {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
-                      {card.table ? ` · стол ${card.table}` : ""}
-                      {card.seat ? ` · место ${nameSeat(tableFormats, Number(card.table), card.seat)}` : ""}
-                      {/* Busted but already settled: the badge slot is taken by the
-                          green tick, so the fact still gets said here. */}
-                      {card.paid && card.eliminated ? " · выбыл" : ""}
-                      {/* The time is what the settled block is ordered by, so the order
-                          explains itself. */}
-                      {card.paid && card.paidAt
-                        ? ` · оплатил в ${formatEventTimeLabel(card.paidAt)}`
-                        : ""}
-                    </span>
-                  </span>
-                  <span
-                    className={`shrink-0 text-lg font-bold ${card.paid ? "text-green-500" : ""}`}
-                  >
-                    {card.charge.total.toLocaleString("ru-RU")} ₽
-                  </span>
-                </button>
+                  {card.charge.total.toLocaleString("ru-RU")} ₽
+                </span>
+              </button>
 
-                <PaidToggle
-                  busy={busy}
-                  paid={card.paid}
-                  onChange={(paid) => void setPaid(card, paid)}
-                />
-              </div>
+              <PaidToggle
+                busy={busy}
+                paid={card.paid}
+                onChange={(paid) => void setPaid(card, paid)}
+              />
+            </div>
           ))}
         </section>
       ) : null}
 
       {(cardsEnabled ? Boolean(scannedCode) : true) && !session ? (
-        <div className="space-y-3">
-          <p className="text-sm font-semibold">
-            {cardsEnabled ? "Карта свободна — кому выдать?" : "Кого посадить за стол?"}
-          </p>
+        <>
+          <SectionLabel title={cardsEnabled ? "Карта свободна — кому выдать?" : "Кого посадить за стол?"} />
 
-          <div className="grid grid-cols-2 gap-2">
+          <div className="tma-segment">
             {(Object.keys(TICKET_LABELS) as TicketType[]).map((type) => (
               <button
                 key={type}
-                className={`rounded-lg p-3 text-sm font-semibold ${
-                  ticketType === type
-                    ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
-                    : "bg-[var(--tg-theme-secondary-bg-color)]"
-                }`}
+                aria-pressed={ticketType === type}
                 type="button"
                 onClick={() => setTicketType(type)}
               >
@@ -824,81 +821,85 @@ export default function TMACardsPage() {
           {cardsEnabled ? searchBox : null}
 
           {waitingSignups.length > 0 ? (
-            <div className="space-y-2">
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                {cardsEnabled
-                  ? "Записались в приложении — посадим и выдадим карту"
-                  : "Записались в приложении — осталось посадить"}
-              </p>
+            <div className="tma-card tma-card--flush">
+              <div className="tma-card__head">
+                <span className="text-sm">
+                  {cardsEnabled
+                    ? "Записались в приложении — посадим и выдадим карту"
+                    : "Записались в приложении — осталось посадить"}
+                </span>
+                <span className="tma-card__head-meta">{waitingSignups.length}</span>
+              </div>
               {waitingSignups.map((signup) => (
                 <button
                   key={signup.id}
-                  className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left disabled:opacity-60"
+                  className="tma-row"
                   disabled={busy}
                   type="button"
                   onClick={() => startSeating(signup)}
                 >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">{signup.name}</span>
-                    <span className="block text-xs text-[var(--tg-theme-hint-color)]">
+                  <span className="tma-row__body">
+                    <span className="tma-row__title">{signup.name}</span>
+                    <span className="tma-row__sub">
                       {signup.username ? `@${signup.username}` : "записался в приложении"}
                     </span>
-                    <span className="mt-1 flex flex-wrap gap-1.5">
-                      {signup.ticketType === "vip" ? (
-                        <span className="inline-block rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
-                          VIP билет
-                        </span>
-                      ) : null}
-                      {signup.usePass !== "none" ? (
-                        <span className="inline-block rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
-                          {PASS_LABELS[signup.usePass]}
-                        </span>
-                      ) : null}
-                    </span>
+                    {signup.ticketType === "vip" || signup.usePass !== "none" ? (
+                      <span className="tma-row__badges">
+                        {signup.ticketType === "vip" ? (
+                          <span className="tma-badge tma-badge--gold">VIP билет</span>
+                        ) : null}
+                        {signup.usePass !== "none" ? (
+                          <span className="tma-badge tma-badge--green">{PASS_LABELS[signup.usePass]}</span>
+                        ) : null}
+                      </span>
+                    ) : null}
                   </span>
-                  <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />
+                  <UserPlus className="shrink-0 text-[var(--tma-link)]" size={18} />
                 </button>
               ))}
             </div>
           ) : null}
 
-          <div className="space-y-2">
-            {withoutCard.length > 0 && waitingSignups.length > 0 ? (
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                {cardsEnabled ? "Уже за столом, без карты" : "В ростере, но не за столом"}
-              </p>
-            ) : null}
-            {withoutCard.map((player) => (
-              <button
-                key={player.id}
-                className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left disabled:opacity-60"
-                disabled={busy}
-                type="button"
-                onClick={() => startSeatingPlayer(player)}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold">{player.name}</span>
-                  <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                    {player.registrationNumber ? `#${player.registrationNumber}` : "без номера"}
-                    {player.table ? ` · стол ${player.table}` : ""}
-                    {player.seat ? ` · место ${nameSeat(tableFormats, Number(player.table), player.seat)}` : ""}
-                  </span>
+          {withoutCard.length > 0 ? (
+            <div className="tma-card tma-card--flush">
+              <div className="tma-card__head">
+                <span className="text-sm">
+                  {cardsEnabled ? "Уже за столом, без карты" : "В ростере, но не за столом"}
                 </span>
-                <UserPlus className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />
-              </button>
-            ))}
+                <span className="tma-card__head-meta">{withoutCard.length}</span>
+              </div>
+              {withoutCard.map((player) => (
+                <button
+                  key={player.id}
+                  className="tma-row"
+                  disabled={busy}
+                  type="button"
+                  onClick={() => startSeatingPlayer(player)}
+                >
+                  <span className="tma-row__body">
+                    <span className="tma-row__title">{player.name}</span>
+                    <span className="tma-row__sub">
+                      {player.registrationNumber ? `#${player.registrationNumber}` : "без номера"}
+                      {player.table ? ` · стол ${player.table}` : ""}
+                      {player.seat ? ` · место ${nameSeat(tableFormats, Number(player.table), player.seat)}` : ""}
+                    </span>
+                  </span>
+                  <UserPlus className="shrink-0 text-[var(--tma-link)]" size={18} />
+                </button>
+              ))}
+            </div>
+          ) : null}
 
-            {withoutCard.length === 0 && waitingSignups.length === 0 ? (
-              <p className="py-6 text-center text-[var(--tg-theme-hint-color)]">
-                {search
-                  ? "Никого не нашли"
-                  : cardsEnabled
-                    ? "Все за столами и с картами"
-                    : "Все записавшиеся уже за столами"}
-              </p>
-            ) : null}
-          </div>
-        </div>
+          {withoutCard.length === 0 && waitingSignups.length === 0 ? (
+            <p className="tma-empty">
+              {search
+                ? "Никого не нашли"
+                : cardsEnabled
+                  ? "Все за столами и с картами"
+                  : "Все записавшиеся уже за столами"}
+            </p>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
@@ -916,10 +917,11 @@ function PaidToggle({
 }) {
   return (
     <button
-      className={`flex w-full items-center justify-between gap-3 rounded-lg p-3 text-sm font-semibold disabled:opacity-60 ${
+      aria-pressed={paid}
+      className={`flex min-h-12 w-full items-center justify-between gap-3 rounded-xl border-0 px-3 text-[15px] font-semibold disabled:opacity-60 ${
         paid
-          ? "bg-green-500/15 text-green-500"
-          : "bg-[var(--tg-theme-bg-color)] text-[var(--tg-theme-text-color)]"
+          ? "bg-[rgba(62,207,106,0.14)] text-[var(--tma-green)]"
+          : "bg-[var(--tma-surface-2)] text-[var(--tma-text)]"
       }`}
       disabled={busy}
       type="button"
@@ -929,14 +931,8 @@ function PaidToggle({
         {paid ? <Check size={16} /> : <Wallet size={16} />}
         {paid ? "Оплатил" : "Не оплатил"}
       </span>
-      <span
-        className={`flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition ${
-          paid ? "bg-green-500/70" : "bg-[var(--tg-theme-hint-color)]/35"
-        }`}
-      >
-        <span
-          className={`h-5 w-5 rounded-full bg-white transition ${paid ? "translate-x-5" : ""}`}
-        />
+      <span aria-hidden="true" className={`tma-toggle-switch${paid ? " tma-toggle-switch--on" : ""}`}>
+        <span className="tma-toggle-switch__knob" />
       </span>
     </button>
   );
@@ -948,21 +944,21 @@ function ChargeRow({ label, line }: { label: string; line: ChargeLine & { free?:
   if (line.count === 0 && !line.free) return null;
 
   return (
-    <div className="flex items-baseline justify-between gap-2 text-sm">
-      <span className="text-[var(--tg-theme-hint-color)]">
+    <div className="tma-kv">
+      <span className="tma-kv__label">
         {label}
         {line.count > 1 ? ` × ${line.count}` : ""}
       </span>
-      <span className="font-semibold">{line.sum.toLocaleString("ru-RU")} ₽</span>
+      <span className="tma-kv__value tma-num">{line.sum.toLocaleString("ru-RU")} ₽</span>
     </div>
   );
 }
 
 function Counter({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-lg bg-[var(--tg-theme-bg-color)] p-3">
-      <p className="text-xl font-bold">{value}</p>
-      <p className="text-[11px] text-[var(--tg-theme-hint-color)]">{label}</p>
+    <div className="tma-stat items-center rounded-[10px] bg-[var(--tma-surface-2)] p-2.5 text-center">
+      <span className="tma-stat__value">{value}</span>
+      <span className="tma-stat__label">{label}</span>
     </div>
   );
 }
