@@ -348,7 +348,7 @@ describe("the waiting list at the desk", () => {
     render(<TMASignupsPage />);
 
     await screen.findByText("Ace High");
-    expect(screen.queryByText(/Лист ожидания/)).toBeNull();
+    expect(screen.queryByText(/Очередь/)).toBeNull();
   });
 
   // Folded away by default: most evenings the desk works the sign-ups and never opens it.
@@ -356,20 +356,20 @@ describe("the waiting list at the desk", () => {
     mockFetch({ waitlist: [QUEUED] });
     render(<TMASignupsPage />);
 
-    await screen.findByText("Лист ожидания (1)");
+    await screen.findByText("Очередь · 1");
     expect(screen.queryByText(/Иван Очередь/)).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: /Лист ожидания/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Очередь/ }));
 
-    expect(screen.getByText("1. Иван Очередь")).toBeTruthy();
+    expect(screen.getByText("Иван Очередь")).toBeTruthy();
   });
 
   it("opens the questionnaire of a player in the queue", async () => {
     const fetchMock = mockFetch({ waitlist: [QUEUED] });
     render(<TMASignupsPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
-    fireEvent.click(screen.getByText("1. Иван Очередь"));
+    fireEvent.click(await screen.findByRole("button", { name: /Очередь/ }));
+    fireEvent.click(screen.getByText("Иван Очередь"));
 
     await screen.findByText("Иван Иванов");
     expect(fetchMock).toHaveBeenCalledWith(
@@ -386,8 +386,8 @@ describe("the waiting list at the desk", () => {
     const fetchMock = mockFetch({ waitlist: [QUEUED] });
     render(<TMASignupsPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
-    fireEvent.click(screen.getByText("1. Иван Очередь"));
+    fireEvent.click(await screen.findByRole("button", { name: /Очередь/ }));
+    fireEvent.click(screen.getByText("Иван Очередь"));
     fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
     fireEvent.click(screen.getByRole("button", { name: "VIP билет" }));
     fireEvent.click(screen.getByRole("button", { name: /Посадить на случайное место/ }));
@@ -412,8 +412,8 @@ describe("the waiting list at the desk", () => {
     mockFetch({ waitlist: [{ ...QUEUED, seated: true }] });
     render(<TMASignupsPage />);
 
-    fireEvent.click(await screen.findByRole("button", { name: /Лист ожидания/ }));
-    fireEvent.click(screen.getByText("1. Иван Очередь"));
+    fireEvent.click(await screen.findByRole("button", { name: /Очередь/ }));
+    fireEvent.click(screen.getByText("Иван Очередь"));
 
     await screen.findByText("Иван Иванов");
     expect(screen.getByText("Уже за столом")).toBeTruthy();

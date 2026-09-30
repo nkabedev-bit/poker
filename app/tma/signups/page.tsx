@@ -1,17 +1,17 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import {
-  Armchair,
+  CalendarClock,
   CheckCircle2,
-  ChevronDown,
-  ChevronLeft,
-  ChevronUp,
+  ChevronRight,
   ClipboardList,
   Dices,
   Hourglass,
+  Ticket,
+  Users,
 } from "lucide-react";
+import { ScreenHeader, SectionLabel } from "../ui";
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
 import { formatEventDayLabel, formatEventTimeLabel } from "@/lib/events/types";
@@ -104,9 +104,9 @@ export default function TMASignupsPage() {
   const [players, setPlayers] = useState<TournamentPlayer[]>([]);
   const [seatChoice, setSeatChoice] = useState<SeatChoice | null>(null);
   const [seatingOpen, setSeatingOpen] = useState(false);
-  // The queue is folded away: most evenings the desk works the sign-ups and never opens
-  // it, and it only matters when somebody fails to turn up.
-  const [waitlistOpen, setWaitlistOpen] = useState(false);
+  // Which list is open. The queue sits behind its own tab: most evenings the desk works
+  // the sign-ups and never opens it, and it only matters when somebody fails to turn up.
+  const [listTab, setListTab] = useState<"seated" | "waiting" | "waitlist">("waiting");
   // Somebody from the queue, opened: their questionnaire first, then the ticket and the
   // chair once the desk decides to sit them down.
   const [queueEntry, setQueueEntry] = useState<WaitlistEntry | null>(null);
@@ -283,126 +283,25 @@ export default function TMASignupsPage() {
     }
   };
 
-  if (loading) return <div>Загрузка...</div>;
+  if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   // Only tonight's players go to tonight's tables. A Thursday sign-up seated now would
   // join a tournament nobody put them in.
   const canSeat = data?.event?.seatingOpen ?? false;
 
-  // Somebody from the queue: their questionnaire first, then — once the desk sits them
-  // down — the ticket and the chair.
-  if (queueEntry) {
-    const queueDisabledClass = seatingId ? " opacity-60 cursor-not-allowed" : "";
+  const notTonight = (
+    <div className="tma-note tma-note--amber">
+      <CalendarClock size={18} />
+      <span>Игра не сегодня — посадить за стол можно будет в день турнира.</span>
+    </div>
+  );
 
-    if (!queueSeatingOpen) {
-      return (
-        <div className="space-y-4">
-          <button
-            className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-            type="button"
-            onClick={closeQueueEntry}
-          >
-            <ChevronLeft size={18} /> К заявкам
-          </button>
-
-          <h1 className="text-xl font-bold">{queueEntry.name}</h1>
-
-          <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm">
-            <p className="font-semibold">Лист ожидания</p>
-            <p className="mt-1 text-[var(--tg-theme-hint-color)]">
-              Просил: {TICKET_LABELS[queueEntry.ticketType]}
-            </p>
-            {queueEntry.offerExpiresAt && !queueEntry.seated ? (
-              <p className="mt-1 text-[#e9c07a]">
-                Место держим до {formatEventTimeLabel(queueEntry.offerExpiresAt)}
-              </p>
-            ) : null}
-          </div>
-
-          <ClientProfileCard
-            accountId={queueEntry.userId}
-            className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4"
-            telegramId={queueEntry.telegramId}
-          />
-
-          {queueEntry.seated ? (
-            <p className="flex items-center gap-2 text-sm text-green-500">
-              <CheckCircle2 size={16} /> Уже за столом
-            </p>
-          ) : canSeat ? (
-            <button
-              className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)]"
-              type="button"
-              onClick={() => setQueueSeatingOpen(true)}
-            >
-              Посадить за стол
-            </button>
-          ) : (
-            <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm text-[var(--tg-theme-hint-color)]">
-              Игра не сегодня — посадить за стол можно будет в день турнира.
-            </p>
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-4">
-        <button
-          className={`flex items-center gap-2 text-[var(--tg-theme-button-color)]${queueDisabledClass}`}
-          disabled={Boolean(seatingId)}
-          type="button"
-          onClick={() => setQueueSeatingOpen(false)}
-        >
-          <ChevronLeft size={18} /> К анкете
-        </button>
-
-        <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-          <p className="text-lg font-bold">{queueEntry.name}</p>
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">Из листа ожидания</p>
-        </div>
-
-        {/* The queue said what they hoped for; what they get is decided here, at the
-            door, and that is the ticket they pay for. */}
-        <div>
-          <p className="mb-2 text-sm font-semibold">Какой билет</p>
-          <div className="grid grid-cols-2 gap-2">
-            {(["regular", "vip"] as const).map((ticket) => (
-              <button
-                key={ticket}
-                className={`rounded-lg p-3 text-sm font-semibold ${
-                  queueTicket === ticket
-                    ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
-                    : "bg-[var(--tg-theme-secondary-bg-color)]"
-                }`}
-                disabled={Boolean(seatingId)}
-                type="button"
-                onClick={() => {
-                  setQueueTicket(ticket);
-                  setSeatChoice(null);
-                }}
-              >
-                {TICKET_LABELS[ticket]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <button
-          className={`flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold${queueDisabledClass}`}
-          disabled={Boolean(seatingId)}
-          type="button"
-          onClick={async () => {
-            const picked = await drawSeat(queueTicket);
-            if (!picked) return;
-
-            setSeatChoice(picked);
-            void seatFromQueue(queueEntry, picked);
-          }}
-        >
-          <Dices size={18} /> Посадить на случайное место
-        </button>
-
+  const seatingPlan = (onRandom: () => void, disabled: boolean) => (
+    <>
+      <button className="tma-btn tma-btn--link" disabled={disabled} type="button" onClick={onRandom}>
+        <Dices size={18} /> Посадить на случайное место
+      </button>
+      <div className="tma-card">
         <SeatingPicker
           changingTable={changingTable}
           players={players}
@@ -416,17 +315,119 @@ export default function TMASignupsPage() {
           }}
           onTakenSeat={(name) => getTelegramWebApp()?.showAlert(`Место занято: ${name}`)}
         />
+      </div>
+    </>
+  );
 
-        <button
-          className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-          disabled={Boolean(seatingId) || !seatChoice}
-          type="button"
-          onClick={() => seatChoice && void seatFromQueue(queueEntry, seatChoice)}
-        >
-          {seatChoice
-            ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
-            : "Выберите место"}
-        </button>
+  const seatButton = (onSeat: (choice: SeatChoice) => void, disabled: boolean) => (
+    <div className="tma-cta-bar">
+      <button
+        className="tma-btn tma-btn--primary tma-btn--big"
+        disabled={disabled || !seatChoice}
+        type="button"
+        onClick={() => seatChoice && onSeat(seatChoice)}
+      >
+        {seatChoice
+          ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
+          : "Выберите место"}
+      </button>
+    </div>
+  );
+
+  // Somebody from the queue: their questionnaire first, then — once the desk sits them
+  // down — the ticket and the chair.
+  if (queueEntry) {
+    if (!queueSeatingOpen) {
+      return (
+        <div className="tma-screen">
+          <ScreenHeader back={{ label: "Заявки", onClick: closeQueueEntry }} title="Лист ожидания" />
+
+          <div className="tma-card">
+            <span className="text-[20px] font-bold">{queueEntry.name}</span>
+            <span className="tma-row__badges">
+              <span className={`tma-badge${queueEntry.ticketType === "vip" ? " tma-badge--gold" : ""}`}>
+                Просил: {TICKET_LABELS[queueEntry.ticketType]}
+              </span>
+              {queueEntry.username ? <span className="tma-badge">@{queueEntry.username}</span> : null}
+            </span>
+            {queueEntry.offerExpiresAt && !queueEntry.seated ? (
+              <div className="tma-note tma-note--amber">
+                <Hourglass size={18} />
+                <span>Место держим до {formatEventTimeLabel(queueEntry.offerExpiresAt)}</span>
+              </div>
+            ) : null}
+          </div>
+
+          <SectionLabel title="Анкета" />
+          <ClientProfileCard
+            accountId={queueEntry.userId}
+            className="tma-card"
+            telegramId={queueEntry.telegramId}
+          />
+
+          {queueEntry.seated ? (
+            <div className="tma-note tma-note--green">
+              <CheckCircle2 size={18} />
+              <span>Уже за столом</span>
+            </div>
+          ) : canSeat ? (
+            <div className="tma-cta-bar">
+              <button
+                className="tma-btn tma-btn--primary tma-btn--big"
+                type="button"
+                onClick={() => setQueueSeatingOpen(true)}
+              >
+                Посадить за стол
+              </button>
+            </div>
+          ) : (
+            notTonight
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className="tma-screen">
+        <ScreenHeader
+          back={{ disabled: Boolean(seatingId), label: "К анкете", onClick: () => setQueueSeatingOpen(false) }}
+          title="Куда сажаем"
+        />
+
+        <div className="tma-card">
+          <span className="text-[20px] font-bold">{queueEntry.name}</span>
+          <span className="tma-hint">Из листа ожидания</span>
+        </div>
+
+        {/* The queue said what they hoped for; what they get is decided here, at the
+            door, and that is the ticket they pay for. */}
+        <SectionLabel title="Какой билет" />
+        <div className="tma-segment">
+          {(["regular", "vip"] as const).map((ticket) => (
+            <button
+              key={ticket}
+              aria-pressed={queueTicket === ticket}
+              disabled={Boolean(seatingId)}
+              type="button"
+              onClick={() => {
+                setQueueTicket(ticket);
+                setSeatChoice(null);
+              }}
+            >
+              {TICKET_LABELS[ticket]}
+            </button>
+          ))}
+        </div>
+
+        {seatingPlan(async () => {
+          const picked = await drawSeat(queueTicket);
+          if (!picked) return;
+
+          setSeatChoice(picked);
+          void seatFromQueue(queueEntry, picked);
+        }, Boolean(seatingId))}
+
+        {seatButton((choice) => void seatFromQueue(queueEntry, choice), Boolean(seatingId))}
       </div>
     );
   }
@@ -436,115 +437,77 @@ export default function TMASignupsPage() {
   if (opened) {
     if (seatingOpen) {
       return (
-        <div className="space-y-4">
-          <button
-            className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-            type="button"
-            onClick={() => setSeatingOpen(false)}
-          >
-            <ChevronLeft size={18} /> К анкете
-          </button>
+        <div className="tma-screen">
+          <ScreenHeader back={{ label: "К анкете", onClick: () => setSeatingOpen(false) }} title="Куда сажаем" />
 
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Armchair size={20} /> Куда сажаем
-          </h1>
-
-          <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4">
-            <p className="text-lg font-bold">{opened.name}</p>
-            <p className="text-sm text-[var(--tg-theme-hint-color)]">
-              {TICKET_LABELS[opened.ticketType]}
-            </p>
+          <div className="tma-card">
+            <span className="text-[20px] font-bold">{opened.name}</span>
+            <span className="tma-hint">{TICKET_LABELS[opened.ticketType]}</span>
           </div>
 
-          <button
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 font-semibold disabled:opacity-60"
-            disabled={seatingId !== null}
-            type="button"
-            onClick={() => void seatAtRandom(opened)}
-          >
-            <Dices size={18} /> Посадить на случайное место
-          </button>
-
-          <SeatingPicker
-            changingTable={changingTable}
-            players={players}
-            selected={seatChoice}
-            tableFormats={tableFormats}
-            tablesCount={data?.tablesCount ?? 1}
-            onChangeTableFormat={(table, direction) => void handleTableFormat(table, direction)}
-            onSelect={(choice) => {
-              getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
-              setSeatChoice(choice);
-            }}
-            onTakenSeat={(name) => getTelegramWebApp()?.showAlert(`Место занято: ${name}`)}
-          />
-
-          <button
-            className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)] disabled:opacity-60"
-            disabled={seatingId !== null || !seatChoice}
-            type="button"
-            onClick={() => seatChoice && void seat(opened, seatChoice)}
-          >
-            {seatChoice
-              ? `Посадить за стол ${seatChoice.table}, место ${nameSeat(tableFormats, seatChoice.table, seatChoice.seat)}`
-              : "Выберите место"}
-          </button>
+          {seatingPlan(() => void seatAtRandom(opened), seatingId !== null)}
+          {seatButton((choice) => void seat(opened, choice), seatingId !== null)}
         </div>
       );
     }
 
     return (
-      <div className="space-y-4">
-        <button
-          className="flex items-center gap-2 text-[var(--tg-theme-button-color)]"
-          type="button"
-          onClick={closeSignup}
-        >
-          <ChevronLeft size={18} /> К заявкам
-        </button>
+      <div className="tma-screen">
+        <ScreenHeader back={{ label: "Заявки", onClick: closeSignup }} title="Заявка" />
 
-        <h1 className="text-xl font-bold">{opened.name}</h1>
-
-        <div className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm">
-          <p className="font-semibold">{TICKET_LABELS[opened.ticketType]}</p>
+        <div className="tma-card">
+          <span className="text-[20px] font-bold">{opened.name}</span>
+          <span className="tma-row__badges">
+            <TicketBadge ticket={opened.ticketType} />
+            {opened.username ? <span className="tma-badge">@{opened.username}</span> : null}
+          </span>
           {opened.reserved ? (
-            <p className="mt-1 text-[#e9c07a]">
-              Билет отложен админом — игрок ещё не подтвердил, что придёт.
-            </p>
+            <div className="tma-note tma-note--amber">
+              <Hourglass size={18} />
+              <span>Билет отложен админом — игрок ещё не подтвердил, что придёт.</span>
+            </div>
           ) : null}
           {opened.usePass !== "none" ? (
-            <p className="mt-1 text-emerald-500">Вход {PASS_LABELS[opened.usePass]}</p>
+            <div className="tma-note tma-note--green">
+              <Ticket size={18} />
+              <span>Вход {PASS_LABELS[opened.usePass]}</span>
+            </div>
           ) : null}
           {opened.partnerName ? (
-            <p className="mt-1 text-[#7ad0f0]">
-              С ним придёт {opened.partnerName} — добавьте вторым игроком вручную, оба
-              платят половину билета.
-            </p>
+            <div className="tma-note tma-note--blue">
+              <Users size={18} />
+              <span>
+                С ним придёт {opened.partnerName} — добавьте вторым игроком вручную, оба
+                платят половину билета.
+              </span>
+            </div>
           ) : null}
         </div>
 
+        <SectionLabel title="Анкета" />
         <ClientProfileCard
           accountId={opened.userId}
-          className="rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4"
+          className="tma-card"
           telegramId={opened.telegramId}
         />
 
         {opened.seated ? (
-          <p className="flex items-center gap-2 text-sm text-green-500">
-            <CheckCircle2 size={16} /> Уже за столом
-          </p>
+          <div className="tma-note tma-note--green">
+            <CheckCircle2 size={18} />
+            <span>Уже за столом</span>
+          </div>
         ) : canSeat ? (
-          <button
-            className="w-full rounded-lg bg-[var(--tg-theme-button-color)] p-4 font-semibold text-[var(--tg-theme-button-text-color)]"
-            type="button"
-            onClick={() => setSeatingOpen(true)}
-          >
-            Посадить за стол
-          </button>
+          <div className="tma-cta-bar">
+            <button
+              className="tma-btn tma-btn--primary tma-btn--big"
+              type="button"
+              onClick={() => setSeatingOpen(true)}
+            >
+              Посадить за стол
+            </button>
+          </div>
         ) : (
-          <p className="rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-sm text-[var(--tg-theme-hint-color)]">
-            Игра не сегодня — посадить за стол можно будет в день турнира.
-          </p>
+          notTonight
         )}
       </div>
     );
@@ -553,229 +516,204 @@ export default function TMASignupsPage() {
   const signups = data?.signups ?? [];
   const waiting = signups.filter((signup) => !signup.seated && !signup.noShow);
   const noShows = signups.filter((signup) => signup.noShow);
+  const seated = signups.filter((signup) => signup.seated);
   const waitlist = data?.waitlist ?? [];
+  // The queue's tab goes away with the queue; the list falls back to the sign-ups.
+  const tab = listTab === "waitlist" && waitlist.length === 0 ? "waiting" : listTab;
 
   return (
-    <div className="space-y-4">
-      <Link className="flex items-center gap-2 text-[var(--tg-theme-button-color)]" href="/tma/players">
-        <ChevronLeft size={18} /> Игроки
-      </Link>
-
-      <h1 className="text-xl font-bold flex items-center gap-2">
-        <ClipboardList size={20} /> Заявки
-      </h1>
+    <div className="tma-screen">
+      <ScreenHeader back={{ href: "/tma/players", label: "Зал" }} title="Заявки" />
 
       {/* The club posts a week at a time, and the desk is asked about all of it: who is
           coming on Thursday, whether Sunday is filling up. */}
       {(data?.events?.length ?? 0) > 1 ? (
-        <div className="overflow-x-auto pb-1">
-          <div className="flex w-max gap-2">
-            {data?.events?.map((item) => {
-              const chosen = item.id === data.event?.id;
-
-              return (
-                <button
-                  key={item.id}
-                  className={`rounded-xl px-4 py-2.5 text-left ${
-                    chosen
-                      ? "bg-[var(--tg-theme-button-color)] text-[var(--tg-theme-button-text-color)]"
-                      : "bg-[var(--tg-theme-secondary-bg-color)]"
-                  }`}
-                  type="button"
-                  onClick={() => setSelectedId(item.id)}
-                >
-                  <span className="block whitespace-nowrap text-sm font-semibold">
-                    {formatEventDayLabel(item.startsAt)}
-                  </span>
-                  <span
-                    className={`block whitespace-nowrap text-xs ${
-                      chosen ? "opacity-75" : "text-[var(--tg-theme-hint-color)]"
-                    }`}
-                  >
-                    записались: {item.signupsCount}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
+        <div className="tma-chips">
+          {data?.events?.map((item) => (
+            <button
+              key={item.id}
+              aria-pressed={item.id === data.event?.id}
+              className="tma-chip tma-chip--tall"
+              type="button"
+              onClick={() => setSelectedId(item.id)}
+            >
+              <span className="block whitespace-nowrap">{formatEventDayLabel(item.startsAt)}</span>
+              <span className="tma-chip__sub whitespace-nowrap">записались: {item.signupsCount}</span>
+            </button>
+          ))}
         </div>
       ) : null}
 
       {data?.event ? (
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl">
-          <p className="font-semibold">{data.event.title}</p>
-          <p className="text-sm text-[var(--tg-theme-hint-color)]">
-            {formatEventDayLabel(data.event.startsAt)}, {formatEventTimeLabel(data.event.startsAt)}
-          </p>
+        <div className="tma-card">
+          <span className="text-[17px] font-bold">{data.event.title}</span>
+          <span className="tma-hint">
+            {formatEventDayLabel(data.event.startsAt)}, {formatEventTimeLabel(data.event.startsAt)} ·{" "}
+            {signups.length} заяв.
+          </span>
           {canSeat ? null : (
-            <p className="mt-1 text-sm text-[#e9c07a]">
+            <span className="text-sm text-[var(--tma-amber)]">
               Игра не сегодня — список смотрим, за стол сажаем в день турнира.
-            </p>
+            </span>
           )}
         </div>
       ) : (
-        <div className="bg-[var(--tg-theme-secondary-bg-color)] p-4 rounded-xl text-sm">
-          Нет опубликованных турниров впереди. Создайте афишу в веб-админке.
+        <div className="tma-note">
+          <ClipboardList size={18} />
+          <span>Нет опубликованных турниров впереди. Создайте афишу во вкладке «Ещё».</span>
         </div>
       )}
 
-      {waitlist.length > 0 ? (
-        <div className="space-y-2">
-          <button
-            className="flex w-full items-center justify-between gap-3 rounded-xl bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left"
-            type="button"
-            onClick={() => setWaitlistOpen((open) => !open)}
-          >
-            <span className="flex items-center gap-2 font-semibold">
-              <Hourglass size={18} /> Лист ожидания ({waitlist.length})
-            </span>
-            {waitlistOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+      <div className="tma-segment">
+        <button aria-pressed={tab === "waiting"} type="button" onClick={() => setListTab("waiting")}>
+          Ждут · {waiting.length}
+        </button>
+        {waitlist.length > 0 ? (
+          <button aria-pressed={tab === "waitlist"} type="button" onClick={() => setListTab("waitlist")}>
+            Очередь · {waitlist.length}
           </button>
-
-          {waitlistOpen ? (
-            <div className="space-y-2 pl-2">
-              <p className="text-xs text-[var(--tg-theme-hint-color)]">
-                Очередь идёт сверху вниз: место, освободившееся в приложении, полчаса
-                держат за первым в ней. Нажмите на игрока, чтобы открыть анкету и
-                посадить за стол.
-              </p>
-              {waitlist.map((entry, index) => (
-                <button
-                  key={entry.id}
-                  className={`flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-3 text-left${
-                    entry.seated ? " opacity-60" : ""
-                  }`}
-                  type="button"
-                  onClick={() => openQueueEntry(entry)}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate font-semibold">
-                      {index + 1}. {entry.name}
-                    </span>
-                    <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                      {entry.seated
-                        ? "уже за столом"
-                        : entry.offerExpiresAt
-                          ? `место держим до ${formatEventTimeLabel(entry.offerExpiresAt)}`
-                          : entry.username
-                            ? `@${entry.username}`
-                            : TICKET_LABELS[entry.ticketType]}
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-2">
-                    {entry.seated ? (
-                      <CheckCircle2 className="text-[#7ad0f0]" size={18} />
-                    ) : entry.ticketType === "vip" ? (
-                      <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
-                        VIP
-                      </span>
-                    ) : entry.ticketType === "duo" || entry.ticketType === "duo_plus_one" ? (
-                      <span className="rounded-full bg-[#7ad0f0]/15 px-2 py-0.5 text-[11px] font-bold text-[#7ad0f0]">
-                        1+1
-                      </span>
-                    ) : null}
-                    {/* The same way into the questionnaire as every sign-up below. */}
-                    <ClipboardList className="text-[var(--tg-theme-button-color)]" size={18} />
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="space-y-2">
-        {waiting.map((signup) => (
-          <button
-            key={signup.id}
-            className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left"
-            type="button"
-            onClick={() => openSignup(signup)}
-          >
-            <span className="min-w-0">
-              <span className="block truncate font-semibold">{signup.name}</span>
-              <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                {signup.username
-                  ? `@${signup.username}`
-                  : signup.telegramId
-                    ? "записался в приложении"
-                    : "записался на сайте"}
-              </span>
-              {signup.partnerName ? (
-                <span className="block text-xs text-[var(--tg-theme-hint-color)]">
-                  +1: {signup.partnerName}
-                </span>
-              ) : null}
-              <span className="mt-1 flex flex-wrap gap-1.5">
-                {signup.reserved ? (
-                  <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
-                    отложен · не подтвердил
-                  </span>
-                ) : null}
-                {signup.ticketType === "vip" ? (
-                  <span className="rounded-full bg-[#e9c07a]/15 px-2 py-0.5 text-[11px] font-bold text-[#e9c07a]">
-                    VIP
-                  </span>
-                ) : null}
-                {signup.ticketType === "duo" || signup.ticketType === "duo_plus_one" ? (
-                  <span className="rounded-full bg-[#7ad0f0]/15 px-2 py-0.5 text-[11px] font-bold text-[#7ad0f0]">
-                    1+1
-                  </span>
-                ) : null}
-                {signup.usePass !== "none" ? (
-                  <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-500">
-                    {PASS_LABELS[signup.usePass]}
-                  </span>
-                ) : null}
-              </span>
-            </span>
-            <ClipboardList className="shrink-0 text-[var(--tg-theme-button-color)]" size={18} />
-          </button>
-        ))}
-
-        {waiting.length === 0 ? (
-          <div className="py-8 text-center text-[var(--tg-theme-hint-color)]">
-            {signups.length === 0 ? "Заявок пока нет" : "Все записавшиеся уже за столами"}
-          </div>
         ) : null}
-
-        {/* Their place went to the queue, and they may still walk in an hour late: the
-            desk needs to see what happened rather than find them simply gone. */}
-        {noShows.map((signup) => (
-          <button
-            key={signup.id}
-            className="flex w-full items-center justify-between gap-3 rounded-lg bg-[var(--tg-theme-secondary-bg-color)] p-4 text-left opacity-60"
-            type="button"
-            onClick={() => openSignup(signup)}
-          >
-            <span className="min-w-0">
-              <span className="block truncate font-semibold line-through">{signup.name}</span>
-              <span className="mt-1 block">
-                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-[var(--tg-theme-hint-color)]">
-                  не пришёл · место отдано
-                </span>
-              </span>
-            </span>
-            <ClipboardList className="shrink-0 text-[var(--tg-theme-hint-color)]" size={18} />
-          </button>
-        ))}
+        <button aria-pressed={tab === "seated"} type="button" onClick={() => setListTab("seated")}>
+          За столом · {seated.length}
+        </button>
       </div>
 
-      {signups.some((signup) => signup.seated) ? (
-        <section className="space-y-2 pt-2">
-          <h2 className="text-sm text-[var(--tg-theme-hint-color)]">Уже за столом</h2>
-          {signups
-            .filter((signup) => signup.seated)
-            .map((signup) => (
-              <div
-                key={signup.id}
-                className="flex items-center gap-2 bg-[var(--tg-theme-secondary-bg-color)] p-3 rounded-lg text-sm"
+      {tab === "waitlist" ? (
+        <>
+          <p className="tma-hint tma-hint--pad">
+            Очередь идёт сверху вниз: место, освободившееся в приложении, полчаса держат за
+            первым в ней. Нажмите на игрока, чтобы открыть анкету и посадить за стол.
+          </p>
+          <div className="tma-card tma-card--flush">
+            {waitlist.map((entry, index) => (
+              <button
+                key={entry.id}
+                className={`tma-row${entry.seated ? " tma-row--dim" : ""}`}
+                type="button"
+                onClick={() => openQueueEntry(entry)}
               >
-                <CheckCircle2 className="text-green-500" size={16} /> {signup.name}
-              </div>
+                <span className="tma-row__lead">{index + 1}</span>
+                <span className="tma-row__body">
+                  <span className="tma-row__title">{entry.name}</span>
+                  <span className="tma-row__sub">
+                    {entry.seated
+                      ? "уже за столом"
+                      : entry.offerExpiresAt
+                        ? `место держим до ${formatEventTimeLabel(entry.offerExpiresAt)}`
+                        : entry.username
+                          ? `@${entry.username}`
+                          : TICKET_LABELS[entry.ticketType]}
+                  </span>
+                </span>
+                <span className="flex shrink-0 items-center gap-2">
+                  {entry.seated ? (
+                    <CheckCircle2 className="text-[var(--tma-cyan)]" size={18} />
+                  ) : entry.ticketType === "vip" ? (
+                    <span className="tma-badge tma-badge--gold">VIP</span>
+                  ) : entry.ticketType === "duo" || entry.ticketType === "duo_plus_one" ? (
+                    <span className="tma-badge tma-badge--cyan">1+1</span>
+                  ) : null}
+                  {/* The same way into the questionnaire as every sign-up. */}
+                  <ChevronRight className="tma-muted" size={18} />
+                </span>
+              </button>
             ))}
-        </section>
+          </div>
+        </>
+      ) : null}
+
+      {tab === "waiting" ? (
+        <>
+          <div className="tma-card tma-card--flush">
+            {waiting.map((signup) => (
+              <button
+                key={signup.id}
+                className="tma-row"
+                type="button"
+                onClick={() => openSignup(signup)}
+              >
+                <span className="tma-row__body">
+                  <span className="tma-row__title">{signup.name}</span>
+                  <span className="tma-row__sub">
+                    {signup.username
+                      ? `@${signup.username}`
+                      : signup.telegramId
+                        ? "записался в приложении"
+                        : "записался на сайте"}
+                  </span>
+                  {signup.partnerName ? (
+                    <span className="tma-row__sub">+1: {signup.partnerName}</span>
+                  ) : null}
+                  {signup.reserved || signup.ticketType !== "regular" || signup.usePass !== "none" ? (
+                    <span className="tma-row__badges">
+                      {signup.reserved ? (
+                        <span className="tma-badge tma-badge--amber">отложен · не подтвердил</span>
+                      ) : null}
+                      {signup.ticketType === "vip" ? <span className="tma-badge tma-badge--gold">VIP</span> : null}
+                      {signup.ticketType === "duo" || signup.ticketType === "duo_plus_one" ? (
+                        <span className="tma-badge tma-badge--cyan">1+1</span>
+                      ) : null}
+                      {signup.usePass !== "none" ? (
+                        <span className="tma-badge tma-badge--green">{PASS_LABELS[signup.usePass]}</span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </span>
+                <ChevronRight className="tma-muted shrink-0" size={18} />
+              </button>
+            ))}
+
+            {waiting.length === 0 ? (
+              <div className="tma-empty">
+                {signups.length === 0 ? "Заявок пока нет" : "Все записавшиеся уже за столами"}
+              </div>
+            ) : null}
+
+            {/* Their place went to the queue, and they may still walk in an hour late: the
+                desk needs to see what happened rather than find them simply gone. */}
+            {noShows.map((signup) => (
+              <button
+                key={signup.id}
+                className="tma-row tma-row--dim"
+                type="button"
+                onClick={() => openSignup(signup)}
+              >
+                <span className="tma-row__body">
+                  <span className="tma-row__title tma-row__title--struck">{signup.name}</span>
+                  <span className="tma-row__badges">
+                    <span className="tma-badge">не пришёл · место отдано</span>
+                  </span>
+                </span>
+                <ChevronRight className="tma-muted shrink-0" size={18} />
+              </button>
+            ))}
+          </div>
+          {waiting.length > 0 ? (
+            <p className="tma-hint tma-hint--pad">Нажмите на игрока — откроется анкета и выбор места.</p>
+          ) : null}
+        </>
+      ) : null}
+
+      {tab === "seated" ? (
+        <div className="tma-card tma-card--flush">
+          {seated.map((signup) => (
+            <div key={signup.id} className="tma-row">
+              <CheckCircle2 className="shrink-0 text-[var(--tma-green)]" size={18} />
+              <span className="tma-row__body">
+                <span className="tma-row__title">{signup.name}</span>
+              </span>
+            </div>
+          ))}
+          {seated.length === 0 ? <div className="tma-empty">За столами пока никого из заявок</div> : null}
+        </div>
       ) : null}
     </div>
   );
+}
+
+/** The ticket a sign-up came in on, in the colour the lists use for it. */
+function TicketBadge({ ticket }: { ticket: Signup["ticketType"] }) {
+  const tone =
+    ticket === "vip" ? " tma-badge--gold" : ticket === "duo" || ticket === "duo_plus_one" ? " tma-badge--cyan" : "";
+  return <span className={`tma-badge${tone}`}>{TICKET_LABELS[ticket]}</span>;
 }
