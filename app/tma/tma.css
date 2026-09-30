@@ -1,0 +1,1207 @@
+/*
+ * The desk's mini-app, dark variant A of the admin redesign.
+ *
+ * Written without a layer on purpose: app/globals.css styles bare inputs, selects and
+ * labels outside any layer for the web admin, and only rules outside a layer can win
+ * against them. Every rule here is scoped to .tma-app, so the web admin and the players'
+ * mini-app are untouched.
+ *
+ * The Telegram theme variables are redefined inside the app as well. Every screen was
+ * written against them, and the desk now works in one dark palette whatever theme the
+ * admin's Telegram is in.
+ */
+.tma-app {
+  --tma-bg: #0e0f11;
+  --tma-surface: #1b1c1f;
+  --tma-surface-2: #26282c;
+  --tma-surface-3: #303338;
+  --tma-line: rgba(255, 255, 255, 0.08);
+  --tma-text: #f2f2f3;
+  --tma-hint: #9a9ea6;
+  --tma-accent: #2472c8;
+  --tma-accent-soft: #9ccbff;
+  --tma-link: #6cb2ff;
+  --tma-green: #3ecf6a;
+  --tma-amber: #f0a54a;
+  --tma-gold: #e9c07a;
+  --tma-cyan: #7ad0f0;
+  --tma-danger: #b83434;
+  --tma-danger-text: #ff8080;
+  --tma-felt: #1f4d36;
+  --tma-felt-edge: #2f6e4e;
+
+  --tg-theme-bg-color: var(--tma-bg);
+  --tg-theme-secondary-bg-color: var(--tma-surface);
+  --tg-theme-text-color: var(--tma-text);
+  --tg-theme-hint-color: var(--tma-hint);
+  --tg-theme-button-color: var(--tma-accent);
+  --tg-theme-button-text-color: #ffffff;
+  --tg-theme-link-color: var(--tma-link);
+  --tg-theme-destructive-text-color: var(--tma-danger-text);
+
+  color-scheme: dark;
+  background: var(--tma-bg);
+  color: var(--tma-text);
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.35;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tma-app button {
+  color: inherit;
+  cursor: pointer;
+}
+
+.tma-app button:disabled {
+  cursor: not-allowed;
+}
+
+/* Fields: the web admin's gold outline and 12px type do not belong on the desk's phone.
+   Kept at one class of weight with :where(), so a field inside a component (the search
+   box) can still be restyled by that component. */
+.tma-app :where(input:not([type="checkbox"]):not([type="radio"]):not([type="file"])),
+.tma-app :where(select),
+.tma-app :where(textarea) {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--tma-surface-2);
+  color: var(--tma-text);
+  padding: 10px 12px;
+  font-size: 15px;
+  outline: none;
+  box-shadow: none;
+}
+
+/* Tailwind's min-h-* sits in a layer and cannot reach past the rule above. */
+.tma-app :where(textarea) {
+  min-height: 112px;
+  resize: vertical;
+}
+
+/* Heavier than the web admin's gold `input:focus`, which would win at one class. */
+.tma-app input:focus,
+.tma-app select:focus,
+.tma-app textarea:focus {
+  border-color: var(--tma-accent);
+  box-shadow: 0 0 0 2px rgba(36, 114, 200, 0.25);
+}
+
+.tma-app :where(input, textarea)::placeholder {
+  color: var(--tma-hint);
+}
+
+.tma-app input[type="checkbox"] {
+  width: 22px;
+  height: 22px;
+  min-height: 22px;
+  flex-shrink: 0;
+  accent-color: var(--tma-accent);
+}
+
+/* ——— Frame ——— */
+
+.tma-frame {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+.tma-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The bottom tabs. */
+.tma-nav {
+  display: flex;
+  align-items: stretch;
+  border-top: 1px solid var(--tma-line);
+  background: var(--tma-surface);
+  /* Clears the iPhone home indicator. */
+  padding: 0 4px env(safe-area-inset-bottom);
+  height: calc(64px + env(safe-area-inset-bottom));
+}
+
+.tma-nav__item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--tma-hint);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tma-nav__item--active {
+  color: var(--tma-link);
+}
+
+/* The tournament's clock, over every screen the desk works during play. */
+.tma-statusbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 8px 16px;
+  min-height: 60px;
+  background: var(--tma-surface);
+  border-bottom: 1px solid var(--tma-line);
+}
+
+.tma-statusbar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--tma-hint);
+  flex-shrink: 0;
+}
+
+.tma-statusbar__dot--running {
+  background: var(--tma-green);
+}
+
+.tma-statusbar__dot--paused {
+  background: var(--tma-amber);
+}
+
+.tma-statusbar__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.tma-statusbar__main {
+  font-size: 15px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tma-statusbar__clock {
+  color: var(--tma-green);
+}
+
+.tma-statusbar__clock--paused {
+  color: var(--tma-amber);
+}
+
+.tma-statusbar__sub {
+  font-size: 12px;
+  color: var(--tma-hint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ——— Screen ——— */
+
+.tma-screen {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  padding: 4px 16px 20px;
+}
+
+/* A screen that ends with its action keeps the bar flush with the bottom. */
+.tma-screen:has(> .tma-cta-bar) {
+  padding-bottom: 0;
+}
+
+.tma-screen--centered {
+  padding-top: 12px;
+}
+
+.tma-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 48px;
+}
+
+.tma-header__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 22px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A screen opened from another: the way back on the left, its name in the middle. */
+.tma-header--nested .tma-header__title {
+  font-size: 16px;
+  text-align: center;
+}
+
+.tma-header__side {
+  flex: 0 0 auto;
+  min-width: 72px;
+  display: flex;
+  gap: 8px;
+}
+
+.tma-header__side--end {
+  justify-content: flex-end;
+}
+
+.tma-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--tma-link) !important;
+  font-size: 15px;
+}
+
+.tma-back:disabled {
+  opacity: 0.5;
+}
+
+.tma-icon-btn {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 20px;
+  background: var(--tma-surface-2);
+  color: var(--tma-text);
+}
+
+.tma-icon-btn--primary {
+  background: var(--tma-accent);
+  color: #ffffff;
+}
+
+.tma-icon-btn--danger {
+  background: transparent;
+  color: var(--tma-danger-text);
+}
+
+.tma-icon-btn--round44 {
+  width: 44px;
+  height: 44px;
+  border-radius: 22px;
+  background: var(--tma-surface-3);
+}
+
+.tma-section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 4px 0;
+  font-size: 12px;
+  color: var(--tma-hint);
+}
+
+.tma-section-label__title {
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.tma-hint {
+  font-size: 13px;
+  color: var(--tma-hint);
+}
+
+.tma-hint--pad {
+  padding: 0 4px;
+}
+
+.tma-empty {
+  padding: 32px 0;
+  text-align: center;
+  color: var(--tma-hint);
+}
+
+.tma-muted {
+  color: var(--tma-hint);
+}
+
+.tma-danger-text {
+  color: var(--tma-danger-text);
+}
+
+.tma-num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ——— Surfaces ——— */
+
+.tma-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border-radius: 14px;
+  background: var(--tma-surface);
+  padding: 14px;
+}
+
+.tma-card--flush {
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.tma-card--inset {
+  background: var(--tma-surface-2);
+}
+
+.tma-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.tma-card__head-meta {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--tma-hint);
+}
+
+.tma-divider {
+  height: 1px;
+  background: var(--tma-line);
+}
+
+/* A strip of figures: the room's counts, a player's stack and re-entries. */
+.tma-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tma-stats--inline {
+  gap: 12px 8px;
+}
+
+.tma-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.tma-stat--tile {
+  border-radius: 14px;
+  background: var(--tma-surface);
+  padding: 10px;
+}
+
+.tma-stat__label {
+  font-size: 12px;
+  color: var(--tma-hint);
+}
+
+.tma-stat__value {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tma-stat__value--amber {
+  color: var(--tma-amber);
+}
+
+.tma-kv {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 14px;
+}
+
+.tma-kv__label {
+  color: var(--tma-hint);
+}
+
+.tma-kv__value {
+  font-weight: 600;
+  text-align: right;
+}
+
+/* Something the desk has to read before going on. */
+.tma-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+  background: var(--tma-surface);
+  color: var(--tma-hint);
+}
+
+.tma-note--amber {
+  background: rgba(240, 165, 74, 0.12);
+  color: var(--tma-amber);
+}
+
+.tma-note--green {
+  background: rgba(62, 207, 106, 0.12);
+  color: var(--tma-green);
+}
+
+.tma-note--blue {
+  background: rgba(108, 178, 255, 0.12);
+  color: var(--tma-link);
+}
+
+.tma-note--red {
+  background: rgba(184, 52, 52, 0.18);
+  color: var(--tma-danger-text);
+}
+
+.tma-note svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* A banner that leads somewhere, like the queue of sign-ups over the room. */
+.tma-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(240, 165, 74, 0.12);
+  color: var(--tma-amber);
+  font-weight: 600;
+}
+
+.tma-banner--neutral {
+  background: var(--tma-surface);
+  color: var(--tma-text);
+}
+
+.tma-banner__text {
+  flex: 1 1 auto;
+}
+
+/* ——— Lists ——— */
+
+.tma-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tma-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: none;
+  border-top: 1px solid var(--tma-line);
+  background: none;
+  color: var(--tma-text);
+  text-align: left;
+}
+
+.tma-row:disabled {
+  opacity: 0.5;
+}
+
+.tma-row--tile {
+  border-top: none;
+  border-radius: 14px;
+  background: var(--tma-surface);
+  padding: 12px 14px;
+  min-height: 60px;
+}
+
+.tma-row--dim {
+  opacity: 0.55;
+}
+
+.tma-row--owes {
+  box-shadow: inset 0 0 0 1px rgba(255, 128, 128, 0.45);
+  background: rgba(184, 52, 52, 0.12);
+}
+
+.tma-row--paid {
+  box-shadow: inset 0 0 0 1px rgba(62, 207, 106, 0.3);
+  background: rgba(62, 207, 106, 0.08);
+}
+
+.tma-row__lead {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: var(--tma-surface-2);
+  color: var(--tma-hint);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tma-row__lead--out {
+  color: var(--tma-danger-text);
+}
+
+.tma-row__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tma-row__title {
+  display: block;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tma-row__title--struck {
+  text-decoration: line-through;
+}
+
+.tma-row__sub {
+  display: block;
+  font-size: 12px;
+  color: var(--tma-hint);
+}
+
+.tma-row__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.tma-row__end {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.tma-row__end--accent {
+  color: var(--tma-link);
+}
+
+.tma-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 10px;
+  background: var(--tma-surface-2);
+  color: var(--tma-hint);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tma-badge--green {
+  background: rgba(62, 207, 106, 0.14);
+  color: var(--tma-green);
+}
+
+.tma-badge--red {
+  background: rgba(255, 128, 128, 0.16);
+  color: var(--tma-danger-text);
+}
+
+.tma-badge--amber {
+  background: rgba(240, 165, 74, 0.14);
+  color: var(--tma-amber);
+}
+
+.tma-badge--gold {
+  background: rgba(233, 192, 122, 0.15);
+  color: var(--tma-gold);
+}
+
+.tma-badge--cyan {
+  background: rgba(122, 208, 240, 0.15);
+  color: var(--tma-cyan);
+}
+
+.tma-badge--blue {
+  background: rgba(108, 178, 255, 0.15);
+  color: var(--tma-link);
+}
+
+/* ——— Controls ——— */
+
+.tma-btn {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 12px;
+  background: var(--tma-surface);
+  color: var(--tma-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tma-btn:disabled {
+  opacity: 0.45;
+}
+
+.tma-btn--primary {
+  background: var(--tma-accent);
+  color: #ffffff;
+}
+
+.tma-btn--big {
+  min-height: 52px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tma-btn--danger {
+  background: var(--tma-danger);
+  color: #ffffff;
+}
+
+.tma-btn--danger-soft {
+  background: rgba(184, 52, 52, 0.22);
+  color: var(--tma-danger-text);
+}
+
+.tma-btn--danger-text {
+  color: var(--tma-danger-text);
+}
+
+.tma-btn--success {
+  background: #1f7a3f;
+  color: #ffffff;
+}
+
+.tma-btn--gold {
+  background: var(--tma-gold);
+  color: #1b1405;
+}
+
+.tma-btn--link {
+  color: var(--tma-link);
+}
+
+.tma-btn--inset {
+  background: var(--tma-surface-2);
+}
+
+.tma-btn--ghost {
+  background: transparent;
+  color: var(--tma-hint);
+  min-height: 44px;
+}
+
+.tma-btn--auto {
+  width: auto;
+}
+
+.tma-btn-row {
+  display: flex;
+  gap: 8px;
+}
+
+.tma-btn-row > * {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.tma-btn-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+/* Square actions on a player's card: add-on, move, knocked out. */
+.tma-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tma-tile {
+  min-height: 72px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 4px;
+  border: none;
+  border-radius: 14px;
+  background: var(--tma-surface);
+  color: var(--tma-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tma-tile:disabled {
+  color: var(--tma-hint);
+  opacity: 0.7;
+}
+
+.tma-tile--danger {
+  background: rgba(184, 52, 52, 0.22);
+  color: var(--tma-danger-text);
+}
+
+.tma-tile--primary {
+  background: var(--tma-accent);
+  color: #ffffff;
+}
+
+/* The row of pills that filters a list by table. */
+.tma-chips {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0 -16px;
+  padding: 0 16px;
+}
+
+.tma-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.tma-chip {
+  flex-shrink: 0;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--tma-line);
+  border-radius: 17px;
+  background: var(--tma-surface);
+  color: var(--tma-text);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tma-chip[aria-pressed="true"] {
+  border-color: var(--tma-accent);
+  background: var(--tma-accent);
+  color: #ffffff;
+}
+
+/* A bigger pill with a second line: the evenings on the sign-ups screen. */
+.tma-chip--tall {
+  height: auto;
+  padding: 8px 14px;
+  border-radius: 14px;
+  text-align: left;
+}
+
+.tma-chip__sub {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.tma-segment {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--tma-surface);
+}
+
+.tma-segment > * {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--tma-hint);
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tma-segment > [aria-pressed="true"],
+.tma-segment > [aria-current="page"] {
+  background: var(--tma-surface-3);
+  color: var(--tma-text);
+}
+
+/* One answer out of a few, with a line saying what it means. */
+.tma-choice {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 2px solid var(--tma-surface-2);
+  border-radius: 14px;
+  background: var(--tma-surface);
+  color: var(--tma-text);
+  text-align: left;
+}
+
+.tma-choice:disabled {
+  opacity: 0.45;
+}
+
+.tma-choice--primary {
+  border-color: var(--tma-accent);
+}
+
+.tma-choice--danger {
+  border-color: rgba(255, 128, 128, 0.7);
+}
+
+.tma-choice__body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tma-choice__title {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tma-choice__sub {
+  display: block;
+  font-size: 13px;
+  color: var(--tma-hint);
+}
+
+/* Big even buttons, the prize deck and the counts under it. */
+.tma-options {
+  display: grid;
+  gap: 8px;
+}
+
+.tma-options--3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.tma-options--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tma-option {
+  min-height: 52px;
+  border: none;
+  border-radius: 12px;
+  background: var(--tma-surface-2);
+  color: var(--tma-text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.tma-option--primary {
+  background: var(--tma-accent);
+  color: #ffffff;
+}
+
+.tma-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--tma-text);
+}
+
+.tma-field__label {
+  font-size: 12px;
+  color: var(--tma-hint);
+}
+
+/* A field with an icon inside it — the search boxes. */
+.tma-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: var(--tma-surface);
+  color: var(--tma-hint);
+}
+
+.tma-app .tma-search input,
+.tma-app .tma-search input:focus {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  border: none;
+  padding: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.tma-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  background: var(--tma-surface);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--tma-text);
+}
+
+.tma-toggle__text {
+  flex: 1 1 auto;
+}
+
+/* The action a screen ends with, held at the bottom while the list scrolls. */
+.tma-cta-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  /* Down to the bottom of the screen when the content above is short. */
+  margin: auto -16px 0;
+  padding: 8px 12px 12px;
+  background: var(--tma-bg);
+  border-top: 1px solid var(--tma-line);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* The undo strip over the list, right after a knockout is written. */
+.tma-undo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 12px;
+  background: var(--tma-surface-3);
+  font-size: 14px;
+}
+
+.tma-undo__text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tma-undo button {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--tma-link);
+  font-weight: 700;
+}
+
+/* Where the knockout flow is, as numbered steps. */
+.tma-steps {
+  display: flex;
+  gap: 6px;
+}
+
+.tma-steps__item {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--tma-hint);
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.tma-steps__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--tma-surface-3);
+}
+
+.tma-steps__item--done .tma-steps__bar,
+.tma-steps__item--current .tma-steps__bar {
+  background: var(--tma-accent);
+}
+
+.tma-steps__item--current {
+  color: var(--tma-text);
+  font-weight: 600;
+}
+
+/* The big clock on the tournament screen. */
+.tma-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 14px;
+  text-align: center;
+}
+
+.tma-clock__time {
+  font-size: 56px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tma-clock__time--paused {
+  color: var(--tma-amber);
+}
+
+.tma-clock__blinds {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.tma-toggle-switch {
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  border-radius: 13px;
+  background: var(--tma-surface-3);
+  transition: background 0.15s;
+}
+
+.tma-toggle-switch__knob {
+  width: 20px;
+  height: 20px;
+  border-radius: 10px;
+  background: #ffffff;
+  transition: transform 0.15s;
+}
+
+.tma-toggle-switch--on {
+  background: var(--tma-green);
+}
+
+.tma-toggle-switch--on .tma-toggle-switch__knob {
+  transform: translateX(18px);
+}
+
+/* ——— Seating plan, in the room's colours ——— */
+
+.tma-app .seating-picker {
+  gap: 18px;
+}
+
+.tma-app .seating-table__header {
+  color: var(--tma-text);
+  font-size: 14px;
+}
+
+.tma-app .seating-table__actions button {
+  background: var(--tma-surface-2);
+  color: var(--tma-link);
+  min-height: 32px;
+}
+
+.tma-app .seating-table__felt {
+  background: var(--tma-felt);
+  border-color: var(--tma-felt-edge);
+}
+
+.tma-app .seating-seat {
+  background: var(--tma-bg);
+  color: var(--tma-green);
+  box-shadow: inset 0 0 0 2px var(--tma-green);
+}
+
+.tma-app .seating-seat--taken {
+  background: var(--tma-surface-3);
+  color: var(--tma-hint);
+  box-shadow: none;
+}
+
+.tma-app .seating-seat--selected {
+  background: var(--tma-accent);
+  color: #ffffff;
+  box-shadow: inset 0 0 0 2px var(--tma-accent-soft), 0 0 0 3px rgba(36, 114, 200, 0.35);
+}
+
+.seating-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--tg-theme-hint-color);
+}
+
+.seating-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.seating-legend__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 6px;
+}
+
+.seating-legend__dot--free {
+  background: var(--tma-bg, #0e0f11);
+  box-shadow: inset 0 0 0 2px var(--tma-green, #3ecf6a);
+}
+
+.seating-legend__dot--taken {
+  background: var(--tma-surface-3, #303338);
+}
+
+.seating-legend__dot--selected {
+  background: var(--tma-accent, #2472c8);
+  box-shadow: inset 0 0 0 2px var(--tma-accent-soft, #9ccbff);
+}

@@ -4,12 +4,19 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, CalendarPlus, CreditCard, Users, Clock, Skull } from "lucide-react";
+import { CircleEllipsis, Clock, CreditCard, Skull, Users } from "lucide-react";
+import { TMA_DESK_CHANGED_EVENT, TournamentClockProvider, TournamentStatusBar } from "./tournament-clock";
+import "./tma.css";
 
 export type TelegramWebApp = {
   initData?: string;
   ready: () => void;
   expand: () => void;
+  // Paint Telegram's own header and the space around the app in the desk's colours, so
+  // the dark screens do not sit inside a light frame. Missing on old clients.
+  setHeaderColor?: (color: string) => void;
+  setBackgroundColor?: (color: string) => void;
+  setBottomBarColor?: (color: string) => void;
   // Telegram calls back once the admin closes the alert, which is how one message can
   // be made to come before the next screen.
   showAlert: (message: string, callback?: () => void) => void;
@@ -51,6 +58,27 @@ declare global {
 export function getTelegramWebApp() {
   return window.Telegram?.WebApp;
 }
+
+/** The desk's own dark ground and bars, as the frame around the app should match. */
+const FRAME_COLORS = { background: "#0e0f11", bar: "#1b1c1f" } as const;
+
+/**
+ * The tabs of the desk. A screen opened from one of them — the sign-ups from the room,
+ * the broadcast from "Ещё" — keeps its tab lit, so the admin always knows where they are.
+ */
+const TABS = [
+  { href: "/tma/players", icon: <Users size={22} />, label: "Зал", match: ["/players", "/signups"] },
+  { href: "/tma/eliminations", icon: <Skull size={22} />, label: "Вылеты", match: ["/eliminations"] },
+  { href: "/tma/cards", icon: <CreditCard size={22} />, label: "Касса", match: ["/cards"] },
+  { href: "/tma/control", icon: <Clock size={22} />, label: "Турнир", match: ["/control"] },
+  { href: "/tma/events", icon: <CircleEllipsis size={22} />, label: "Ещё", match: ["/events", "/bot"] },
+] as const;
+
+/**
+ * The screens worked during play carry the clock on top. The tournament screen shows it
+ * large itself, and the posters and the bot have nothing to do with the running game.
+ */
+const CLOCK_SCREENS = ["/players", "/signups", "/eliminations", "/cards"];
 
 /** Long enough to read the seat, short enough that a silent client is not a dead end. */
 const SEATED_ALERT_TIMEOUT_MS = 10_000;
@@ -100,6 +128,9 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
     if (tg) {
       tg.ready();
       tg.expand();
+      tg.setHeaderColor?.(FRAME_COLORS.bar);
+      tg.setBackgroundColor?.(FRAME_COLORS.background);
+      tg.setBottomBarColor?.(FRAME_COLORS.bar);
       setInitData(tg.initData || "mock");
     }
   }, []);
@@ -122,38 +153,67 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
       />
       
       {!initData ? (
-        <div className="flex items-center justify-center h-screen bg-black text-[var(--tg-theme-text-color,#fff)]">
-          Loading...
-        </div>
+        <div className="tma-app flex h-screen items-center justify-center">Загрузка…</div>
       ) : (
         <TMAContext.Provider value={{ initData }}>
-          <div className="flex flex-col h-[100dvh] bg-[var(--tg-theme-bg-color,#000)] text-[var(--tg-theme-text-color,#fff)]">
-            {/* The bar is part of the column rather than pinned to the viewport: a
-                fixed bar has to be paid for with padding on every screen, and it drifts
-                over the content whenever the keyboard resizes the window. */}
-            <main className="flex-1 overflow-y-auto p-4 pb-6">
-              {children}
-            </main>
-            <nav className="flex h-16 shrink-0 items-center justify-around border-t border-[var(--tg-theme-hint-color,rgba(255,255,255,0.1))] bg-[var(--tg-theme-secondary-bg-color,#1c1c1e)] pb-[env(safe-area-inset-bottom)] [height:calc(4rem+env(safe-area-inset-bottom))]">
-              <NavItem href="/tma/players" icon={<Users />} label="Игроки" active={pathname.includes("/players")} />
-              <NavItem href="/tma/control" icon={<Clock />} label="Управление" active={pathname.includes("/control")} />
-              <NavItem href="/tma/eliminations" icon={<Skull />} label="Выбывания" active={pathname.includes("/eliminations")} />
-              <NavItem href="/tma/cards" icon={<CreditCard />} label="Карты" active={pathname.includes("/cards")} />
-              <NavItem href="/tma/events" icon={<CalendarPlus />} label="Афиши" active={pathname.includes("/events")} />
-              <NavItem href="/tma/bot" icon={<Bot />} label="Тг бот" active={pathname.includes("/bot")} />
-            </nav>
-          </div>
+          <TournamentClockProvider initData={initData} pathname={pathname}>
+            <div className="tma-app tma-frame">
+              {CLOCK_SCREENS.some((screen) => pathname.includes(screen)) ? (
+                <TournamentStatusBar onToggle={(action) => void toggleClock(initData, action)} />
+              ) : null}
+              {/* The bar is part of the column rather than pinned to the viewport: a
+                  fixed bar has to be paid for with padding on every screen, and it drifts
+                  over the content whenever the keyboard resizes the window. */}
+              <main className="tma-main overflow-y-auto">{children}</main>
+              <nav className="tma-nav shrink-0 pb-[env(safe-area-inset-bottom)]">
+                {TABS.map((tab) => (
+                  <NavItem
+                    key={tab.href}
+                    active={tab.match.some((part) => pathname.includes(part))}
+                    href={tab.href}
+                    icon={tab.icon}
+                    label={tab.label}
+                  />
+                ))}
+              </nav>
+            </div>
+          </TournamentClockProvider>
         </TMAContext.Provider>
       )}
     </>
   );
 }
 
+/**
+ * Pauses or resumes the clock from the header. The pulse then sees the change and every
+ * screen, the header included, reads it back.
+ */
+async function toggleClock(initData: string, action: "pause" | "start") {
+  const tg = getTelegramWebApp();
+  tg?.HapticFeedback.impactOccurred("medium");
+
+  const res = await fetch(`/api/tma/timer/${action}`, {
+    method: "POST",
+    headers: { "X-Telegram-Init-Data": initData },
+  }).catch(() => null);
+
+  if (!res?.ok) {
+    tg?.HapticFeedback.notificationOccurred("error");
+    tg?.showAlert(action === "pause" ? "Не удалось поставить паузу" : "Не удалось продолжить");
+  }
+
+  window.dispatchEvent(new Event(TMA_DESK_CHANGED_EVENT));
+}
+
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
   return (
-    <Link href={href} className={`flex flex-col items-center justify-center w-full h-full space-y-1 ${active ? "text-[var(--tg-theme-button-color,#3390ec)]" : "text-[var(--tg-theme-hint-color,#8e8e93)]"}`}>
+    <Link
+      aria-current={active ? "page" : undefined}
+      className={`tma-nav__item${active ? " tma-nav__item--active" : ""}`}
+      href={href}
+    >
       {icon}
-      <span className="text-[10px] font-medium">{label}</span>
+      <span>{label}</span>
     </Link>
   );
 }

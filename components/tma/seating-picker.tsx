@@ -60,6 +60,17 @@ export function SeatingPicker({
           table={table}
         />
       ))}
+      <div aria-hidden="true" className="seating-legend">
+        <span className="seating-legend__item">
+          <span className="seating-legend__dot seating-legend__dot--free" /> свободно
+        </span>
+        <span className="seating-legend__item">
+          <span className="seating-legend__dot seating-legend__dot--taken" /> занято
+        </span>
+        <span className="seating-legend__item">
+          <span className="seating-legend__dot seating-legend__dot--selected" /> выбрано
+        </span>
+      </div>
     </div>
   );
 }

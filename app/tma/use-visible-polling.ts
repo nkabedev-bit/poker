@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { timeoutSignal } from "@/lib/timeout-signal";
 import { useTMA } from "./layout";
+import { TMA_DESK_CHANGED_EVENT } from "./tournament-clock";
 
 /** How often an open admin screen asks whether anything has changed. */
 export const TMA_POLL_INTERVAL_MS = 5000;
@@ -79,6 +80,9 @@ export function useVisiblePolling(callback: () => void, enabled = true) {
         // The first answer reloads too: something may have changed between the screen's
         // own first read and this one.
         const moved = next !== null && next !== version;
+        // The first answer only sets the mark: the header read the clock on its own
+        // when the screen opened.
+        const movedSinceSeen = moved && version !== null;
         const unreadable = next === null && sinceReload >= TMA_UNREADABLE_RELOAD_MS;
         const stale = sinceReload >= TMA_FULL_REFRESH_MS;
         // A lost answer leaves the last one standing: once the fingerprint comes back,
@@ -88,6 +92,9 @@ export function useVisiblePolling(callback: () => void, enabled = true) {
         if (moved || unreadable || stale) {
           reloadedAt = Date.now();
           callbackRef.current();
+          // The clock in the header reads the timer on the same news, and only when
+          // something actually moved: a scheduled reload changes nothing on it.
+          if (movedSinceSeen) window.dispatchEvent(new Event(TMA_DESK_CHANGED_EVENT));
         }
       } finally {
         busy = false;

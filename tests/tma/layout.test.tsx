@@ -61,6 +61,22 @@ describe("TMALayout", () => {
     expect(nav.className).toContain("shrink-0");
   });
 
+  // The broadcast lives under "Ещё" with the posters, so that tab stays lit on it.
+  it("lays out the five desk tabs and lights the one the screen belongs to", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({})));
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await screen.findByText("TMA content");
+
+    const tabs = screen.getAllByRole("link").map((link) => link.textContent);
+    expect(tabs).toEqual(["Зал", "Вылеты", "Касса", "Турнир", "Ещё"]);
+    expect(screen.getByRole("link", { current: "page" }).textContent).toBe("Ещё");
+  });
+
   it("clears the iPhone home indicator under the tabs", async () => {
     render(
       <TMALayout>
