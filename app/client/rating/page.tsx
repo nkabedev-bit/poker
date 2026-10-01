@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { tickClientSelection, useClientTMA } from "../layout";
 import Link from "next/link";
@@ -19,8 +19,6 @@ type RatingResponse = {
   seasons: RatingSeason[];
 };
 
-type SortKey = "eliminations" | "points";
-
 /** When the player's own row is looked for: once the table has come in. */
 const FIND_ME_SCROLL_MS = 600;
 /** How long the row is marked as found — two rings of the gold. */
@@ -30,49 +28,16 @@ function stillScreen() {
   return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-/** Where each row of the table stands on the screen, by its key. */
-function readRowTops(list: HTMLElement | null) {
-  const tops = new Map<string, number>();
-  list?.querySelectorAll<HTMLElement>("[data-row]").forEach((row) => {
-    tops.set(row.dataset.row ?? "", row.getBoundingClientRect().top);
-  });
-  return tops;
-}
-
-/**
- * Slides every row from where it stood to where it stands now, so a change of sorting
- * reads as players changing places rather than as a new list being dealt.
- */
-function slideRowsFrom(list: HTMLElement | null, before: Map<string, number>) {
-  if (!list || stillScreen()) return;
-
-  list.querySelectorAll<HTMLElement>("[data-row]").forEach((row) => {
-    const top = before.get(row.dataset.row ?? "");
-    if (top === undefined || typeof row.animate !== "function") return;
-
-    const shift = top - row.getBoundingClientRect().top;
-    if (Math.abs(shift) < 1) return;
-
-    row.animate([{ transform: `translateY(${shift}px)` }, { transform: "none" }], {
-      duration: 450,
-      easing: "cubic-bezier(0.2, 0.8, 0.2, 1)",
-    });
-  });
-}
-
 export default function ClientRatingPage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
   const [seasonId, setSeasonId] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("eliminations");
   // Raised each time a table comes in, and on «Найти меня»: the player's own row is
   // brought into view and rings. A count, so a second tap looks again.
   const [findMe, setFindMe] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
-  // The rows as they stood before the sorting changed, for them to travel from.
-  const rowsBefore = useRef<Map<string, number> | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -101,23 +66,9 @@ export default function ClientRatingPage() {
       ? all.filter((player) => player.name.toLowerCase().includes(search))
       : all;
 
-    const withPhoto = withOwnPhoto(filtered, telegramUser?.photo_url);
-
-    if (sortKey === "points") {
-      // Places stay as the server ranked them; sorting only reorders what is shown.
-      return [...withPhoto].sort((a, b) => (b.points ?? 0) - (a.points ?? 0));
-    }
-
-    return withPhoto;
-  }, [data, query, sortKey, telegramUser]);
-
-  useLayoutEffect(() => {
-    const before = rowsBefore.current;
-    if (!before) return;
-
-    rowsBefore.current = null;
-    slideRowsFrom(listRef.current, before);
-  }, [players]);
+    // In the order the server ranked them: points first, knockouts to break a tie.
+    return withOwnPhoto(filtered, telegramUser?.photo_url);
+  }, [data, query, telegramUser]);
 
   // "Here you are": a player far down the table is taken to their row, which rings.
   useEffect(() => {
@@ -141,23 +92,15 @@ export default function ClientRatingPage() {
     };
   }, [findMe]);
 
-  const chooseSort = (next: SortKey) => {
-    if (next === sortKey) return;
-
-    tickClientSelection();
-    rowsBefore.current = readRowTops(listRef.current);
-    setSortKey(next);
-  };
-
   if (loading) return <LoadingScreen shape="rating" />;
 
   const seasons = data?.seasons ?? [];
   const selected = data?.season ?? null;
 
   const me = data?.me ? withOwnPhoto([data.me], telegramUser?.photo_url)[0] : undefined;
-  // The top three stand on a podium above the table while it is read in its own order;
-  // searched or re-sorted, the table is simply a list again.
-  const podium = !query && sortKey === "eliminations" && players.length > 3 ? players.slice(0, 3) : [];
+  // The top three stand on a podium above the table; searched, the table is simply a
+  // list again.
+  const podium = !query && players.length > 3 ? players.slice(0, 3) : [];
   const rows = podium.length > 0 ? players.slice(3) : players;
   const meVisible = players.some((player) => player.isMe);
   const finding = findMe > 0;
@@ -238,22 +181,6 @@ export default function ClientRatingPage() {
         />
       </label>
 
-      <div className="flex gap-1 rounded-2xl border border-club-line bg-club-surface p-1">
-        {SORTS.map((sort) => (
-          <button
-            key={sort.key}
-            aria-pressed={sortKey === sort.key}
-            className={`h-10 flex-1 rounded-xl text-[14px] font-bold transition-colors ${
-              sortKey === sort.key ? "bg-club-text text-[#15100f]" : "text-club-muted"
-            }`}
-            type="button"
-            onClick={() => chooseSort(sort.key)}
-          >
-            {sort.label}
-          </button>
-        ))}
-      </div>
-
       {players.length === 0 ? (
         <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
           <Trophy className="text-club-faint" size={28} />
@@ -315,11 +242,6 @@ export default function ClientRatingPage() {
     </div>
   );
 }
-
-const SORTS: ReadonlyArray<{ key: SortKey; label: string }> = [
-  { key: "eliminations", label: "По нокаутам" },
-  { key: "points", label: "По рейтингу" },
-];
 
 const PODIUM_STYLE = {
   1: { avatar: 64, color: "#e2bc6e", height: 116 },

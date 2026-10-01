@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const tickClientSelection = vi.hoisted(() => vi.fn());
@@ -60,18 +60,13 @@ describe("the rating", () => {
     expect(mine?.textContent).toContain("Ace");
   });
 
-  it("changes places on a tap of the sorting, ticking the phone once per change", async () => {
+  it("keeps the table in the order of places, with no sorting to switch", async () => {
     serve();
     const { container } = render(<ClientRatingPage />);
     await screen.findByText("Mr.Shark");
 
     expect(rowOrder(container)).toEqual(["1-Mr.Shark", "2-River", "3-Ace"]);
-
-    fireEvent.click(screen.getByRole("button", { name: "По рейтингу" }));
-    expect(rowOrder(container)).toEqual(["2-River", "1-Mr.Shark", "3-Ace"]);
-    expect(tickClientSelection).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "По рейтингу" }));
-    expect(tickClientSelection).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("button", { name: "По нокаутам" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "По рейтингу" })).toBeNull();
   });
 });
