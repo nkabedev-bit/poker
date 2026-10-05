@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Bot } from "grammy";
+import { createBot } from "@/lib/telegram/bot-client";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
 import { monthName, moscowNextMonth, pickBirthdaysInMonth } from "@/lib/client-bot/birthdays";
@@ -53,7 +53,7 @@ export async function POST() {
   }
 
   try {
-    await new Bot(token).api.sendMessage(BIRTHDAY_ADMIN_CHAT_ID, digest.message);
+    await createBot(token).api.sendMessage(BIRTHDAY_ADMIN_CHAT_ID, digest.message);
   } catch (error) {
     console.error("Could not send the month digest", error);
     return NextResponse.json({ error: "Телеграм не принял сообщение" }, { status: 502 });

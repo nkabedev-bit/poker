@@ -1,4 +1,5 @@
-import { Bot, webhookCallback, type Context } from "grammy";
+import { webhookCallback, type Context } from "grammy";
+import { createBot } from "@/lib/telegram/bot-client";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
@@ -29,7 +30,7 @@ import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30; // max 30s timeout
 
-const bot = new Bot(process.env.TELEGRAM_BOT_TOKEN || "mock");
+const bot = createBot(process.env.TELEGRAM_BOT_TOKEN || "mock");
 
 bot.command("start", async (ctx) => {
   const adminId = ctx.from?.id;

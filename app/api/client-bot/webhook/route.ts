@@ -1,5 +1,6 @@
 import { after } from "next/server";
-import { Bot, webhookCallback, type Context } from "grammy";
+import { webhookCallback, type Context } from "grammy";
+import { createBot } from "@/lib/telegram/bot-client";
 import { createClient } from "@supabase/supabase-js";
 import {
   buildClientMiniAppReplyMarkup,
@@ -73,7 +74,7 @@ async function sendWelcome(ctx: Context) {
   });
 }
 
-const bot = new Bot(getBotToken());
+const bot = createBot(getBotToken());
 
 /** The pass a "1+1" link carries: t.me/<bot>?start=duo_<token>. */
 const DUO_INVITE_PREFIX = "duo_";

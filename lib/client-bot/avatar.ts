@@ -8,10 +8,11 @@ import {
   pickAvatarPhotoSize,
   type TelegramPhotoSize,
 } from "@/lib/client-bot/avatar-policy";
+import { telegramApiRoot } from "@/lib/telegram/bot-client";
 
 async function telegramApi<T>(token: string, method: string, params: Record<string, string>) {
   const query = new URLSearchParams(params).toString();
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}?${query}`);
+  const res = await fetch(`${telegramApiRoot()}/bot${token}/${method}?${query}`);
   if (!res.ok) throw new Error(`Telegram ${method} failed with ${res.status}`);
 
   const payload = (await res.json()) as { ok: boolean; result?: T };
@@ -60,7 +61,7 @@ export async function syncClientBotAvatar({
   });
   if (!file?.file_path) return null;
 
-  const download = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`);
+  const download = await fetch(`${telegramApiRoot()}/file/bot${token}/${file.file_path}`);
   if (!download.ok) throw new Error(`Avatar download failed with ${download.status}`);
 
   const sharp = (await import("sharp")).default;

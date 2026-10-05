@@ -1,6 +1,7 @@
 import "server-only";
 
-import { Bot, GrammyError } from "grammy";
+import { type Bot, GrammyError } from "grammy";
+import { createBot } from "@/lib/telegram/bot-client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 
@@ -14,7 +15,7 @@ const SEND_BATCH_MS = 1000;
 export function getClientBot(): Bot | null {
   const token = process.env.CLIENT_TELEGRAM_BOT_TOKEN;
   if (!token) return null;
-  return new Bot(token);
+  return createBot(token);
 }
 
 /**

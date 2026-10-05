@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { Bot } from "grammy";
+import { createBot } from "@/lib/telegram/bot-client";
 import { createClient } from "@supabase/supabase-js";
 import { getServerEnv } from "@/lib/env";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   if (!token) {
     return NextResponse.json({ error: "TELEGRAM_BOT_TOKEN is not configured" }, { status: 503 });
   }
-  const bot = new Bot(token);
+  const bot = createBot(token);
 
   const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
   const accounts = await readBirthdayAccounts(supabase);
