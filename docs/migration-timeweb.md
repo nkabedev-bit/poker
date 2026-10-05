@@ -57,7 +57,7 @@ oauth.yandex.ru, Docker Hub / зеркало Timeweb, github.com / ghcr.io, пу
 - [x] Пользователь deploy, вход только по ключу, ufw 22/80/443, fail2ban, unattended-upgrades, swap 4 ГБ — `deploy/server/bootstrap.sh`
 - [x] Docker; порты контейнеров только на 127.0.0.1
 - [x] Supabase self-hosted v0.8.2 в `/opt/supabase`: PG 17.6, новые секреты, без edge functions / imgproxy / supavisor — `deploy/supabase/docker-compose.override.yml`
-- [ ] Caddy: `<домен>`, `api.<домен>`
+- [x] Caddy: `pokerptz.ru`, `api.pokerptz.ru` (Let's Encrypt, 05.10)
 - [ ] Релей: Caddy `tg.<домен>` → api.telegram.org с allowlist по IP
 - [ ] Бэкап: pg_dump + storage каждую ночь → релей, 14 дней
 - [ ] Монитор на релее
