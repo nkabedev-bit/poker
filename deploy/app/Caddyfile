@@ -1,0 +1,13 @@
+# HTTPS for the club. Caddy gets and renews the certificates itself (Let's Encrypt, with
+# ZeroSSL as the fallback) once the domains point at this server.
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy club-app:3000
+}
+
+# Supabase: REST, auth, storage, realtime websockets, and Studio behind its own password.
+{$API_DOMAIN} {
+	encode zstd gzip
+	reverse_proxy supabase-envoy:8000
+}

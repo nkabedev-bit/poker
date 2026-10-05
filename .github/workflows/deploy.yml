@@ -1,0 +1,81 @@
+# Deploys main to the club's own server.
+#
+# The image is built here, not on the server: `next build` needs more memory than the
+# server can spare next to Supabase. The finished image goes over SSH and replaces the
+# running app; Caddy and Supabase are left alone.
+#
+# Off until the repository variable DEPLOY_ENABLED is "true", so pushes before the move
+# only reach Vercel. Needs:
+#   secrets DEPLOY_SSH_KEY (private key of the server's deploy user), DEPLOY_KNOWN_HOSTS
+#   variables DEPLOY_HOST, NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      - name: Install
+        run: |
+          corepack enable pnpm
+          corepack prepare pnpm@11.1.1 --activate
+          pnpm install --frozen-lockfile --config.strict-dep-builds=false
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build image
+        run: |
+          docker build \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+            -t club-app:latest -t "club-app:${GITHUB_SHA::7}" .
+
+      - name: SSH key
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      - name: Ship and restart
+        env:
+          TARGET: deploy@${{ vars.DEPLOY_HOST }}
+        run: |
+          docker save club-app:latest "club-app:${GITHUB_SHA::7}" | gzip -1 \
+            | ssh -i ~/.ssh/deploy_key "$TARGET" 'gunzip | docker load'
+          # The three newest builds stay for a quick rollback:
+          #   docker tag club-app:<sha> club-app:latest && docker compose up -d --no-deps app
+          ssh -i ~/.ssh/deploy_key "$TARGET" '
+            cd /opt/club && docker compose up -d --no-deps app
+            docker images club-app --format "{{.Tag}}" | grep -v "^latest$" | tail -n +4 \
+              | xargs -r -I{} docker rmi "club-app:{}" >/dev/null
+            docker image prune -f >/dev/null'
+
+      - name: Check the site answers
+        env:
+          TARGET: deploy@${{ vars.DEPLOY_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "$TARGET" '
+            for i in $(seq 1 30); do
+              [ "$(docker inspect -f "{{.State.Health.Status}}" club-app)" = healthy ] && exit 0
+              sleep 2
+            done
+            docker logs --tail 50 club-app; exit 1'

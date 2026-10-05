@@ -1,0 +1,65 @@
+# The club app and its HTTPS front on the club's own server, next to self-hosted
+# Supabase (/opt/supabase). Lives in /opt/club with the Caddyfile and a .env that holds
+# the secrets — see .env.example; the real .env is never committed.
+#
+#   cd /opt/club && docker compose up -d
+#
+# Both services join Supabase's network: the app reaches the API gateway and the database
+# reaches the app (pg_cron calls http://club-app:3000/api/cron/...) without leaving the
+# machine.
+
+name: club
+
+services:
+  app:
+    image: club-app:latest
+    container_name: club-app
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HOSTNAME: 0.0.0.0
+    extra_hosts:
+      # DNS hands out Vercel addresses that Russian networks cut; this one gets through.
+      # Only the Telegram relay (TELEGRAM_API_ROOT) goes to Vercel.
+      - "poker-two-liart.vercel.app:76.76.21.21"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/telegram-web-app.js').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - supabase
+
+  caddy:
+    image: caddy:2
+    container_name: club-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks:
+      supabase:
+        # The app's server code calls Supabase by its public address. Inside Docker that
+        # name leads straight to Caddy, with no trip out of the machine and back.
+        aliases:
+          - ${API_DOMAIN}
+    depends_on:
+      - app
+
+networks:
+  supabase:
+    name: supabase_default
+    external: true
+
+volumes:
+  caddy-data:
+  caddy-config:

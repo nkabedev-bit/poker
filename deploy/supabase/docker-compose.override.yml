@@ -1,0 +1,34 @@
+# Club-specific changes on top of the stock self-hosted Supabase compose file
+# (supabase/supabase, tag self-hosted/v0.8.2, docker/). Copied next to it as
+# docker-compose.override.yml, which `docker compose` picks up on its own, so the stock
+# file stays untouched and `update.sh` can still merge upstream changes.
+#
+# - Nothing listens on a public port: Caddy reaches the gateway over the Docker network,
+#   and an SSH tunnel reaches it for maintenance. Docker publishes ports past ufw, so
+#   anything bound to 0.0.0.0 here would be open to the internet.
+# - The club does not use edge functions, image transformations or the connection
+#   pooler, so those services stay off to keep within 4 GB of memory.
+
+services:
+  api-gw:
+    ports: !override
+      - "127.0.0.1:8000:8000/tcp"
+
+  storage:
+    depends_on: !override
+      db:
+        condition: service_healthy
+      rest:
+        condition: service_started
+    environment:
+      ENABLE_IMAGE_TRANSFORMATION: "false"
+
+  imgproxy:
+    profiles: ["disabled"]
+
+  functions:
+    profiles: ["disabled"]
+
+  supavisor:
+    profiles: ["disabled"]
+    ports: !reset []
