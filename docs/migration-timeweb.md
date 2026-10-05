@@ -41,6 +41,8 @@ Timeweb СПб (Cloud-80: 4 vCPU / 8 ГБ / 80 ГБ)
 3. Платный минимальный VPS Timeweb за рубежом
 (VPN владельца не годится: подписка без доступа к серверу)
 
+Входящие вебхуки: Telegram не может подключиться к серверу в РФ (проверено 05.10 тестовым ботом: «Connection timed out», при этом 12 точек мира до порта достают). Адреса Telegram отрезаны от РФ-серверов в обе стороны → вебхуки принимает Vercel (`/api/tg-hook/[bot]`) и пересылает на сервер.
+
 Бэкапы без релея — Яндекс Диск (rclone), монитор — UptimeRobot.
 
 
@@ -82,7 +84,7 @@ oauth.yandex.ru, Docker Hub / зеркало Timeweb, github.com / ghcr.io, пу
 
 1. Предупредить админов
 2. Старый Supabase: `cron.unschedule` всех задач
-3. `setWebhook` обоих ботов → новый домен
+3. `setWebhook` обоих ботов → `https://poker-two-liart.vercel.app/api/tg-hook/admin` и `/client` с секретами из `/opt/club/.env` (Telegram не достаёт до серверов в РФ — Vercel пересылает на pokerptz.ru)
 4. Финальный дамп → восстановление → файлы → cron
 5. Запуск, смоук
 6. BotFather: URL мини-аппа и кнопка меню у обоих ботов; `/setupmenu`
