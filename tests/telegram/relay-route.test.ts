@@ -97,6 +97,7 @@ describe("/api/tg-relay/[...path]", () => {
     );
 
     expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({ ok: false, error_code: 404, description: "Not Found" });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

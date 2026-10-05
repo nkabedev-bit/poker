@@ -25,7 +25,11 @@ async function relay(request: Request, { params }: { params: Promise<{ path: str
     process.env.TELEGRAM_BOT_TOKEN ?? "",
     process.env.CLIENT_TELEGRAM_BOT_TOKEN ?? "",
   ]);
-  if (!target) return new Response(null, { status: 404 });
+  // Refused the way Telegram refuses an unknown token. grammY retries anything that is
+  // not a Bot API answer forever, so a bare 404 would hang the caller instead of failing.
+  if (!target) {
+    return Response.json({ ok: false, error_code: 404, description: "Not Found" }, { status: 404 });
+  }
 
   const headers = new Headers();
   const contentType = request.headers.get("content-type");
