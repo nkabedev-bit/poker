@@ -49,7 +49,8 @@ python3 copy_storage.py           # ~70 с, файлы через /media на Ve
 
 ## 4. Настоящие таблицы, задачи, перезапуск
 
-1. В `/opt/club/.env` — настоящие `GOOGLE_SHEET_ID` и `GOOGLE_FINANCE_SHEET_ID`.
+1. В `/opt/club/.env` — настоящие `GOOGLE_SHEET_ID` и `GOOGLE_FINANCE_SHEET_ID` из `~/secrets/real-sheet-ids`
+   (до переключения основная пустая, финансовая — копия «Копия Покер финансы»).
 2. `cd /opt/club && docker compose up -d --force-recreate app`
 3. `bash ~/migrate/cron.sh` — четыре задачи, сверить с `cloud-cron-before-switch.tsv`.
 
