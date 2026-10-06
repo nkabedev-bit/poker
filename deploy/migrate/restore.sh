@@ -23,24 +23,23 @@ echo "== rewriting addresses" >&2
 # Stored file URLs (avatars, logos, posters, sounds) point at the cloud project.
 sed "s#${CLOUD_ORIGIN}#${OWN_API_ORIGIN}#g; s#${OLD_APP_ORIGIN}#${INTERNAL_APP_ORIGIN}#g" \
   "$DUMP/data.sql" > "$WORK/data.sql"
-# The functions pg_cron calls post to the app on Vercel.
-sed "s#${OLD_APP_ORIGIN}#${INTERNAL_APP_ORIGIN}#g" "$DUMP/schema.sql" > "$WORK/schema.sql"
+# The functions pg_cron calls post to the app on Vercel, with the cloud's cron secret —
+# a guessable word there. Here they post over the Docker network with this server's own
+# long secret. The cloud also has a stray ")" after the domain in the poster function,
+# which broke scheduled poster publishing; it goes too.
+CRON_SECRET=$(grep '^CRON_SECRET=' /opt/club/.env | cut -d= -f2-)
+[ ${#CRON_SECRET} -ge 32 ] || { echo "CRON_SECRET in /opt/club/.env is missing or short" >&2; exit 1; }
+sed -E "s#${OLD_APP_ORIGIN}\)?/#${INTERNAL_APP_ORIGIN}/#g; s#'Bearer [^']*'#'Bearer ${CRON_SECRET}'#g" \
+  "$DUMP/schema.sql" > "$WORK/schema.sql"
 cp "$DUMP/roles.sql" "$WORK/roles.sql"
 for file in schema.sql data.sql; do
   echo "  $file: $(grep -c "$CLOUD_ORIGIN\|$OLD_APP_ORIGIN" "$WORK/$file" || true) old addresses left" >&2
 done
+echo "  cron calls now: $(grep -oE "url := '[^']*'" "$WORK/schema.sql" | sort -u | tr '\n' ' ')" >&2
 
-echo "== cron secret baked into the functions" >&2
-# The cron functions carry the old CRON_SECRET in their source; the app must accept it.
-grep -ohE "Bearer [A-Za-z0-9_-]{16,}" "$DUMP/schema.sql" "$DUMP/cron-jobs.tsv" 2>/dev/null \
-  | sort -u | sed 's/Bearer //' > "$WORK/cron-secrets.txt" || true
-echo "  distinct secrets found: $(wc -l < "$WORK/cron-secrets.txt")" >&2
-if [ "$(wc -l < "$WORK/cron-secrets.txt")" -eq 1 ]; then
-  sed -i "s|^CRON_SECRET=.*|CRON_SECRET=$(cat "$WORK/cron-secrets.txt")|" /opt/club/.env
-  echo "  CRON_SECRET in /opt/club/.env now matches; restart the app to pick it up" >&2
-else
-  echo "  set CRON_SECRET in /opt/club/.env by hand (see $WORK/cron-secrets.txt)" >&2
-fi
+echo "== fitting the data to this server's auth and storage versions" >&2
+python3 "$(dirname "$0")/fit_data.py" "$WORK/data.sql" > "$WORK/data.fitted.sql"
+mv "$WORK/data.fitted.sql" "$WORK/data.sql"
 
 echo "== restoring" >&2
 docker exec supabase-db mkdir -p /tmp/restore

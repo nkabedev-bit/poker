@@ -71,7 +71,11 @@ oauth.yandex.ru, Docker Hub / зеркало Timeweb, github.com / ghcr.io, пу
 - [ ] `.github/workflows/deploy.yml`: тесты → сборка образа в GitHub → `docker save | ssh` → перезапуск
 - [ ] На сервере `VERCEL_PROJECT_PRODUCTION_URL=<домен>` (читается в 3 местах)
 
-## Этап 4. Репетиция (тестовые боты)
+## Этап 4. Репетиция
+
+Сделана 07.10 ~01:00 (см. switch-runbook.md): все 20 таблиц клуба совпали, 367 файлов, экран турнира, realtime и вызовы крона из базы работают. Найдено в облаке: CRON_SECRET = слово «telegram», опечатка «vercel.app)/» в функции публикации афиш — на сервере исправлено при восстановлении.
+
+### Было в плане
 
 - [ ] Дамп: roles / schema / data (`supabase db dump`), замена `nqflqsipvqxuubboslak.supabase.co` на `api.<домен>` в data.sql
 - [ ] Восстановление (`psql --single-transaction`, `session_replication_role = replica`)

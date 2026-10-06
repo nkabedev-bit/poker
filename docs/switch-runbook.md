@@ -8,7 +8,10 @@
 
 - [ ] В `/opt/club/.env` заполнено всё, кроме `GOOGLE_SHEET_ID` / `GOOGLE_FINANCE_SHEET_ID`
       (на репетиции стоят копии таблиц): токены ботов, Google-ключ, Яндекс, ADMIN_EMAIL, TMA_SUPER_ADMIN_ID.
-- [ ] Репетиция прошла: `dump.sh` → `restore.sh` → `compare.sh` → `copy_storage.py` без расхождений.
+      Пустую необязательную переменную не оставлять `KEY=` — закомментировать: zod в `lib/env.ts`
+      считает пустую строку ошибкой, и падают крон, вход через Яндекс и авторизация мини-аппа.
+- [x] Репетиция 07.10 ~01:00: `dump.sh` → `restore.sh` → `compare.sh` → `copy_storage.py` — 20 таблиц
+      клуба совпали, 367 файлов, всё с нуля за ~2 мин (дамп 27 с, восстановление 2 с, файлы 68 с).
 - [ ] Ветка `dev-hosting-switch` (переадресация Vercel) готова, не запушена.
 
 ## 1. Начало (T+0)
@@ -25,20 +28,23 @@
 
 ## 2. Чистая база здесь
 
+`/opt/supabase/.env` читает только root, поэтому compose — через sudo. «Network … Resource is
+still in use» при down — нормально (к сети подключены club-app и Caddy). Около 20 с.
+
 ```bash
-cd /opt/supabase && docker compose down
-sudo rm -rf volumes/db/data volumes/storage/*
-docker compose up -d && docker compose ps
+cd /opt/supabase && sudo docker compose down
+sudo rm -rf volumes/db/data && sudo find volumes/storage -mindepth 1 -delete
+sudo docker compose up -d && docker ps --filter name=supabase --format "{{.Names}} {{.Status}}"
 ```
 
 ## 3. Перенос
 
 ```bash
 cd ~/migrate
-DUMP=$(bash dump.sh)              # ~1–3 мин
-bash restore.sh "$DUMP"           # ставит старый CRON_SECRET в /opt/club/.env
-bash compare.sh                   # все таблицы без «differs»
-python3 copy_storage.py           # файлы через /media на Vercel — до переадресации!
+DUMP=$(bash dump.sh)              # ~30 с
+bash restore.sh "$DUMP"           # ~2 с; в функции крона — CRON_SECRET сервера, без опечатки «vercel.app)»
+bash compare.sh                   # public.* без «differs»; служебные auth/storage различаются — норма
+python3 copy_storage.py           # ~70 с, файлы через /media на Vercel — до переадресации!
 ```
 
 ## 4. Настоящие таблицы, задачи, перезапуск
