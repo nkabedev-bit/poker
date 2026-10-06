@@ -4,7 +4,8 @@
 # The database is dumped in the same three files dump.sh takes from the cloud (roles,
 # schema, data), so the rehearsed deploy/migrate/restore.sh brings a backup back the same
 # way; the stored files go along as a tarball. Kept 3 nights on the server and 14 on
-# Yandex Disk (rclone remote "yadisk", WebDAV with an app password).
+# Yandex Disk (rclone remote "yadisk", backend "yandex" with an OAuth token — Yandex no
+# longer serves WebDAV on free accounts).
 #
 #   crontab (deploy): 0 4 * * * bash ~/backup.sh >> ~/backups/backup.log 2>&1
 set -euo pipefail
@@ -35,7 +36,12 @@ tar -C "$LOCAL" -czf "$ARCHIVE" "$STAMP"
 rm -rf "$WORK"
 find "$LOCAL" -name 'club-*.tar.gz' -mtime +3 -delete
 
-rclone copy "$ARCHIVE" yadisk:club-backups/
-rclone delete yadisk:club-backups/ --min-age 14d
+# Off-site copy only once the Disk remote answers; until then the local copies stand alone.
+if rclone lsd yadisk: >/dev/null 2>&1; then
+  rclone copy "$ARCHIVE" yadisk:club-backups/
+  rclone delete yadisk:club-backups/ --min-age 14d
+else
+  echo "$(date '+%F %T') Yandex Disk not reachable — off-site copy skipped"
+fi
 
 echo "$(date '+%F %T') backup $(basename "$ARCHIVE") $(du -h "$ARCHIVE" | cut -f1) done"
