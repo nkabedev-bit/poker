@@ -1,3 +1,6 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+# The two scripts above are skipped on purpose (both packages ship prebuilt binaries);
+# pnpm 11 would otherwise refuse to install over them.
+strictDepBuilds: false

@@ -9,11 +9,9 @@ ARG NODE_VERSION=24-slim
 FROM node:${NODE_VERSION} AS dependencies
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-# pnpm-workspace.yaml skips the build scripts of sharp and unrs-resolver on purpose (both
-# ship prebuilt binaries); pnpm 11 treats skipped scripts as an error unless told not to.
 RUN --mount=type=cache,target=/root/.local/share/pnpm/store \
   corepack enable pnpm && corepack prepare pnpm@11.1.1 --activate \
-  && pnpm install --frozen-lockfile --config.strict-dep-builds=false
+  && pnpm install --frozen-lockfile
 
 FROM node:${NODE_VERSION} AS builder
 WORKDIR /app

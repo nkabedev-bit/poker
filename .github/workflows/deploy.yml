@@ -25,10 +25,6 @@ jobs:
     if: vars.DEPLOY_ENABLED == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    env:
-      # pnpm-workspace.yaml skips the build scripts of sharp and unrs-resolver on purpose;
-      # pnpm 11 treats that as an error, including in the install it runs before `pnpm test`.
-      npm_config_strict_dep_builds: "false"
     steps:
       - uses: actions/checkout@v5
 
