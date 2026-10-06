@@ -6,5 +6,12 @@
   },
   "regions": [
     "fra1"
+  ],
+  "redirects": [
+    {
+      "source": "/:path((?!api/tg-relay/|api/tg-hook/).*)",
+      "destination": "https://pokerptz.ru/:path",
+      "permanent": false
+    }
   ]
 }
