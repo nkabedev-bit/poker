@@ -162,7 +162,7 @@ describe("the rating — counted again only when the results change", () => {
   // The whole room opens the table after a game, and it is the same table for all.
   it("counts the season once for everyone while the results stay as they were", async () => {
     const first = await openAs(7);
-    vi.setSystemTime(new Date("2026-09-26T12:00:00.000Z"));
+    vi.setSystemTime(new Date("2026-09-25T22:04:59.000Z"));
     const second = await openAs(8);
 
     expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(1);
@@ -180,15 +180,15 @@ describe("the rating — counted again only when the results change", () => {
   });
 
   // A new nickname or photo, a tier, a place corrected in the admin: none moves the count.
-  it("counts it again once a day even when the results have not moved", async () => {
+  it("counts it again every five minutes even when the results have not moved", async () => {
     await openAs(7);
-    vi.setSystemTime(new Date("2026-09-26T22:00:01.000Z"));
+    vi.setSystemTime(new Date("2026-09-25T22:05:01.000Z"));
     await openAs(7);
 
     expect(mocks.computeSeasonStandings).toHaveBeenCalledTimes(2);
   });
 
-  // The table is counted once a day, but a hand is the player's own doing: it shows the
+  // The table is counted every five minutes, but a hand is the player's own doing: it shows the
   // moment they pick it, on the table everybody already has.
   it("hangs a hand picked since the table was counted on the very next open", async () => {
     await openAs(7);

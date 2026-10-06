@@ -59,7 +59,7 @@ describe("useStatePulse", () => {
     vi.unstubAllGlobals();
   });
 
-  it("asks the club's own domain every ten seconds", async () => {
+  it("asks the club's own domain on every beat", async () => {
     answer("v1");
     renderPulse(true);
 

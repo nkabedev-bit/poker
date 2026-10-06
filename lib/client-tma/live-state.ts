@@ -15,9 +15,9 @@ export { toTimerState } from "@/lib/client-tma/live-state-shared";
  * Twenty phones in the room ask the same question within the same few seconds, and the
  * answer is the same for all of them. One read a beat, rather than one per player: the
  * whole room costs the database what a single screen costs it, and nobody sees the
- * clock more than ten seconds stale (their own countdown runs locally anyway).
+ * clock more than a few seconds stale (their own countdown runs locally anyway).
  */
-const CACHE_TTL_MS = 10_000;
+const CACHE_TTL_MS = 3_000;
 
 type CacheEntry = { readAt: number; value: ClientLiveState | null };
 

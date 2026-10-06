@@ -6,31 +6,32 @@ import { isTournamentUnderway } from "@/lib/timer/calculate";
 import type { TimerStatus } from "@/lib/timer/types";
 
 /**
- * How often a screen asks whether anything has changed: every ten seconds while a
- * tournament is on or players are being registered for one, once a minute otherwise.
+ * How often a screen asks whether anything has changed: every five seconds while a
+ * tournament is on or players are being registered for one, every half minute otherwise.
+ * Changes reach the screen at once over realtime; this only catches a missed signal.
  */
-export const STATE_PULSE_INTERVAL_MS = 10_000;
-export const IDLE_STATE_PULSE_INTERVAL_MS = 60_000;
+export const STATE_PULSE_INTERVAL_MS = 5_000;
+export const IDLE_STATE_PULSE_INTERVAL_MS = 30_000;
 
 /**
  * How long a beat waits for its answer. A fingerprint is a few dozen bytes and comes back
  * in well under a second; one still out after this is held up on the way.
  */
-export const STATE_PULSE_TIMEOUT_MS = 8_000;
+export const STATE_PULSE_TIMEOUT_MS = 4_000;
 
 /**
  * How soon a refresh that did not arrive is tried again. Not on the next beat: every try
  * is a full read on the server, and a connection that lost one refresh loses the next
  * one too.
  */
-export const REFRESH_RETRY_MS = 30_000;
+export const REFRESH_RETRY_MS = 10_000;
 
 /**
  * How often the screen re-reads its whole state whatever the pulse says: once a minute
- * during a game, for a change that got past the pulse, and once an hour otherwise.
+ * during a game, for a change that got past the pulse, and every five minutes otherwise.
  */
 export const LIVE_FULL_REFRESH_INTERVAL_MS = 60_000;
-export const IDLE_FULL_REFRESH_INTERVAL_MS = 60 * 60_000;
+export const IDLE_FULL_REFRESH_INTERVAL_MS = 5 * 60_000;
 
 // Lives with the rest of the clock now that the client app asks the same question;
 // re-exported so the screen's imports stay where they were.
@@ -53,9 +54,7 @@ export function statePulseInterval(status: TimerStatus, registeredPlayers: numbe
  * How often the screen re-reads everything regardless of the pulse.
  *
  * The pulse can only see what its fingerprint covers, so during a game the screen also
- * re-reads itself once a minute. Away from a game once an hour is enough — before
- * 25.09.2026 it was every 45 seconds around the clock, and that alone was a steady share
- * of the club's server time.
+ * re-reads itself once a minute, and every five minutes away from a game.
  */
 export function fullRefreshInterval(status: TimerStatus) {
   return isTournamentUnderway(status)
@@ -66,11 +65,10 @@ export function fullRefreshInterval(status: TimerStatus) {
 /**
  * Keeps the screen in step with the room while a tournament is under way.
  *
- * Screens hear about changes over a realtime channel on supabase.co, which Russian ISPs
- * cut through Cloudflare: a draw started at the desk could reach the hall only on the
- * 45-second poll. Every ten seconds this asks the club's own domain for a fingerprint
- * of the state and refreshes the screen only when it has moved, so a missed signal
- * costs seconds rather than most of a minute, and a quiet room costs a few bytes.
+ * Screens hear about changes over the realtime channel on the club's own server, within
+ * a fraction of a second. As a safety net, every five seconds this asks for a fingerprint
+ * of the state and refreshes the screen only when it has moved, so a missed signal costs
+ * a few seconds and a quiet room costs a few bytes.
  *
  * A request the network holds up is given up on after a few seconds, so one lost answer
  * cannot stop the beat: without that, a single held request kept the screen still for as

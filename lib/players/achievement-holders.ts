@@ -22,10 +22,10 @@ import { readAllPages } from "@/lib/supabase/read-all-pages";
  *
  * Counting everyone's achievements reads every result the club has stored — thousands of
  * rows — and the answer moves only when a game is played or corrected. A finished game is
- * noticed at once by the row count; an hour is how long a correction made in the admin
- * may take to show. The owner asked to spare the monthly limits over being to the minute.
+ * noticed at once by the row count; five minutes is how long a correction made in the
+ * admin may take to show.
  */
-const CACHE_TTL_MS = 60 * 60_000;
+const CACHE_TTL_MS = 5 * 60_000;
 
 const RESULT_COLUMNS = "telegram_id, player_key, player_name, place, knockouts, started_at";
 /** Added to the table later, by migrations the club runs by hand. */

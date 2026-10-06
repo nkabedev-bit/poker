@@ -24,11 +24,11 @@ export const dynamic = "force-dynamic";
  * Four screens ask for the table — the home page's top three among them, on every open —
  * and each ask recounted the whole season, every face and every player's evenings. The
  * table only moves when the results do, so it is counted again as soon as they change —
- * a finished game writes its rows — and otherwise once a day, for what leaves the
+ * a finished game writes its rows — and otherwise every five minutes, for what leaves the
  * results' fingerprint as it was: a new nickname or photo, a player's tier, a place
  * corrected in the admin.
  */
-const RATING_CACHE_MS = 24 * 60 * 60_000;
+const RATING_CACHE_MS = 5 * 60_000;
 
 /** One line of a season's table as everybody sees it; "ВЫ" is put on per player. */
 type SharedLine = {

@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { TMA_POLL_INTERVAL_MS } from "@/app/tma/use-visible-polling";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TMAControlPage from "@/app/tma/control/page";
 import type { TimerState } from "@/lib/timer/types";
@@ -117,7 +118,7 @@ describe("TMAControlPage", () => {
 
     timerState = { ...pausedTimerState, status: "running" };
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(TMA_POLL_INTERVAL_MS);
     });
 
     expect(screen.getByRole("button", { name: /пауза/i })).toBeTruthy();

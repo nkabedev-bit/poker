@@ -6,7 +6,7 @@ import { useTMA } from "./layout";
 import { TMA_DESK_CHANGED_EVENT } from "./tournament-clock";
 
 /** How often an open admin screen asks whether anything has changed. */
-export const TMA_POLL_INTERVAL_MS = 5000;
+export const TMA_POLL_INTERVAL_MS = 2000;
 
 /** How often it reloads anyway, for whatever the fingerprint does not cover. */
 export const TMA_FULL_REFRESH_MS = 60_000;
@@ -43,11 +43,10 @@ async function readVersion(initData: string) {
 /**
  * Keeps an open admin screen in step with the room.
  *
- * It used to reload the whole tournament every five seconds while the screen was on —
- * thousands of full reads a game night from every phone at the desk, the largest part of
- * the club's server time. Every five seconds it now asks for a fingerprint of the state
- * and reloads only when that has moved, so a change made on another phone still shows up
- * within seconds. Once a minute it reloads regardless, for anything the fingerprint does
+ * Every two seconds it asks for a fingerprint of the state and reloads only when that has
+ * moved, so a change made on another phone shows up almost at once. The reload swaps the
+ * data in place — an open card, a search, a half-typed name stay as they are — so the
+ * desk can keep working through it. Once a minute it reloads regardless, for anything the fingerprint does
  * not see, and while the fingerprint cannot be read it reloads every half minute rather
  * than go quiet. A fingerprint the network holds up is given up on after a few seconds,
  * so one lost answer cannot stop the beat.

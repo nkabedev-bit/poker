@@ -642,9 +642,9 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
 
   useEffect(() => {
     // In demo mode, we poll frequently since there's no websocket.
-    // In production the pulse notices changes and Realtime pushes them when it gets
-    // through; this re-read is for anything neither of them would see — once a minute
-    // during a game, once an hour otherwise.
+    // In production Realtime pushes changes and the pulse catches a missed one; this
+    // re-read is for anything neither of them would see — once a minute during a game,
+    // every five minutes otherwise.
     const pollInterval = isDemo ? 5000 : fullRefreshMs;
     const poll = window.setInterval(() => {
       // A screen the pulse has refreshed within the interval has nothing to catch up on,

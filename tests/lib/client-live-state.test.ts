@@ -85,15 +85,15 @@ describe("readClientLiveState", () => {
   });
 
   // Twenty phones in the room ask the same question; the database answers it once.
-  it("serves the whole room from one reading for ten seconds", async () => {
+  it("serves the whole room from one reading for three seconds", async () => {
     const stub = supabaseStub(rpcResult());
 
     await readClientLiveState(stub.client, { now: 1_000 });
-    await readClientLiveState(stub.client, { now: 6_000 });
+    await readClientLiveState(stub.client, { now: 3_500 });
 
     expect(stub.rpc).toHaveBeenCalledTimes(1);
 
-    await readClientLiveState(stub.client, { now: 11_001 });
+    await readClientLiveState(stub.client, { now: 4_001 });
 
     expect(stub.rpc).toHaveBeenCalledTimes(2);
   });

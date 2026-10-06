@@ -10,11 +10,11 @@ import { timeoutSignal } from "@/lib/timeout-signal";
  *
  * The countdown itself runs here, off the moment the level started, so this beat is
  * only about the things a player cannot work out on their own: somebody busting, the
- * desk pausing the clock, a new level being set. Half a minute is well inside what a
- * player would call "live", and twenty phones at it cost the database one read every
- * ten seconds — the server reuses a reading for everybody.
+ * desk pausing the clock, a new level being set. Every five seconds feels live, and a
+ * room full of phones still costs the database one read every few seconds — the server
+ * reuses a reading for everybody.
  */
-const LIVE_PULSE_MS = 30_000;
+const LIVE_PULSE_MS = 5_000;
 
 /**
  * And how often it asks when there is no game on.

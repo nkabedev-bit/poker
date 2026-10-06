@@ -2,6 +2,7 @@
  * @vitest-environment jsdom
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { TMA_POLL_INTERVAL_MS } from "@/app/tma/use-visible-polling";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TMAPlayersPage from "@/app/tma/players/page";
 import type { TelegramWebApp } from "@/app/tma/layout";
@@ -281,7 +282,7 @@ describe("TMAPlayersPage", () => {
 
     players = [];
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(TMA_POLL_INTERVAL_MS);
     });
 
     expect(screen.queryByText("Deleted Elsewhere")).toBeNull();
