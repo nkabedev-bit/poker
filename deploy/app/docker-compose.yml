@@ -18,6 +18,12 @@ services:
     env_file: .env
     environment:
       HOSTNAME: 0.0.0.0
+    # Into the system journal, which keeps three days (bootstrap.sh): `docker logs club-app`
+    # still works, and `journalctl CONTAINER_NAME=club-app --since ...` reaches further back.
+    logging:
+      driver: journald
+      options:
+        tag: club-app
     extra_hosts:
       # DNS hands out Vercel addresses that Russian networks cut; this one gets through.
       # Only the Telegram relay (TELEGRAM_API_ROOT) goes to Vercel.
@@ -35,6 +41,10 @@ services:
     image: caddy:2
     container_name: club-caddy
     restart: unless-stopped
+    logging:
+      driver: journald
+      options:
+        tag: club-caddy
     ports:
       - "80:80"
       - "443:443"

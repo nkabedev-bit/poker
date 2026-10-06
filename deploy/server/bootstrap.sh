@@ -47,6 +47,11 @@ ufw --force enable
 echo "== fail2ban"
 systemctl enable --now fail2ban
 
+echo "== system journal: three days of logs (the app and Caddy log into it)"
+mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nMaxRetentionSec=3day\nSystemMaxUse=1G\n' > /etc/systemd/journald.conf.d/club-logs.conf
+systemctl restart systemd-journald
+
 echo "== swap $SWAP_SIZE"
 if ! swapon --show | grep -q /swapfile; then
   fallocate -l "$SWAP_SIZE" /swapfile
