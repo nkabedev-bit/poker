@@ -1,19 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
-  ChevronRight,
   ClipboardList,
   LifeBuoy,
   MapPin,
-  Megaphone,
   Spade,
   Trophy,
 } from "lucide-react";
 import { getClientTelegramWebApp, useClientTMA } from "./layout";
 import {
-  Eyebrow,
   GlassCard,
   IconTile,
   LoadingScreen,
@@ -54,11 +51,6 @@ type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
 
 const SUPPORT_TELEGRAM_URL = "https://t.me/markvasilyevv";
 
-// The club plays the APC club cup in St Petersburg on 10 October, and the home screen
-// points players at the post about it. The last qualifier is played on 6 October and runs
-// past midnight, so the card stays up until the morning after.
-const APC_CUP_POST_URL = "https://t.me/majesticpokerptz/1069";
-const APC_CUP_CARD_UNTIL = Date.parse("2026-10-07T10:00:00+03:00");
 
 // openTelegramLink keeps the chat inside Telegram; outside the app (or on an old
 // client) a plain window.open still gets the player there.
@@ -78,13 +70,9 @@ export default function ClientHomePage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<EventsResponse | null>(null);
   const [rating, setRating] = useState<RatingResponse | null>(null);
-  const [showApcCupCard, setShowApcCupCard] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    // The clock is read as the screen loads rather than while it renders.
-    setShowApcCupCard(Date.now() < APC_CUP_CARD_UNTIL);
-
     try {
       const [eventsRes, ratingRes] = await Promise.all([
         fetch("/api/client-tma/events", { headers: { "X-Telegram-Init-Data": initData } }),
@@ -128,18 +116,6 @@ export default function ClientHomePage() {
   const topPlayers = withOwnPhoto(rating?.players.slice(0, 3) ?? [], photoUrl);
   const me = rating?.me ? withOwnPhoto([rating.me], photoUrl)[0] : undefined;
   const meInTop = topPlayers.some((player) => player.isMe);
-
-  // Inside Telegram the post opens in Telegram itself. On the web the link opens a new
-  // tab on its own: the Telegram script is loaded there too, and its openTelegramLink
-  // would take the whole app away to t.me.
-  const openApcCupPost = (event: MouseEvent<HTMLAnchorElement>) => {
-    const tg = getClientTelegramWebApp();
-    if (!initData || !tg?.openTelegramLink) return;
-
-    event.preventDefault();
-    tg.HapticFeedback?.impactOccurred("light");
-    tg.openTelegramLink(APC_CUP_POST_URL);
-  };
 
   const myTier = me?.tier ?? null;
   const myPlace = me?.place ?? null;
@@ -214,27 +190,6 @@ export default function ClientHomePage() {
       {/* Inside Telegram only, until the player also signs in on the web. */}
       {initData && data && !data.player.webLinked ? <WebAppCard /> : null}
 
-      {showApcCupCard ? (
-        <a
-          className="flex items-center gap-3.5 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] px-4 py-3.5 transition-transform active:scale-[0.98]"
-          href={APC_CUP_POST_URL}
-          rel="noopener noreferrer"
-          target="_blank"
-          onClick={openApcCupPost}
-        >
-          <IconTile className="!bg-club-gold/15">
-            <Megaphone size={20} />
-          </IconTile>
-          <div className="flex min-w-0 flex-1 flex-col gap-1">
-            <Eyebrow className="!text-club-gold">Объявление клуба</Eyebrow>
-            <p className="text-[14px] leading-snug">
-              10 октября команда Majestic представит Петрозаводск и Карелию на Кубке клубов APC
-              в Санкт-Петербурге
-            </p>
-          </div>
-          <ChevronRight className="shrink-0 text-club-gold" size={18} />
-        </a>
-      ) : null}
 
       {laterEvents.length > 0 ? (
         <section className="flex flex-col gap-2">
