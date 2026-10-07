@@ -105,6 +105,8 @@ export async function GET(request: Request) {
       // club member of years standing: they are asked first whether they have played
       // here, rather than being marched straight into a new questionnaire.
       canClaimProfile: Boolean(auth.user.yandex_id) && !auth.user.profile_submitted_at,
+      // Already signs in with Yandex too: the mini-app stops offering the web app.
+      webLinked: Boolean(auth.user.yandex_id),
       username: auth.user.username,
     },
   });

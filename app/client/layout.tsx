@@ -8,6 +8,7 @@ import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
 import { WelcomeSplash } from "./_components/welcome-splash";
 import { CLUB_FONT_CLASSES } from "./fonts";
 import { listenForInstallPrompt } from "./_components/install-prompt";
+import { InstallBanner } from "./_components/install-banner";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -404,6 +405,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                 );
               })}
             </nav>
+
+            {door === "web" ? <InstallBanner /> : null}
 
             <WelcomeSplash />
           </ClientTMAContext.Provider>

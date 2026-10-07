@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ExternalLink, Share, Smartphone, SquarePlus, X } from "lucide-react";
+import { usePathname } from "next/navigation";
+import { Share, SquarePlus, X } from "lucide-react";
 import {
   chooseInstallHint,
   INSTALL_HINT_DISMISSED_KEY,
@@ -9,9 +10,11 @@ import {
   isIosDevice,
   type InstallHint,
 } from "@/lib/pwa/install-hint";
-import { getClientTelegramWebApp, useClientTMA } from "../layout";
+import { useClientTMA } from "../layout";
 import { askToInstall, getInstallPrompt, subscribeToInstallPrompt } from "./install-prompt";
-import { PrimaryButton } from "./ui";
+
+/** Screens of a visitor who is not in yet: nothing to put on a home screen so far. */
+const NOT_SIGNED_IN_PATHS = ["/client/login", "/client/link", "/client/onboarding"];
 
 function isStandalone() {
   return (
@@ -29,14 +32,15 @@ function readDismissed() {
 }
 
 /**
- * The home screen's offer to put the club on the phone.
+ * The note along the bottom of the web app on how to put it on the home screen.
  *
- * Installed, the app opens straight from its icon in a browser of its own — no Telegram,
- * so no VPN — and signs in with Yandex. Inside the mini-app the offer sends the player
- * out to a browser first, since only a browser can install it.
+ * Shown to a signed-in player in a browser: installed, the app opens from its icon with no
+ * Telegram and no VPN. Inside the mini-app the club's card on the home screen does the
+ * asking instead, and inside the installed app there is nothing left to ask.
  */
 export function InstallBanner() {
   const { initData } = useClientTMA();
+  const pathname = usePathname();
   const [hint, setHint] = useState<InstallHint>("none");
 
   useEffect(() => {
@@ -55,77 +59,52 @@ export function InstallBanner() {
     return subscribeToInstallPrompt(decide);
   }, [initData]);
 
-  if (hint === "none") return null;
+  // The mini-app has its own card for this; here only a browser is asked.
+  if (hint === "none" || hint === "telegram" || NOT_SIGNED_IN_PATHS.includes(pathname)) return null;
 
   const dismiss = () => {
     try {
       window.localStorage.setItem(INSTALL_HINT_DISMISSED_KEY, String(Date.now()));
     } catch {
-      // Without storage the hint simply comes back next visit.
+      // Without storage the note simply comes back next visit.
     }
     setHint("none");
   };
 
-  const openInBrowser = () => {
-    const url = `${window.location.origin}/client`;
-    const tg = getClientTelegramWebApp();
-    if (tg?.openLink) tg.openLink(url);
-    else window.open(url, "_blank", "noopener");
-  };
-
   return (
-    <div className="relative flex flex-col gap-3 rounded-[20px] border border-club-line bg-club-surface p-4">
+    <div className="client-sheet-up fixed inset-x-3 bottom-[calc(80px+env(safe-area-inset-bottom))] z-20 flex items-start gap-3 rounded-[18px] border border-club-gold/30 bg-[rgba(30,22,18,0.97)] p-3.5 shadow-[0_12px_32px_rgba(0,0,0,0.5)] backdrop-blur-xl">
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+        <p className="text-[14px] font-extrabold">Добавьте Majestic на экран телефона</p>
+        {hint === "ios" ? (
+          <p className="text-[13px] leading-relaxed text-club-muted">
+            Нажмите «Поделиться» <Share aria-hidden className="inline align-[-3px]" size={15} />, затем
+            «На экран „Домой“» <SquarePlus aria-hidden className="inline align-[-3px]" size={15} />. Откройте
+            приложение с иконки и войдите через тот же Яндекс.
+          </p>
+        ) : null}
+        {hint === "menu" ? (
+          <p className="text-[13px] leading-relaxed text-club-muted">
+            В меню браузера выберите «Установить приложение» или «Добавить на главный экран».
+          </p>
+        ) : null}
+        {hint === "prompt" ? (
+          <button
+            className="mt-1 flex min-h-[42px] items-center justify-center gap-2 rounded-xl bg-club-crimson px-4 text-[14px] font-extrabold text-white transition active:scale-[0.985]"
+            type="button"
+            onClick={() => void askToInstall()}
+          >
+            <SquarePlus size={17} /> Установить приложение
+          </button>
+        ) : null}
+      </div>
       <button
         aria-label="Закрыть"
-        className="absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full text-club-muted transition active:scale-95"
+        className="-mr-1 -mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-club-muted transition active:scale-95"
         type="button"
         onClick={dismiss}
       >
-        <X size={18} />
+        <X size={17} />
       </button>
-
-      <div className="flex items-start gap-3 pr-8">
-        <Smartphone className="mt-0.5 shrink-0 text-club-rose" size={22} />
-        <div className="flex flex-col gap-1">
-          <p className="text-[16px] font-extrabold">Приложение клуба на экране телефона</p>
-          <p className="text-[13px] text-club-muted">
-            {hint === "telegram"
-              ? "Открывается одной кнопкой и работает без VPN и без Telegram. Откроем сайт в браузере — добавьте его на экран, откройте с иконки и войдите через Яндекс."
-              : "Открывается одной кнопкой и работает без VPN и без Telegram."}
-          </p>
-        </div>
-      </div>
-
-      {hint === "telegram" ? (
-        <>
-          <PrimaryButton type="button" onClick={openInBrowser}>
-            <ExternalLink size={18} /> Открыть в браузере
-          </PrimaryButton>
-          <p className="text-[12px] text-club-muted">
-            Если сайт откроется внутри Telegram — нажмите «Открыть в браузере» в его меню.
-          </p>
-        </>
-      ) : null}
-
-      {hint === "prompt" ? (
-        <PrimaryButton type="button" onClick={() => void askToInstall()}>
-          <SquarePlus size={18} /> Установить
-        </PrimaryButton>
-      ) : null}
-
-      {hint === "ios" ? (
-        <p className="text-[14px] leading-relaxed">
-          Нажмите «Поделиться» <Share aria-hidden className="inline align-[-3px]" size={16} /> в браузере,
-          затем «На экран „Домой“» <SquarePlus aria-hidden className="inline align-[-3px]" size={16} />.
-          Входите через Яндекс уже в приложении с иконки — iPhone хранит вход там отдельно от браузера.
-        </p>
-      ) : null}
-
-      {hint === "menu" ? (
-        <p className="text-[14px] leading-relaxed">
-          Откройте меню браузера и выберите «Установить приложение» или «Добавить на главный экран».
-        </p>
-      ) : null}
     </div>
   );
 }

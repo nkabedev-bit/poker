@@ -26,7 +26,7 @@ import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
 import { LiveTournamentCard } from "./_components/live-tournament-card";
-import { InstallBanner } from "./_components/install-banner";
+import { WebAppCard } from "./_components/web-app-card";
 import { useLiveTournament } from "./_components/use-live-tournament";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
@@ -41,6 +41,7 @@ type EventsResponse = {
     avatarIsCustom?: boolean;
     avatarUrl?: string | null;
     canClaimProfile?: boolean;
+    webLinked?: boolean;
     displayName: string | null;
     /** The player's own favourite hand ("QsTs"), drawn on their avatar. */
     favoriteHand?: string | null;
@@ -204,13 +205,14 @@ export default function ClientHomePage() {
         />
       ) : null}
 
-      <InstallBanner />
-
       {nextEvent ? (
         <EventCard event={nextEvent} featured />
       ) : (
         <NoEventsCard />
       )}
+
+      {/* Inside Telegram only, until the player also signs in on the web. */}
+      {initData && data && !data.player.webLinked ? <WebAppCard /> : null}
 
       {showApcCupCard ? (
         <a

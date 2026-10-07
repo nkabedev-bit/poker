@@ -4,12 +4,12 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const telegram = { initData: "", openLink: vi.fn() };
+const state = { initData: "", pathname: "/client" };
 
 vi.mock("@/app/client/layout", () => ({
-  getClientTelegramWebApp: () => telegram,
-  useClientTMA: () => ({ initData: telegram.initData, telegramUser: null }),
+  useClientTMA: () => ({ initData: state.initData, telegramUser: null }),
 }));
+vi.mock("next/navigation", () => ({ usePathname: () => state.pathname }));
 
 const { InstallBanner } = await import("@/app/client/_components/install-banner");
 const { listenForInstallPrompt } = await import("@/app/client/_components/install-prompt");
@@ -22,10 +22,10 @@ function setStandalone(standalone: boolean) {
   window.matchMedia = vi.fn().mockReturnValue({ matches: standalone }) as unknown as typeof window.matchMedia;
 }
 
-describe("InstallBanner", () => {
+describe("InstallBanner — the web app's note on putting it on the home screen", () => {
   beforeEach(() => {
-    telegram.initData = "";
-    telegram.openLink.mockReset();
+    state.initData = "";
+    state.pathname = "/client";
     window.localStorage.clear();
     setStandalone(false);
     setUserAgent("Mozilla/5.0 (Linux; Android 14; Pixel 8)");
@@ -33,15 +33,6 @@ describe("InstallBanner", () => {
 
   afterEach(() => {
     cleanup();
-  });
-
-  it("sends a mini-app player to the browser to install", () => {
-    telegram.initData = "signed";
-
-    render(<InstallBanner />);
-    fireEvent.click(screen.getByRole("button", { name: /открыть в браузере/i }));
-
-    expect(telegram.openLink).toHaveBeenCalledWith(`${window.location.origin}/client`);
   });
 
   it("tells an iPhone where «На экран „Домой“» is", () => {
@@ -69,6 +60,22 @@ describe("InstallBanner", () => {
     });
 
     expect(prompt).toHaveBeenCalledTimes(1);
+  });
+
+  it("stays out of the mini-app, which has its own card", () => {
+    state.initData = "signed";
+
+    const { container } = render(<InstallBanner />);
+
+    expect(container.textContent).toBe("");
+  });
+
+  it("waits until the player is signed in", () => {
+    state.pathname = "/client/login";
+
+    const { container } = render(<InstallBanner />);
+
+    expect(container.textContent).toBe("");
   });
 
   it("stays away inside the installed app", () => {
