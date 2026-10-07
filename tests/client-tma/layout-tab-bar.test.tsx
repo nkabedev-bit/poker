@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn(), replace: vi.fn() }));
@@ -19,7 +19,11 @@ const { LoadingScreen } = await import("@/app/client/_components/ui");
 const selectionChanged = vi.fn();
 
 function pill(container: HTMLElement) {
-  return container.querySelector("nav > span[aria-hidden]") as HTMLElement;
+  return container.querySelector('nav[aria-label="Нижнее меню"] > span[aria-hidden]') as HTMLElement;
+}
+
+async function tabs() {
+  return within(await screen.findByRole("navigation", { name: "Нижнее меню" })).getAllByRole("link");
 }
 
 describe("client mini-app layout: нижнее меню", () => {
@@ -50,7 +54,7 @@ describe("client mini-app layout: нижнее меню", () => {
   it("keeps one pill under the tab the player is on", async () => {
     nav.pathname = "/client/profile";
     const { container } = render(<ClientLayout>screen</ClientLayout>);
-    await screen.findAllByRole("link");
+    await tabs();
 
     // The fourth tab: three tab widths to the left of it.
     expect(pill(container).style.transform).toBe("translateX(300%)");
@@ -60,7 +64,7 @@ describe("client mini-app layout: нижнее меню", () => {
   it("hides the pill where it was on a screen that has no tab of its own", async () => {
     nav.pathname = "/client/tournaments";
     const { container, rerender } = render(<ClientLayout>screen</ClientLayout>);
-    await screen.findAllByRole("link");
+    await tabs();
 
     nav.pathname = "/client/rating";
     rerender(<ClientLayout>screen</ClientLayout>);
@@ -76,7 +80,7 @@ describe("client mini-app layout: нижнее меню", () => {
     document.addEventListener("click", stayOnPage, true);
 
     render(<ClientLayout>screen</ClientLayout>);
-    const [home, tournaments] = await screen.findAllByRole("link");
+    const [home, tournaments] = await tabs();
 
     fireEvent.click(home);
     expect(selectionChanged).not.toHaveBeenCalled();

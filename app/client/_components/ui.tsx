@@ -253,15 +253,36 @@ export function SectionHeader({
 }
 
 export function PageTitle({ children }: { children: ReactNode }) {
-  return <h1 className="font-display text-[26px] font-semibold tracking-[-0.02em]">{children}</h1>;
+  return <h1 className="font-display text-[26px] font-semibold tracking-[-0.02em] md:text-[34px]">{children}</h1>;
 }
 
-/** A screen's title with the line under it that says what the screen is for. */
-export function PageHeading({ subtitle, title }: { subtitle?: ReactNode; title: ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
+/**
+ * A screen's title with the line under it that says what the screen is for. On a wide
+ * screen the controls of the screen stand at the right end of the heading; on a phone
+ * they follow it.
+ */
+export function PageHeading({
+  actions,
+  subtitle,
+  title,
+}: {
+  actions?: ReactNode;
+  subtitle?: ReactNode;
+  title: ReactNode;
+}) {
+  const heading = (
+    <div className="flex flex-col gap-1.5 md:gap-2">
       <PageTitle>{title}</PageTitle>
-      {subtitle ? <p className="text-[14px] text-club-muted">{subtitle}</p> : null}
+      {subtitle ? <p className="text-[14px] text-club-muted md:text-[15px]">{subtitle}</p> : null}
+    </div>
+  );
+
+  if (!actions) return heading;
+
+  return (
+    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between md:gap-6">
+      {heading}
+      <div className="flex shrink-0 items-center gap-2.5">{actions}</div>
     </div>
   );
 }

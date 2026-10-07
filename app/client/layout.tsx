@@ -6,9 +6,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
 import { WelcomeSplash } from "./_components/welcome-splash";
+import { ClientSideNav, type SideNavPlayer } from "./_components/side-nav";
+import { openSupportChat } from "./_components/support";
 import { CLUB_FONT_CLASSES } from "./fonts";
 import { listenForInstallPrompt } from "./_components/install-prompt";
 import { InstallBanner } from "./_components/install-banner";
+import { pickPlayerPhoto } from "@/lib/players/photo";
+import type { PlayerTier } from "@/lib/players/tier";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -89,6 +93,35 @@ const NAV_ITEMS = [
   { href: "/client/battle-pass", label: "Боевой пропуск", short: "Пропуск", icon: Swords, match: (p: string) => p.includes("/battle-pass") },
   { href: "/client/profile", label: "Профиль", short: "Профиль", icon: User, match: (p: string) => p.includes("/profile") },
 ];
+
+// Above the heading of a screen that sits under one of the sections, on a wide screen:
+// the phone has its back button in the header, which a computer goes without.
+const PARENT_SCREENS = [
+  { href: "/client/tournaments", label: "Турниры", match: (p: string) => p.startsWith("/client/events/") },
+  { href: "/client/rating", label: "Рейтинг", match: (p: string) => p.startsWith("/client/players/") },
+  { href: "/client/achievements", label: "Достижения", match: (p: string) => p.startsWith("/client/achievements/") },
+  {
+    href: "/client/profile",
+    label: "Профиль",
+    match: (p: string) =>
+      ["/client/achievements", "/client/medals", "/client/passes"].includes(p) || p.startsWith("/client/games/"),
+  },
+  { href: "/client", label: "Главная", match: (p: string) => p === "/client/news" || p === "/client/about" },
+];
+
+/** Where the side menu appears; below it the phone's tab bar does the job. */
+const WIDE_SCREEN_QUERY = "(min-width: 768px)";
+
+function isWideScreen() {
+  return typeof window.matchMedia === "function" && window.matchMedia(WIDE_SCREEN_QUERY).matches;
+}
+
+type MeResponse = {
+  avatarUrl?: string | null;
+  displayName?: string | null;
+  favoriteHand?: string | null;
+  tier?: PlayerTier | null;
+};
 
 /** How long to wait for Telegram before deciding this is an ordinary browser. */
 const TELEGRAM_WAIT_MS = 1200;
@@ -234,30 +267,50 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
   // A web visitor carries their session in a cookie, and there is no way to tell from
   // here whether it is still good. Asked once, rather than on every screen: every other
-  // request would answer the same question a second time.
-  const sessionChecked = useRef(false);
+  // request would answer the same question a second time. The same answer fills the
+  // player's card at the foot of the side menu on a wide screen.
+  const meRequested = useRef(false);
+  const [me, setMe] = useState<MeResponse | null>(null);
 
   useEffect(() => {
-    if (door !== "web" || pathname === SIGN_IN_PATH || sessionChecked.current) return;
-    sessionChecked.current = true;
+    if (door === "loading" || pathname === SIGN_IN_PATH || meRequested.current) return;
+
+    const wide = isWideScreen();
+    // A phone in Telegram has no question to ask: the session is Telegram's, and the
+    // tab bar carries no player card.
+    if (door === "telegram" && !wide) return;
+    meRequested.current = true;
 
     let cancelled = false;
 
-    void fetch("/api/client-tma/me")
-      .then((res) => {
-        if (cancelled || (res.status !== 401 && res.status !== 403)) return;
-        // Asked again at the last moment: Telegram's script may have arrived while the
-        // request was in flight, and a player inside the mini-app has no web sign-in.
-        if (isTelegramWebView()) return;
+    void fetch("/api/client-tma/me", { headers: { "X-Telegram-Init-Data": initData ?? "" } })
+      .then(async (res) => {
+        if (res.status === 401 || res.status === 403) {
+          // Asked again at the last moment: Telegram's script may have arrived while the
+          // request was in flight, and a player inside the mini-app has no web sign-in.
+          if (cancelled || door !== "web" || isTelegramWebView()) return;
 
-        router.replace(SIGN_IN_PATH);
+          router.replace(SIGN_IN_PATH);
+          return;
+        }
+
+        if (res.ok && wide) setMe((await res.json()) as MeResponse);
       })
       .catch(() => {});
 
     return () => {
       cancelled = true;
     };
-  }, [door, pathname, router]);
+  }, [door, initData, pathname, router]);
+
+  const sideNavPlayer: SideNavPlayer | null = me
+    ? {
+        hand: me.favoriteHand,
+        name: me.displayName?.trim() || telegramUser?.first_name || "Игрок",
+        photoUrl: pickPlayerPhoto({ avatarUrl: me.avatarUrl, telegramPhotoUrl: telegramUser?.photo_url }),
+        tier: me.tier,
+      }
+    : null;
 
   // Telegram's own back button, wired the way a native screen behaves: present on every
   // screen except the home one, and pressing it returns to where the player came from.
@@ -314,6 +367,10 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   // offer is caught here so the home screen's hint can use it later.
   useEffect(() => listenForInstallPrompt(), []);
 
+  // The sign-in is a screen of its own on a computer: no menu leads anywhere before it.
+  const bareScreen = pathname === SIGN_IN_PATH;
+  const parentScreen = PARENT_SCREENS.find((screen) => screen.match(pathname));
+
   return (
     <>
       {/* Installable as an app of its own (React puts these in <head>): from its icon it
@@ -337,80 +394,108 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
       />
 
       <div
-        className={`client-app ${CLUB_FONT_CLASSES} relative flex h-[100dvh] flex-col overflow-hidden bg-club-ink text-club-text`}
+        className={`client-app ${CLUB_FONT_CLASSES} relative flex h-[100dvh] overflow-hidden bg-club-ink text-club-text`}
       >
-        {/* Club colours: a crimson glow over the top of a near-black room. */}
-        <div className="pointer-events-none absolute inset-0">
-          <div className="absolute -left-20 -right-20 -top-[260px] h-[420px] rounded-[50%] bg-[radial-gradient(closest-side,rgba(200,33,63,0.22),rgba(200,33,63,0))]" />
-        </div>
-
-        <header className="relative z-10 flex h-[calc(env(safe-area-inset-top)+68px)] shrink-0 items-center justify-center px-4 pt-[env(safe-area-inset-top)]">
-          {pathname !== "/client" ? (
-            <button
-              aria-label="Назад"
-              className="absolute left-4 flex h-11 w-11 items-center justify-center rounded-[14px] border border-club-line bg-white/[0.06] text-club-text transition active:scale-95"
-              type="button"
-              onClick={() => goBackRef.current()}
-            >
-              <ChevronLeft size={22} strokeWidth={2} />
-            </button>
-          ) : null}
-          <span className="pl-[0.34em] font-display text-[13px] font-semibold tracking-[0.34em] text-club-gold">
-            MAJESTIC
-          </span>
-        </header>
-
-        {door === "loading" ? (
-          <div className="relative z-10 flex flex-1 items-center justify-center text-club-faint">
-            Загрузка…
-          </div>
-        ) : (
-          <ClientTMAContext.Provider value={{ initData: initData ?? "", telegramUser }}>
-            <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-[calc(110px+env(safe-area-inset-bottom))]">
-              {children}
-            </main>
-
-            <nav className="fixed inset-x-0 bottom-0 z-20 flex border-t border-club-line bg-[rgba(18,13,15,0.96)] px-2 pb-[max(env(safe-area-inset-bottom),12px)] backdrop-blur-xl">
-              {/* One pill slides between the tabs: a quarter of the bar wide, it moves
-                  a whole tab at a time and keeps the icon's highlight centred. */}
-              <span
-                aria-hidden
-                className={`client-nav-pill pointer-events-none absolute left-2 top-2 flex w-[calc((100%-16px)/4)] justify-center ${
-                  activeTab < 0 ? "opacity-0" : ""
-                }`}
-                style={{ transform: `translateX(${pillTab * 100}%)` }}
-              >
-                <span className="h-8 w-14 rounded-full bg-club-crimson/20" />
-              </span>
-              {NAV_ITEMS.map((item, index) => {
-                const Icon = item.icon;
-                const active = index === activeTab;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    aria-label={item.label}
-                    className={`relative flex flex-1 basis-0 flex-col items-center gap-1 pt-2 transition-colors duration-300 ${
-                      active ? "text-club-text" : "text-club-faint"
-                    }`}
-                    onClick={() => {
-                      if (!active) tickClientSelection();
-                    }}
-                  >
-                    <span className={`flex h-8 w-14 items-center justify-center ${active ? "text-club-rose" : ""}`}>
-                      <Icon className={active ? "client-icon-pop" : undefined} size={22} strokeWidth={active ? 2.1 : 1.8} />
-                    </span>
-                    <span className={`text-[11px] ${active ? "font-extrabold" : "font-semibold"}`}>{item.short}</span>
-                  </Link>
-                );
-              })}
-            </nav>
-
-            {door === "web" ? <InstallBanner /> : null}
-
-            <WelcomeSplash />
-          </ClientTMAContext.Provider>
+        {bareScreen ? null : (
+          <ClientSideNav
+            pathname={pathname}
+            player={sideNavPlayer}
+            onSupport={() => openSupportChat(door === "telegram")}
+          />
         )}
+
+        <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+          {/* Club colours: a crimson glow over the top of a near-black room. */}
+          <div className="pointer-events-none absolute inset-0">
+            <div className="absolute -left-20 -right-20 -top-[260px] h-[420px] rounded-[50%] bg-[radial-gradient(closest-side,rgba(200,33,63,0.22),rgba(200,33,63,0))] md:left-[10%] md:right-[10%] md:-top-[320px] md:h-[520px] md:bg-[radial-gradient(closest-side,rgba(200,33,63,0.16),rgba(200,33,63,0))]" />
+          </div>
+
+          <header className="relative z-10 flex h-[calc(env(safe-area-inset-top)+68px)] shrink-0 items-center justify-center px-4 pt-[env(safe-area-inset-top)] md:hidden">
+            {pathname !== "/client" ? (
+              <button
+                aria-label="Назад"
+                className="absolute left-4 flex h-11 w-11 items-center justify-center rounded-[14px] border border-club-line bg-white/[0.06] text-club-text transition active:scale-95"
+                type="button"
+                onClick={() => goBackRef.current()}
+              >
+                <ChevronLeft size={22} strokeWidth={2} />
+              </button>
+            ) : null}
+            <span className="pl-[0.34em] font-display text-[13px] font-semibold tracking-[0.34em] text-club-gold">
+              MAJESTIC
+            </span>
+          </header>
+
+          {door === "loading" ? (
+            <div className="relative z-10 flex flex-1 items-center justify-center text-club-faint">
+              Загрузка…
+            </div>
+          ) : (
+            <ClientTMAContext.Provider value={{ initData: initData ?? "", telegramUser }}>
+              <main className="relative z-10 flex-1 overflow-y-auto overflow-x-hidden px-4 pb-[calc(110px+env(safe-area-inset-bottom))] md:px-0 md:pb-0">
+                <div
+                  className={
+                    bareScreen ? "md:h-full" : "md:mx-auto md:flex md:max-w-[1120px] md:flex-col md:px-12 md:pb-16 md:pt-10"
+                  }
+                >
+                  {parentScreen ? (
+                    <Link
+                      className="mb-1.5 hidden h-9 w-fit items-center gap-1 text-[14px] font-bold text-club-muted transition-colors hover:text-club-text md:inline-flex"
+                      href={parentScreen.href}
+                    >
+                      <ChevronLeft size={18} strokeWidth={2} />
+                      {parentScreen.label}
+                    </Link>
+                  ) : null}
+                  {children}
+                </div>
+              </main>
+
+              <nav
+                aria-label="Нижнее меню"
+                className="fixed inset-x-0 bottom-0 z-20 flex border-t border-club-line bg-[rgba(18,13,15,0.96)] px-2 pb-[max(env(safe-area-inset-bottom),12px)] backdrop-blur-xl md:hidden"
+              >
+                {/* One pill slides between the tabs: a quarter of the bar wide, it moves
+                    a whole tab at a time and keeps the icon's highlight centred. */}
+                <span
+                  aria-hidden
+                  className={`client-nav-pill pointer-events-none absolute left-2 top-2 flex w-[calc((100%-16px)/4)] justify-center ${
+                    activeTab < 0 ? "opacity-0" : ""
+                  }`}
+                  style={{ transform: `translateX(${pillTab * 100}%)` }}
+                >
+                  <span className="h-8 w-14 rounded-full bg-club-crimson/20" />
+                </span>
+                {NAV_ITEMS.map((item, index) => {
+                  const Icon = item.icon;
+                  const active = index === activeTab;
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-label={item.label}
+                      className={`relative flex flex-1 basis-0 flex-col items-center gap-1 pt-2 transition-colors duration-300 ${
+                        active ? "text-club-text" : "text-club-faint"
+                      }`}
+                      onClick={() => {
+                        if (!active) tickClientSelection();
+                      }}
+                    >
+                      <span className={`flex h-8 w-14 items-center justify-center ${active ? "text-club-rose" : ""}`}>
+                        <Icon className={active ? "client-icon-pop" : undefined} size={22} strokeWidth={active ? 2.1 : 1.8} />
+                      </span>
+                      <span className={`text-[11px] ${active ? "font-extrabold" : "font-semibold"}`}>{item.short}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              {door === "web" ? <InstallBanner /> : null}
+
+              <WelcomeSplash />
+            </ClientTMAContext.Provider>
+          )}
+        </div>
       </div>
     </>
   );

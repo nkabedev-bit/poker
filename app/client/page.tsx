@@ -9,7 +9,7 @@ import {
   Spade,
   Trophy,
 } from "lucide-react";
-import { getClientTelegramWebApp, useClientTMA } from "./layout";
+import { useClientTMA } from "./layout";
 import {
   GlassCard,
   IconTile,
@@ -21,6 +21,7 @@ import {
 } from "./_components/ui";
 import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
+import { openSupportChat } from "./_components/support";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
 import { LiveTournamentCard } from "./_components/live-tournament-card";
 import { WebAppCard } from "./_components/web-app-card";
@@ -48,23 +49,6 @@ type EventsResponse = {
 };
 
 type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
-
-const SUPPORT_TELEGRAM_URL = "https://t.me/markvasilyevv";
-
-
-// openTelegramLink keeps the chat inside Telegram; outside the app (or on an old
-// client) a plain window.open still gets the player there.
-function openSupportChat() {
-  const tg = getClientTelegramWebApp();
-  tg?.HapticFeedback?.impactOccurred("light");
-
-  if (tg?.openTelegramLink) {
-    tg.openTelegramLink(SUPPORT_TELEGRAM_URL);
-    return;
-  }
-
-  window.open(SUPPORT_TELEGRAM_URL, "_blank", "noopener");
-}
 
 export default function ClientHomePage() {
   const { initData, telegramUser } = useClientTMA();
@@ -190,7 +174,6 @@ export default function ClientHomePage() {
       {/* Inside Telegram only, until the player also signs in on the web. */}
       {initData && data && !data.player.webLinked ? <WebAppCard /> : null}
 
-
       {laterEvents.length > 0 ? (
         <section className="flex flex-col gap-2">
           <SectionHeader href="/client/tournaments" title="Дальше в календаре" />
@@ -227,7 +210,7 @@ export default function ClientHomePage() {
         <button
           className="flex flex-col gap-3 rounded-[20px] border border-club-line bg-club-surface p-4 text-left transition-transform active:scale-[0.98]"
           type="button"
-          onClick={openSupportChat}
+          onClick={() => openSupportChat(Boolean(initData))}
         >
           <LifeBuoy className="text-club-rose" size={22} />
           <div className="flex flex-col gap-0.5">

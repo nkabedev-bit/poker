@@ -1,7 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const router = vi.hoisted(() => ({ back: vi.fn(), push: vi.fn(), replace: vi.fn() }));
@@ -38,7 +38,7 @@ describe("client mini-app: Боевой пропуск", () => {
   it("sits third in the tab bar, between the tournaments and the profile", async () => {
     render(<ClientLayout>screen</ClientLayout>);
 
-    const tabs = await screen.findAllByRole("link");
+    const tabs = within(await screen.findByRole("navigation", { name: "Нижнее меню" })).getAllByRole("link");
 
     expect(tabs.map((tab) => tab.getAttribute("aria-label"))).toEqual([
       "Главная",

@@ -42,6 +42,12 @@
   --font-body: var(--font-club-body), sans-serif;
 }
 
+@theme {
+  /* The club app on a computer: from here the side menu carries labels and screens
+     spread to three columns. Between md (768px) and this, a narrow rail of icons. */
+  --breakpoint-desk: 75rem;
+}
+
 * {
   box-sizing: border-box;
 }
