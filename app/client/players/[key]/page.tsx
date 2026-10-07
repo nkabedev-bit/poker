@@ -121,95 +121,101 @@ export default function ClientPlayerPage() {
   )?.place;
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
+    // On a computer the player's face stands in a card on the left, their figures and
+    // history on the right; on a phone it is all one list.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:gap-8">
       <PageTitle>Профиль</PageTitle>
 
-      <div className="flex flex-col items-center gap-3 pt-1 text-center">
-        <PlayerAvatar
-          hand={player.hand}
-          name={player.name}
-          photoUrl={player.avatarUrl ?? undefined}
-          ring={player.tier === "champion" ? "gold" : player.isMe ? "crimson" : undefined}
-          size={104}
-        />
-        <div className="mt-2.5 flex flex-col items-center gap-2">
-          <p className="max-w-full truncate font-display text-[24px] font-semibold tracking-[-0.02em]">
-            {player.name}
-          </p>
-          <div className="flex items-center gap-2">
-            <span className="text-[14px] text-club-muted">{player.isMe ? "Это вы" : "Игрок клуба"}</span>
-            {player.tier ? (
-              <Pill tone="goldOutline">
-                {player.tier === "champion" ? "👑 " : ""}
-                {TIER_TITLES[player.tier]}
-              </Pill>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <StatStrip>
-        <StatCell label="Игр" value={<CountUp value={stats.games} />} />
-        <StatCell label="Нокаутов" value={<CountUp value={Math.round(stats.eliminations)} />} />
-        <StatCell label="Топ-9" value={<CountUp value={stats.top9} />} />
-      </StatStrip>
-
-      <div className="grid grid-cols-2 gap-2.5">
-        <GoldTile icon={<Trophy size={20} />} label="Место в рейтинге" value={place ?? "—"} />
-        <GoldTile icon={<Medal size={20} />} label="Побед" value={<CountUp value={stats.wins} />} />
-      </div>
-
-      <MenuGroup>
-        <MenuRow
-          href={`/client/players/${playerKey}/medals`}
-          icon={<Medal size={20} />}
-          subtitle="Кубки за победы в турнирах"
-          title="Медали"
-          value={`${medalsEarned} / ${MEDALS_TOTAL}`}
-        />
-        <MenuRow
-          href={`/client/players/${playerKey}/achievements`}
-          icon={<Star size={20} />}
-          subtitle={earned === achievements.length ? "Собрана вся коллекция клуба" : "Награды клуба и прогресс"}
-          title="Достижения"
-          value={<CountUp suffix={` / ${achievements.length}`} value={earned} />}
-        >
-          <div className="mt-1.5 w-[140px]">
-            <div className="h-1 overflow-hidden rounded-full bg-white/[0.08]">
-              <div
-                className="client-fill-x h-full rounded-full bg-club-gold"
-                style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
-              />
+      <div className="client-stagger contents desk:grid desk:grid-cols-[360px_minmax(0,1fr)] desk:items-start desk:gap-8">
+        <div className="flex flex-col items-center gap-3 pt-1 text-center desk:rounded-[26px] desk:border desk:border-club-line desk:bg-club-surface desk:px-6 desk:py-8">
+          <PlayerAvatar
+            hand={player.hand}
+            name={player.name}
+            photoUrl={player.avatarUrl ?? undefined}
+            ring={player.tier === "champion" ? "gold" : player.isMe ? "crimson" : undefined}
+            size={104}
+          />
+          <div className="mt-2.5 flex flex-col items-center gap-2">
+            <p className="max-w-full truncate font-display text-[24px] font-semibold tracking-[-0.02em]">
+              {player.name}
+            </p>
+            <div className="flex items-center gap-2">
+              <span className="text-[14px] text-club-muted">{player.isMe ? "Это вы" : "Игрок клуба"}</span>
+              {player.tier ? (
+                <Pill tone="goldOutline">
+                  {player.tier === "champion" ? "👑 " : ""}
+                  {TIER_TITLES[player.tier]}
+                </Pill>
+              ) : null}
             </div>
           </div>
-        </MenuRow>
-      </MenuGroup>
+        </div>
 
-      <section className="flex flex-col gap-2.5">
-        <SectionHeader title="История игр" />
+        <div className="client-stagger contents desk:flex desk:flex-col desk:gap-7">
+          <StatStrip>
+            <StatCell label="Игр" value={<CountUp value={stats.games} />} />
+            <StatCell label="Нокаутов" value={<CountUp value={Math.round(stats.eliminations)} />} />
+            <StatCell label="Топ-9" value={<CountUp value={stats.top9} />} />
+          </StatStrip>
 
-        {player.games.length > 0 ? (
-          <div className="client-stagger-rows flex flex-col gap-2">
-            {player.games.map((game) => (
-              <PlayedGameRow
-                key={game.startedAt}
-                href={`/client/games/${encodeURIComponent(game.startedAt)}`}
-                place={game.place}
-                subtitle={
-                  game.knockouts > 0
-                    ? countWord(Math.round(game.knockouts), ["нокаут", "нокаута", "нокаутов"])
-                    : "без нокаутов"
-                }
-                title={formatEventShortDateLabel(game.startedAt)}
-              />
-            ))}
+          <div className="grid grid-cols-2 gap-2.5">
+            <GoldTile icon={<Trophy size={20} />} label="Место в рейтинге" value={place ?? "—"} />
+            <GoldTile icon={<Medal size={20} />} label="Побед" value={<CountUp value={stats.wins} />} />
           </div>
-        ) : (
-          <GlassCard className="py-7 text-center">
-            <p className="text-sm text-club-muted">Игр пока нет.</p>
-          </GlassCard>
-        )}
-      </section>
+
+          <MenuGroup>
+            <MenuRow
+              href={`/client/players/${playerKey}/medals`}
+              icon={<Medal size={20} />}
+              subtitle="Кубки за победы в турнирах"
+              title="Медали"
+              value={`${medalsEarned} / ${MEDALS_TOTAL}`}
+            />
+            <MenuRow
+              href={`/client/players/${playerKey}/achievements`}
+              icon={<Star size={20} />}
+              subtitle={earned === achievements.length ? "Собрана вся коллекция клуба" : "Награды клуба и прогресс"}
+              title="Достижения"
+              value={<CountUp suffix={` / ${achievements.length}`} value={earned} />}
+            >
+              <div className="mt-1.5 w-[140px]">
+                <div className="h-1 overflow-hidden rounded-full bg-white/[0.08]">
+                  <div
+                    className="client-fill-x h-full rounded-full bg-club-gold"
+                    style={{ width: `${Math.round((earned / achievements.length) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            </MenuRow>
+          </MenuGroup>
+
+          <section className="flex flex-col gap-2.5">
+            <SectionHeader title="История игр" />
+
+            {player.games.length > 0 ? (
+              <div className="client-stagger-rows flex flex-col gap-2">
+                {player.games.map((game) => (
+                  <PlayedGameRow
+                    key={game.startedAt}
+                    href={`/client/games/${encodeURIComponent(game.startedAt)}`}
+                    place={game.place}
+                    subtitle={
+                      game.knockouts > 0
+                        ? countWord(Math.round(game.knockouts), ["нокаут", "нокаута", "нокаутов"])
+                        : "без нокаутов"
+                    }
+                    title={formatEventShortDateLabel(game.startedAt)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <GlassCard className="py-7 text-center">
+                <p className="text-sm text-club-muted">Игр пока нет.</p>
+              </GlassCard>
+            )}
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

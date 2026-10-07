@@ -7,7 +7,7 @@ import Link from "next/link";
 import { GlassCard, LoadingScreen, PageHeading } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
+import { RATING_TABLE_COLUMNS, RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 
 type RatingSeason = { id: string; status: "open" | "closed"; title: string };
 
@@ -106,129 +106,148 @@ export default function ClientRatingPage() {
   const finding = findMe > 0;
 
   return (
-    <div className="client-stagger flex flex-col gap-5 pt-1">
+    <div className="client-stagger flex flex-col gap-5 pt-1 md:pt-0 desk:gap-7">
       <PageHeading
+        actions={
+          seasons.length > 1 ? (
+            <div className="-mx-4 min-w-0 flex-1 overflow-x-auto px-4 [scrollbar-width:none] md:mx-0 md:max-w-[560px] md:flex-none md:px-0">
+              <div className="flex w-max gap-2">
+                {seasons.map((season) => (
+                  <button
+                    key={season.id}
+                    className={`h-10 shrink-0 rounded-full border px-4 text-[13px] font-semibold transition ${
+                      season.id === selected?.id
+                        ? "border-transparent bg-club-crimson text-white"
+                        : "border-club-line bg-white/[0.05] text-club-muted"
+                    }`}
+                    type="button"
+                    onClick={() => {
+                      if (season.id === selected?.id) return;
+
+                      tickClientSelection();
+                      setSeasonId(season.id);
+                    }}
+                  >
+                    {season.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : undefined
+        }
         subtitle={selected ? `${selected.title}${selected.status === "open" ? " · идёт сейчас" : ""}` : undefined}
         title="Рейтинг"
       />
 
-      {seasons.length > 1 ? (
-        <div className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
-          <div className="flex w-max gap-2">
-            {seasons.map((season) => (
-              <button
-                key={season.id}
-                className={`h-10 shrink-0 rounded-full border px-4 text-[13px] font-semibold transition ${
-                  season.id === selected?.id
-                    ? "border-transparent bg-club-crimson text-white"
-                    : "border-club-line bg-white/[0.05] text-club-muted"
-                }`}
-                type="button"
-                onClick={() => {
-                  if (season.id === selected?.id) return;
+      {/* On a computer the podium stands on the left and the player's own place beside it. */}
+      <div className="client-stagger contents desk:grid desk:grid-cols-[minmax(0,1fr)_340px] desk:items-end desk:gap-7">
+        {me && me.place ? (
+          <div className="flex items-center gap-3.5 rounded-[20px] border border-club-rose/45 bg-club-crimson/12 px-4 py-3.5 desk:col-start-2 desk:row-start-1">
+            <PlayerAvatar hand={me.hand} name={me.name} photoUrl={me.avatarUrl ?? undefined} size={44} />
+            <div className="flex min-w-0 flex-1 flex-col pl-1">
+              <p className="text-[12px] text-club-muted">Ваше место</p>
+              <p className="font-display text-[20px] font-semibold">
+                {me.place}
+                {me.points !== null ? (
+                  <span className="text-[13px] text-club-muted"> · {me.points.toLocaleString("ru-RU")} очков</span>
+                ) : null}
+              </p>
+            </div>
+            <button
+              className="h-9 shrink-0 rounded-xl bg-white/[0.08] px-3 text-[13px] font-extrabold"
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setFindMe((count) => count + 1);
+              }}
+            >
+              Найти меня
+            </button>
+          </div>
+        ) : null}
 
-                  tickClientSelection();
-                  setSeasonId(season.id);
-                }}
-              >
-                {season.title}
-              </button>
+        {podium.length === 3 ? (
+          <div className="flex items-end gap-2.5 pt-2 desk:col-start-1 desk:row-start-1 desk:gap-4">
+            {[podium[1], podium[0], podium[2]].map((player) => (
+              <PodiumStep key={`${player.place}-${player.name}`} finding={finding} player={player} />
             ))}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
-      {me && me.place ? (
-        <div className="flex items-center gap-3.5 rounded-[20px] border border-club-rose/45 bg-club-crimson/12 px-4 py-3.5">
-          <PlayerAvatar hand={me.hand} name={me.name} photoUrl={me.avatarUrl ?? undefined} size={44} />
-          <div className="flex min-w-0 flex-1 flex-col pl-1">
-            <p className="text-[12px] text-club-muted">Ваше место</p>
-            <p className="font-display text-[20px] font-semibold">
-              {me.place}
-              {me.points !== null ? (
-                <span className="text-[13px] text-club-muted"> · {me.points.toLocaleString("ru-RU")} очков</span>
-              ) : null}
+      {/* The table is a panel of its own on a computer, its search in the corner. */}
+      <div className="client-stagger contents desk:flex desk:flex-col desk:gap-2 desk:rounded-[26px] desk:border desk:border-club-line desk:bg-club-surface/60 desk:p-2.5">
+
+        <label className="!flex h-12 !gap-2.5 items-center rounded-[14px] border border-club-line bg-club-surface px-3.5 focus-within:border-club-rose desk:mx-2 desk:mt-2 desk:h-11 desk:w-80 desk:bg-club-ink/40">
+          <Search className="shrink-0 text-club-faint" size={18} />
+          <input
+            className="min-w-0 flex-1 bg-transparent text-[15px] text-club-text outline-none placeholder:text-club-faint"
+            placeholder="Поиск по никнейму"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+
+        {players.length === 0 ? (
+          <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
+            <Trophy className="text-club-faint" size={28} />
+            <p className="text-sm text-club-muted">
+              {query
+                ? "Никого не нашли по этому нику."
+                : seasons.length === 0
+                  ? "Сезон ещё не открыт."
+                  : "Рейтинг наполнится после первых игр сезона."}
             </p>
+          </GlassCard>
+        ) : (
+          <div className="flex flex-col gap-1.5">
+            <div
+              className={`flex items-center gap-3 px-3.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-club-faint ${RATING_TABLE_COLUMNS} desk:gap-0 desk:px-[18px] desk:py-2`}
+            >
+              <span className="w-[26px] text-center desk:w-auto desk:text-left">#</span>
+              <span className="flex-1 pl-[54px] desk:pl-0">Игрок</span>
+              <span className="hidden desk:block">Статус</span>
+              <span className="hidden text-right desk:block">Игр</span>
+              <span className="w-10 text-right desk:w-auto">
+                <span className="desk:hidden">KO</span>
+                <span className="hidden desk:inline">Нокауты</span>
+              </span>
+              <span className="w-16 text-right desk:w-auto">Очки</span>
+            </div>
+
+            {/* Keyed by the season, so another season's table arrives row by row as well. */}
+            <div
+              key={selected?.id ?? "season"}
+              ref={listRef}
+              className="client-stagger-rows flex flex-col gap-1.5 desk:gap-0.5"
+            >
+              {rows.map((player) => {
+                const key = `${player.place}-${player.name}`;
+
+                return (
+                  <div
+                    key={key}
+                    className={`relative rounded-[18px] ${finding && player.isMe ? "client-find" : ""}`}
+                    data-me={player.isMe ? "true" : undefined}
+                    data-row={key}
+                  >
+                    <RatingRow columns player={player} />
+                  </div>
+                );
+              })}
+
+              {me && !meVisible && !query ? (
+                <>
+                  <p className="text-center tracking-[0.3em] text-club-faint">· · ·</p>
+                  <div className={`relative rounded-[18px] ${finding ? "client-find" : ""}`} data-me="true">
+                    <RatingRow columns player={me} />
+                  </div>
+                </>
+              ) : null}
+            </div>
           </div>
-          <button
-            className="h-9 shrink-0 rounded-xl bg-white/[0.08] px-3 text-[13px] font-extrabold"
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setFindMe((count) => count + 1);
-            }}
-          >
-            Найти меня
-          </button>
-        </div>
-      ) : null}
-
-      {podium.length === 3 ? (
-        <div className="flex items-end gap-2.5 pt-2">
-          {[podium[1], podium[0], podium[2]].map((player) => (
-            <PodiumStep key={`${player.place}-${player.name}`} finding={finding} player={player} />
-          ))}
-        </div>
-      ) : null}
-
-      <label className="!flex h-12 !gap-2.5 items-center rounded-[14px] border border-club-line bg-club-surface px-3.5 focus-within:border-club-rose">
-        <Search className="shrink-0 text-club-faint" size={18} />
-        <input
-          className="min-w-0 flex-1 bg-transparent text-[15px] text-club-text outline-none placeholder:text-club-faint"
-          placeholder="Поиск по никнейму"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
-
-      {players.length === 0 ? (
-        <GlassCard className="flex flex-col items-center gap-3 py-8 text-center">
-          <Trophy className="text-club-faint" size={28} />
-          <p className="text-sm text-club-muted">
-            {query
-              ? "Никого не нашли по этому нику."
-              : seasons.length === 0
-                ? "Сезон ещё не открыт."
-                : "Рейтинг наполнится после первых игр сезона."}
-          </p>
-        </GlassCard>
-      ) : (
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-3 px-3.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-club-faint">
-            <span className="w-[26px] text-center">#</span>
-            <span className="flex-1 pl-[54px]">Игрок</span>
-            <span className="w-10 text-right">KO</span>
-            <span className="w-16 text-right">Очки</span>
-          </div>
-
-          {/* Keyed by the season, so another season's table arrives row by row as well. */}
-          <div key={selected?.id ?? "season"} ref={listRef} className="client-stagger-rows flex flex-col gap-1.5">
-            {rows.map((player) => {
-              const key = `${player.place}-${player.name}`;
-
-              return (
-                <div
-                  key={key}
-                  className={`relative rounded-[18px] ${finding && player.isMe ? "client-find" : ""}`}
-                  data-me={player.isMe ? "true" : undefined}
-                  data-row={key}
-                >
-                  <RatingRow player={player} />
-                </div>
-              );
-            })}
-
-            {me && !meVisible && !query ? (
-              <>
-                <p className="text-center tracking-[0.3em] text-club-faint">· · ·</p>
-                <div className={`relative rounded-[18px] ${finding ? "client-find" : ""}`} data-me="true">
-                  <RatingRow player={me} />
-                </div>
-              </>
-            ) : null}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {selected ? (
         <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-club-faint">

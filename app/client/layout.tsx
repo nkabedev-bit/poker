@@ -96,8 +96,14 @@ const NAV_ITEMS = [
 
 // Above the heading of a screen that sits under one of the sections, on a wide screen:
 // the phone has its back button in the header, which a computer goes without.
-const PARENT_SCREENS = [
+const PARENT_SCREENS: Array<{ href: string | ((p: string) => string); label: string; match: (p: string) => boolean }> = [
   { href: "/client/tournaments", label: "Турниры", match: (p: string) => p.startsWith("/client/events/") },
+  // Somebody's medals and achievements lead back to their profile, not to the rating.
+  {
+    href: (p: string) => p.replace(/\/(achievements|medals)$/, ""),
+    label: "Профиль игрока",
+    match: (p: string) => /^\/client\/players\/[^/]+\/(achievements|medals)$/.test(p),
+  },
   { href: "/client/rating", label: "Рейтинг", match: (p: string) => p.startsWith("/client/players/") },
   { href: "/client/achievements", label: "Достижения", match: (p: string) => p.startsWith("/client/achievements/") },
   {
@@ -441,7 +447,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   {parentScreen ? (
                     <Link
                       className="mb-1.5 hidden h-9 w-fit items-center gap-1 text-[14px] font-bold text-club-muted transition-colors hover:text-club-text md:inline-flex"
-                      href={parentScreen.href}
+                      href={typeof parentScreen.href === "string" ? parentScreen.href : parentScreen.href(pathname)}
                     >
                       <ChevronLeft size={18} strokeWidth={2} />
                       {parentScreen.label}

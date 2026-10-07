@@ -75,6 +75,17 @@ describe("client app layout: боковое меню на компьютере",
     expect(within(main).getByRole("link", { name: "Турниры" }).getAttribute("href")).toBe("/client/tournaments");
   });
 
+  it("leads from somebody's medals back to their profile rather than the rating", async () => {
+    nav.pathname = "/client/players/onega/medals";
+    render(<ClientLayout>screen</ClientLayout>);
+    await screen.findByText("screen");
+
+    const main = screen.getByRole("main");
+    expect(within(main).getByRole("link", { name: "Профиль игрока" }).getAttribute("href")).toBe(
+      "/client/players/onega",
+    );
+  });
+
   it("draws no way up on a section's own screen", async () => {
     nav.pathname = "/client/tournaments";
     render(<ClientLayout>screen</ClientLayout>);
