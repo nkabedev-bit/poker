@@ -26,6 +26,7 @@ import { loadTimerContext } from "@/lib/tma/timer-context";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { grantWinnerPass } from "@/lib/free-entries/winner-pass";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import { recordFinishedEveningDebts } from "@/lib/debts/store";
 import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
 import { buildKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
@@ -298,6 +299,14 @@ export async function POST(request: Request) {
       } catch (resultsError) {
         console.error("Failed to store tournament results", resultsError);
       }
+
+      // The unpaid bills become debts here too: the last knockout is the other way an
+      // evening closes.
+      await recordFinishedEveningDebts(
+        auth.supabase,
+        { players: updatedPlayers, settings: extras.settings },
+        t.id,
+      );
 
       // Same recount as the timer's finish: the knockout that ends the game is the other
       // way an evening closes. After the response, failures swallowed.

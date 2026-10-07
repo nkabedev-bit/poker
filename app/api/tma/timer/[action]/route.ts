@@ -4,6 +4,7 @@ import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { getEffectiveTimerState, getLevelDuration } from "@/lib/timer/calculate";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
+import { recordFinishedEveningDebts } from "@/lib/debts/store";
 import { saveTournamentResults } from "@/lib/results/store";
 import { syncAttendanceSheet, syncCancellationsSheet } from "@/lib/google-sheets";
 import {
@@ -294,6 +295,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ act
         } catch (resultsError) {
           console.error("Failed to store tournament results", resultsError);
         }
+
+        // Whatever the room left unpaid is written down as a debt before the roster goes:
+        // the desk's copy lasts an hour, the debt until it is paid.
+        await recordFinishedEveningDebts(auth.supabase, context.extras, t.id);
 
         // First place takes a free pass home, and the club's attendance tab is recounted
         // now the evening is on record. A second press on a finished tournament must not

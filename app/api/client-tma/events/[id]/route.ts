@@ -14,6 +14,7 @@ import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { buildSignupBanMessage, isSignupBanned, readSignupBan } from "@/lib/client-bot/signup-ban";
 import { readClientLiveState } from "@/lib/client-tma/live-state";
+import { readSignupDebt } from "@/lib/debts/store";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 
   const now = new Date();
-  const [signupCounts, mySignups, invitation, passHolds, bannedUntil, live] = await Promise.all([
+  const [signupCounts, mySignups, invitation, passHolds, bannedUntil, debtMessage, live] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
     getUserSignups(auth.supabase, auth.user.id),
     // Somebody may be waiting on this player to say they are coming as their +1.
@@ -38,6 +39,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Said on the screen rather than only in answer to a tap: a player barred from
     // signing up should read why before they try, not after.
     readSignupBan(auth.supabase, auth.user.id),
+    // An unpaid evening closes sign-ups the same way, and is said the same way.
+    readSignupDebt(auth.supabase, auth.user.id, now),
     // The game under way rides along with its own poster, as it does with the board: the
     // page would otherwise draw the evening as a quiet one until the phone's next beat, a
     // minute after it opened. Only tonight's poster asks — no other has a game to follow.
@@ -102,7 +105,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     // Null unless the club has barred this player from signing up right now.
     signupBan: isSignupBanned(bannedUntil)
       ? { message: buildSignupBanMessage(bannedUntil as string), until: bannedUntil }
-      : null,
+      : // A seat taken before the debt closed sign-ups stays theirs, and so does the
+        // screen that shows it — with the button to give it back.
+        debtMessage && !holdsTicket(mySignup?.status)
+        ? { message: debtMessage, until: null }
+        : null,
     // The passes the player can still choose for this game: one already promised to
     // another game is counted out, and named, so the screen can say where it went.
     freeEntries: countFreePasses(auth.user, passHolds, event.id),

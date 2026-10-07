@@ -5,6 +5,7 @@ import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-ext
 import { buildCardSession, normalizeCardCode } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
+import { setEveningDebtPaid } from "@/lib/debts/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 export const dynamic = "force-dynamic";
@@ -90,6 +91,24 @@ export async function POST(request: Request) {
 
     if (!settled) {
       return NextResponse.json({ error: "Игрок не найден" }, { status: 404 });
+    }
+
+    // The finish already wrote the evening's unpaid bills down as debts: a tick in the
+    // hour after it settles the debt, and taking the tick back owes it again.
+    const gameStartedAt = extras.settings.sheetsSessionStartedAt;
+    if (gameStartedAt) {
+      try {
+        await setEveningDebtPaid({
+          gameStartedAt,
+          paid,
+          player: settled,
+          prices,
+          supabase: auth.supabase,
+          tournamentId: t.id,
+        });
+      } catch (debtError) {
+        console.error("Failed to settle the evening's debt", debtError);
+      }
     }
 
     after(async () => {

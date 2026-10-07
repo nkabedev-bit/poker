@@ -32,6 +32,7 @@ import {
   readSignupBan,
   recordSignupCancellation,
 } from "@/lib/client-bot/signup-ban";
+import { readSignupDebt } from "@/lib/debts/store";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       { error: "signup_banned", message: buildSignupBanMessage(bannedUntil as string) },
       { status: 403 },
     );
+  }
+
+  // An evening left unpaid closes sign-ups — and the waiting list — until it is settled
+  // or an admin lets the player in with /allowdebt.
+  const debtMessage = await readSignupDebt(auth.supabase, auth.user.id);
+  if (debtMessage) {
+    return NextResponse.json({ error: "signup_debt", message: debtMessage }, { status: 403 });
   }
 
   if (!isUpcomingEvent(event, new Date())) {

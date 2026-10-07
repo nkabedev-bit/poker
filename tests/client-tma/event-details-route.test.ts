@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   loadPassHolds: vi.fn(),
   readClientLiveState: vi.fn(),
   readSignupBan: vi.fn(),
+  readSignupDebt: vi.fn(),
   requireClientTmaAuth: vi.fn(),
 }));
 
@@ -34,6 +35,10 @@ vi.mock("@/lib/free-entries/holds", async (importOriginal) => ({
 vi.mock("@/lib/client-bot/signup-ban", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/client-bot/signup-ban")>()),
   readSignupBan: mocks.readSignupBan,
+}));
+
+vi.mock("@/lib/debts/store", () => ({
+  readSignupDebt: mocks.readSignupDebt,
 }));
 
 vi.mock("@/lib/client-tma/live-state", () => ({
@@ -104,6 +109,7 @@ async function openPoster() {
     body: (await response.json()) as {
       event: { cancellationClosed: boolean; signedUp: boolean };
       live: unknown;
+      signupBan: { message: string } | null;
     },
     status: response.status,
   };
@@ -126,7 +132,30 @@ describe("the poster a player opens", () => {
     mocks.findDuoInvitation.mockResolvedValue(null);
     mocks.loadPassHolds.mockResolvedValue([]);
     mocks.readSignupBan.mockResolvedValue(null);
+    mocks.readSignupDebt.mockResolvedValue(null);
     mocks.readClientLiveState.mockResolvedValue(null);
+  });
+
+  it("says in place of the button that an unpaid evening closes sign-ups", async () => {
+    vi.setSystemTime(new Date("2026-09-20T12:00:00.000Z"));
+    mocks.getUserSignups.mockResolvedValue([]);
+    mocks.readSignupDebt.mockResolvedValue("За игру 15.09 не оплачено 1 000 ₽.");
+
+    const { body } = await openPoster();
+
+    expect(body.signupBan).toEqual({ message: "За игру 15.09 не оплачено 1 000 ₽.", until: null });
+  });
+
+  // A seat taken before the debt closed sign-ups stays the player's, with the way to give
+  // it back — the debt does not hide the ticket.
+  it("keeps showing a ticket the debtor already holds", async () => {
+    vi.setSystemTime(new Date("2026-09-20T12:00:00.000Z"));
+    mocks.readSignupDebt.mockResolvedValue("За игру 15.09 не оплачено 1 000 ₽.");
+
+    const { body } = await openPoster();
+
+    expect(body.signupBan).toBeNull();
+    expect(body.event.signedUp).toBe(true);
   });
 
   afterEach(() => {

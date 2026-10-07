@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   loadPassHolds: vi.fn(),
   notifyClientUser: vi.fn(),
   offerFreedSeats: vi.fn(),
+  readSignupDebt: vi.fn(),
   requireClientTmaAuth: vi.fn(),
   syncCancellationsSheet: vi.fn(),
 }));
@@ -27,6 +28,11 @@ vi.mock("@/lib/events/store", () => ({
   countActiveSignups: mocks.countActiveSignups,
   getEvent: mocks.getEvent,
   getUserSignups: mocks.getUserSignups,
+}));
+
+// Whether the player owes for an evening is the debts' own test; here it is a yes or no.
+vi.mock("@/lib/debts/store", () => ({
+  readSignupDebt: mocks.readSignupDebt,
 }));
 
 vi.mock("@/lib/client-bot/notify", () => ({
@@ -237,6 +243,25 @@ describe("client sign-up route", () => {
     mocks.countActiveSignups.mockResolvedValue(taken());
     mocks.getUserSignups.mockResolvedValue([]);
     mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.readSignupDebt.mockResolvedValue(null);
+  });
+
+  // An evening left unpaid closes sign-ups — the waiting list too — until it is settled.
+  it("turns away a player who owes for an evening, and says whom to write to", async () => {
+    const { supabase, upsert } = upsertSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.readSignupDebt.mockResolvedValue(
+      "За игру 29.09 не оплачено 2 500 ₽. Пока долг не закрыт, запись на турниры недоступна. Напишите, пожалуйста, @markvasilyevv",
+    );
+
+    const response = await postSignup({ waitlist: true });
+    const payload = await response.json();
+
+    expect(response.status).toBe(403);
+    expect(payload.error).toBe("signup_debt");
+    expect(payload.message).toContain("@markvasilyevv");
+    expect(mocks.readSignupDebt).toHaveBeenCalledWith(supabase, "account-host");
+    expect(upsert).not.toHaveBeenCalled();
   });
 
   // The room is read and then written to a moment later. Two players tapping together
@@ -560,6 +585,7 @@ describe("the 1+1 ticket", () => {
     mocks.countActiveSignups.mockResolvedValue(taken());
     mocks.getUserSignups.mockResolvedValue([]);
     mocks.notifyClientUser.mockResolvedValue(true);
+    mocks.readSignupDebt.mockResolvedValue(null);
   });
 
   it("records who the buyer is bringing", async () => {
