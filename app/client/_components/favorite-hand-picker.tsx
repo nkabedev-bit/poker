@@ -90,7 +90,7 @@ function CardPicker({
         <CardFace draft={draft} />
       </div>
 
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-1.5 md:grid-cols-5">
         {HAND_RANKS.map((rank) => (
           <button
             key={rank}
@@ -184,12 +184,12 @@ export function FavoriteHandPicker({
       className={`client-app ${CLUB_FONT_CLASSES} fixed inset-0 z-50 flex items-end justify-center bg-[rgba(5,3,4,0.72)] backdrop-blur-sm sm:items-center sm:px-4`}
       role="dialog"
     >
-      <div className="client-sheet-up flex max-h-[92dvh] w-full max-w-[420px] flex-col gap-[18px] overflow-y-auto rounded-t-[28px] border-t border-club-line bg-[#151012] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-2.5 text-club-text sm:rounded-[28px] sm:border sm:pb-5">
-        <span aria-hidden className="h-[5px] w-10 self-center rounded-full bg-white/[0.18]" />
+      <div className="client-sheet-up flex max-h-[92dvh] w-full max-w-[420px] flex-col gap-[18px] overflow-y-auto rounded-t-[28px] border-t border-club-line bg-[#151012] px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] pt-2.5 text-club-text sm:rounded-[28px] sm:border sm:pb-5 md:max-w-[680px] md:p-7 md:shadow-[0_30px_80px_rgba(0,0,0,0.6)]">
+        <span aria-hidden className="h-[5px] w-10 self-center rounded-full bg-white/[0.18] md:hidden" />
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-1">
             <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">Профиль</div>
-            <div className="font-display text-[20px] font-semibold">Любимая рука</div>
+            <div className="font-display text-[20px] font-semibold md:text-[22px]">Любимая рука</div>
           </div>
           <button
             aria-label="Закрыть"
@@ -201,8 +201,11 @@ export function FavoriteHandPicker({
           </button>
         </div>
 
-        <CardPicker draft={first} other={secondCard} title="Первая карта" onChange={setFirst} />
-        <CardPicker draft={second} other={firstCard} title="Вторая карта" onChange={setSecond} />
+        {/* Side by side where the window is wide enough for both. */}
+        <div className="flex flex-col gap-[18px] md:grid md:grid-cols-2 md:gap-5">
+          <CardPicker draft={first} other={secondCard} title="Первая карта" onChange={setFirst} />
+          <CardPicker draft={second} other={firstCard} title="Вторая карта" onChange={setSecond} />
+        </div>
 
         <p className="text-[12px] leading-relaxed text-club-muted">
           Две карты, которые считаете своими. Показываются на аватарке — в профиле, рейтинге,
@@ -211,15 +214,16 @@ export function FavoriteHandPicker({
 
         {error ? <div className="text-center text-sm text-club-rose">{error}</div> : null}
 
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-2 md:flex-row-reverse md:gap-2.5">
           <PrimaryButton
+            className="md:flex-1"
             disabled={!ready}
             loading={saving}
             onClick={() => firstCard && secondCard && void save(formatFavoriteHand([firstCard, secondCard]))}
           >
             Сохранить
           </PrimaryButton>
-          <div className="flex gap-2">
+          <div className="flex gap-2 md:flex-1 md:gap-2.5">
             {stored ? (
               <GhostButton disabled={saving} onClick={() => void save(null)}>
                 Убрать руку

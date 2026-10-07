@@ -66,15 +66,18 @@ export function WelcomeSplash() {
   // Drawn on the page's body, over the tab bar, which sits in a stacking layer of its own.
   return createPortal(
     <div
-      className={`client-app ${CLUB_FONT_CLASSES} client-welcome fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-club-ink/95 px-8 text-center text-club-text`}
+      className={`client-app ${CLUB_FONT_CLASSES} client-welcome fixed inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-club-ink/95 px-8 text-center text-club-text md:bg-[rgba(8,5,6,0.9)]`}
       role="status"
     >
-      <span className="client-pop-in flex h-20 w-20 items-center justify-center rounded-full bg-club-crimson shadow-[0_14px_40px_rgba(200,33,63,0.45)]">
-        <Check className="client-check-draw" size={38} strokeWidth={3} />
-      </span>
-      <div className="flex flex-col gap-1.5">
-        <div className="font-display text-[22px] font-semibold">Добро пожаловать в Majestic</div>
-        <div className="text-sm text-club-muted">Анкета сохранена — запись на турниры открыта.</div>
+      {/* A phone gives the greeting the whole screen; a wider one a card in the middle. */}
+      <div className="flex flex-col items-center gap-5 md:w-[460px] md:rounded-[30px] md:border md:border-club-line md:bg-[#151012] md:p-10">
+        <span className="client-pop-in flex h-20 w-20 items-center justify-center rounded-full bg-club-crimson shadow-[0_14px_40px_rgba(200,33,63,0.45)]">
+          <Check className="client-check-draw" size={38} strokeWidth={3} />
+        </span>
+        <div className="flex flex-col gap-1.5">
+          <div className="font-display text-[22px] font-semibold md:text-[24px]">Добро пожаловать в Majestic</div>
+          <div className="text-sm text-club-muted md:text-[15px]">Анкета сохранена — запись на турниры открыта.</div>
+        </div>
       </div>
     </div>,
     document.body,
