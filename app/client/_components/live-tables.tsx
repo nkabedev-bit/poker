@@ -109,7 +109,7 @@ export function LiveTables({
   }
 
   return (
-    <div className="flex flex-col gap-2.5">
+    <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2 md:items-start md:gap-4">
       {tables.map((table) => (
         <div className="rounded-[20px] border border-club-line bg-club-surface px-1 py-2" key={table.number ?? "unseated"}>
           <div className="flex items-center justify-between px-3.5 pb-2 pt-1.5">
