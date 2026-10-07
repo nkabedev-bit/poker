@@ -177,6 +177,47 @@ bot.command("unban", async (ctx) => {
   await changeSignupBan(ctx, false);
 });
 
+// Lets a player who owes for an evening sign up anyway for a few days, and takes that
+// back. The debt itself stays until it is paid or written off in «Касса → Долги».
+async function changeDebtAllowance(ctx: Context, allowed: boolean) {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  const supabase = getAdminSupabase();
+  if (!(await isTournamentAdmin(supabase, adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  const { allowPlayerDebt, denyPlayerDebt, parseDebtCommand } = await import(
+    "@/lib/admin-bot/debt-allow-command"
+  );
+
+  const rest = parseDebtCommand(ctx.message?.text || "");
+  if (!rest) {
+    return ctx.reply(allowed ? "Использование: /allowdebt <ник> [дней]" : "Использование: /denydebt <ник>");
+  }
+
+  try {
+    return ctx.reply(
+      allowed
+        ? await allowPlayerDebt(supabase, { adminId, rest })
+        : await denyPlayerDebt(supabase, rest),
+    );
+  } catch (err: unknown) {
+    console.error("Error in /allowdebt command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return ctx.reply(`Не удалось изменить разрешение: ${message}`);
+  }
+}
+
+bot.command("allowdebt", async (ctx) => {
+  await changeDebtAllowance(ctx, true);
+});
+
+bot.command("denydebt", async (ctx) => {
+  await changeDebtAllowance(ctx, false);
+});
+
 // Registers the command list with Telegram so new commands show up in the "/" menu
 // without a manual trip to BotFather.
 bot.command("setupmenu", async (ctx) => {
