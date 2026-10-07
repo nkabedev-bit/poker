@@ -26,7 +26,13 @@ const SECTIONS = [
   { href: "/client/tournaments", icon: Trophy, label: "Турниры", match: (p: string) => p.includes("/tournaments") || p.includes("/events") },
   { href: "/client/rating", icon: Star, label: "Рейтинг", match: (p: string) => p.includes("/rating") || p.includes("/players") },
   { href: "/client/battle-pass", icon: Swords, label: "Боевой пропуск", match: (p: string) => p.includes("/battle-pass") },
-  { href: "/client/profile", icon: User, label: "Профиль", match: (p: string) => PROFILE_SCREENS.some((screen) => p.includes(screen)) },
+  {
+    href: "/client/profile",
+    icon: User,
+    label: "Профиль",
+    // Somebody else's medals belong to the rating, where their profile was opened from.
+    match: (p: string) => !p.includes("/players") && PROFILE_SCREENS.some((screen) => p.includes(screen)),
+  },
 ];
 
 /**

@@ -66,6 +66,17 @@ describe("client app layout: боковое меню на компьютере",
     expect(within(sideNav()).getByRole("link", { name: "Главная" }).getAttribute("aria-current")).toBeNull();
   });
 
+  it("keeps somebody's medals under the rating, not under the player's own profile", async () => {
+    nav.pathname = "/client/players/onega/medals";
+    render(<ClientLayout>screen</ClientLayout>);
+    await screen.findByText("screen");
+
+    const current = within(sideNav())
+      .getAllByRole("link")
+      .filter((link) => link.getAttribute("aria-current") === "page");
+    expect(current.map((link) => link.getAttribute("aria-label"))).toEqual(["Рейтинг"]);
+  });
+
   it("leads from a screen under a section back up to it", async () => {
     nav.pathname = "/client/events/e-1";
     render(<ClientLayout>screen</ClientLayout>);
