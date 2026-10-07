@@ -98,41 +98,45 @@ export default function ClientTournamentsPage() {
   if (loading) return <LoadingScreen />;
 
   return (
-    <div className="client-stagger flex flex-col gap-5 pt-1">
-      <PageHeading subtitle="Расписание клуба и запись на игры" title="Турниры" />
-
-      <div className="relative grid grid-cols-2 gap-1 rounded-2xl border border-club-line bg-club-surface p-1">
-        {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
-        <span
-          aria-hidden
-          className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-xl bg-club-crimson transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
-            tab === "past" ? "translate-x-[calc(100%+4px)]" : ""
-          }`}
-        />
-        {TABS.map((item) => {
-          const active = tab === item.id;
-
-          return (
-            <button
-              key={item.id}
-              aria-pressed={active}
-              className={`relative h-10 rounded-xl text-[14px] font-bold transition-colors duration-300 ${
-                active ? "text-white" : "text-club-muted"
+    <div className="client-stagger flex flex-col gap-5 pt-1 md:pt-0 desk:gap-8">
+      <PageHeading
+        actions={
+          <div className="relative grid w-full grid-cols-2 gap-1 rounded-2xl border border-club-line bg-club-surface p-1 md:w-80">
+            {/* One thumb slides under the tab picked; the tabs themselves only change colour. */}
+            <span
+              aria-hidden
+              className={`pointer-events-none absolute inset-y-1 left-1 w-[calc(50%-6px)] rounded-xl bg-club-crimson transition-transform duration-[400ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+                tab === "past" ? "translate-x-[calc(100%+4px)]" : ""
               }`}
-              type="button"
-              onClick={() => chooseTab(item.id)}
-            >
-              {item.label}
-            </button>
-          );
-        })}
-      </div>
+            />
+            {TABS.map((item) => {
+              const active = tab === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  aria-pressed={active}
+                  className={`relative h-10 rounded-xl text-[14px] font-bold transition-colors duration-300 ${
+                    active ? "text-white" : "text-club-muted"
+                  }`}
+                  type="button"
+                  onClick={() => chooseTab(item.id)}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        }
+        subtitle="Расписание клуба и запись на игры"
+        title="Турниры"
+      />
 
       {/* Keyed by the tab, so the list comes in from the side of the tab just picked.
           Only the first showing waits for its turn in the screen's cascade. */}
       <div
         key={tab}
-        className={`flex flex-col gap-2.5 ${tab === "past" ? "client-slide-from-right" : "client-slide-from-left"}`}
+        className={`flex flex-col gap-2.5 md:gap-8 ${tab === "past" ? "client-slide-from-right" : "client-slide-from-left"}`}
         style={switched ? { animationDelay: "0ms" } : undefined}
       >
         {tab === "current" ? (
@@ -140,13 +144,15 @@ export default function ClientTournamentsPage() {
             <NoEventsCard />
           ) : (
             groupByWeek(events, new Date()).map((group) => (
-              <section key={group.label} className="flex flex-col gap-2">
-                <h2 className="px-1 pt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">
+              <section key={group.label} className="flex flex-col gap-2 md:gap-3.5">
+                <h2 className="px-1 pt-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint md:p-0">
                   {group.label}
                 </h2>
-                {group.events.map((event) => (
-                  <EventCard key={event.id} event={event} />
-                ))}
+                <div className="flex flex-col gap-2 md:grid md:grid-cols-2 md:gap-4 desk:grid-cols-3">
+                  {group.events.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                  ))}
+                </div>
               </section>
             ))
           )
@@ -158,16 +164,16 @@ export default function ClientTournamentsPage() {
             <div className="text-sm text-club-muted">Прошедших турниров пока нет.</div>
           </GlassCard>
         ) : (
-          <>
+          <div className="flex flex-col gap-2.5 md:grid md:grid-cols-2 md:gap-3.5">
             {past.games.map((game) => (
               <PastGameCard key={game.startedAt} game={game} />
             ))}
             {past.next ? (
-              <GhostButton disabled={pastLoading} onClick={() => void loadPast(past.next)}>
+              <GhostButton className="md:col-span-2" disabled={pastLoading} onClick={() => void loadPast(past.next)}>
                 {pastLoading ? "Загружаем…" : "Показать ещё"}
               </GhostButton>
             ) : null}
-          </>
+          </div>
         )}
       </div>
     </div>

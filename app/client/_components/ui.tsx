@@ -280,7 +280,7 @@ export function PageHeading({
   if (!actions) return heading;
 
   return (
-    <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between md:gap-6">
+    <div className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between md:gap-6">
       {heading}
       <div className="flex shrink-0 items-center gap-2.5">{actions}</div>
     </div>

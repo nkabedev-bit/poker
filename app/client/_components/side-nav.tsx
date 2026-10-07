@@ -49,7 +49,7 @@ export function ClientSideNav({
         <span className="hidden font-display text-[18px] font-bold tracking-[0.3em] text-club-gold desk:inline">
           MAJESTIC
         </span>
-        <span className="hidden text-[10px] font-bold tracking-[0.18em] text-club-faint desk:inline">
+        <span className="hidden whitespace-nowrap text-[10px] font-bold tracking-[0.18em] text-club-faint desk:inline">
           КЛУБ СПОРТИВНОГО ПОКЕРА
         </span>
       </Link>
