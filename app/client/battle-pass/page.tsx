@@ -10,17 +10,17 @@ const TEASER_LEVELS = [1, 2, 3, 4, 5, 6];
  */
 export default function ClientBattlePassPage() {
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:gap-8">
       <PageTitle>Боевой пропуск</PageTitle>
 
-      <div className="flex flex-col items-center gap-3 rounded-3xl border border-club-line bg-club-surface px-5 py-7 text-center">
+      <div className="flex flex-col items-center gap-3 rounded-3xl border border-club-line bg-club-surface px-5 py-7 text-center md:py-12">
         <span className="client-float client-glint relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-[20px] bg-club-crimson/15 text-club-rose">
           <Swords size={30} />
         </span>
         <p className="font-display text-[24px] font-semibold">Скоро</p>
       </div>
 
-      <div aria-hidden className="flex flex-col gap-2.5 opacity-70">
+      <div aria-hidden className="flex flex-col gap-2.5 opacity-70 md:grid md:grid-cols-2 md:gap-3.5 desk:grid-cols-3">
         {TEASER_LEVELS.map((level) => (
           <div key={level} className="flex items-center gap-3.5">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-dashed border-club-line bg-club-surface font-display text-[14px] font-semibold text-club-faint">

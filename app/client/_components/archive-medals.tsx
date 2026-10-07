@@ -16,7 +16,7 @@ export function ArchiveMedals({ medals }: { medals: Medal[] }) {
         Медали за архивные турниры
       </p>
 
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 md:gap-4">
         {medals.map((medal) => (
           <MedalCard key={medal.key} medal={medal} />
         ))}

@@ -209,13 +209,14 @@ export default function ClientGamePage() {
   const startKnown = hasKnownStartTime(data.game.startedAt);
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
-      <div className="flex flex-col gap-3">
+    // On a computer the podium and the rest of the table stand side by side.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:grid desk:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] desk:items-start desk:gap-x-8 desk:gap-y-7">
+      <div className="flex flex-col gap-3 desk:col-span-2">
         <div className="flex flex-wrap gap-2">
           <Pill tone="muted">Завершён</Pill>
           {data.game.countsForRating === false ? <Pill tone="muted">Вне рейтинга</Pill> : null}
         </div>
-        <h1 className="font-display text-[26px] font-bold uppercase leading-[1.05] tracking-[-0.01em]">
+        <h1 className="font-display text-[26px] font-bold uppercase leading-[1.05] tracking-[-0.01em] md:text-[34px]">
           {data.game.title}
         </h1>
       </div>
@@ -223,7 +224,7 @@ export default function ClientGamePage() {
       {/* The date is the longest value ("26 сентября"), so its column is the widest. A game
           imported from the sheets has no start time, and its summary goes without one. */}
       <div
-        className={`grid divide-x divide-club-line rounded-[20px] border border-club-line bg-club-surface p-4 ${
+        className={`grid divide-x divide-club-line rounded-[20px] border border-club-line bg-club-surface p-4 desk:col-span-2 desk:max-w-[640px] ${
           startKnown ? "grid-cols-[1.6fr_1fr_1fr]" : "grid-cols-[1.6fr_1fr]"
         }`}
       >
@@ -250,7 +251,7 @@ export default function ClientGamePage() {
       ) : null}
 
       {table.length > 0 ? (
-        <section className="flex flex-col gap-1.5" data-results-table>
+        <section className={`flex flex-col gap-1.5 ${podium.length > 0 ? "" : "desk:col-span-2"}`} data-results-table>
           <div className="flex items-center gap-3 px-3.5 text-[11px] font-extrabold uppercase tracking-[0.08em] text-club-faint">
             <span className="w-[26px] text-center">#</span>
             <span className="flex-1 pl-[54px]">Игрок</span>

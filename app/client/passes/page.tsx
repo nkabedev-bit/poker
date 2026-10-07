@@ -53,10 +53,14 @@ export default function ClientPassesPage() {
   const held = freeEntries.heldFor;
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
-      <PageHeading subtitle="Входы в турнир, которые начислил клуб" title="Бесплатные проходки" />
+    // On a computer the two stubs and the passes held for games share a row, and what
+    // follows spans the width.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:grid desk:grid-cols-3 desk:items-start desk:gap-x-4 desk:gap-y-8">
+      <div className="desk:col-span-3">
+        <PageHeading subtitle="Входы в турнир, которые начислил клуб" title="Бесплатные проходки" />
+      </div>
 
-      <div className="flex gap-2.5">
+      <div className={`flex gap-2.5 desk:gap-4 ${held.length > 0 ? "desk:col-span-2" : "desk:col-span-3"}`}>
         <PassStub count={freeEntries.regular} title="Обычные" />
         <PassStub count={freeEntries.vip} gold title="VIP" />
       </div>
@@ -93,9 +97,9 @@ export default function ClientPassesPage() {
         </section>
       ) : null}
 
-      <section className="flex flex-col gap-2.5">
+      <section className="flex flex-col gap-2.5 desk:col-span-3">
         <SectionHeader title="Как это работает" />
-        <div className="flex flex-col gap-3.5 rounded-[20px] border border-club-line bg-club-surface p-4">
+        <div className="flex flex-col gap-3.5 rounded-[20px] border border-club-line bg-club-surface p-4 md:grid md:grid-cols-2 md:gap-6 md:p-5">
           {total === 0 && held.length === 0 ? (
             <Step number={0}>Проходки выдаёт клуб. Как только вам их начислят, они появятся здесь.</Step>
           ) : null}
@@ -111,7 +115,9 @@ export default function ClientPassesPage() {
         </div>
       </section>
 
-      <GhostLink href="/client/tournaments">К расписанию турниров</GhostLink>
+      <div className="desk:col-span-3 md:w-80">
+        <GhostLink href="/client/tournaments">К расписанию турниров</GhostLink>
+      </div>
     </div>
   );
 }
@@ -122,7 +128,7 @@ function PassStub({ count, gold = false, title }: { count: number; gold?: boolea
 
   return (
     <div
-      className={`relative flex h-[150px] flex-1 basis-0 flex-col justify-between overflow-hidden rounded-[20px] border p-[18px] ${edge} ${
+      className={`relative flex h-[150px] flex-1 basis-0 flex-col justify-between overflow-hidden rounded-[20px] border p-[18px] md:h-[180px] md:p-6 ${edge} ${
         gold ? "bg-club-gold/10 text-club-gold" : "bg-club-surface text-club-text"
       }`}
     >

@@ -60,7 +60,7 @@ export default function ClientNewsPage() {
   }
 
   return (
-    <div className="client-stagger flex flex-col gap-5 pt-1">
+    <div className="client-stagger flex flex-col gap-5 pt-1 md:max-w-[720px] md:pt-0 desk:gap-8">
       <PageTitle>Объявления</PageTitle>
 
       <div className="client-stagger-rows flex flex-col gap-2.5">

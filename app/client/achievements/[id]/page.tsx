@@ -73,10 +73,11 @@ export default function AchievementHoldersPage() {
   }
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
+    // On a computer the award stands in a card on the left and its holders fill the right.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:grid desk:grid-cols-[380px_minmax(0,1fr)] desk:items-start desk:gap-7">
       {/* Spaced with gaps, not margins: the global reset in globals.css zeroes the margin
           of every p and heading, and it outranks Tailwind's layered utilities. */}
-      <div className="flex flex-col items-center gap-5 rounded-[22px] border border-club-gold/30 bg-club-gold/[0.08] p-5 text-center">
+      <div className="flex flex-col items-center gap-5 rounded-[22px] border border-club-gold/30 bg-club-gold/[0.08] p-5 text-center desk:px-5 desk:py-8">
         <span className="flex h-[72px] w-[72px] items-center justify-center rounded-full border border-club-gold/50 bg-club-gold/[0.14] text-club-gold">
           <AchievementIcon name={achievement.icon} size={32} />
         </span>
@@ -101,7 +102,7 @@ export default function AchievementHoldersPage() {
         </h2>
 
         {data.holders.length > 0 ? (
-          <div className="client-stagger-rows flex flex-col gap-1.5">
+          <div className="client-stagger-rows flex flex-col gap-1.5 md:grid md:grid-cols-2 md:gap-2.5">
             {data.holders.map((holder, index) => (
               <HolderRow holder={holder} key={`${holder.key}-${index}`} />
             ))}

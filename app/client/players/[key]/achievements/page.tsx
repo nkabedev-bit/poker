@@ -52,15 +52,17 @@ export default function PlayerAchievementsPage() {
   const all = sections.flatMap((section) => section.achievements);
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:gap-8">
       <PageHeading subtitle={name} title="Достижения" />
 
-      <CollectionSummary earned={countEarnedAchievements(all)} label="Выполнено" total={all.length} />
+      <div className="md:max-w-[520px]">
+        <CollectionSummary earned={countEarnedAchievements(all)} label="Выполнено" total={all.length} />
+      </div>
 
       {sections.map((section) => (
         <section key={section.title} className="flex flex-col gap-2.5">
           <h2 className="px-1 text-[11px] font-bold uppercase tracking-[0.12em] text-club-faint">{section.title}</h2>
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 md:gap-3.5 desk:grid-cols-6">
             {section.achievements.map((achievement) => (
               <AchievementCard achievement={achievement} key={achievement.id} rarity={rarity} />
             ))}

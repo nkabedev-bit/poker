@@ -44,9 +44,10 @@ function Block({ block }: { block: AboutBlock }) {
 
 export default function ClientAboutPage() {
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
-
-      <div className="overflow-hidden rounded-3xl border border-club-line">
+    // On a computer the photo stands beside the title and the opening words, and the
+    // sections follow two across.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:grid desk:grid-cols-2 desk:items-start desk:gap-x-8 desk:gap-y-8">
+      <div className="overflow-hidden rounded-3xl border border-club-line desk:row-span-2 desk:h-full desk:min-h-[340px]">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           alt="Турнирный вечер в MAJESTIC Poker Club"
@@ -68,7 +69,7 @@ export default function ClientAboutPage() {
         </section>
       ))}
 
-      <GlassCard className="border-club-gold/30 bg-club-gold/[0.08] py-7 text-center">
+      <GlassCard className="border-club-gold/30 bg-club-gold/[0.08] py-7 text-center desk:col-span-2">
         <p className="font-display text-[15px] font-semibold uppercase leading-relaxed tracking-[0.12em] text-club-gold">
           {ABOUT_CLUB_OUTRO}
         </p>

@@ -45,17 +45,19 @@ export default function ClientMedalsPage() {
   const earned = countEarnedMedals(list);
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:gap-8">
       <PageTitle>Медали</PageTitle>
 
-      <CollectionSummary
-        earned={earned}
-        hint="Медаль даётся за победу в турнире. Каждый тип турнира — своя медаль, а счётчик показывает, сколько раз ты его выиграл."
-        label="Получено"
-        total={MEDALS_TOTAL}
-      />
+      <div className="md:max-w-[520px]">
+        <CollectionSummary
+          earned={earned}
+          hint="Медаль даётся за победу в турнире. Каждый тип турнира — своя медаль, а счётчик показывает, сколько раз ты его выиграл."
+          label="Получено"
+          total={MEDALS_TOTAL}
+        />
+      </div>
 
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-3 gap-2.5 md:grid-cols-4 md:gap-4">
         {list.map((medal) => (
           <MedalCard key={medal.key} medal={medal} />
         ))}
