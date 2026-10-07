@@ -42,11 +42,18 @@ jobs:
         run: pnpm test
 
       - name: Build image
+        # A second try: `next build` fetches Google Fonts, and one bad answer from there
+        # (07.10.2026) failed a build that went through untouched a minute later.
         run: |
-          docker build \
-            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
-            --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
-            -t club-app:latest -t "club-app:${GITHUB_SHA::7}" .
+          for attempt in 1 2; do
+            docker build \
+              --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+              --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" \
+              -t club-app:latest -t "club-app:${GITHUB_SHA::7}" . && exit 0
+            echo "Build attempt $attempt failed"
+            sleep 20
+          done
+          exit 1
 
       - name: SSH key
         run: |
