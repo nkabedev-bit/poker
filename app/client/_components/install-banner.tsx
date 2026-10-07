@@ -90,7 +90,7 @@ export function InstallBanner() {
           <p className="text-[16px] font-extrabold">Приложение клуба на экране телефона</p>
           <p className="text-[13px] text-club-muted">
             {hint === "telegram"
-              ? "Открывается одной кнопкой и работает без VPN и без Telegram. Откроем сайт в браузере — войдите через Яндекс и добавьте его на экран."
+              ? "Открывается одной кнопкой и работает без VPN и без Telegram. Откроем сайт в браузере — добавьте его на экран, откройте с иконки и войдите через Яндекс."
               : "Открывается одной кнопкой и работает без VPN и без Telegram."}
           </p>
         </div>
@@ -117,6 +117,7 @@ export function InstallBanner() {
         <p className="text-[14px] leading-relaxed">
           Нажмите «Поделиться» <Share aria-hidden className="inline align-[-3px]" size={16} /> в браузере,
           затем «На экран „Домой“» <SquarePlus aria-hidden className="inline align-[-3px]" size={16} />.
+          Входите через Яндекс уже в приложении с иконки — iPhone хранит вход там отдельно от браузера.
         </p>
       ) : null}
 
