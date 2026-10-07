@@ -78,13 +78,16 @@ export function InstallBanner() {
         {hint === "ios" ? (
           <p className="text-[13px] leading-relaxed text-club-muted">
             Нажмите «Поделиться» <Share aria-hidden className="inline align-[-3px]" size={15} />, затем
-            «На экран „Домой“» <SquarePlus aria-hidden className="inline align-[-3px]" size={15} />. Откройте
+            «На экран „Домой“» <SquarePlus aria-hidden className="inline align-[-3px]" size={15} />. Нет такого
+            пункта — значит, сайт открылся внутри Telegram: сначала откройте его в Safari. Потом зайдите в
             приложение с иконки и войдите через тот же Яндекс.
           </p>
         ) : null}
         {hint === "menu" ? (
           <p className="text-[13px] leading-relaxed text-club-muted">
-            В меню браузера выберите «Установить приложение» или «Добавить на главный экран».
+            Нажмите ⋮ в браузере и выберите «Установить приложение» или «Добавить на главный экран». Нет
+            такого пункта — значит, сайт открылся внутри Telegram: сначала выберите «Открыть в Chrome» или
+            «Открыть в браузере».
           </p>
         ) : null}
         {hint === "prompt" ? (
