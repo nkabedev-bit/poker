@@ -17,6 +17,9 @@ import {
 import { ScreenHeader, SectionLabel } from "../ui";
 import { confirmSeated, getTelegramWebApp, useTMA } from "../layout";
 import { ClientProfileCard } from "../client-profile-card";
+import { CashTabs } from "../cash-tabs";
+import { formatRubles } from "@/lib/debts/ledger";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { formatEventTimeLabel } from "@/lib/events/types";
 import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
@@ -43,8 +46,15 @@ type Signup = {
   seated: boolean;
   ticketType: TicketType;
   usePass: "none" | "regular" | "vip";
+  userId?: string | null;
   username: string | null;
 };
+
+/** What a player still owes from past evenings, as the desk sees it next to the name. */
+type PastDebt = { accountId: string | null; owed: number; playerName: string };
+
+/** Tonight's own bill is on the row already; the badge is about the evenings before it. */
+const TONIGHT_MS = 12 * 60 * 60 * 1000;
 
 type Player = {
   cardCode?: string | null;
@@ -104,6 +114,7 @@ export default function TMACardsPage() {
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [ticketType, setTicketType] = useState<TicketType>("regular");
+  const [pastDebts, setPastDebts] = useState<PastDebt[]>([]);
 
   const loadPlayers = useCallback(async () => {
     try {
@@ -133,6 +144,45 @@ export default function TMACardsPage() {
     } finally {
       setLoading(false);
     }
+  }, [initData]);
+
+  // Read once when the desk opens the tab: a debt from another evening does not change
+  // while tonight's room is being seated.
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const res = await fetch("/api/tma/debts", { headers: { "X-Telegram-Init-Data": initData } });
+        if (!res.ok || cancelled) return;
+
+        const data = await res.json();
+        const now = Date.now();
+        const debts = (data.debtors ?? []) as Array<{
+          accountId: string | null;
+          games: Array<{ gameStartedAt: string; left: number }>;
+          playerName: string;
+        }>;
+
+        setPastDebts(
+          debts
+            .map((debtor) => ({
+              accountId: debtor.accountId,
+              owed: debtor.games
+                .filter((game) => now - Date.parse(game.gameStartedAt) > TONIGHT_MS)
+                .reduce((sum, game) => sum + game.left, 0),
+              playerName: debtor.playerName,
+            }))
+            .filter((debt) => debt.owed > 0),
+        );
+      } catch {
+        // The badge is a reminder for the desk, not something to stop the evening over.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [initData]);
 
   useEffect(() => {
@@ -526,6 +576,19 @@ export default function TMACardsPage() {
   // is left — the number the desk actually works by is how many still owe.
   const unpaidCount = settling.filter((card) => !card.paid).length;
 
+  // Matched by account where the row knows it, and by nickname for a player typed in at
+  // the door — the same player the debt was written to.
+  const debtBadge = (who: { accountId?: string | null; name: string }) => {
+    const nickname = buildNicknameKey(who.name);
+    const debt = pastDebts.find(
+      (item) =>
+        (who.accountId && item.accountId === who.accountId) ||
+        buildNicknameKey(item.playerName) === nickname,
+    );
+
+    return debt ? <span className="tma-badge tma-badge--red">долг {formatRubles(debt.owed)}</span> : null;
+  };
+
   const searchBox = (
     <label className="tma-search">
       <Search size={18} />
@@ -555,6 +618,8 @@ export default function TMACardsPage() {
         }
         title={session ? "Счёт игрока" : "Касса"}
       />
+
+      {!session ? <CashTabs current="evening" /> : null}
 
       {cardsEnabled && !session ? (
         <>
@@ -650,6 +715,7 @@ export default function TMACardsPage() {
               </div>
               {scannedCode ? <span className="tma-badge">Карта {scannedCode}</span> : null}
             </div>
+            {debtBadge({ accountId: session.accountId, name: session.name })}
 
             <div className="flex items-center gap-2 rounded-[10px] bg-[var(--tma-surface-2)] px-3 py-2.5">
               <Ticket className="text-[var(--tma-link)]" size={18} />
@@ -784,6 +850,7 @@ export default function TMACardsPage() {
                     ) : card.eliminated ? (
                       <span className="tma-badge tma-badge--red">ВЫБЫЛ</span>
                     ) : null}
+                    {debtBadge({ accountId: card.accountId, name: card.name })}
                   </span>
                   <span className="tma-row__sub">
                     {card.registrationNumber ? `#${card.registrationNumber}` : "без номера"}
@@ -858,8 +925,9 @@ export default function TMACardsPage() {
                     <span className="tma-row__sub">
                       {signup.username ? `@${signup.username}` : "записался в приложении"}
                     </span>
-                    {signup.ticketType === "vip" || signup.usePass !== "none" ? (
+                    {signup.ticketType === "vip" || signup.usePass !== "none" || debtBadge({ accountId: signup.userId, name: signup.name }) ? (
                       <span className="tma-row__badges">
+                        {debtBadge({ accountId: signup.userId, name: signup.name })}
                         {signup.ticketType === "vip" ? (
                           <span className="tma-badge tma-badge--gold">VIP билет</span>
                         ) : null}
@@ -898,6 +966,9 @@ export default function TMACardsPage() {
                       {player.table ? ` · стол ${player.table}` : ""}
                       {player.seat ? ` · место ${nameSeat(tableFormats, Number(player.table), player.seat)}` : ""}
                     </span>
+                    {debtBadge({ name: player.name }) ? (
+                      <span className="tma-row__badges">{debtBadge({ name: player.name })}</span>
+                    ) : null}
                   </span>
                   <UserPlus className="shrink-0 text-[var(--tma-link)]" size={18} />
                 </button>

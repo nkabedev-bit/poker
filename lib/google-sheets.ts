@@ -16,6 +16,7 @@ import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance
 import { readCancellationRows, type CancellationRow } from "@/lib/players/cancellations";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { hasRegistrationNumber, isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import { getFinanceRoster } from "@/lib/timer/lifecycle";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
@@ -1219,6 +1220,58 @@ export async function syncFinanceSheetForTournament(
   if (!players) return null;
 
   return syncFinanceSheet(getEliminationSheetName(sessionStartedAt), players, extras.settings);
+}
+
+/** The finance tab's "Оплатил" cell for one evening of one player. */
+export type FinancePaymentMark = { gameStartedAt: string; playerName: string; status: string };
+
+/**
+ * Writes a late payment into the evening's money tab.
+ *
+ * The tab of a past game is no longer rewritten from its roster, so the "Оплатил" cell
+ * of the player's row is the one thing touched: one read to find the rows and one write
+ * for all of them, whatever the number of evenings the payment closed.
+ */
+export async function markFinancePayments(marks: FinancePaymentMark[]) {
+  const spreadsheetId = process.env.GOOGLE_FINANCE_SHEET_ID;
+  if (!spreadsheetId || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY || marks.length === 0) return null;
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const meta = await sheets.spreadsheets.get({ spreadsheetId, fields: "sheets.properties.title" });
+  const tabs = new Set(meta.data.sheets?.map((sheet) => sheet.properties?.title ?? "") ?? []);
+
+  const byTab = new Map<string, FinancePaymentMark[]>();
+  for (const mark of marks) {
+    const tab = getEliminationSheetName(mark.gameStartedAt);
+    if (!tabs.has(tab)) continue;
+    byTab.set(tab, [...(byTab.get(tab) ?? []), mark]);
+  }
+  if (byTab.size === 0) return { marked: 0 };
+
+  const tabNames = [...byTab.keys()];
+  const names = await sheets.spreadsheets.values.batchGet({
+    spreadsheetId,
+    ranges: tabNames.map((tab) => `'${tab}'!B:B`),
+  });
+
+  const paidColumn = getSheetColumnName(FINANCE_SHEET_HEADERS.indexOf("Оплатил") + 1);
+  const data: SheetValueRange[] = [];
+
+  names.data.valueRanges?.forEach((range, index) => {
+    const tab = tabNames[index];
+    const column = (range.values ?? []).map((row) => buildNicknameKey(String(row[0] ?? "")));
+
+    for (const mark of byTab.get(tab) ?? []) {
+      // Row 1 is the header; the totals row is never a player's name.
+      const row = column.indexOf(buildNicknameKey(mark.playerName));
+      if (row < 1) continue;
+      data.push({ range: `'${tab}'!${paidColumn}${row + 1}`, values: [[mark.status]] });
+    }
+  });
+
+  await batchUpdateValues(sheets, spreadsheetId, "RAW", data);
+  return { marked: data.length };
 }
 
 // ---------------------------------------------------------------------------
