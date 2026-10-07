@@ -7,6 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, House, Swords, Trophy, User } from "lucide-react";
 import { WelcomeSplash } from "./_components/welcome-splash";
 import { CLUB_FONT_CLASSES } from "./fonts";
+import { listenForInstallPrompt } from "./_components/install-prompt";
 
 export type ClientTelegramUser = {
   first_name?: string;
@@ -22,6 +23,8 @@ export type ClientTelegramWebApp = {
   ready: () => void;
   expand: () => void;
   openTelegramLink?: (url: string) => void;
+  /** Opens a link outside Telegram, in the phone's browser. */
+  openLink?: (url: string) => void;
   showAlert: (message: string) => void;
   BackButton?: {
     hide: () => void;
@@ -306,8 +309,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     backButton.hide();
   }, [initData, pathname]);
 
+  // The browser offers to install the app once, on whatever screen it decides to; the
+  // offer is caught here so the home screen's hint can use it later.
+  useEffect(() => listenForInstallPrompt(), []);
+
   return (
     <>
+      {/* Installable as an app of its own (React puts these in <head>): from its icon it
+          opens without Telegram, and so without a VPN. */}
+      <link rel="manifest" href="/client.webmanifest" />
+      <meta name="theme-color" content="#0d0a0b" />
+      <meta name="mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-title" content="Majestic" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
       {/* Served from our own origin: Russian ISPs filter telegram.org, and the request
           hangs open rather than failing. Under "beforeInteractive" that hang held back
           every Next module behind it — the page rendered "Загрузка…" from the server and

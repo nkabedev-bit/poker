@@ -26,6 +26,7 @@ import { EventCard, type EventCardData } from "./_components/event-card";
 import { PlayerAvatar } from "./_components/player-avatar";
 import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating-row";
 import { LiveTournamentCard } from "./_components/live-tournament-card";
+import { InstallBanner } from "./_components/install-banner";
 import { useLiveTournament } from "./_components/use-live-tournament";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
@@ -202,6 +203,8 @@ export default function ClientHomePage() {
           live={live}
         />
       ) : null}
+
+      <InstallBanner />
 
       {nextEvent ? (
         <EventCard event={nextEvent} featured />
