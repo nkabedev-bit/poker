@@ -13,6 +13,8 @@ import {
   SESSION_COOKIE,
   SESSION_MAX_AGE_SECONDS,
 } from "@/lib/auth/session";
+import { OAUTH_LINK_COOKIE, readLinkToken } from "@/lib/auth/link-token";
+import { attachYandexToAccount } from "@/lib/auth/attach-yandex";
 
 export const dynamic = "force-dynamic";
 
@@ -97,6 +99,33 @@ export async function GET(request: Request) {
   }
 
   const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+
+  // Sent over from the mini-app: this sign-in belongs to the profile the pass names, and
+  // the player goes straight into it — no "have you played here before".
+  const linkedAccountId = readLinkToken(readCookie(request, OAUTH_LINK_COOKIE), env.SESSION_SECRET);
+  if (linkedAccountId) {
+    const attached = await attachYandexToAccount(supabase, {
+      accountId: linkedAccountId,
+      email: yandexUser.email,
+      yandexId: yandexUser.id,
+    });
+
+    const response = NextResponse.redirect(
+      new URL(attached.error ? `/client/login?link_error=${attached.error}` : "/client", request.url),
+    );
+    if (attached.accountId) {
+      response.cookies.set(SESSION_COOKIE, createSessionToken(attached.accountId, env.SESSION_SECRET), {
+        httpOnly: true,
+        maxAge: SESSION_MAX_AGE_SECONDS,
+        path: "/",
+        sameSite: "lax",
+        secure: true,
+      });
+    }
+    response.cookies.delete(OAUTH_STATE_COOKIE);
+    response.cookies.delete(OAUTH_LINK_COOKIE);
+    return response;
+  }
 
   const { data: existing, error: readError } = await supabase
     .from("client_bot_users")
