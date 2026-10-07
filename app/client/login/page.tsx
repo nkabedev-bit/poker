@@ -39,64 +39,102 @@ export default function ClientLoginPage() {
   const startUrl = fromTelegram ? `/api/auth/yandex/start?link=${encodeURIComponent(link ?? "")}` : "/api/auth/yandex/start";
 
   return (
-    <div className="flex min-h-full flex-col gap-6 pb-8">
-      <div className="flex flex-col items-center gap-[22px] pt-[60px] text-center">
-        <div aria-hidden className="relative h-[120px] w-[150px]">
-          <LoginCard className="left-[22px] top-2 -rotate-12 text-[#15100f]" rank="A" suit="♠" />
-          <LoginCard className="left-[62px] top-1 rotate-[10deg] text-club-crimson" rank="A" suit="♥" />
+    // A computer gives the club's colours the left half of the window and the sign-in the
+    // right; a phone has only the sign-in.
+    <div className="flex min-h-full flex-col gap-6 pb-8 md:grid md:h-full md:grid-cols-2 md:gap-0 md:pb-0">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-[#3a0e1a] p-14 md:flex">
+        <span aria-hidden className="pointer-events-none absolute -bottom-32 -right-20 text-[640px] leading-none text-white/[0.05]">
+          ♠
+        </span>
+        <div className="relative flex flex-col gap-2">
+          <span className="font-display text-[22px] font-bold tracking-[0.32em] text-club-gold">MAJESTIC</span>
+          <span className="text-[11px] font-bold tracking-[0.2em] text-club-text/60">
+            КЛУБ СПОРТИВНОГО ПОКЕРА · ПЕТРОЗАВОДСК
+          </span>
         </div>
-        <div className="flex flex-col gap-2.5">
-          <h1 className="font-display text-[28px] font-semibold tracking-[-0.02em]">
-            {fromTelegram ? "Majestic на экране телефона" : "Вход в клуб"}
-          </h1>
-          <p className="text-[15px] leading-relaxed text-club-muted">
-            {fromTelegram
-              ? "Войдите через свой Яндекс — мы привяжем к нему ваш ник и профиль клуба. После этого добавьте иконку на главный экран: так приложение будет открываться даже без обходов связи."
-              : "Афиши, запись на турниры, рейтинг и ваш профиль — после входа"}
-          </p>
+        <div aria-hidden className="relative h-[170px] w-[220px]">
+          <LoginCard className="left-5 top-2.5 -rotate-12 text-[#15100f]" large rank="A" suit="♠" />
+          <LoginCard className="left-[86px] top-1 rotate-[10deg] text-club-crimson" large rank="A" suit="♥" />
         </div>
-      </div>
-
-      {linkError ? (
-        <div className="flex items-start gap-3 rounded-[18px] border border-club-rose/45 bg-club-crimson/12 px-4 py-3.5">
-          <TriangleAlert className="mt-0.5 shrink-0 text-club-rose" size={20} />
-          <p className="text-[13px] leading-relaxed">{linkError}</p>
-        </div>
-      ) : null}
-
-      <div className="mt-10 flex flex-col gap-3">
-        <PrimaryButton
-          className="!bg-club-text !text-[#15100f] !shadow-none"
-          onClick={() => window.location.assign(startUrl)}
-        >
-          {fromTelegram ? "Продолжить" : "Войти с Яндекс ID"}
-        </PrimaryButton>
-        <p className="text-center text-[12px] leading-relaxed text-club-faint">
-          Мы получим только имя, почту и фото профиля — чтобы узнавать вас в следующий
-          раз и показывать в рейтинге клуба.
+        <p className="relative max-w-[460px] font-display text-[36px] font-semibold leading-[1.15]">
+          Афиши, запись на турниры и рейтинг клуба
         </p>
       </div>
 
-      {fromTelegram ? null : (
-        <div className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3.5">
-          <Send className="shrink-0 text-club-rose" size={20} />
-          <p className="text-[13px] leading-relaxed text-club-muted">
-            Играете через Telegram? Откройте клуб в боте — там вход не нужен.
-          </p>
+      <div className="flex flex-col gap-6 md:items-center md:justify-center md:p-14">
+        <div className="flex w-full flex-col gap-6 md:max-w-[420px]">
+          <div className="flex flex-col items-center gap-[22px] pt-[60px] text-center md:items-start md:pt-0 md:text-left">
+            <div aria-hidden className="relative h-[120px] w-[150px] md:hidden">
+              <LoginCard className="left-[22px] top-2 -rotate-12 text-[#15100f]" rank="A" suit="♠" />
+              <LoginCard className="left-[62px] top-1 rotate-[10deg] text-club-crimson" rank="A" suit="♥" />
+            </div>
+            <div className="flex flex-col gap-2.5">
+              <h1 className="font-display text-[28px] font-semibold tracking-[-0.02em] md:text-[32px]">
+                {fromTelegram ? "Majestic на экране телефона" : "Вход в клуб"}
+              </h1>
+              <p className="text-[15px] leading-relaxed text-club-muted md:text-[16px]">
+                {fromTelegram
+                  ? "Войдите через свой Яндекс — мы привяжем к нему ваш ник и профиль клуба. После этого добавьте иконку на главный экран: так приложение будет открываться даже без обходов связи."
+                  : "Афиши, запись на турниры, рейтинг и ваш профиль — после входа"}
+              </p>
+            </div>
+          </div>
+
+          {linkError ? (
+            <div className="flex items-start gap-3 rounded-[18px] border border-club-rose/45 bg-club-crimson/12 px-4 py-3.5">
+              <TriangleAlert className="mt-0.5 shrink-0 text-club-rose" size={20} />
+              <p className="text-[13px] leading-relaxed">{linkError}</p>
+            </div>
+          ) : null}
+
+          <div className="mt-10 flex flex-col gap-3 md:mt-0">
+            <PrimaryButton
+              className="!bg-club-text !text-[#15100f] !shadow-none"
+              onClick={() => window.location.assign(startUrl)}
+            >
+              {fromTelegram ? "Продолжить" : "Войти с Яндекс ID"}
+            </PrimaryButton>
+            <p className="text-center text-[12px] leading-relaxed text-club-faint md:text-left md:text-[13px]">
+              Мы получим только имя, почту и фото профиля — чтобы узнавать вас в следующий
+              раз и показывать в рейтинге клуба.
+            </p>
+          </div>
+
+          {fromTelegram ? null : (
+            <div className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3.5">
+              <Send className="shrink-0 text-club-rose" size={20} />
+              <p className="text-[13px] leading-relaxed text-club-muted md:text-[14px]">
+                Играете через Telegram? Откройте клуб в боте — там вход не нужен.
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
 /** One of the two aces over the sign-in: cream, rank over suit, the way the club deck prints them. */
-function LoginCard({ className, rank, suit }: { className: string; rank: string; suit: string }) {
+function LoginCard({
+  className,
+  large = false,
+  rank,
+  suit,
+}: {
+  className: string;
+  /** The bigger pair on the club's half of a computer's screen. */
+  large?: boolean;
+  rank: string;
+  suit: string;
+}) {
   return (
     <span
-      className={`absolute flex h-[95px] w-[70px] flex-col items-center justify-center rounded-xl bg-club-card font-display leading-none shadow-[0_2px_6px_rgba(0,0,0,0.5)] ${className}`}
+      className={`absolute flex flex-col items-center justify-center bg-club-card font-display leading-none shadow-[0_2px_6px_rgba(0,0,0,0.5)] ${
+        large ? "h-[136px] w-[100px] rounded-[17px]" : "h-[95px] w-[70px] rounded-xl"
+      } ${className}`}
     >
-      <span className="text-[35px] font-bold">{rank}</span>
-      <span className="text-[32px]">{suit}</span>
+      <span className={`font-bold ${large ? "text-[50px]" : "text-[35px]"}`}>{rank}</span>
+      <span className={large ? "text-[46px]" : "text-[32px]"}>{suit}</span>
     </span>
   );
 }

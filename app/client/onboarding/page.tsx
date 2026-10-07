@@ -155,25 +155,30 @@ export default function ClientOnboardingPage() {
   const filled = [fullName, nickname, phone, birthDate, discoverySource].filter((value) => value.trim()).length;
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
-      <div className="flex flex-col gap-2.5">
-        <PageHeading subtitle="Заполните один раз — после этого откроется запись на турниры" title="Анкета игрока" />
-        <div className="mt-1.5 flex gap-1.5">
-          {Array.from({ length: FIELDS_TOTAL }, (_, index) => (
-            <span
-              key={index}
-              className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                index < filled ? "bg-club-crimson" : "bg-white/10"
-              }`}
-            />
-          ))}
+    // On a computer the form keeps the left column and the progress stands beside it.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:grid desk:grid-cols-[minmax(0,1fr)_320px] desk:items-start desk:gap-x-8 desk:gap-y-7">
+      <div className="flex flex-col gap-2.5 desk:contents">
+        <div className="desk:col-span-2">
+          <PageHeading subtitle="Заполните один раз — после этого откроется запись на турниры" title="Анкета игрока" />
         </div>
-        <p className="text-[12px] text-club-faint">
-          Заполнено {filled} из {FIELDS_TOTAL} полей
-        </p>
+        <div className="flex flex-col gap-2.5 desk:col-start-2 desk:row-start-2 desk:gap-3.5 desk:rounded-[22px] desk:border desk:border-club-line desk:bg-club-surface desk:p-[22px]">
+          <div className="mt-1.5 flex gap-1.5 desk:mt-0">
+            {Array.from({ length: FIELDS_TOTAL }, (_, index) => (
+              <span
+                key={index}
+                className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                  index < filled ? "bg-club-crimson" : "bg-white/10"
+                }`}
+              />
+            ))}
+          </div>
+          <p className="text-[12px] text-club-faint">
+            Заполнено {filled} из {FIELDS_TOTAL} полей
+          </p>
+        </div>
       </div>
 
-      <section className="flex flex-col gap-4">
+      <section className="flex flex-col gap-4 desk:col-start-1">
         <Eyebrow>О вас</Eyebrow>
         <Field label="Имя и фамилия">
           <input
@@ -220,7 +225,7 @@ export default function ClientOnboardingPage() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-3">
+      <section className="flex flex-col gap-3 desk:col-start-1">
         <Eyebrow>Как вы о нас узнали?</Eyebrow>
         {/* The common answers are a tap away; anything else is typed in below them. */}
         <div className="flex flex-wrap gap-2">
@@ -278,7 +283,7 @@ export default function ClientOnboardingPage() {
         ) : null}
       </section>
 
-      <section className="flex flex-col gap-2">
+      <section className="flex flex-col gap-2 desk:col-start-1">
         <Eyebrow>Согласия</Eyebrow>
         <Toggle checked={agreementAccepted} onChange={setAgreementAccepted}>
           {AGREEMENT_TEXT}
@@ -291,11 +296,13 @@ export default function ClientOnboardingPage() {
         </Toggle>
       </section>
 
-      {error ? <p className="text-center text-sm text-club-rose">{error}</p> : null}
+      {error ? <p className="text-center text-sm text-club-rose desk:col-start-1">{error}</p> : null}
 
-      <PrimaryButton disabled={!agreementAccepted} loading={submitting} onClick={() => void submit()}>
-        Сохранить анкету
-      </PrimaryButton>
+      <div className="desk:col-start-1">
+        <PrimaryButton disabled={!agreementAccepted} loading={submitting} onClick={() => void submit()}>
+          Сохранить анкету
+        </PrimaryButton>
+      </div>
     </div>
   );
 }

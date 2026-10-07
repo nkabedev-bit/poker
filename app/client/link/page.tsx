@@ -46,8 +46,11 @@ export default function ClientLinkPage() {
   };
 
   return (
-    <div className="client-stagger flex flex-col gap-6 pt-1">
-      <PageHeading subtitle="Найдём ваш профиль со всей историей и проходками" title="Вы у нас уже играли?" />
+    // On a computer the two answers stand side by side under the question.
+    <div className="client-stagger flex flex-col gap-6 pt-1 md:max-w-[960px] md:pt-0 desk:grid desk:grid-cols-2 desk:items-start desk:gap-x-5 desk:gap-y-8">
+      <div className="desk:col-span-2">
+        <PageHeading subtitle="Найдём ваш профиль со всей историей и проходками" title="Вы у нас уже играли?" />
+      </div>
 
       <div
         className={`flex flex-col gap-3.5 rounded-[22px] border-[1.5px] p-4 transition-colors ${
