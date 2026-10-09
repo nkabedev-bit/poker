@@ -1,0 +1,18 @@
+{
+  "id": "/tma",
+  "name": "Majestic — админка",
+  "short_name": "Majestic Админ",
+  "description": "Админка покерного клуба Majestic: зал, вылеты, касса и турнир",
+  "lang": "ru",
+  "start_url": "/tma/players?source=pwa",
+  "scope": "/tma",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0e0f11",
+  "theme_color": "#0e0f11",
+  "icons": [
+    { "src": "/pwa/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

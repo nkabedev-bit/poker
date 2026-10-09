@@ -1,11 +1,18 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, useSyncExternalStore } from "react";
 import Script from "next/script";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { CircleEllipsis, Clock, CreditCard, Skull, Users } from "lucide-react";
 import { canOpenScreen, type TmaRole } from "@/lib/tma/roles";
+import {
+  browserWebApp,
+  pressBrowserMainButton,
+  readBrowserMainButton,
+  subscribeBrowserMainButton,
+} from "./browser-webapp";
+import { DeskLogin } from "./desk-login";
 import { TMA_DESK_CHANGED_EVENT, TournamentClockProvider, TournamentStatusBar } from "./tournament-clock";
 import "./tma.css";
 
@@ -56,8 +63,14 @@ declare global {
   }
 }
 
-export function getTelegramWebApp() {
-  return window.Telegram?.WebApp;
+/**
+ * Telegram's mini-app object inside Telegram; the browser's stand-in anywhere else, so
+ * the screens work the same in a phone's browser. Telegram's script is loaded in both,
+ * and only inside Telegram does it carry the signed init data.
+ */
+export function getTelegramWebApp(): TelegramWebApp {
+  const tg = window.Telegram?.WebApp;
+  return tg?.initData ? tg : browserWebApp;
 }
 
 /** The desk's own dark ground and bars, as the frame around the app should match. */
@@ -121,13 +134,15 @@ export function confirmSeated(
 }
 
 /**
- * The role the desk is open for, or null when the server could not say. The server
- * guards every endpoint on its own, so an unanswered question costs a dealer nothing
- * worse than tabs that answer "only for the floor".
+ * The role the desk is open for, "signed-out" for a browser that has not entered a
+ * password yet, or null when the server could not say. The server guards every
+ * endpoint on its own, so an unanswered question costs a dealer nothing worse than tabs
+ * that answer "only for the floor".
  */
-async function readDeskRole(initData: string): Promise<TmaRole | null> {
+async function readDeskRole(initData: string): Promise<TmaRole | "signed-out" | null> {
   try {
     const res = await fetch("/api/tma/me", { headers: { "X-Telegram-Init-Data": initData } });
+    if (res.status === 401 && !initData) return "signed-out";
     if (!res.ok) return null;
     const data = (await res.json()) as { role?: unknown };
     return data.role === "floor" || data.role === "dealer" ? data.role : null;
@@ -137,22 +152,30 @@ async function readDeskRole(initData: string): Promise<TmaRole | null> {
 }
 
 export default function TMALayout({ children }: { children: React.ReactNode }) {
+  // Telegram's signed init data, or "" in a browser, where the desk cookie stands in.
   const [initData, setInitData] = useState<string | null>(null);
   const [role, setRole] = useState<TmaRole | null>(null);
   const [roleChecked, setRoleChecked] = useState(false);
+  const [signedOut, setSignedOut] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
+  const inBrowser = initData === "";
 
   const initTg = useCallback(() => {
-    const tg = getTelegramWebApp();
-    if (tg) {
-      tg.ready();
-      tg.expand();
-      tg.setHeaderColor?.(FRAME_COLORS.bar);
-      tg.setBackgroundColor?.(FRAME_COLORS.background);
-      tg.setBottomBarColor?.(FRAME_COLORS.bar);
-      setInitData(tg.initData || "mock");
+    const tg = window.Telegram?.WebApp;
+    if (!tg) return;
+
+    if (!tg.initData) {
+      setInitData("");
+      return;
     }
+
+    tg.ready();
+    tg.expand();
+    tg.setHeaderColor?.(FRAME_COLORS.bar);
+    tg.setBackgroundColor?.(FRAME_COLORS.background);
+    tg.setBottomBarColor?.(FRAME_COLORS.bar);
+    setInitData(tg.initData);
   }, []);
 
   useEffect(() => {
@@ -161,18 +184,31 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
   }, [initTg]);
 
   useEffect(() => {
-    if (!initData) return;
+    if (initData === null) return;
 
     let cancelled = false;
     void readDeskRole(initData).then((value) => {
       if (cancelled) return;
-      setRole(value);
+      setSignedOut(value === "signed-out");
+      setRole(value === "signed-out" ? null : value);
       setRoleChecked(true);
     });
     return () => {
       cancelled = true;
     };
   }, [initData]);
+
+  const signIn = useCallback((value: TmaRole) => {
+    setRole(value);
+    setSignedOut(false);
+  }, []);
+
+  const signOut = useCallback(async () => {
+    if (!window.confirm("Выйти из админки на этом телефоне?")) return;
+    await fetch("/api/tma/session", { method: "DELETE" }).catch(() => null);
+    setRole(null);
+    setSignedOut(true);
+  }, []);
 
   // A screen beyond a dealer's tables — an old link, a typed address — leads to the room.
   const screenClosed = role !== null && !canOpenScreen(role, pathname);
@@ -197,10 +233,25 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
         onReady={initTg}
       />
       
-      {!initData ? (
+      {/* Installable as an app of its own (React puts these in <head>): from its icon
+          the desk opens in the browser, without Telegram and so without a VPN. */}
+      <link rel="manifest" href="/tma.webmanifest" />
+      <meta name="theme-color" content={FRAME_COLORS.background} />
+      <meta name="mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-title" content="Majestic Админ" />
+      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+      {initData === null || (inBrowser && !roleChecked) ? (
         <div className="tma-app flex h-screen items-center justify-center">Загрузка…</div>
+      ) : inBrowser && signedOut ? (
+        <div className="tma-app tma-frame">
+          <main className="tma-main overflow-y-auto">
+            <DeskLogin onSignedIn={signIn} />
+          </main>
+        </div>
       ) : (
-        <TMAContext.Provider value={{ initData, role }}>
+        <TMAContext.Provider value={{ initData, role, signOut: inBrowser ? signOut : undefined }}>
           <TournamentClockProvider initData={initData} pathname={pathname}>
             <div className="tma-app tma-frame">
               {CLOCK_SCREENS.some((screen) => pathname.includes(screen)) ? (
@@ -214,6 +265,7 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
               <main className="tma-main overflow-y-auto">
                 {screenReady ? children : <div className="tma-empty">Загрузка…</div>}
               </main>
+              {inBrowser ? <BrowserMainButtonBar /> : null}
               <nav className="tma-nav shrink-0 pb-[env(safe-area-inset-bottom)]">
                 {tabs.map((tab) => (
                   <NavItem
@@ -254,6 +306,29 @@ async function toggleClock(initData: string, action: "pause" | "start") {
   window.dispatchEvent(new Event(TMA_DESK_CHANGED_EVENT));
 }
 
+/** Telegram's big bottom button, drawn by the desk itself in a browser. */
+function BrowserMainButtonBar() {
+  const button = useSyncExternalStore(
+    subscribeBrowserMainButton,
+    readBrowserMainButton,
+    readBrowserMainButton,
+  );
+  if (!button.visible) return null;
+
+  return (
+    <div className="tma-main-button shrink-0">
+      <button
+        className="tma-btn tma-btn--primary tma-btn--big"
+        disabled={button.progress}
+        type="button"
+        onClick={pressBrowserMainButton}
+      >
+        {button.progress ? "Секунду…" : button.text}
+      </button>
+    </div>
+  );
+}
+
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {
   return (
     <Link
@@ -267,7 +342,12 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
   );
 }
 
-export const TMAContext = createContext<{ initData: string; role: TmaRole | null }>({
+export const TMAContext = createContext<{
+  initData: string;
+  role: TmaRole | null;
+  // Only in a browser: inside Telegram there is nothing to sign out of.
+  signOut?: () => void;
+}>({
   initData: "",
   role: null,
 });

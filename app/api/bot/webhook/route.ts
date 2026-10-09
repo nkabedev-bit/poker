@@ -10,7 +10,12 @@ import {
   buildBirthdayDigestMessage,
 } from "@/lib/admin-bot/messages";
 import { buildRoleChangedReply, parseRoleCommand, ROLE_COMMAND_HELP } from "@/lib/admin-bot/role-command";
+import {
+  buildWebPasswordSavedReply,
+  parseWebPasswordCommand,
+} from "@/lib/admin-bot/web-password-command";
 import { isAccessManager, readRole, ROLE_LABELS, type TmaRole } from "@/lib/tma/roles";
+import { hashWebPassword, verifyWebPassword } from "@/lib/tma/web-session";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
 import { pickUpcomingBirthdaysFromAccounts } from "@/lib/client-bot/birthdays";
@@ -377,6 +382,50 @@ bot.command("role", async (ctx) => {
   }
 
   await ctx.reply(buildRoleChangedReply(data.name, command.telegramId, command.role));
+});
+
+// The two shared passwords of the browser desk. The message carrying one is deleted
+// before anything else happens, so the password never stays in the chat.
+bot.command("webpass", async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId || !isAccessManager(telegramId)) {
+    return ctx.reply("Это могут только главные админы.");
+  }
+
+  const text = ctx.message?.text || "";
+  await ctx.deleteMessage().catch((err: unknown) => {
+    console.error("Failed to delete the /webpass message:", err);
+  });
+
+  const command = parseWebPasswordCommand(text);
+  if ("error" in command) return ctx.reply(command.error);
+
+  const supabase = getAdminSupabase();
+  const otherRole: TmaRole = command.role === "floor" ? "dealer" : "floor";
+  const { data: other, error: readError } = await supabase
+    .from("tma_web_passwords")
+    .select("password_hash")
+    .eq("role", otherRole)
+    .maybeSingle();
+
+  if (readError) return ctx.reply(`Ошибка: ${readError.message}`);
+  // One word for both would let whoever logs in first decide which role they got.
+  if (other && verifyWebPassword(command.password, other.password_hash)) {
+    return ctx.reply("Пароли флора и дилера должны различаться. Сообщение удалено, пришлите другой.");
+  }
+
+  const { error } = await supabase.from("tma_web_passwords").upsert({
+    password_hash: hashWebPassword(command.password),
+    role: command.role,
+    updated_at: new Date().toISOString(),
+    updated_by: telegramId,
+  });
+
+  if (error) return ctx.reply(`Ошибка: ${error.message}`);
+
+  await ctx.reply(
+    buildWebPasswordSavedReply(command.role, `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}/tma`),
+  );
 });
 
 bot.command("clearsheet", async (ctx) => {

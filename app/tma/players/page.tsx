@@ -12,6 +12,7 @@ import {
   CheckSquare,
   ChevronRight,
   ClipboardList,
+  LogOut,
   Plus,
   RotateCcw,
   Search,
@@ -105,7 +106,7 @@ function readPlayerTicket(player: Player): "regular" | "vip" {
 }
 
 export default function TMAPlayersPage() {
-  const { initData } = useTMA();
+  const { initData, signOut } = useTMA();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -1064,6 +1065,11 @@ export default function TMAPlayersPage() {
             >
               <Plus size={20} />
             </button>
+            {signOut ? (
+              <button aria-label="Выйти" className="tma-icon-btn" type="button" onClick={signOut}>
+                <LogOut size={20} />
+              </button>
+            ) : null}
           </>
         }
         title="Зал"

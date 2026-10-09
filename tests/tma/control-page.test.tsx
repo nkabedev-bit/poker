@@ -225,6 +225,7 @@ describe("TMAControlPage", () => {
       (window as { Telegram?: unknown }).Telegram = {
         WebApp: {
           HapticFeedback: { impactOccurred: vi.fn(), notificationOccurred: vi.fn() },
+          initData: "mock-init",
           showAlert,
           showConfirm: (_message: string, callback: (ok: boolean) => void) => callback(true),
         },

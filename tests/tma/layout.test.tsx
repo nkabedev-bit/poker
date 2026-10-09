@@ -1,9 +1,10 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import TMALayout, { type TelegramWebApp } from "@/app/tma/layout";
+import TMALayout, { getTelegramWebApp, type TelegramWebApp } from "@/app/tma/layout";
 
 const navigation = vi.hoisted(() => ({ pathname: "/tma/bot", replace: vi.fn() }));
 
@@ -149,5 +150,97 @@ describe("TMALayout", () => {
     answer(Response.json({ role: "floor" }));
     await screen.findByText("TMA content");
     expect(screen.getAllByRole("link")).toHaveLength(5);
+  });
+});
+
+/** A screen asking for Telegram's big bottom button, as the room's "add player" does. */
+function ScreenWithMainButton({ onPress }: { onPress: () => void }) {
+  useEffect(() => {
+    const tg = getTelegramWebApp();
+    tg.MainButton.setText("ДОБАВИТЬ ИГРОКА");
+    tg.MainButton.show();
+    tg.MainButton.onClick(onPress);
+    return () => {
+      tg.MainButton.offClick(onPress);
+      tg.MainButton.hide();
+    };
+  }, [onPress]);
+  return <div>TMA content</div>;
+}
+
+describe("TMALayout in a phone's browser", () => {
+  beforeEach(() => {
+    navigation.pathname = "/tma/players";
+    // Telegram's script loads outside Telegram too, only without init data.
+    window.Telegram = { WebApp: { ...createTelegramWebApp(), initData: "" } };
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+    delete window.Telegram;
+  });
+
+  it("asks for the password before showing the desk", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ error: "Войдите заново" }, { status: 401 })));
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await screen.findByText("Вход в админку");
+    expect(screen.queryByText("TMA content")).toBeNull();
+    expect(screen.queryByRole("navigation")).toBeNull();
+  });
+
+  it("opens a dealer's tabs once the dealers' password goes in", async () => {
+    const fetchMock = vi.fn(async (url: string) =>
+      url === "/api/tma/session"
+        ? Response.json({ role: "dealer" })
+        : url === "/api/tma/me"
+          ? Response.json({ error: "Войдите заново" }, { status: 401 })
+          : Response.json({}),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    fireEvent.change(await screen.findByLabelText("Пароль"), { target: { value: "dealer-password" } });
+    fireEvent.click(screen.getByRole("button", { name: "Войти" }));
+
+    await screen.findByText("TMA content");
+    expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Зал", "Вылеты"]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/tma/session",
+      expect.objectContaining({ body: JSON.stringify({ password: "dealer-password" }), method: "POST" }),
+    );
+  });
+
+  it("draws Telegram's bottom button itself and passes the tap on", async () => {
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => Response.json(url === "/api/tma/me" ? { role: "floor" } : {})));
+    const onPress = vi.fn();
+    render(
+      <TMALayout>
+        <ScreenWithMainButton onPress={onPress} />
+      </TMALayout>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "ДОБАВИТЬ ИГРОКА" }));
+
+    expect(onPress).toHaveBeenCalledTimes(1);
+  });
+
+  it("answers Telegram's confirmation with the browser's own", async () => {
+    vi.stubGlobal("confirm", vi.fn(() => true));
+    const answer = vi.fn();
+
+    getTelegramWebApp().showConfirm("Удалить игрока?", answer);
+
+    expect(window.confirm).toHaveBeenCalledWith("Удалить игрока?");
+    expect(answer).toHaveBeenCalledWith(true);
   });
 });

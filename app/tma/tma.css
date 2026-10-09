@@ -1015,6 +1015,16 @@
   gap: 8px;
 }
 
+/* Telegram's big bottom button, drawn by the desk itself in a phone's browser
+   (browser-webapp.ts). It sits in the column above the tabs, like the bar above. */
+.tma-main-button {
+  display: flex;
+  flex-direction: column;
+  padding: 8px 12px;
+  background: var(--tma-bg);
+  border-top: 1px solid var(--tma-line);
+}
+
 /* The undo strip over the list, right after a knockout is written. */
 .tma-undo {
   display: flex;

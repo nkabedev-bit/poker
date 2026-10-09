@@ -4,6 +4,7 @@ import { SIGNUP_BAN_DAYS } from "@/lib/client-bot/signup-ban";
 import { DEBT_ALLOWANCE_DAYS } from "@/lib/debts/ledger";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
 import { ROLE_COMMAND_HELP } from "@/lib/admin-bot/role-command";
+import { WEB_PASSWORD_COMMAND_HELP } from "@/lib/admin-bot/web-password-command";
 import type { TmaRole } from "@/lib/tma/roles";
 
 // Only what a line needs. Keeping it to this lets the same formatter serve whatever
@@ -68,6 +69,7 @@ export const ADMIN_BOT_MENU_COMMANDS = [
   { command: "free", description: "Выдать проходки: [vip] <ник> [сколько]" },
   { command: "role", description: "Роль админа: <telegram_id> флор|дилер" },
   { command: "admins", description: "Админы и их роли" },
+  { command: "webpass", description: "Пароль входа из браузера: флор|дилер <пароль>" },
 ];
 
 // The /info replies, kept next to the digest so the texts are unit-testable and the
@@ -123,6 +125,8 @@ const ACCESS_COMMANDS_MESSAGE = [
   "/admins — список администраторов с ролями",
   "/removeadmin <telegram_id> — забрать доступ",
   ROLE_COMMAND_HELP,
+  "",
+  WEB_PASSWORD_COMMAND_HELP,
 ].join("\n");
 
 /**
