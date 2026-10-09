@@ -23,7 +23,7 @@ function isMissingSettlingRpc(error: unknown) {
  * closes re-entries and add-ons, so the bill cannot grow afterwards.
  */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();

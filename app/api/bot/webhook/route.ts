@@ -5,10 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
 import {
-  ADMIN_BOT_COMMANDS_MESSAGE,
   ADMIN_BOT_MENU_COMMANDS,
+  buildAdminCommandsMessage,
   buildBirthdayDigestMessage,
 } from "@/lib/admin-bot/messages";
+import { buildRoleChangedReply, parseRoleCommand, ROLE_COMMAND_HELP } from "@/lib/admin-bot/role-command";
+import { isAccessManager, readRole, ROLE_LABELS, type TmaRole } from "@/lib/tma/roles";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
 import { readBirthdayAccounts } from "@/lib/client-bot/birthday-store";
 import { pickUpcomingBirthdaysFromAccounts } from "@/lib/client-bot/birthdays";
@@ -61,25 +63,49 @@ bot.command("start", async (ctx) => {
   }
 });
 
-async function isTournamentAdmin(supabase: ReturnType<typeof getAdminSupabase>, adminId: number) {
+/** The admin's role, or null for someone who is not an admin at all. */
+async function readAdminRole(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  adminId: number,
+): Promise<TmaRole | null> {
   const { data } = await supabase
     .from("tma_admins")
-    .select("telegram_id")
+    .select("role")
     .eq("telegram_id", adminId)
     .maybeSingle();
 
-  return Boolean(data);
+  return data ? readRole(adminId, data.role) : null;
+}
+
+/**
+ * Lets a command through for a floor. A dealer is told the command is the floor's, and
+ * anyone else that they have no access — the same refusal they got before roles.
+ */
+async function allowFloorCommand(ctx: Context, supabase = getAdminSupabase()) {
+  const adminId = ctx.from?.id;
+  if (!adminId) return false;
+
+  const role = await readAdminRole(supabase, adminId);
+  if (role === "floor") return true;
+
+  await ctx.reply(
+    role === "dealer"
+      ? "Эта команда доступна только флору. Дилеру — /start и /info."
+      : "У вас нет прав для выполнения этой команды.",
+  );
+  return false;
 }
 
 bot.command("info", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
 
-  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+  const role = await readAdminRole(getAdminSupabase(), adminId);
+  if (!role) {
     return ctx.reply("У вас нет прав для выполнения этой команды.");
   }
 
-  await ctx.reply(ADMIN_BOT_COMMANDS_MESSAGE);
+  await ctx.reply(buildAdminCommandsMessage({ manager: isAccessManager(adminId), role }));
 });
 
 // Who has a birthday coming up, read straight from the "анкеты" sheet — the same source
@@ -88,9 +114,7 @@ bot.command("birthday", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
 
-  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx))) return;
 
   try {
     const accounts = await readBirthdayAccounts(getAdminSupabase());
@@ -113,9 +137,7 @@ bot.command("cancel", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
 
-  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx))) return;
 
   try {
     const { buildCancelledSignupsMessage, readCancelledSignups } = await import(
@@ -136,9 +158,7 @@ bot.command("changes", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
 
-  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx))) return;
 
   try {
     const { buildNicknameChangesMessage, readNicknameChanges } = await import(
@@ -160,9 +180,7 @@ async function changeSignupBan(ctx: Context, banned: boolean) {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  if (!(await isTournamentAdmin(supabase, adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   const { banPlayerSignups, buildBanReply, parseBanCommand, unbanPlayerSignups } = await import(
     "@/lib/admin-bot/signup-ban-command"
@@ -207,9 +225,7 @@ async function changeDebtAllowance(ctx: Context, allowed: boolean) {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  if (!(await isTournamentAdmin(supabase, adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   const { allowPlayerDebt, denyPlayerDebt, parseDebtCommand } = await import(
     "@/lib/admin-bot/debt-allow-command"
@@ -247,9 +263,7 @@ bot.command("setupmenu", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
 
-  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx))) return;
 
   try {
     await ctx.api.setMyCommands(ADMIN_BOT_MENU_COMMANDS);
@@ -263,10 +277,8 @@ bot.command("setupmenu", async (ctx) => {
 
 bot.command("addadmin", async (ctx) => {
   const telegramId = ctx.from?.id;
-  const superAdminId = parseInt(process.env.TMA_SUPER_ADMIN_ID || "0", 10);
-  
-  if (!telegramId || telegramId !== superAdminId) {
-    return ctx.reply("Нет прав.");
+  if (!telegramId || !isAccessManager(telegramId)) {
+    return ctx.reply("Это могут только главные админы.");
   }
 
   const text = ctx.message?.text || "";
@@ -291,15 +303,16 @@ bot.command("addadmin", async (ctx) => {
     return ctx.reply(`Ошибка: ${error.message}`);
   }
 
-  await ctx.reply(`Администратор ${name} (${newAdminId}) добавлен.`);
+  await ctx.reply(
+    `Администратор ${name} (${newAdminId}) добавлен как дилер: «Зал» и «Вылеты». ` +
+      `Полный доступ — /role ${newAdminId} флор`,
+  );
 });
 
 bot.command("admins", async (ctx) => {
   const telegramId = ctx.from?.id;
-  const superAdminId = parseInt(process.env.TMA_SUPER_ADMIN_ID || "0", 10);
-  
-  if (!telegramId || telegramId !== superAdminId) {
-    return ctx.reply("Нет прав.");
+  if (!telegramId || !isAccessManager(telegramId)) {
+    return ctx.reply("Это могут только главные админы.");
   }
 
   const supabase = getAdminSupabase();
@@ -311,16 +324,16 @@ bot.command("admins", async (ctx) => {
     return ctx.reply("Список пуст.");
   }
 
-  const msg = data.map((d) => `- ${d.name} (${d.telegram_id})`).join("\n");
-  await ctx.reply(`Список администраторов:\n${msg}`);
+  const msg = data
+    .map((d) => `- ${d.name} (${d.telegram_id}) — ${ROLE_LABELS[readRole(d.telegram_id, d.role)]}`)
+    .join("\n");
+  await ctx.reply(`Список администраторов:\n${msg}\n\nСменить роль — /role <telegram_id> флор|дилер`);
 });
 
 bot.command("removeadmin", async (ctx) => {
   const telegramId = ctx.from?.id;
-  const superAdminId = parseInt(process.env.TMA_SUPER_ADMIN_ID || "0", 10);
-  
-  if (!telegramId || telegramId !== superAdminId) {
-    return ctx.reply("Нет прав.");
+  if (!telegramId || !isAccessManager(telegramId)) {
+    return ctx.reply("Это могут только главные админы.");
   }
 
   const parts = ctx.message?.text?.split(" ") || [];
@@ -330,10 +343,40 @@ bot.command("removeadmin", async (ctx) => {
 
   const rmId = parseInt(parts[1], 10);
   if (isNaN(rmId)) return ctx.reply("Неверный ID");
+  if (isAccessManager(rmId)) return ctx.reply("Главного админа удалить нельзя.");
 
   const supabase = getAdminSupabase();
   await supabase.from("tma_admins").delete().eq("telegram_id", rmId);
   await ctx.reply(`Админ ${rmId} удален.`);
+});
+
+// Floor or dealer. Only the two who run the staff decide, and their own role never moves.
+bot.command("role", async (ctx) => {
+  const telegramId = ctx.from?.id;
+  if (!telegramId || !isAccessManager(telegramId)) {
+    return ctx.reply("Это могут только главные админы.");
+  }
+
+  const command = parseRoleCommand(ctx.message?.text || "");
+  if (!command) return ctx.reply(ROLE_COMMAND_HELP);
+
+  if (isAccessManager(command.telegramId)) {
+    return ctx.reply("У главного админа всегда полный доступ — его роль не меняется.");
+  }
+
+  const { data, error } = await getAdminSupabase()
+    .from("tma_admins")
+    .update({ role: command.role })
+    .eq("telegram_id", command.telegramId)
+    .select("name")
+    .maybeSingle();
+
+  if (error) return ctx.reply(`Ошибка: ${error.message}`);
+  if (!data) {
+    return ctx.reply(`Админа с ID ${command.telegramId} нет. Список — /admins, добавить — /addadmin.`);
+  }
+
+  await ctx.reply(buildRoleChangedReply(data.name, command.telegramId, command.role));
 });
 
 bot.command("clearsheet", async (ctx) => {
@@ -341,15 +384,7 @@ bot.command("clearsheet", async (ctx) => {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  const { data: admin } = await supabase
-    .from("tma_admins")
-    .select("telegram_id")
-    .eq("telegram_id", adminId)
-    .maybeSingle();
-
-  if (!admin) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   try {
     const { data: tournament } = await supabase
@@ -452,15 +487,7 @@ bot.command("visits", async (ctx) => {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  const { data: admin } = await supabase
-    .from("tma_admins")
-    .select("telegram_id")
-    .eq("telegram_id", adminId)
-    .maybeSingle();
-
-  if (!admin) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   try {
     const { syncAttendanceSheet, syncCancellationsSheet } = await import("@/lib/google-sheets");
@@ -507,15 +534,7 @@ bot.command("resync", async (ctx) => {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  const { data: admin } = await supabase
-    .from("tma_admins")
-    .select("telegram_id")
-    .eq("telegram_id", adminId)
-    .maybeSingle();
-
-  if (!admin) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   try {
     const { data: tournament } = await supabase
@@ -678,15 +697,7 @@ bot.command("givecolor", async (ctx) => {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  const { data: admin } = await supabase
-    .from("tma_admins")
-    .select("telegram_id")
-    .eq("telegram_id", adminId)
-    .maybeSingle();
-
-  if (!admin) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   const text = ctx.message?.text || "";
   const match = text.match(/^\/givecolor(?:@\S+)?\s+(.+?)\s+to\s+(.+)$/i);
@@ -783,15 +794,7 @@ bot.command("removecolor", async (ctx) => {
   if (!adminId) return;
 
   const supabase = getAdminSupabase();
-  const { data: admin } = await supabase
-    .from("tma_admins")
-    .select("telegram_id")
-    .eq("telegram_id", adminId)
-    .maybeSingle();
-
-  if (!admin) {
-    return ctx.reply("У вас нет прав для выполнения этой команды.");
-  }
+  if (!(await allowFloorCommand(ctx, supabase))) return;
 
   const text = ctx.message?.text || "";
   const match = text.match(/^\/removecolor(?:@\S+)?\s+(.+)$/i);

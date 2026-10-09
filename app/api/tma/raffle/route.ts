@@ -59,7 +59,7 @@ async function loadRecentRaffleWins(supabase: SupabaseClient): Promise<RaffleWin
  * taken, so every screen agrees and no browser can steer it.
  */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase
@@ -263,7 +263,7 @@ export async function POST(request: Request) {
 
 /** Takes the draw off the screen once the prize has been handed over. */
 export async function DELETE(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase

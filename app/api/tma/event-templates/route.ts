@@ -20,7 +20,7 @@ async function loadTemplates(supabase: SupabaseClient) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   return NextResponse.json({ templates: await loadTemplates(auth.supabase) });
@@ -28,7 +28,7 @@ export async function GET(request: Request) {
 
 /** Saves the poster on screen under a name, so the next one is a pick and a date. */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => ({}));
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const id = String(new URL(request.url).searchParams.get("id") ?? "").trim();

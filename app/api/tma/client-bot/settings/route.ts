@@ -13,7 +13,7 @@ function trimField(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const context = await loadCurrentTournamentContext(auth.supabase);
@@ -23,7 +23,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const context = await loadCurrentTournamentContext(auth.supabase);

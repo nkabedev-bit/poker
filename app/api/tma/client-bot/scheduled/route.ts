@@ -23,7 +23,7 @@ async function forgetOldBroadcasts(supabase: SupabaseClient, rows: BroadcastHist
 }
 
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data, error } = await auth.supabase

@@ -40,11 +40,18 @@ Telegram Bot (webhook → /api/bot/webhook)
 | Команда | Кто может | Что делает |
 |---|---|---|
 | `/start` | все | Приветствие + кнопка «Открыть панель» (Mini App) |
-| `/addadmin @username` | только суперадмин | Добавить telegram_id в `tma_admins` |
-| `/removeadmin @username` | только суперадмин | Удалить из `tma_admins` |
-| `/admins` | только суперадмин | Список текущих администраторов |
+| `/info` | любой админ | Список команд — свой для флора и дилера |
+| `/addadmin <telegram_id> <Имя>` | только главные | Добавить в `tma_admins` дилером |
+| `/removeadmin <telegram_id>` | только главные | Удалить из `tma_admins` |
+| `/admins` | только главные | Список администраторов с ролями |
+| `/role <telegram_id> флор\|дилер` | только главные | Сменить роль |
+| остальные команды | флор | см. `/info` |
 
-**Суперадмин** — один telegram_id задаётся через env переменную `TMA_SUPER_ADMIN_ID`.
+**Роли** (`lib/tma/roles.ts`): флор — всё; дилер — вкладки «Зал» и «Вылеты», в боте только
+`/start` и `/info`. Сервер проверяет роль в каждом запросе (`requireTmaAuth(request, { floorOnly: true })`).
+
+**Главные** — 511564749 и 384428007, константа `ACCESS_MANAGER_IDS`: всегда флоры, только они
+правят доступ. `TMA_SUPER_ADMIN_ID` больше не используется.
 
 ### Webhook endpoint
 
@@ -280,7 +287,6 @@ SUPABASE_SERVICE_ROLE_KEY=...
 # Новые
 TELEGRAM_BOT_TOKEN=7123456789:AAF...
 TELEGRAM_WEBHOOK_SECRET=случайная_строка_для_верификации
-TMA_SUPER_ADMIN_ID=123456789   # твой telegram_id
 
 GOOGLE_SHEET_ID=1BxiMVs0XRA5uJxmVHkjwmA4...
 GOOGLE_SERVICE_ACCOUNT_EMAIL=poker@project.iam.gserviceaccount.com

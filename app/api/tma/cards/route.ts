@@ -44,7 +44,7 @@ function compareSettlingCards(a: CardSession, b: CardSession) {
 
 /** Reads the card: who holds it tonight and what they took. */
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();
@@ -87,7 +87,7 @@ export async function GET(request: Request) {
 
 /** Hands a card to a player for the evening. */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();
@@ -210,7 +210,7 @@ export async function POST(request: Request) {
 
 /** Takes the card back at the end of the evening and frees it for the next player. */
 export async function DELETE(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const { data: t } = await auth.supabase.from("tournaments").select("id").limit(1).single();

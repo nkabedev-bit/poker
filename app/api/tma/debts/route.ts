@@ -67,7 +67,7 @@ function markFinanceSheet(change: DebtChange) {
 
 /** Everybody who owes the club, and those who closed their debt in the last week. */
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const now = Date.now();
@@ -129,7 +129,7 @@ export async function GET(request: Request) {
 
 /** Takes money from a player at the desk, or lets the rest of their debt go. */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => ({}));
@@ -157,7 +157,7 @@ export async function POST(request: Request) {
 
 /** Takes back a payment entered by mistake. */
 export async function DELETE(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const paymentId = new URL(request.url).searchParams.get("payment") ?? "";

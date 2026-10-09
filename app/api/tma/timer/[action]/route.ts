@@ -102,7 +102,7 @@ async function breakTableUp(
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ action: string }> }) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const action = (await params).action;

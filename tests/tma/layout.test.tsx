@@ -1,12 +1,15 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TMALayout, { type TelegramWebApp } from "@/app/tma/layout";
 
+const navigation = vi.hoisted(() => ({ pathname: "/tma/bot", replace: vi.fn() }));
+
 vi.mock("next/navigation", () => ({
-  usePathname: () => "/tma/bot",
+  usePathname: () => navigation.pathname,
+  useRouter: () => ({ replace: navigation.replace }),
 }));
 
 function createTelegramWebApp(): TelegramWebApp {
@@ -34,6 +37,8 @@ function createTelegramWebApp(): TelegramWebApp {
 
 describe("TMALayout", () => {
   beforeEach(() => {
+    navigation.pathname = "/tma/bot";
+    navigation.replace.mockReset();
     window.Telegram = { WebApp: createTelegramWebApp() };
   });
 
@@ -89,5 +94,60 @@ describe("TMALayout", () => {
     expect(screen.getByRole("navigation").className).toContain(
       "pb-[env(safe-area-inset-bottom)]",
     );
+  });
+
+  // A dealer works the tables: the room and the knockouts, nothing behind the cash desk.
+  it("shows a dealer only the room and the knockouts", async () => {
+    navigation.pathname = "/tma/players";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ role: "dealer" })));
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await screen.findByText("TMA content");
+    await waitFor(() =>
+      expect(screen.getAllByRole("link").map((link) => link.textContent)).toEqual(["Зал", "Вылеты"]),
+    );
+    expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it("sends a dealer from a floor's screen back to the room", async () => {
+    navigation.pathname = "/tma/cards";
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({ role: "dealer" })));
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith("/tma/players"));
+    expect(screen.queryByText("TMA content")).toBeNull();
+  });
+
+  it("keeps a floor's screen waiting until the role is known", async () => {
+    navigation.pathname = "/tma/cards";
+    let answer: (response: Response) => void = () => {};
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url: string) =>
+        url === "/api/tma/me"
+          ? new Promise<Response>((resolve) => (answer = resolve))
+          : Promise.resolve(Response.json({})),
+      ),
+    );
+    render(
+      <TMALayout>
+        <div>TMA content</div>
+      </TMALayout>,
+    );
+
+    await screen.findByText("Загрузка…");
+    expect(screen.queryByText("TMA content")).toBeNull();
+
+    answer(Response.json({ role: "floor" }));
+    await screen.findByText("TMA content");
+    expect(screen.getAllByRole("link")).toHaveLength(5);
   });
 });

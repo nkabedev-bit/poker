@@ -3,6 +3,8 @@ import { NICKNAME_CHANGES_DAYS } from "@/lib/admin-bot/nickname-changes";
 import { SIGNUP_BAN_DAYS } from "@/lib/client-bot/signup-ban";
 import { DEBT_ALLOWANCE_DAYS } from "@/lib/debts/ledger";
 import { UPCOMING_BIRTHDAY_DAYS } from "@/lib/google-sheets";
+import { ROLE_COMMAND_HELP } from "@/lib/admin-bot/role-command";
+import type { TmaRole } from "@/lib/tma/roles";
 
 // Only what a line needs. Keeping it to this lets the same formatter serve whatever
 // found the birthdays — the accounts today, something else tomorrow.
@@ -64,11 +66,24 @@ export const ADMIN_BOT_MENU_COMMANDS = [
   { command: "givecolor", description: "Выдать метку игроку: <метка> to <ник>" },
   { command: "removecolor", description: "Снять метку с игрока: <ник>" },
   { command: "free", description: "Выдать проходки: [vip] <ник> [сколько]" },
+  { command: "role", description: "Роль админа: <telegram_id> флор|дилер" },
+  { command: "admins", description: "Админы и их роли" },
 ];
 
-// The /info reply: every command the admin bot answers. Kept next to the digest so both
-// texts are unit-testable and the webhook stays a thin wrapper.
-export const ADMIN_BOT_COMMANDS_MESSAGE = [
+// The /info replies, kept next to the digest so the texts are unit-testable and the
+// webhook stays a thin wrapper.
+
+/** What a dealer may ask the bot for: the panel and this list, nothing else. */
+const DEALER_COMMANDS_MESSAGE = [
+  "📋 Команды бота",
+  "",
+  "/start — открыть панель управления турниром",
+  "/info — этот список команд",
+  "",
+  "Вы — дилер: в панели открыты вкладки «Зал» и «Вылеты». Остальное — у флора.",
+].join("\n");
+
+const FLOOR_COMMANDS_MESSAGE = [
   "📋 Команды бота",
   "",
   "Для администраторов:",
@@ -98,10 +113,23 @@ export const ADMIN_BOT_COMMANDS_MESSAGE = [
   "/delete free <ник> 2 — снять две проходки, если выдали по ошибке",
   "Проходка закрывает только вход в турнир: ре-энтри и аддон игрок оплачивает сам.",
   "",
-  "Только для супер-админа:",
-  "/addadmin <telegram_id> <Имя> — выдать доступ к панели",
-  "/admins — список администраторов",
-  "/removeadmin <telegram_id> — забрать доступ",
-  "",
   "Уведомления о днях рождения приходят автоматически в 00:00 по Москве.",
 ].join("\n");
+
+/** Who decides who works the desk: only the two people who run the staff see this. */
+const ACCESS_COMMANDS_MESSAGE = [
+  "Управление доступом (только главные):",
+  "/addadmin <telegram_id> <Имя> — выдать доступ к панели (новый админ — дилер)",
+  "/admins — список администраторов с ролями",
+  "/removeadmin <telegram_id> — забрать доступ",
+  ROLE_COMMAND_HELP,
+].join("\n");
+
+/**
+ * The /info reply: every command this admin may use. A dealer sees only theirs; the
+ * access commands are shown to the two who run the staff.
+ */
+export function buildAdminCommandsMessage({ manager, role }: { manager: boolean; role: TmaRole }) {
+  if (role === "dealer") return DEALER_COMMANDS_MESSAGE;
+  return manager ? `${FLOOR_COMMANDS_MESSAGE}\n\n${ACCESS_COMMANDS_MESSAGE}` : FLOOR_COMMANDS_MESSAGE;
+}

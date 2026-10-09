@@ -3,8 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import Script from "next/script";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { CircleEllipsis, Clock, CreditCard, Skull, Users } from "lucide-react";
+import { canOpenScreen, type TmaRole } from "@/lib/tma/roles";
 import { TMA_DESK_CHANGED_EVENT, TournamentClockProvider, TournamentStatusBar } from "./tournament-clock";
 import "./tma.css";
 
@@ -119,9 +120,28 @@ export function confirmSeated(
   });
 }
 
+/**
+ * The role the desk is open for, or null when the server could not say. The server
+ * guards every endpoint on its own, so an unanswered question costs a dealer nothing
+ * worse than tabs that answer "only for the floor".
+ */
+async function readDeskRole(initData: string): Promise<TmaRole | null> {
+  try {
+    const res = await fetch("/api/tma/me", { headers: { "X-Telegram-Init-Data": initData } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { role?: unknown };
+    return data.role === "floor" || data.role === "dealer" ? data.role : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function TMALayout({ children }: { children: React.ReactNode }) {
   const [initData, setInitData] = useState<string | null>(null);
+  const [role, setRole] = useState<TmaRole | null>(null);
+  const [roleChecked, setRoleChecked] = useState(false);
   const pathname = usePathname();
+  const router = useRouter();
 
   const initTg = useCallback(() => {
     const tg = getTelegramWebApp();
@@ -140,6 +160,31 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
     return () => window.clearTimeout(timeout);
   }, [initTg]);
 
+  useEffect(() => {
+    if (!initData) return;
+
+    let cancelled = false;
+    void readDeskRole(initData).then((value) => {
+      if (cancelled) return;
+      setRole(value);
+      setRoleChecked(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initData]);
+
+  // A screen beyond a dealer's tables — an old link, a typed address — leads to the room.
+  const screenClosed = role !== null && !canOpenScreen(role, pathname);
+  useEffect(() => {
+    if (screenClosed) router.replace("/tma/players");
+  }, [router, screenClosed]);
+
+  // Until the role is known, a floor's screen waits rather than greeting a dealer with
+  // refusals; the room and the knockouts open straight away for everyone.
+  const screenReady = role ? !screenClosed : roleChecked || canOpenScreen("dealer", pathname);
+  const tabs = role === "dealer" ? TABS.filter((tab) => canOpenScreen("dealer", tab.href)) : TABS;
+
   return (
     <>
       {/* Our own copy: telegram.org is filtered by Russian ISPs and the request hangs
@@ -155,18 +200,22 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
       {!initData ? (
         <div className="tma-app flex h-screen items-center justify-center">Загрузка…</div>
       ) : (
-        <TMAContext.Provider value={{ initData }}>
+        <TMAContext.Provider value={{ initData, role }}>
           <TournamentClockProvider initData={initData} pathname={pathname}>
             <div className="tma-app tma-frame">
               {CLOCK_SCREENS.some((screen) => pathname.includes(screen)) ? (
-                <TournamentStatusBar onToggle={(action) => void toggleClock(initData, action)} />
+                <TournamentStatusBar
+                  onToggle={role === "dealer" ? undefined : (action) => void toggleClock(initData, action)}
+                />
               ) : null}
               {/* The bar is part of the column rather than pinned to the viewport: a
                   fixed bar has to be paid for with padding on every screen, and it drifts
                   over the content whenever the keyboard resizes the window. */}
-              <main className="tma-main overflow-y-auto">{children}</main>
+              <main className="tma-main overflow-y-auto">
+                {screenReady ? children : <div className="tma-empty">Загрузка…</div>}
+              </main>
               <nav className="tma-nav shrink-0 pb-[env(safe-area-inset-bottom)]">
-                {TABS.map((tab) => (
+                {tabs.map((tab) => (
                   <NavItem
                     key={tab.href}
                     active={tab.match.some((part) => pathname.includes(part))}
@@ -218,5 +267,8 @@ function NavItem({ href, icon, label, active }: { href: string; icon: React.Reac
   );
 }
 
-export const TMAContext = createContext<{ initData: string }>({ initData: "" });
+export const TMAContext = createContext<{ initData: string; role: TmaRole | null }>({
+  initData: "",
+  role: null,
+});
 export const useTMA = () => useContext(TMAContext);

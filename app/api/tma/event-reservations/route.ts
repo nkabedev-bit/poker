@@ -13,7 +13,7 @@ const MESSAGES = {
 
 /** The tickets being held for one poster. */
 export async function GET(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const eventId = new URL(request.url).searchParams.get("eventId") ?? "";
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
 
 /** Holds one, for a resident the club knows by nickname. */
 export async function POST(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const body = await request.json().catch(() => ({}));
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
 
 /** Takes one back, freeing the seat it was keeping. */
 export async function DELETE(request: Request) {
-  const auth = await requireTmaAuth(request);
+  const auth = await requireTmaAuth(request, { floorOnly: true });
   if (auth.error) return auth.error;
 
   const url = new URL(request.url);

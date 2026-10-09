@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { validateInitData } from "./auth";
+import { readRole } from "./roles";
 import { createClient } from "@supabase/supabase-js";
 import { getServerEnv } from "@/lib/env";
 
-export async function requireTmaAuth(request: Request) {
+/**
+ * The admin behind a desk request, or the answer to send back instead.
+ *
+ * `floorOnly` guards everything beyond the tables — the cash desk, the tournament, the
+ * posters and the bot. Hiding a tab is not enough: the room and the cash desk call some
+ * of the same endpoints, so a dealer is turned away here, on the server.
+ */
+export async function requireTmaAuth(request: Request, options: { floorOnly?: boolean } = {}) {
   const initData = request.headers.get("X-Telegram-Init-Data");
   
   if (!initData) {
@@ -36,7 +44,7 @@ export async function requireTmaAuth(request: Request) {
 
   const { data: admin } = await supabase
     .from("tma_admins")
-    .select("telegram_id, name")
+    .select("telegram_id, name, role")
     .eq("telegram_id", userId)
     .maybeSingle();
 
@@ -44,5 +52,10 @@ export async function requireTmaAuth(request: Request) {
     return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
 
-  return { userId, adminName: admin.name, supabase };
+  const role = readRole(userId, admin.role);
+  if (options.floorOnly && role !== "floor") {
+    return { error: NextResponse.json({ error: "Это доступно только флору" }, { status: 403 }) };
+  }
+
+  return { userId, adminName: admin.name, role, supabase };
 }

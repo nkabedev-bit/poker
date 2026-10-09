@@ -61,12 +61,14 @@ export async function GET(request: Request) {
     vip_free_entries: number | null;
   };
   const answers = record.pending_profile_answers ?? {};
+  // A dealer seats players and needs to know who is who, not how to reach them.
+  const showContacts = auth.role === "floor";
 
   return NextResponse.json({
     profile: {
       agreementAccepted: Boolean(answers.agreementAccepted),
       avatarUrl: record.avatar_url,
-      birthDate: answers.birthDate ?? "",
+      birthDate: showContacts ? answers.birthDate ?? "" : "",
       discoverySource: answers.discoverySource ?? "",
       displayName: record.display_name,
       freeEntries: {
@@ -78,7 +80,7 @@ export async function GET(request: Request) {
       invitedBy: answers.invitedBy ?? "",
       joinedAt: record.created_at,
       notificationsConsent: Boolean(answers.notificationsConsent),
-      phone: answers.phone ?? "",
+      phone: showContacts ? answers.phone ?? "" : "",
       ratingConsent: Boolean(answers.ratingConsent),
       submittedAt: record.profile_submitted_at,
       telegramId: record.telegram_id,

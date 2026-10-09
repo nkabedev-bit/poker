@@ -197,9 +197,10 @@ const STATUS_WORDS: Record<TimerStatus, string> = {
 
 /**
  * The strip over the desk's working screens: the level, the blinds and the time left,
- * with the pause a tap away however deep in a screen the admin is.
+ * with the pause a tap away however deep in a screen the admin is. Without `onToggle`
+ * the clock is only read — a dealer does not run it.
  */
-export function TournamentStatusBar({ onToggle }: { onToggle: (action: "pause" | "start") => void }) {
+export function TournamentStatusBar({ onToggle }: { onToggle?: (action: "pause" | "start") => void }) {
   const view = useClockView();
   if (!view) return null;
 
@@ -235,7 +236,7 @@ export function TournamentStatusBar({ onToggle }: { onToggle: (action: "pause" |
               : ""}
         </div>
       </div>
-      {underway ? (
+      {underway && onToggle ? (
         <button
           aria-label={paused ? "Продолжить" : "Пауза"}
           className="tma-icon-btn tma-icon-btn--round44"

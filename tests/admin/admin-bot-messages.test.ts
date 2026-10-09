@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  ADMIN_BOT_COMMANDS_MESSAGE,
   ADMIN_BOT_MENU_COMMANDS,
+  buildAdminCommandsMessage,
   buildBirthdayDigestMessage,
 } from "@/lib/admin-bot/messages";
 
@@ -29,7 +29,9 @@ describe("admin bot messages", () => {
     expect(buildBirthdayDigestMessage([], 7)).toContain("ближайшие 7 дн.");
   });
 
-  it("lists every command the bot answers", () => {
+  it("lists every command the bot answers to a manager", () => {
+    const message = buildAdminCommandsMessage({ manager: true, role: "floor" });
+
     for (const command of [
       "/start",
       "/info",
@@ -42,9 +44,36 @@ describe("admin bot messages", () => {
       "/addadmin",
       "/admins",
       "/removeadmin",
+      "/role",
     ]) {
-      expect(ADMIN_BOT_COMMANDS_MESSAGE).toContain(command);
+      expect(message).toContain(command);
     }
+  });
+
+  // Nobody remembers /role's words months later, so /info spells them out.
+  it("explains /role and both roles to a manager", () => {
+    const message = buildAdminCommandsMessage({ manager: true, role: "floor" });
+
+    expect(message).toContain("/role <telegram_id> <флор|дилер>");
+    expect(message).toContain("Дилер — только вкладки «Зал» и «Вылеты»");
+    expect(message).toContain("Пример: /role 123456789 дилер");
+  });
+
+  it("keeps the access commands from a floor who does not run the staff", () => {
+    const message = buildAdminCommandsMessage({ manager: false, role: "floor" });
+
+    expect(message).toContain("/resync");
+    expect(message).not.toContain("/role");
+    expect(message).not.toContain("/addadmin");
+  });
+
+  it("shows a dealer only the panel and the list", () => {
+    const message = buildAdminCommandsMessage({ manager: false, role: "dealer" });
+
+    expect(message).toContain("/start");
+    expect(message).toContain("/info");
+    expect(message).not.toContain("/resync");
+    expect(message).not.toContain("/ban");
   });
 
   it("offers the new commands in the Telegram menu payload", () => {
