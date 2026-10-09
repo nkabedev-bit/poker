@@ -38,6 +38,8 @@ type PlayerGame = { knockouts: number; place: number | null; startedAt: string }
 
 type PublicPlayer = {
   avatarUrl: string | null;
+  /** The nickname the player went by until a recent change. */
+  formerName?: string | null;
   games: PlayerGame[];
   /** Their favourite hand ("QsTs"), drawn on the avatar. */
   hand?: string | null;
@@ -139,6 +141,9 @@ export default function ClientPlayerPage() {
             <p className="max-w-full truncate font-display text-[24px] font-semibold tracking-[-0.02em]">
               {player.name}
             </p>
+            {player.formerName ? (
+              <p className="max-w-full truncate text-[13px] text-club-faint">ранее: {player.formerName}</p>
+            ) : null}
             <div className="flex items-center gap-2">
               <span className="text-[14px] text-club-muted">{player.isMe ? "Это вы" : "Игрок клуба"}</span>
               {player.tier ? (

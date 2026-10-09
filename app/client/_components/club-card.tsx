@@ -8,12 +8,15 @@ import { TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
 export function ClubCard({
   avatar,
   name,
+  nameAction,
   subtitle,
   tier,
 }: {
   /** The face, passed in so the profile can make it the button that changes the photo. */
   avatar: ReactNode;
   name: string;
+  /** Stands right after the name: the profile's button that changes the nickname. */
+  nameAction?: ReactNode;
   subtitle: string;
   tier: PlayerTier | null;
 }) {
@@ -41,7 +44,10 @@ export function ClubCard({
       <div className="absolute inset-x-5 bottom-[18px] flex items-center gap-3.5">
         {avatar}
         <div className="flex min-w-0 flex-1 flex-col gap-1 pl-1">
-          <p className="truncate font-display text-[20px] font-bold uppercase tracking-[0.02em]">{name}</p>
+          <div className="flex min-w-0 items-center gap-2">
+            <p className="min-w-0 truncate font-display text-[20px] font-bold uppercase tracking-[0.02em]">{name}</p>
+            {nameAction}
+          </div>
           <p className="truncate text-[13px] text-club-text/70">{subtitle}</p>
         </div>
       </div>

@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Loader2,
   Medal,
+  Pencil,
   Star,
   Ticket,
   Trophy,
@@ -38,6 +39,7 @@ import { countWord } from "@/lib/raffle/raffle-scenes";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { CountUp } from "../_components/count-up";
 import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
+import { NicknameEditor } from "../_components/nickname-editor";
 import { AwardCelebration } from "../_components/award-celebration";
 import { useAwardNews } from "../_components/use-award-news";
 import { pickPlayerPhoto } from "@/lib/players/photo";
@@ -72,6 +74,8 @@ type Me = {
   tier?: PlayerTier | null;
   freeEntries: { regular: number; vip: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
+  /** When the nickname may be changed again; null when it may be changed now. */
+  nicknameChangeAvailableAt?: string | null;
   profileSubmitted: boolean;
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
   medals: Record<string, number> | null;
@@ -102,6 +106,7 @@ export default function ClientProfilePage() {
   const [historySwitched, setHistorySwitched] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
+  const [nicknameEditorOpen, setNicknameEditorOpen] = useState(false);
   // Set once a hand is picked here, so the new pair is dealt onto the face.
   const [handDealt, setHandDealt] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -211,6 +216,45 @@ export default function ClientProfilePage() {
     }
   };
 
+  /**
+   * Changes the player's nickname. The card and the player's rating rows take the new one
+   * at once, without reading everything again.
+   */
+  const saveNickname = async (nickname: string): Promise<string | null> => {
+    try {
+      const res = await fetch("/api/client-tma/nickname", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ nickname }),
+      });
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) return data?.message ?? "Не удалось сменить ник. Попробуйте ещё раз.";
+
+      const saved = String(data?.nickname ?? nickname);
+      const availableAt = (data?.availableAt as string | null | undefined) ?? null;
+      getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
+      setMe((current) =>
+        current ? { ...current, displayName: saved, nicknameChangeAvailableAt: availableAt } : current,
+      );
+      setRating((current) =>
+        current
+          ? {
+              ...current,
+              me: current.me?.isMe ? { ...current.me, name: saved } : current.me,
+              players: current.players.map((player) =>
+                player.isMe ? { ...player, name: saved } : player,
+              ),
+            }
+          : current,
+      );
+      setNicknameEditorOpen(false);
+      return null;
+    } catch {
+      return "Нет связи с сервером. Попробуйте ещё раз.";
+    }
+  };
+
   const chooseHistoryTab = (next: "active" | "past") => {
     if (next === historyTab) return;
 
@@ -276,6 +320,15 @@ export default function ClientProfilePage() {
 
       {news ? <AwardCelebration award={news} left={newsLeft} onDone={dismissNews} /> : null}
 
+      {nicknameEditorOpen ? (
+        <NicknameEditor
+          availableAt={me?.nicknameChangeAvailableAt ?? null}
+          current={me?.displayName ?? ""}
+          onClose={() => setNicknameEditorOpen(false)}
+          onSave={saveNickname}
+        />
+      ) : null}
+
       {handPickerOpen ? (
         <FavoriteHandPicker
           current={me?.favoriteHand ?? null}
@@ -308,6 +361,20 @@ export default function ClientProfilePage() {
                 </button>
               }
               name={name}
+              nameAction={
+                // Only a nickname the club knows can be changed: without the questionnaire
+                // the card shows the Telegram name.
+                me?.profileSubmitted ? (
+                  <button
+                    aria-label="Сменить ник"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 text-club-text/80 active:scale-95"
+                    type="button"
+                    onClick={() => setNicknameEditorOpen(true)}
+                  >
+                    <Pencil size={14} />
+                  </button>
+                ) : null
+              }
               subtitle={`${me?.username ? `@${me.username} · ` : ""}игрок клуба`}
               tier={tier}
             />
