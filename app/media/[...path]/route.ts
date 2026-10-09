@@ -9,7 +9,7 @@ const VERSIONED_CACHE = "public, max-age=31536000, s-maxage=31536000, immutable"
 /** Unversioned files are kept for an hour, as Supabase itself hands them out. */
 const UNVERSIONED_CACHE = "public, max-age=3600, s-maxage=3600";
 
-/** Storage answers in well under a second; a request that hangs is given up on. */
+/** Storage starts answering in well under a second; one that never does is given up on. */
 const STORAGE_TIMEOUT_MS = 10_000;
 
 /**
@@ -44,15 +44,22 @@ export async function GET(
   const upstreamUrl = `${supabaseUrl.replace(/\/+$/, "")}${STORAGE_PUBLIC_PATH}${path.join("/")}${query}`;
   const bucket = path[0];
 
+  // Only the wait for storage's answer is timed. The file then goes out at the pace of
+  // the phone that asked: a 2 MB poster over a weak mobile connection takes longer than
+  // the timeout, and a clock still running would cut the picture off halfway.
+  const storageAnswer = new AbortController();
+  const giveUp = setTimeout(() => storageAnswer.abort(), STORAGE_TIMEOUT_MS);
   let upstream: Response;
   try {
     upstream = await fetch(upstreamUrl, {
       cache: "no-store",
-      signal: AbortSignal.timeout(STORAGE_TIMEOUT_MS),
+      signal: storageAnswer.signal,
     });
   } catch (error) {
     console.error("Media proxy could not reach storage", { bucket, error });
     return new Response(null, { status: 502 });
+  } finally {
+    clearTimeout(giveUp);
   }
 
   // Supabase answers a missing file with 400 "not_found"; to the browser it is a 404.

@@ -19,6 +19,17 @@ function storageAnswer(body: string, init: ResponseInit) {
   return new Response(body, init);
 }
 
+// AbortSignal.timeout keeps its own clock, which fake timers do not move. Tied to the
+// fake one, a test can push time past the timeout whichever kind of timer the route uses.
+function useFakeClock() {
+  vi.useFakeTimers();
+  vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => {
+    const controller = new AbortController();
+    setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), ms);
+    return controller.signal;
+  });
+}
+
 describe("GET /media/[...path]", () => {
   beforeEach(() => {
     fetchMock.mockReset();
@@ -27,6 +38,8 @@ describe("GET /media/[...path]", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
     vi.unstubAllEnvs();
   });
@@ -152,6 +165,50 @@ describe("GET /media/[...path]", () => {
 
     expect(response.headers.get("content-security-policy")).toContain("sandbox");
     expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+  });
+
+  // A 2 MB poster over a weak mobile connection takes longer than the timeout.
+  it("keeps handing the file over after the storage timeout has passed", async () => {
+    useFakeClock();
+    let sendRest: (() => void) | undefined;
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("first-half-"));
+        sendRest = () => {
+          controller.enqueue(new TextEncoder().encode("second-half"));
+          controller.close();
+        };
+      },
+    });
+    fetchMock.mockResolvedValue(
+      new Response(body, { headers: { "content-type": "image/png" }, status: 200 }),
+    );
+
+    const response = await serve("tournament-logos/events/poster.png");
+    const signal: AbortSignal = fetchMock.mock.calls[0][1].signal;
+    vi.advanceTimersByTime(60_000);
+    sendRest?.();
+
+    expect(signal.aborted).toBe(false);
+    expect(await response.text()).toBe("first-half-second-half");
+  });
+
+  it("answers 502 when storage does not start answering in time", async () => {
+    useFakeClock();
+    fetchMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+        }),
+    );
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const answer = serve("tournament-logos/events/poster.png");
+    await vi.advanceTimersByTimeAsync(10_000);
+    const response = await answer;
+
+    expect(response.status).toBe(502);
+    error.mockRestore();
   });
 
   it("answers 502 when storage cannot be reached", async () => {
