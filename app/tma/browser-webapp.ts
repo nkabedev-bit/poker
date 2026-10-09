@@ -9,21 +9,37 @@ import type { TelegramWebApp } from "./layout";
  * button at the bottom, haptics. Outside Telegram those calls throw or do nothing — a
  * confirmation that never calls back is an action that never happens. The desk opened
  * in a phone's browser gets this stand-in instead, so no screen has to know where it
- * runs: the browser's own dialogs, and a bottom button the layout draws itself.
+ * runs: the browser's own dialogs, and a bottom button and a QR scanner the layout
+ * draws itself.
  */
 export type BrowserMainButton = { progress: boolean; text: string; visible: boolean };
 
+/** A screen waiting for a QR code, as Telegram's scanner would hand it over. */
+export type BrowserScanRequest = {
+  // Telegram's contract: true closes the scanner, anything else keeps it reading.
+  onCode: (text: string) => boolean | void;
+  text?: string;
+};
+
 let mainButton: BrowserMainButton = { progress: false, text: "", visible: false };
+let scanRequest: BrowserScanRequest | null = null;
 const mainButtonHandlers = new Set<() => void>();
 const listeners = new Set<() => void>();
 
-function updateMainButton(change: Partial<BrowserMainButton>) {
-  mainButton = { ...mainButton, ...change };
+function notify() {
   listeners.forEach((listener) => listener());
 }
 
-/** For `useSyncExternalStore`: the layout redraws the button when a screen changes it. */
-export function subscribeBrowserMainButton(listener: () => void) {
+function updateMainButton(change: Partial<BrowserMainButton>) {
+  mainButton = { ...mainButton, ...change };
+  notify();
+}
+
+/**
+ * For `useSyncExternalStore`: the layout redraws the bottom button and the scanner
+ * whenever a screen asks for them.
+ */
+export function subscribeBrowserDesk(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
@@ -36,6 +52,15 @@ export function readBrowserMainButton() {
 
 export function pressBrowserMainButton() {
   mainButtonHandlers.forEach((handler) => handler());
+}
+
+export function readBrowserScanRequest() {
+  return scanRequest;
+}
+
+export function closeBrowserScan() {
+  scanRequest = null;
+  notify();
 }
 
 export const browserWebApp: TelegramWebApp = {
@@ -52,6 +77,11 @@ export const browserWebApp: TelegramWebApp = {
   openTelegramLink: (url) => {
     window.open(url, "_blank", "noopener");
   },
+  showScanQrPopup: (params, callback) => {
+    scanRequest = { onCode: callback, text: params.text };
+    notify();
+  },
+  closeScanQrPopup: closeBrowserScan,
   // A phone's browser has no haptics worth the name; the screens' own feedback stays.
   HapticFeedback: {
     impactOccurred: () => {},

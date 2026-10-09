@@ -10,9 +10,11 @@ import {
   browserWebApp,
   pressBrowserMainButton,
   readBrowserMainButton,
-  subscribeBrowserMainButton,
+  readBrowserScanRequest,
+  subscribeBrowserDesk,
 } from "./browser-webapp";
 import { DeskLogin } from "./desk-login";
+import { BrowserQrScanner } from "./qr-scanner";
 import { TMA_DESK_CHANGED_EVENT, TournamentClockProvider, TournamentStatusBar } from "./tournament-clock";
 import "./tma.css";
 
@@ -266,6 +268,7 @@ export default function TMALayout({ children }: { children: React.ReactNode }) {
                 {screenReady ? children : <div className="tma-empty">Загрузка…</div>}
               </main>
               {inBrowser ? <BrowserMainButtonBar /> : null}
+              {inBrowser ? <BrowserScannerHost /> : null}
               <nav className="tma-nav shrink-0 pb-[env(safe-area-inset-bottom)]">
                 {tabs.map((tab) => (
                   <NavItem
@@ -309,7 +312,7 @@ async function toggleClock(initData: string, action: "pause" | "start") {
 /** Telegram's big bottom button, drawn by the desk itself in a browser. */
 function BrowserMainButtonBar() {
   const button = useSyncExternalStore(
-    subscribeBrowserMainButton,
+    subscribeBrowserDesk,
     readBrowserMainButton,
     readBrowserMainButton,
   );
@@ -327,6 +330,12 @@ function BrowserMainButtonBar() {
       </button>
     </div>
   );
+}
+
+/** Telegram's QR popup, opened in a browser when a screen asks for a card's code. */
+function BrowserScannerHost() {
+  const request = useSyncExternalStore(subscribeBrowserDesk, readBrowserScanRequest, readBrowserScanRequest);
+  return request ? <BrowserQrScanner request={request} /> : null;
 }
 
 function NavItem({ href, icon, label, active }: { href: string; icon: React.ReactNode; label: string; active: boolean }) {

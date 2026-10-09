@@ -219,8 +219,8 @@ export default function TMACardsPage() {
     const tg = getTelegramWebApp();
 
     if (!tg?.showScanQrPopup) {
-      // Outside Telegram (or on an old client) there is no camera to open, so the code
-      // is typed in instead of the screen becoming useless.
+      // An old Telegram client has no camera to open, so the code is typed in instead
+      // of the screen becoming useless. In a browser the desk draws its own scanner.
       setManualOpen(true);
       return;
     }
