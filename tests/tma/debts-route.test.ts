@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fakeSupabase } from "../debts/fake-supabase";
 
 const mocks = vi.hoisted(() => ({
@@ -49,8 +49,16 @@ const post = (body: unknown) =>
 
 describe("/api/tma/debts", () => {
   beforeEach(() => {
+    // The fake dates every payment 1 October 2026, and a debt closed a week before
+    // "now" drops off the list: on the real clock the test began failing on 8 October.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-01T12:00:00.000Z"));
     mocks.markFinancePayments.mockReset();
     mocks.requireTmaAuth.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("lists who owes, the largest debt first, with the evenings still open", async () => {
