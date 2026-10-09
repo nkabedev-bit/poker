@@ -610,9 +610,83 @@ export async function appendClientBotProfileRow(data: {
 
 const PROFILE_SHEET_NAME = "анкеты";
 // 0-based column indexes into the "анкеты" sheet (CLIENT_BOT_PROFILE_SHEET_HEADERS):
-// E — Игровой никнейм, G — Дата рождения.
+// C — Telegram ID, E — Игровой никнейм, G — Дата рождения.
+const PROFILE_TELEGRAM_ID_COLUMN_INDEX = 2;
 const PROFILE_NICKNAME_COLUMN_INDEX = 4;
 const PROFILE_BIRTH_DATE_COLUMN_INDEX = 6;
+
+type ProfileSheetOwner = { oldName: string; telegramId: number | null };
+
+/**
+ * The rows of the "анкеты" sheet that belong to a player who changed nickname: theirs by
+ * Telegram ID, or by the old nickname when the row carries no Telegram ID — the web
+ * questionnaires and the old paper ones. A row under the old nickname with somebody
+ * else's Telegram ID is somebody else's. Row 0 is the header. Pure, for the tests.
+ */
+export function pickProfileSheetRowsToRename(grid: string[][], owner: ProfileSheetOwner) {
+  const oldKey = buildNicknameKey(owner.oldName);
+  const ownTelegramId = owner.telegramId === null ? "" : String(owner.telegramId);
+  const rows: number[] = [];
+
+  grid.forEach((row, index) => {
+    if (index === 0) return;
+
+    const rowTelegramId = String(row[PROFILE_TELEGRAM_ID_COLUMN_INDEX] ?? "").trim();
+    const rowKey = buildNicknameKey(String(row[PROFILE_NICKNAME_COLUMN_INDEX] ?? ""));
+    const ownByTelegram = ownTelegramId !== "" && rowTelegramId === ownTelegramId;
+    const ownByNickname = oldKey !== "" && rowKey === oldKey && rowTelegramId === "";
+
+    if (ownByTelegram || ownByNickname) rows.push(index);
+  });
+
+  return rows;
+}
+
+/**
+ * Writes a player's new nickname into their rows of the "анкеты" sheet, so the club's
+ * paper copy names them the way the app does. One read and one write; a player with no
+ * row there costs only the read.
+ */
+export async function renameInClientBotProfileSheet(
+  owner: ProfileSheetOwner & { newName: string },
+): Promise<{ renamed: number }> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    console.warn("Google Sheets not configured");
+    return { renamed: 0 };
+  }
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const nicknameColumn = getSheetColumnName(PROFILE_NICKNAME_COLUMN_INDEX + 1);
+
+  // Unformatted, so a Telegram ID stored as a number reads as its digits.
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${PROFILE_SHEET_NAME}'!A1:${nicknameColumn}`,
+    valueRenderOption: "UNFORMATTED_VALUE",
+  });
+  const grid = ((res.data.values ?? []) as unknown[][]).map((row) =>
+    row.map((cell) => String(cell ?? "")),
+  );
+
+  const rows = pickProfileSheetRowsToRename(grid, owner);
+  if (rows.length === 0) return { renamed: 0 };
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      // Stored as typed: a nickname that starts with "=" stays a nickname, not a formula.
+      valueInputOption: "RAW",
+      data: rows.map((index) => ({
+        range: `'${PROFILE_SHEET_NAME}'!${nicknameColumn}${index + 1}`,
+        values: [[owner.newName]],
+      })),
+    },
+  });
+
+  return { renamed: rows.length };
+}
 
 // Game nicknames of players whose birthday is today (Moscow). Matches day+month only — the
 // year is ignored. The stored date is re-normalized to ДД.ММ so a legacy/manual value

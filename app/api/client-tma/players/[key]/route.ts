@@ -4,6 +4,7 @@ import { loadCurrentTournamentContext } from "@/lib/client-bot/server";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { readFavoriteHand } from "@/lib/players/favorite-hand";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { readLastNicknameChange, recentFormerNickname } from "@/lib/players/nickname-change";
 import { buildPlayerStats, readPlayerGames } from "@/lib/players/profile";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { resolvePlayerTier } from "@/lib/players/tier";
@@ -13,6 +14,45 @@ import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-c
 export const dynamic = "force-dynamic";
 
 const GAMES_SHOWN = 40;
+const ACCOUNT_COLUMNS = "id, telegram_id, display_name, avatar_url, medals";
+
+type Account = {
+  avatar_url: string | null;
+  display_name: string | null;
+  id: string;
+  medals: Record<string, unknown> | null;
+  telegram_id: number | null;
+};
+
+/**
+ * The player who went by this nickname until they changed it. A link to the old one —
+ * from a rating or a list of holders the phone fetched a moment before — still opens
+ * their profile. Null as well while the journal of changes is not there yet.
+ */
+async function readFormerOwner(
+  supabase: Awaited<ReturnType<typeof requireClientTmaAuth>>["supabase"],
+  key: string,
+): Promise<Account | null> {
+  if (!supabase) return null;
+
+  const { data: changes, error } = await supabase
+    .from("nickname_changes")
+    .select("user_id")
+    .eq("old_key", key)
+    .order("changed_at", { ascending: false })
+    .limit(1);
+
+  const userId = (changes?.[0] as { user_id?: string } | undefined)?.user_id;
+  if (error || !userId) return null;
+
+  const { data } = await supabase
+    .from("client_bot_users")
+    .select(ACCOUNT_COLUMNS)
+    .eq("id", userId)
+    .maybeSingle();
+
+  return (data as Account | null) ?? null;
+}
 
 /**
  * Another player's profile, as the club shows it to the room: what they have played,
@@ -32,17 +72,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
   // medals. A player who has only ever been added by hand has neither.
   const { data: account } = await auth.supabase
     .from("client_bot_users")
-    .select("id, telegram_id, display_name, avatar_url, medals")
+    .select(ACCOUNT_COLUMNS)
     .eq("nickname_key", key)
     .maybeSingle();
 
-  const record = account as {
-    avatar_url: string | null;
-    display_name: string | null;
-    id: string;
-    medals: Record<string, unknown> | null;
-    telegram_id: number | null;
-  } | null;
+  const record = (account as Account | null) ?? (await readFormerOwner(auth.supabase, key));
 
   // Failing that, the nickname as the results themselves spell it.
   const { data: named } = await auth.supabase
@@ -73,7 +107,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
     nickname,
     telegramId: record?.telegram_id ?? null,
   });
-  const [labels, games, medalsFromResults, archiveMedals, hand] = await Promise.all([
+  const [labels, games, medalsFromResults, archiveMedals, hand, lastNicknameChange] = await Promise.all([
     loadCurrentTournamentContext(auth.supabase).then((context) => context?.extras.playerLabels),
     countGamesByNickname(auth.supabase, [nickname]),
     // The club's own record of what this player won before any of it was stored is on
@@ -86,6 +120,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
     readArchiveMedals(auth.supabase, record?.id ?? null),
     // A player the desk only ever typed in has no account to pick one on.
     record ? readFavoriteHand(auth.supabase, record.id) : Promise.resolve(null),
+    record ? readLastNicknameChange(auth.supabase, record.id) : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
@@ -97,6 +132,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ key:
         startedAt: game.startedAt,
       })),
       archiveMedals,
+      // For a while after a change the room still knows the player by the old nickname.
+      formerName: recentFormerNickname(lastNicknameChange),
       hand,
       isMe: record?.id === auth.user.id,
       medals: mergeMedalCounts(

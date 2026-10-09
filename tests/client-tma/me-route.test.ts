@@ -3,6 +3,7 @@ import { EMPTY_PLAYER_STATS, getAchievements, type PlayerStats } from "@/lib/cli
 
 const mocks = vi.hoisted(() => ({
   buildPlayerStats: vi.fn(),
+  readLastNicknameChange: vi.fn(),
   requireClientTmaAuth: vi.fn(),
 }));
 
@@ -18,6 +19,10 @@ vi.mock("@/lib/free-entries/holds", () => ({
 vi.mock("@/lib/players/medal-counts", () => ({
   countMedalsFromResults: async () => ({}),
   readArchiveMedals: async () => ({}),
+}));
+vi.mock("@/lib/players/nickname-change", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/players/nickname-change")>()),
+  readLastNicknameChange: mocks.readLastNicknameChange,
 }));
 vi.mock("@/lib/players/profile", () => ({
   buildPlayerStats: mocks.buildPlayerStats,
@@ -76,6 +81,7 @@ describe("client mini-app API: свой профиль", () => {
       user: { display_name: "Kabedev", id: "me", telegram_id: 7 },
     });
     mocks.buildPlayerStats.mockResolvedValue(COUNTED);
+    mocks.readLastNicknameChange.mockResolvedValue(null);
   });
 
   // 05.09.2026 "Без страховки" and "Возвращение" were added to the achievements but not to
@@ -117,5 +123,26 @@ describe("client mini-app API: свой профиль", () => {
     const response = await GET(new Request("http://localhost/api/client-tma/me"));
 
     expect(await response.json()).toMatchObject({ favoriteHand: "QsTs" });
+  });
+
+  it("says the nickname may be changed when the player never changed it", async () => {
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ nicknameChangeAvailableAt: null });
+  });
+
+  it("says when the nickname may be changed again after a recent change", async () => {
+    vi.useFakeTimers({ now: new Date("2026-10-20T00:00:00.000Z"), toFake: ["Date"] });
+    mocks.readLastNicknameChange.mockResolvedValue({
+      changedAt: "2026-10-09T10:00:00.000Z",
+      oldName: "Mr.Fish",
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+    vi.useRealTimers();
+
+    expect(await response.json()).toMatchObject({
+      nicknameChangeAvailableAt: "2026-11-08T10:00:00.000Z",
+    });
   });
 });
