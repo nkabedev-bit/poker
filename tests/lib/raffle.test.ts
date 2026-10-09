@@ -182,54 +182,111 @@ describe("getRaffleWeights", () => {
     playerName,
   });
 
+  /** The evenings a player sat in, as the results remember them. */
+  const played = (playerName: string, evenings: string[], telegramId: number | null = null) =>
+    evenings.map((playedOn) => ({ playedOn, playerName, telegramId }));
+
+  /** `count` evenings in a row after the 1st of October: 02.10, 03.10 and on. */
+  const eveningsAfterWin = (count: number) =>
+    Array.from({ length: count }, (_, index) => `2026-10-${String(index + 2).padStart(2, "0")}`);
+
   it("gives a player who never won the full weight", () => {
-    expect(getRaffleWeights([{ accountId: null, name: "Новичок" }], [], "2026-09-16")).toEqual([1]);
-  });
-
-  // The club's own example: a win costs four fifths of the weight on the evening of it,
-  // and a fifth comes back with every evening the club holds a draw.
-  it("brings a winner's weight back over five evenings with a draw", () => {
-    const wins = [
-      win("Вчерашний", "2026-09-15"),
-      win("Позавчерашний", "2026-09-13"),
-      win("Третий", "2026-09-12"),
-      win("Четвёртый", "2026-09-10"),
-      win("Давний", "2026-09-01"),
-    ];
-    const weights = getRaffleWeights(
-      ["Сегодняшний", "Вчерашний", "Позавчерашний", "Третий", "Четвёртый", "Давний"].map((name) => ({
-        accountId: null,
-        name,
-      })),
-      [...wins, win("Сегодняшний", "2026-09-16")],
-      "2026-09-16",
-    );
-
-    expect(weights).toEqual([0.2, 0.4, 0.6, 0.8, 1, 1]);
+    expect(getRaffleWeights([{ accountId: null, name: "Новичок" }], [], [], "2026-09-16")).toEqual([1]);
   });
 
   it("counts a win in either draw, so tonight's pass winner stands low in the VIP draw", () => {
-    expect(getRaffleWeights([{ accountId: null, name: "1$" }], [win("1$", "2026-09-16")], "2026-09-16")).toEqual([0.2]);
+    expect(getRaffleWeights([{ accountId: null, name: "1$" }], [win("1$", "2026-09-16")], [], "2026-09-16")).toEqual([0.2]);
+  });
+
+  // The club's rule: ten of the winner's own games at a fifth of the chance, then all of
+  // it back at once.
+  it("keeps the lowered chance through the tenth game after the win", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: null, name: "Shark" }],
+      [win("Shark", "2026-10-01")],
+      played("Shark", eveningsAfterWin(9)),
+      "2026-10-20",
+    );
+
+    expect(weight).toBe(0.2);
+  });
+
+  it("gives the whole chance back at once on the eleventh game", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: null, name: "Shark" }],
+      [win("Shark", "2026-10-01")],
+      played("Shark", eveningsAfterWin(10)),
+      "2026-10-20",
+    );
+
+    expect(weight).toBe(1);
+  });
+
+  // Counted by the player's own games, not the club's evenings.
+  it("does not let evenings the winner missed run the lowered chance out", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: null, name: "Shark" }],
+      [win("Shark", "2026-09-01")],
+      [...played("Shark", ["2026-09-03", "2026-09-05"]), ...played("Кто-то другой", eveningsAfterWin(20))],
+      "2026-10-25",
+    );
+
+    expect(weight).toBe(0.2);
+  });
+
+  it("counts from the latest win only", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: null, name: "Shark" }],
+      [win("Shark", "2026-09-01"), win("Shark", "2026-10-01")],
+      played("Shark", ["2026-09-03", ...eveningsAfterWin(3)]),
+      "2026-10-20",
+    );
+
+    expect(weight).toBe(0.2);
+  });
+
+  it("does not count the evening of the win or tonight's results twice", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: null, name: "Shark" }],
+      [win("Shark", "2026-10-01")],
+      played("Shark", ["2026-10-01", ...eveningsAfterWin(9), "2026-10-20"]),
+      "2026-10-20",
+    );
+
+    expect(weight).toBe(0.2);
+  });
+
+  it("finds the winner's games by Telegram when the nickname changed", () => {
+    const [weight] = getRaffleWeights(
+      [{ accountId: "acc-1", name: "Chura", telegramId: 77 }],
+      [win("Mr.Fish", "2026-10-01", "acc-1")],
+      played("Mr.Fish", eveningsAfterWin(10), 77),
+      "2026-10-20",
+    );
+
+    expect(weight).toBe(1);
   });
 
   it("recognises a winner by account even after a new nickname", () => {
     const [weight] = getRaffleWeights(
       [{ accountId: "acc-1", name: "Chura" }],
       [win("Mr.Fish", "2026-09-15", "acc-1")],
+      [],
       "2026-09-16",
     );
 
-    expect(weight).toBe(0.4);
+    expect(weight).toBe(0.2);
   });
 
   it("matches a ledger win to a nickname however it is capitalised", () => {
     const [weight] = getRaffleWeights(
       [{ accountId: "acc-2", name: "Киберпсих" }],
       [win("киберпсих", "2026-09-15")],
+      [],
       "2026-09-16",
     );
 
-    expect(weight).toBe(0.4);
+    expect(weight).toBe(0.2);
   });
 
   it("reads the evening on Moscow time", () => {

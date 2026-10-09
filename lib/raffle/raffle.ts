@@ -155,58 +155,92 @@ export type RaffleWinRecord = {
   /** The Moscow date of the evening the draw was held on, "2026-09-15". */
   playedOn: string;
   playerName: string;
+  telegramId?: number | null;
+};
+
+/** One evening a player played, as the results remember it. */
+export type RaffleGameRecord = {
+  playedOn: string;
+  playerName: string;
+  telegramId: number | null;
 };
 
 /**
- * How many evenings with a draw a winner's chance takes to come back in full.
+ * How many of their own games a winner plays at the lowered chance.
  *
- * The club wants the prizes to go round the room. A winner is not shut out — a player
- * who won yesterday can still win tonight — but they stand in the draw at a fifth of
- * everyone else's weight on the evening of the win, and gain a fifth back with every
- * evening the club holds a draw: 0.2, 0.4, 0.6, 0.8, and from the fifth evening on the
- * same as a player who never won.
+ * The club wants the prizes to go round the room. A winner is not shut out — they can
+ * win again tonight or next week — but for the ten games after a win they stand in the
+ * draw at a fifth of everyone else's weight. On the eleventh their chance is back in
+ * full at once, not a little at a time. The games are the player's own: a regular who
+ * skips a month comes back still owing the same ten evenings.
  */
-export const RAFFLE_RECOVERY_EVENINGS = 5;
+export const RAFFLE_COOLDOWN_GAMES = 10;
+
+/** A recent winner's weight in the draw, against everyone else's 1. */
+export const RAFFLE_COOLDOWN_WEIGHT = 0.2;
 
 /** The Moscow date an evening belongs to, which is how draws are grouped into evenings. */
 export function toRaffleEvening(date: Date) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(date);
 }
 
+type RaffleIdentity = Pick<RaffleEntrant, "accountId" | "name"> & { telegramId?: number | null };
+
+/** Whether a win or a game belongs to this entrant: by account, Telegram or nickname. */
+function isSamePlayer(
+  entrant: RaffleIdentity,
+  record: { accountId?: string | null; playerName: string; telegramId?: number | null },
+) {
+  if (entrant.accountId && record.accountId === entrant.accountId) return true;
+  if (entrant.telegramId && record.telegramId === entrant.telegramId) return true;
+
+  const nicknameKey = buildNicknameKey(entrant.name);
+  return nicknameKey !== "" && buildNicknameKey(record.playerName) === nicknameKey;
+}
+
+/**
+ * The evening of an entrant's latest win, or null for someone who never won.
+ *
+ * A win is matched by account, by Telegram, and by nickname for the wins that have
+ * neither behind them — the ones carried over from the ledger, or a guest added by hand.
+ */
+export function findLastRaffleWin(entrant: RaffleIdentity, wins: RaffleWinRecord[]) {
+  return (
+    wins
+      .filter((win) => isSamePlayer(entrant, win))
+      .map((win) => win.playedOn)
+      .sort()
+      .at(-1) ?? null
+  );
+}
+
 /**
  * Each entrant's weight in tonight's draw, in the entrants' order.
  *
  * Wins of both kinds count: a player who took the free pass tonight stands in the VIP
- * draw at a fifth of the weight, which is the point — one guest collecting both prizes
- * is exactly what the club wants to be rare. Evenings are counted as the club holds
- * them, not as the player attends: a regular who skips a week comes back recovered.
- *
- * A win is matched to the entrant by account, and by nickname for the wins that have no
- * account behind them — the ones carried over from the ledger, or a guest added by hand.
+ * draw at the lowered weight, which is the point — one guest collecting both prizes is
+ * exactly what the club wants to be rare. Tonight is one of the ten games; the evenings
+ * before it come from the results, which are written only when a game finishes.
  */
 export function getRaffleWeights(
-  entrants: Array<Pick<RaffleEntrant, "accountId" | "name">>,
+  entrants: RaffleIdentity[],
   wins: RaffleWinRecord[],
+  games: RaffleGameRecord[],
   tonight: string,
 ) {
-  const evenings = [...new Set([...wins.map((win) => win.playedOn), tonight])].sort();
-
   return entrants.map((entrant) => {
-    const nicknameKey = buildNicknameKey(entrant.name);
-    const lastWin = wins
-      .filter(
-        (win) =>
-          (entrant.accountId && win.accountId === entrant.accountId) ||
-          (nicknameKey !== "" && buildNicknameKey(win.playerName) === nicknameKey),
-      )
-      .map((win) => win.playedOn)
-      .sort()
-      .at(-1);
-
+    const lastWin = findLastRaffleWin(entrant, wins);
     if (!lastWin) return 1;
+    if (lastWin >= tonight) return RAFFLE_COOLDOWN_WEIGHT;
 
-    const eveningsSince = evenings.filter((evening) => evening > lastWin && evening <= tonight).length;
-    return Math.min(1, (eveningsSince + 1) / RAFFLE_RECOVERY_EVENINGS);
+    const playedSince = new Set(
+      games
+        .filter((game) => game.playedOn > lastWin && game.playedOn < tonight && isSamePlayer(entrant, game))
+        .map((game) => game.playedOn),
+    );
+
+    // Tonight counts as one of the games after the win.
+    return playedSince.size + 1 <= RAFFLE_COOLDOWN_GAMES ? RAFFLE_COOLDOWN_WEIGHT : 1;
   });
 }
 

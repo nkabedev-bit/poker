@@ -487,6 +487,57 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     ]);
   });
 
+  /** The results table as the draw reads it: the filters it was given, and its answer. */
+  function resultsTable(answer: { data: unknown; error: unknown }) {
+    const filters: Record<string, unknown> = {};
+    const query = {
+      gt: (column: string, value: unknown) => ((filters.gt = [column, value]), query),
+      lt: (column: string, value: unknown) => ((filters.lt = [column, value]), query),
+      or: (value: string) => ((filters.or = value), query),
+      order: () => query,
+      range: async () => answer,
+    };
+    return { filters, table: { select: () => query } };
+  }
+
+  // A winner's lowered chance runs out on their own games, so the draw reads only the
+  // past winners' evenings since their last win.
+  it("reads tonight's past winners' games since their last win", async () => {
+    const results = resultsTable({ data: [], error: null });
+    const supabase = createSupabaseMock([], [{ account_id: null, played_on: "2026-10-01", player_name: "Shark" }]);
+    const fallback = supabase.from.getMockImplementation()!;
+    supabase.from.mockImplementation(((table: string) =>
+      table === "tournament_results" ? results.table : fallback(table)) as never);
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(
+      mergeTournamentExtras({ players: [player(4, { name: "Shark", telegramId: 44 }), player(5)] }),
+    );
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    const response = await POST(request("regular"));
+
+    expect(response.status).toBe(200);
+    expect(results.filters.or).toBe("player_key.in.(shark),telegram_id.in.(44)");
+    expect(results.filters.gt).toEqual(["played_on", "2026-10-01"]);
+  });
+
+  it("still holds the draw when the winners' games cannot be read", async () => {
+    const results = resultsTable({ data: null, error: { message: "timeout" } });
+    const supabase = createSupabaseMock([], [{ account_id: null, played_on: "2026-10-01", player_name: "Shark" }]);
+    const fallback = supabase.from.getMockImplementation()!;
+    supabase.from.mockImplementation(((table: string) =>
+      table === "tournament_results" ? results.table : fallback(table)) as never);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
+    mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [player(4, { name: "Shark" })] }));
+
+    const { POST } = await import("@/app/api/tma/raffle/route");
+    const response = await POST(request("regular"));
+
+    expect(response.status).toBe(200);
+    expect((await response.json()).raffle.winnerNumber).toBe(4);
+  });
+
   it("still holds the draw when past winners cannot be read", async () => {
     const supabase = createSupabaseMock();
     supabase.from.mockImplementation(((table: string) =>

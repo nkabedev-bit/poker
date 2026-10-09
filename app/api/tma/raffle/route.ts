@@ -8,6 +8,7 @@ import { notifyClientUser } from "@/lib/client-bot/notify";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  findLastRaffleWin,
   getRaffleWeights,
   listRaffleEntrants,
   pickRaffleWinner,
@@ -15,9 +16,13 @@ import {
   RAFFLE_WIN_NOTICE_DELAY_MS,
   toRaffleEvening,
   type Raffle,
+  type RaffleEntrant,
+  type RaffleGameRecord,
   type RaffleWinRecord,
 } from "@/lib/raffle/raffle";
 import { pickRaffleMotion, raffleFacePhoto } from "@/lib/raffle/raffle-scenes";
+import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +42,7 @@ const RECENT_WINS_LIMIT = 200;
 async function loadRecentRaffleWins(supabase: SupabaseClient): Promise<RaffleWinRecord[] | null> {
   const { data, error } = await supabase
     .from("raffle_winners")
-    .select("account_id, played_on, player_name")
+    .select("account_id, played_on, player_name, telegram_id")
     .order("played_on", { ascending: false })
     .limit(RECENT_WINS_LIMIT);
 
@@ -46,9 +51,71 @@ async function loadRecentRaffleWins(supabase: SupabaseClient): Promise<RaffleWin
     return null;
   }
 
-  return ((data ?? []) as Array<{ account_id: string | null; played_on: string; player_name: string }>).map(
-    (row) => ({ accountId: row.account_id, playedOn: row.played_on, playerName: row.player_name }),
-  );
+  return (
+    (data ?? []) as Array<{
+      account_id: string | null;
+      played_on: string;
+      player_name: string;
+      telegram_id: number | null;
+    }>
+  ).map((row) => ({
+    accountId: row.account_id,
+    playedOn: row.played_on,
+    playerName: row.player_name,
+    telegramId: row.telegram_id,
+  }));
+}
+
+/**
+ * The evenings tonight's past winners have played since their last win, which is what
+ * their lowered chance runs out on. Only the winners in the room are looked up, and only
+ * from the earliest of their wins on.
+ */
+async function loadGamesSinceWins(
+  supabase: SupabaseClient,
+  entrants: RaffleEntrant[],
+  wins: RaffleWinRecord[],
+  tonight: string,
+): Promise<RaffleGameRecord[] | null> {
+  const winners = entrants.flatMap((entrant) => {
+    const lastWin = findLastRaffleWin(entrant, wins);
+    return lastWin && lastWin < tonight ? [{ entrant, lastWin }] : [];
+  });
+  if (winners.length === 0) return [];
+
+  const since = winners.map((winner) => winner.lastWin).sort()[0];
+  const keys = [...new Set(winners.map((winner) => buildNicknameKey(winner.entrant.name)).filter(Boolean))];
+  const telegramIds = [
+    ...new Set(winners.flatMap((winner) => (winner.entrant.telegramId ? [winner.entrant.telegramId] : []))),
+  ];
+  // Nickname keys hold only letters and digits, so they go into the filter as they are.
+  const players = [
+    keys.length > 0 ? `player_key.in.(${keys.join(",")})` : null,
+    telegramIds.length > 0 ? `telegram_id.in.(${telegramIds.join(",")})` : null,
+  ]
+    .filter(Boolean)
+    .join(",");
+  if (!players) return [];
+
+  try {
+    const rows = await readAllPages<{ played_on: string; player_name: string; telegram_id: number | null }>(
+      (from, to) =>
+        supabase
+          .from("tournament_results")
+          .select("played_on, player_name, telegram_id")
+          .gt("played_on", since)
+          .lt("played_on", tonight)
+          .or(players)
+          .order("played_on")
+          .order("id")
+          .range(from, to),
+    );
+
+    return rows.map((row) => ({ playedOn: row.played_on, playerName: row.player_name, telegramId: row.telegram_id }));
+  } catch (error) {
+    console.error("Failed to read past winners' games; drawing without weights", error);
+    return null;
+  }
 }
 
 /**
@@ -105,7 +172,9 @@ export async function POST(request: Request) {
   const drawnAt = new Date();
   const tonight = toRaffleEvening(drawnAt);
   const pastWins = await loadRecentRaffleWins(auth.supabase);
-  const weights = pastWins ? getRaffleWeights(entrants, pastWins, tonight) : undefined;
+  const pastGames = pastWins ? await loadGamesSinceWins(auth.supabase, entrants, pastWins, tonight) : null;
+  const weights =
+    pastWins && pastGames ? getRaffleWeights(entrants, pastWins, pastGames, tonight) : undefined;
   const winner = pickRaffleWinner(entrants, () => randomInt(0, 2 ** 31) / 2 ** 31, weights);
   if (!winner) return NextResponse.json({ error: "Не удалось выбрать победителя" }, { status: 500 });
 
