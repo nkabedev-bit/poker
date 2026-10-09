@@ -155,6 +155,22 @@ describe("filling in the questionnaire", () => {
     expect(response.status).toBe(400);
     expect(writes).toEqual([]);
   });
+
+  // The nickname goes into the club's spreadsheet the way a person types, where "=…" runs
+  // as a formula that could read the questionnaires and send them out.
+  it("refuses a nickname the spreadsheet would run as a formula", async () => {
+    const { supabase, writes } = supabaseSpy();
+    mocks.requireClientTmaAuth.mockResolvedValue({ supabase, user: NEWCOMER });
+
+    const response = await submit({ ...FORM, nickname: ' =IMAGE("https://example.com")' });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      message: "Ник не может начинаться с =, +, - или @.",
+    });
+    expect(writes).toEqual([]);
+    expect(mocks.appendClientBotProfileRow).not.toHaveBeenCalled();
+  });
 });
 
 describe("naming who brought the player in", () => {

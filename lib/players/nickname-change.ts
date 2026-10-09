@@ -15,6 +15,21 @@ export const NICKNAME_MAX_LENGTH = 40;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/**
+ * How a formula starts in Google Sheets. Some of the club's sheets are written the way a
+ * person types (USER_ENTERED) — the questionnaire, the knockouts of a game — and there a
+ * nickname "=IMAGE(…)" would run: read the other tabs, phones and birthdays included, and
+ * send them anywhere. "+" and "-" start a formula too, "@" a function. Turned away where a
+ * nickname comes in, rather than escaped at every write that carries it.
+ */
+const SHEET_FORMULA_START = /^[=+\-@]/;
+
+export const SHEET_FORMULA_MESSAGE = "Ник не может начинаться с =, +, - или @.";
+
+export function startsLikeSheetFormula(nickname: string) {
+  return SHEET_FORMULA_START.test(nickname.trim());
+}
+
 const moscowDay = new Intl.DateTimeFormat("ru-RU", {
   day: "numeric",
   month: "long",
@@ -31,6 +46,7 @@ export function parseNewNickname(value: unknown): { nickname: string } | { messa
   if (nickname.length > NICKNAME_MAX_LENGTH) {
     return { message: `Ник — не длиннее ${NICKNAME_MAX_LENGTH} символов.` };
   }
+  if (startsLikeSheetFormula(nickname)) return { message: SHEET_FORMULA_MESSAGE };
   // Without a letter or a digit the nickname has no key, and nothing could find the
   // player's games under it.
   if (!buildNicknameKey(nickname)) {

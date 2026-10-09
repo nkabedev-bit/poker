@@ -4,6 +4,7 @@ import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
 import { isValidBirthDate, normalizeClientBotText } from "@/lib/client-bot/registration";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { SHEET_FORMULA_MESSAGE, startsLikeSheetFormula } from "@/lib/players/nickname-change";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,12 @@ const profileSchema = z.object({
   fullName: z.string().trim().min(2, "Укажите имя и фамилию").max(100),
   // Optional, and missing altogether from a mini-app build cached before the question.
   invitedBy: z.string().trim().max(40, "Ник пригласившего — не длиннее 40 символов").default(""),
-  nickname: z.string().trim().min(2, "Укажите игровой никнейм").max(40),
+  nickname: z
+    .string()
+    .trim()
+    .min(2, "Укажите игровой никнейм")
+    .max(40)
+    .refine((value) => !startsLikeSheetFormula(value), SHEET_FORMULA_MESSAGE),
   notificationsConsent: z.boolean(),
   phone: z.string().trim().min(5, "Укажите номер телефона").max(30),
   ratingConsent: z.boolean(),

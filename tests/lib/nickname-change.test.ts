@@ -25,6 +25,18 @@ describe("a new nickname typed by the player", () => {
     });
   });
 
+  it.each(["=IMAGE(1)", "+79001234567", "-Fox-", "@SUM(A1)", "  =1+1"])(
+    "is turned down when the spreadsheet would run %s as a formula",
+    (value) => {
+      expect(parseNewNickname(value)).toEqual({ message: "Ник не может начинаться с =, +, - или @." });
+    },
+  );
+
+  it("keeps those signs anywhere but at the start", () => {
+    expect(parseNewNickname("Fox-1")).toEqual({ nickname: "Fox-1" });
+    expect(parseNewNickname("A=B")).toEqual({ nickname: "A=B" });
+  });
+
   it("is turned down when it is not text at all", () => {
     expect(parseNewNickname(undefined)).toEqual({ message: "Ник — не короче 2 символов." });
     expect(parseNewNickname(42)).toEqual({ message: "Ник — не короче 2 символов." });
