@@ -48,8 +48,10 @@ echo "== fail2ban"
 systemctl enable --now fail2ban
 
 echo "== system journal: three days of logs (the app and Caddy log into it)"
+# Retention deletes a whole file once its oldest entry is past three days. One file a
+# day keeps the last days; left at a month per file, everything went at once.
 mkdir -p /etc/systemd/journald.conf.d
-printf '[Journal]\nMaxRetentionSec=3day\nSystemMaxUse=1G\n' > /etc/systemd/journald.conf.d/club-logs.conf
+printf '[Journal]\nMaxRetentionSec=3day\nMaxFileSec=1day\nSystemMaxUse=1G\n' > /etc/systemd/journald.conf.d/club-logs.conf
 systemctl restart systemd-journald
 
 echo "== swap $SWAP_SIZE"
