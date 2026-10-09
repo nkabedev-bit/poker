@@ -153,6 +153,27 @@ export function formatClientBotBirthDateForSheet(value: string) {
   return value;
 }
 
+// How a formula starts in Google Sheets: "=", "+" and "-", and "@" for a function.
+const SHEET_FORMULA_START = /^[=+\-@]/;
+
+/**
+ * Whether a sheet written the way a person types (USER_ENTERED) would run this text as a
+ * formula — one that can read the other tabs, phones and birthdays included, and send them
+ * anywhere.
+ */
+export function startsLikeSheetFormula(value: string) {
+  return SHEET_FORMULA_START.test(value.trim());
+}
+
+/**
+ * An answer the questionnaire sheet keeps exactly as it was typed. The row goes in the way
+ * a person types, so that its date lands as a date; a leading apostrophe makes Sheets keep
+ * "=…" or "+7 900…" as text, and the cell does not show it.
+ */
+function asSheetText(value: string) {
+  return startsLikeSheetFormula(value) ? `'${value}` : value;
+}
+
 export function buildClientBotProfileSheetRow({
   answers,
   submittedAt,
@@ -169,14 +190,14 @@ export function buildClientBotProfileSheetRow({
     formatProfileSubmittedAt(submittedAt),
     formatTelegramUsername(username),
     telegramId ?? "",
-    answers.fullName,
-    answers.nickname,
-    answers.phone,
-    formatClientBotBirthDateForSheet(answers.birthDate),
+    asSheetText(answers.fullName),
+    asSheetText(answers.nickname),
+    asSheetText(answers.phone),
+    asSheetText(formatClientBotBirthDateForSheet(answers.birthDate)),
     answers.ratingConsent ? "Да" : "Нет",
-    answers.discoverySource,
+    asSheetText(answers.discoverySource),
     answers.notificationsConsent ? "Да" : "Нет",
     answers.agreementAccepted ? "Согласен" : "",
-    answers.invitedBy ?? "",
+    asSheetText(answers.invitedBy ?? ""),
   ];
 }

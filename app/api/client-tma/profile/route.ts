@@ -2,9 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { appendClientBotProfileRow } from "@/lib/google-sheets";
-import { isValidBirthDate, normalizeClientBotText } from "@/lib/client-bot/registration";
+import {
+  isValidBirthDate,
+  normalizeClientBotText,
+  startsLikeSheetFormula,
+} from "@/lib/client-bot/registration";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
-import { SHEET_FORMULA_MESSAGE, startsLikeSheetFormula } from "@/lib/players/nickname-change";
+import { SHEET_FORMULA_MESSAGE } from "@/lib/players/nickname-change";
 
 export const dynamic = "force-dynamic";
 

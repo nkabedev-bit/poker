@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { normalizeClientBotText } from "@/lib/client-bot/registration";
+import { normalizeClientBotText, startsLikeSheetFormula } from "@/lib/client-bot/registration";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 /**
@@ -16,19 +16,11 @@ export const NICKNAME_MAX_LENGTH = 40;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
- * How a formula starts in Google Sheets. Some of the club's sheets are written the way a
- * person types (USER_ENTERED) — the questionnaire, the knockouts of a game — and there a
- * nickname "=IMAGE(…)" would run: read the other tabs, phones and birthdays included, and
- * send them anywhere. "+" and "-" start a formula too, "@" a function. Turned away where a
- * nickname comes in, rather than escaped at every write that carries it.
+ * A nickname travels into sheets other than the questionnaire — the knockouts of a game
+ * among them — so one that would run as a formula is turned away where it comes in rather
+ * than escaped at every write that carries it.
  */
-const SHEET_FORMULA_START = /^[=+\-@]/;
-
 export const SHEET_FORMULA_MESSAGE = "Ник не может начинаться с =, +, - или @.";
-
-export function startsLikeSheetFormula(nickname: string) {
-  return SHEET_FORMULA_START.test(nickname.trim());
-}
 
 const moscowDay = new Intl.DateTimeFormat("ru-RU", {
   day: "numeric",
