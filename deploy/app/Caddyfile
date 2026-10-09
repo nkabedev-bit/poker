@@ -3,7 +3,14 @@
 
 {$APP_DOMAIN} {
 	encode zstd gzip
-	reverse_proxy club-app:3000
+	reverse_proxy club-app:3000 {
+		# Next.js drops a connection that sits idle for 5 s, while Caddy would keep it for
+		# 2 min and now and then send a request down one the app has just closed: a 502.
+		# Letting go first closes that gap.
+		transport http {
+			keepalive 2s
+		}
+	}
 }
 
 # Supabase: REST, auth, storage, realtime websockets, and Studio behind its own password.
