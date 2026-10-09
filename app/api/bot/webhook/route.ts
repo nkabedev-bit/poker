@@ -130,6 +130,29 @@ bot.command("cancel", async (ctx) => {
   }
 });
 
+// Who changed their nickname in the app in the last month, so the desk still knows who
+// "Chura" is when the regular it used to call "Mr.Fish" walks in. Reads only.
+bot.command("changes", async (ctx) => {
+  const adminId = ctx.from?.id;
+  if (!adminId) return;
+
+  if (!(await isTournamentAdmin(getAdminSupabase(), adminId))) {
+    return ctx.reply("У вас нет прав для выполнения этой команды.");
+  }
+
+  try {
+    const { buildNicknameChangesMessage, readNicknameChanges } = await import(
+      "@/lib/admin-bot/nickname-changes"
+    );
+
+    await ctx.reply(buildNicknameChangesMessage(await readNicknameChanges(getAdminSupabase())));
+  } catch (err: unknown) {
+    console.error("Error in /changes command:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Не удалось прочитать смены ников: ${message}`);
+  }
+});
+
 // Bars a player from signing up for a week, and takes the bar off again. The club's
 // answer to seats held and given back at the last minute; the door itself stays open.
 async function changeSignupBan(ctx: Context, banned: boolean) {
