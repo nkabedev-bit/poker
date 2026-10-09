@@ -37,7 +37,16 @@ function isLockedOut(address: string, now: number) {
   return entry.count >= MAX_FAILED_SIGN_INS;
 }
 
+/** Past this many addresses the stale ones are swept, so guessing from many cannot pile up. */
+const FAILED_SIGN_INS_SWEEP_SIZE = 1000;
+
 function countFailedSignIn(address: string, now: number) {
+  if (failedSignIns.size >= FAILED_SIGN_INS_SWEEP_SIZE) {
+    for (const [key, entry] of failedSignIns) {
+      if (entry.resetAt <= now) failedSignIns.delete(key);
+    }
+  }
+
   const entry = failedSignIns.get(address);
   if (!entry || entry.resetAt <= now) {
     failedSignIns.set(address, { count: 1, resetAt: now + FAILED_SIGN_IN_WINDOW_MS });
