@@ -88,6 +88,63 @@ describe("buildSeasonStandings", () => {
 
     expect(standings).toHaveLength(1);
   });
+
+  // 09.10.2026: Кая played 29.09 as a guest and 06.10 with her new account — two lines
+  // under one name, and closing the APC qualifier failed on them.
+  it("puts a game played before the account existed on the account's line", () => {
+    const standings = buildSeasonStandings(
+      [
+        result(100, { playerName: "Кая", telegramId: null }),
+        result(35, { playerName: "Кая", telegramId: 1694131711 }),
+      ],
+      null,
+    );
+
+    expect(standings).toEqual([
+      expect.objectContaining({ games: 2, playerName: "Кая", points: 135, telegramId: 1694131711 }),
+    ]);
+  });
+
+  it("finds the account for a guest game by the nickname the account goes by now", () => {
+    const standings = buildSeasonStandings(
+      [
+        result(100, { playerName: "Кая", telegramId: null }),
+        result(35, { playerName: "Kaya", telegramId: 1694131711 }),
+      ],
+      null,
+      new Map([[1694131711, "Кая"]]),
+    );
+
+    expect(standings).toEqual([
+      expect.objectContaining({ games: 2, playerName: "Кая", telegramId: 1694131711 }),
+    ]);
+  });
+
+  it("keeps the account's line when its latest game was played without it", () => {
+    const standings = buildSeasonStandings(
+      [
+        result(35, { playerName: "Кая", telegramId: 1694131711 }),
+        result(100, { playerName: "Кая", telegramId: null }),
+      ],
+      null,
+    );
+
+    expect(standings[0]).toMatchObject({ games: 2, telegramId: 1694131711 });
+  });
+
+  it("leaves a guest game alone when two accounts go by that nickname", () => {
+    const standings = buildSeasonStandings(
+      [
+        result(10, { playerName: "Макс", telegramId: 1 }),
+        result(20, { playerName: "Макс", telegramId: 2 }),
+        result(30, { playerName: "Макс", telegramId: null }),
+      ],
+      null,
+    );
+
+    expect(standings).toHaveLength(3);
+    expect(standings.find((line) => line.telegramId === null)).toMatchObject({ points: 30 });
+  });
 });
 
 describe("mapSeasonRow", () => {

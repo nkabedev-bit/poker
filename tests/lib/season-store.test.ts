@@ -1,7 +1,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from "vitest";
 import { mapSeasonRow } from "@/lib/seasons/season";
-import { computeSeasonStandings, getOpenRegularSeason } from "@/lib/seasons/store";
+import {
+  computeSeasonStandings,
+  freezeAndCloseSeason,
+  getOpenRegularSeason,
+  SeasonNameClashError,
+  writeSeasonSnapshot,
+} from "@/lib/seasons/store";
 
 type Filter = [operator: string, column: string, value: unknown];
 type Rows = Array<Record<string, unknown>>;
@@ -270,5 +276,105 @@ describe("computeSeasonStandings — a season past a thousand rows", () => {
 
     expect(standings).toHaveLength(40);
     expect(standings.every((line) => line.points === 600 && line.games === 60)).toBe(true);
+  });
+});
+
+/**
+ * The database a freeze writes to: games and accounts answer as given, the frozen table
+ * and the seasons remember what was done to them.
+ */
+function freezingSpy(rows: Rows, accounts: Rows = []) {
+  const steps: string[] = [];
+  const updates: Array<Record<string, unknown>> = [];
+  const games = tableSpy({ data: rows, error: null }, () => undefined);
+  const accountsTable = tableSpy({ data: accounts, error: null }, () => undefined);
+
+  const standingsTable = {
+    delete: () => ({
+      eq: async () => {
+        steps.push("clear");
+        return { error: null };
+      },
+    }),
+    insert: async (written: Rows) => {
+      steps.push(`write ${written.length}`);
+      return { error: null };
+    },
+  };
+  const seasonsTable = {
+    update: (patch: Record<string, unknown>) => ({
+      eq: async () => {
+        steps.push("close");
+        updates.push(patch);
+        return { error: null };
+      },
+    }),
+  };
+
+  const tables: Record<string, unknown> = {
+    client_bot_users: accountsTable,
+    season_standings: standingsTable,
+    seasons: seasonsTable,
+    tournament_results: games,
+  };
+
+  return {
+    steps,
+    supabase: { from: (table: string) => tables[table] } as unknown as SupabaseClient,
+    updates,
+  };
+}
+
+describe("freezing a season's table", () => {
+  // Two accounts under one nickname cannot both be written: the table holds each name once.
+  it("refuses two lines under one nickname without clearing the table it has", async () => {
+    const { steps, supabase } = freezingSpy(
+      [
+        { knockouts: 0, player_name: "Макс", points: 50, telegram_id: 1 },
+        { knockouts: 0, player_name: "Макс", points: 30, telegram_id: 2 },
+      ],
+      [
+        { display_name: "Макс", telegram_id: 1 },
+        { display_name: "Макс", telegram_id: 2 },
+      ],
+    );
+
+    const refusal = await writeSeasonSnapshot(supabase, apc).catch((error: Error) => error);
+
+    expect(refusal).toBeInstanceOf(SeasonNameClashError);
+    expect((refusal as Error).message).toContain("«Макс»");
+    expect(steps).toEqual([]);
+  });
+
+  it("closes a season only after its table is frozen", async () => {
+    const { steps, supabase, updates } = freezingSpy([
+      { knockouts: 0, player_name: "Кая", points: 100, telegram_id: null },
+      { knockouts: 0, player_name: "Кая", points: 35, telegram_id: 1694131711 },
+    ]);
+
+    await freezeAndCloseSeason(supabase, apc, "2026-10-06");
+
+    expect(steps).toEqual(["clear", "write 1", "close"]);
+    expect(updates).toEqual([
+      expect.objectContaining({ ends_on: "2026-10-06", status: "closed" }),
+    ]);
+  });
+
+  it("leaves a season open when its table cannot be frozen", async () => {
+    const { steps, supabase } = freezingSpy(
+      [
+        { knockouts: 0, player_name: "Макс", points: 50, telegram_id: 1 },
+        { knockouts: 0, player_name: "Макс", points: 30, telegram_id: 2 },
+      ],
+      [
+        { display_name: "Макс", telegram_id: 1 },
+        { display_name: "Макс", telegram_id: 2 },
+      ],
+    );
+
+    await expect(freezeAndCloseSeason(supabase, apc, "2026-10-06")).rejects.toBeInstanceOf(
+      SeasonNameClashError,
+    );
+    expect(steps).not.toContain("close");
   });
 });

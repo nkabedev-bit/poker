@@ -62,25 +62,44 @@ export function mapSeasonRow(row: Record<string, unknown>): Season {
  * game. Naming it after whichever game came back last once put a stranger's name on a
  * player's line: two accounts were swapped for one evening, and the table showed the
  * other player's nickname with this one's points.
+ *
+ * A game played before the account existed joins the account by nickname, the way the
+ * rest of the club matches a player. Кая played 29.09.2026 as a guest and 06.10 with her
+ * new account: two lines with one name, and closing the APC qualifier failed on them.
+ * A nickname two accounts share is left alone — there is no telling whose game it was.
  */
 export function buildSeasonStandings(
   rows: SeasonResultRow[],
   countedGames: number | null,
   accountNames: ReadonlyMap<number, string> = new Map(),
 ): SeasonStanding[] {
-  const byPlayer = new Map<string, SeasonResultRow[]>();
+  const accountsByNickname = new Map<string, Set<number>>();
+  const claimNickname = (name: string, telegramId: number) => {
+    const key = buildNicknameKey(name);
+    accountsByNickname.set(key, (accountsByNickname.get(key) ?? new Set()).add(telegramId));
+  };
+  for (const row of rows) if (row.telegramId) claimNickname(row.playerName, row.telegramId);
+  for (const [telegramId, name] of accountNames) claimNickname(name, telegramId);
+
+  const accountOf = (row: SeasonResultRow) => {
+    if (row.telegramId) return row.telegramId;
+    const owners = accountsByNickname.get(buildNicknameKey(row.playerName));
+    return owners?.size === 1 ? [...owners][0] : null;
+  };
+
+  const byPlayer = new Map<string, { rows: SeasonResultRow[]; telegramId: number | null }>();
 
   for (const row of rows) {
-    // A guest without an account is tracked by name; everyone else by their account, so
-    // a renamed player keeps one line in the table.
-    const key = row.telegramId
-      ? `tg:${row.telegramId}`
-      : `name:${buildNicknameKey(row.playerName)}`;
+    // An account keeps one line however it was named; a guest without one is tracked by name.
+    const telegramId = accountOf(row);
+    const key = telegramId ? `tg:${telegramId}` : `name:${buildNicknameKey(row.playerName)}`;
+    const line = byPlayer.get(key) ?? { rows: [], telegramId };
 
-    byPlayer.set(key, [...(byPlayer.get(key) ?? []), row]);
+    line.rows.push(row);
+    byPlayer.set(key, line);
   }
 
-  const standings = [...byPlayer.values()].map((playerRows) => {
+  const standings = [...byPlayer.values()].map(({ rows: playerRows, telegramId }) => {
     const counted =
       countedGames === null
         ? playerRows
@@ -93,9 +112,9 @@ export function buildSeasonStandings(
         playerRows.reduce((total, row) => total + Math.max(0, row.knockouts), 0).toFixed(2),
       ),
       place: 0,
-      playerName: (latest.telegramId && accountNames.get(latest.telegramId)) || latest.playerName,
+      playerName: (telegramId && accountNames.get(telegramId)) || latest.playerName,
       points: Number(counted.reduce((total, row) => total + row.points, 0).toFixed(2)),
-      telegramId: latest.telegramId,
+      telegramId,
     };
   });
 

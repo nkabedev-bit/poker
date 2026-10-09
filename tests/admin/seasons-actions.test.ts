@@ -3,6 +3,7 @@ import { mapSeasonRow } from "@/lib/seasons/season";
 
 const mocks = vi.hoisted(() => ({
   createSupabaseServerClient: vi.fn(),
+  freezeAndCloseSeason: vi.fn(),
   listSeasons: vi.fn(),
   writeSeasonSnapshot: vi.fn(),
 }));
@@ -20,12 +21,22 @@ vi.mock("@/lib/supabase/server", () => ({
   createSupabaseServerClient: mocks.createSupabaseServerClient,
 }));
 
-vi.mock("@/lib/seasons/store", () => ({
+vi.mock("@/lib/seasons/store", async (importOriginal) => ({
+  // The real error, so the actions can recognise it.
+  SeasonNameClashError: (await importOriginal<typeof import("@/lib/seasons/store")>())
+    .SeasonNameClashError,
+  freezeAndCloseSeason: mocks.freezeAndCloseSeason,
   listSeasons: mocks.listSeasons,
   writeSeasonSnapshot: mocks.writeSeasonSnapshot,
 }));
 
-import { attachGamesByDate, closeSeason, openSeason } from "@/app/admin/seasons/actions";
+import {
+  attachGamesByDate,
+  closeSeason,
+  openSeason,
+  recomputeSeason,
+} from "@/app/admin/seasons/actions";
+import { SeasonNameClashError } from "@/lib/seasons/store";
 
 const AUTUMN_ID = "0d9c5b8e-6a3f-4f1e-9b2a-7c4d8e1f2a3b";
 const APC_ID = "7e2f1a4c-9d3b-4c6a-8e5f-2b1d0c9a8f7e";
@@ -103,6 +114,7 @@ function form(fields: Record<string, string>) {
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.writeSeasonSnapshot.mockResolvedValue({ rows: 0, skipped: true });
+  mocks.freezeAndCloseSeason.mockResolvedValue(undefined);
 });
 
 describe("opening a season", () => {
@@ -115,7 +127,7 @@ describe("opening a season", () => {
     );
 
     expect(updated).toEqual([]);
-    expect(mocks.writeSeasonSnapshot).not.toHaveBeenCalled();
+    expect(mocks.freezeAndCloseSeason).not.toHaveBeenCalled();
     expect(inserted).toEqual([
       expect.objectContaining({
         ends_on: "2026-10-06",
@@ -128,20 +140,18 @@ describe("opening a season", () => {
   });
 
   it("closes only the regular season when the next regular one opens", async () => {
-    const { inserted, updated } = databaseSpy();
+    const { inserted } = databaseSpy();
     mocks.listSeasons.mockResolvedValue([mapSeasonRow(apcRow), mapSeasonRow(autumnRow)]);
 
     await expect(
       openSeason(form({ startsOn: "2026-12-01", title: "Winter Series" })),
     ).rejects.toThrow("redirect:/admin/seasons?opened=1");
 
-    expect(updated).toEqual([
-      { id: AUTUMN_ID, patch: expect.objectContaining({ ends_on: "2026-12-01", status: "closed" }) },
-    ]);
-    expect(mocks.writeSeasonSnapshot).toHaveBeenCalledTimes(1);
-    expect(mocks.writeSeasonSnapshot).toHaveBeenCalledWith(
+    expect(mocks.freezeAndCloseSeason).toHaveBeenCalledTimes(1);
+    expect(mocks.freezeAndCloseSeason).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ id: AUTUMN_ID }),
+      "2026-12-01",
     );
     expect(inserted[0]).not.toHaveProperty("parallel");
   });
@@ -172,27 +182,55 @@ describe("opening a season", () => {
 
 describe("closing a season", () => {
   it("keeps the APC qualifier's own last day when it is closed the morning after", async () => {
-    const { updated } = databaseSpy({ stored: apcRow });
+    databaseSpy({ stored: apcRow });
 
     await expect(closeSeason(form({ endsOn: "2026-10-07", id: APC_ID }))).rejects.toThrow(
       "redirect:/admin/seasons?closed=1",
     );
 
-    expect(updated).toEqual([
-      { id: APC_ID, patch: expect.objectContaining({ ends_on: "2026-10-06", status: "closed" }) },
-    ]);
+    expect(mocks.freezeAndCloseSeason).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: APC_ID }),
+      "2026-10-06",
+    );
   });
 
   it("ends a regular season on the day it is closed", async () => {
-    const { updated } = databaseSpy({ stored: autumnRow });
+    databaseSpy({ stored: autumnRow });
 
     await expect(closeSeason(form({ endsOn: "2026-11-30", id: AUTUMN_ID }))).rejects.toThrow(
       "redirect:/admin/seasons?closed=1",
     );
 
-    expect(updated).toEqual([
-      { id: AUTUMN_ID, patch: expect.objectContaining({ ends_on: "2026-11-30", status: "closed" }) },
-    ]);
+    expect(mocks.freezeAndCloseSeason).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ id: AUTUMN_ID }),
+      "2026-11-30",
+    );
+  });
+
+  // 09.10.2026: the button showed "This page couldn't load" over two lines named «Кая».
+  it("names the nickname two lines share instead of failing the page", async () => {
+    databaseSpy({ stored: apcRow });
+    mocks.freezeAndCloseSeason.mockRejectedValue(new SeasonNameClashError(["Кая"]));
+
+    const refusal = await closeSeason(form({ endsOn: "2026-10-09", id: APC_ID })).catch(
+      (error: Error) => error,
+    );
+
+    expect(String(refusal?.message)).toMatch(/^redirect:\/admin\/seasons\?error=/);
+    expect(decodeURIComponent(String(refusal?.message))).toContain("«Кая»");
+  });
+});
+
+describe("recounting a closed season", () => {
+  it("names the nickname two lines share instead of failing the page", async () => {
+    databaseSpy({ stored: { ...apcRow, status: "closed" } });
+    mocks.writeSeasonSnapshot.mockRejectedValue(new SeasonNameClashError(["Макс"]));
+
+    const refusal = await recomputeSeason(form({ id: APC_ID })).catch((error: Error) => error);
+
+    expect(decodeURIComponent(String(refusal?.message))).toContain("«Макс»");
   });
 });
 

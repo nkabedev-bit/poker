@@ -161,6 +161,30 @@ export async function readSeasonSnapshot(
 }
 
 /**
+ * The frozen table holds each name once (season_standings_season_id_player_name_key), so
+ * two lines under one nickname cannot be frozen. The message is the admin's to act on.
+ */
+export class SeasonNameClashError extends Error {
+  constructor(names: string[]) {
+    super(
+      `В таблице сезона несколько игроков под ником ${names.map((name) => `«${name}»`).join(", ")}. ` +
+        "Переименуйте одного из них и повторите.",
+    );
+    this.name = "SeasonNameClashError";
+  }
+}
+
+function findSharedNames(standings: SeasonStanding[]) {
+  const seen = new Set<string>();
+  const shared = new Set<string>();
+  for (const { playerName } of standings) {
+    if (seen.has(playerName)) shared.add(playerName);
+    seen.add(playerName);
+  }
+  return [...shared];
+}
+
+/**
  * Freezes a season's table as it stands. Called when a season is closed and again
  * whenever an admin asks for a recount after correcting old games — never on its own,
  * so what the club announced cannot drift.
@@ -172,6 +196,11 @@ export async function writeSeasonSnapshot(supabase: SupabaseClient, season: Seas
   // Recomputing those from nothing would wipe the table the club announced, so an empty
   // recount leaves the existing one alone.
   if (standings.length === 0) return { rows: 0, skipped: true as const };
+
+  // Checked before the old table is cleared: a recount that cannot be written must leave
+  // the announced one standing rather than an empty season.
+  const sharedNames = findSharedNames(standings);
+  if (sharedNames.length > 0) throw new SeasonNameClashError(sharedNames);
 
   const { error: clearError } = await supabase
     .from("season_standings")
@@ -195,4 +224,24 @@ export async function writeSeasonSnapshot(supabase: SupabaseClient, season: Seas
   if (error) throw error;
 
   return { rows: standings.length, skipped: false as const };
+}
+
+/**
+ * Closes a season: its table is frozen first, so a season that cannot be frozen stays
+ * open. The admin's button, a new regular season taking over and the noon tick after a
+ * season's last day all close one this way.
+ */
+export async function freezeAndCloseSeason(
+  supabase: SupabaseClient,
+  season: Season,
+  endsOn: string,
+) {
+  await writeSeasonSnapshot(supabase, season);
+
+  const { error } = await supabase
+    .from("seasons")
+    .update({ closed_at: new Date().toISOString(), ends_on: endsOn, status: "closed" })
+    .eq("id", season.id);
+
+  if (error) throw error;
 }

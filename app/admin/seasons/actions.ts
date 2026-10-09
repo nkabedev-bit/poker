@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { listSeasons, writeSeasonSnapshot } from "@/lib/seasons/store";
+import {
+  freezeAndCloseSeason,
+  listSeasons,
+  SeasonNameClashError,
+  writeSeasonSnapshot,
+} from "@/lib/seasons/store";
 import { mapSeasonRow } from "@/lib/seasons/season";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
@@ -25,6 +30,19 @@ function optionalNumber(value: FormDataEntryValue | null) {
 /** Back to the seasons screen with something the admin can act on. */
 function seasonsNotice(message: string) {
   return `/admin/seasons?error=${encodeURIComponent(message)}`;
+}
+
+/**
+ * A table that cannot be frozen is a message for the admin, not an error page: the
+ * season is left as it was, and the notice names who to rename.
+ */
+async function explainNameClash(work: () => Promise<unknown>) {
+  try {
+    await work();
+  } catch (error) {
+    if (error instanceof SeasonNameClashError) redirect(seasonsNotice(error.message));
+    throw error;
+  }
 }
 
 async function readSeason(supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>, id: string) {
@@ -61,13 +79,7 @@ export async function openSeason(formData: FormData) {
     );
 
     if (open) {
-      await writeSeasonSnapshot(supabase, open);
-      const { error } = await supabase
-        .from("seasons")
-        .update({ closed_at: new Date().toISOString(), ends_on: parsed.startsOn, status: "closed" })
-        .eq("id", open.id);
-
-      if (error) throw error;
+      await explainNameClash(() => freezeAndCloseSeason(supabase, open, parsed.startsOn));
     }
   }
 
@@ -139,18 +151,11 @@ export async function closeSeason(formData: FormData) {
   const season = await readSeason(supabase, id);
   if (!season) redirect("/admin/seasons?missing=1");
 
-  await writeSeasonSnapshot(supabase, season);
-
   // A parallel season is its dates. Closing it the morning after its last evening must
   // not stretch it over a day that was never part of it.
   const endsOn = season.parallel && season.endsOn ? season.endsOn : closedOn;
 
-  const { error } = await supabase
-    .from("seasons")
-    .update({ closed_at: new Date().toISOString(), ends_on: endsOn, status: "closed" })
-    .eq("id", id);
-
-  if (error) throw error;
+  await explainNameClash(() => freezeAndCloseSeason(supabase, season, endsOn));
 
   revalidatePath("/admin/seasons");
   redirect("/admin/seasons?closed=1");
@@ -164,7 +169,7 @@ export async function recomputeSeason(formData: FormData) {
   const season = await readSeason(supabase, id);
   if (!season) redirect("/admin/seasons?missing=1");
 
-  await writeSeasonSnapshot(supabase, season);
+  await explainNameClash(() => writeSeasonSnapshot(supabase, season));
 
   revalidatePath("/admin/seasons");
   redirect("/admin/seasons?recomputed=1");
