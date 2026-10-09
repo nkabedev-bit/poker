@@ -3,6 +3,7 @@ import {
   arrangeSeasonsForRating,
   buildSeasonStandings,
   findSeasonForDate,
+  findSeasonsDueToClose,
   mapSeasonRow,
 } from "@/lib/seasons/season";
 
@@ -144,6 +145,46 @@ describe("buildSeasonStandings", () => {
 
     expect(standings).toHaveLength(3);
     expect(standings.find((line) => line.telegramId === null)).toMatchObject({ points: 30 });
+  });
+});
+
+describe("findSeasonsDueToClose", () => {
+  const season = (overrides: Record<string, unknown>) =>
+    mapSeasonRow({
+      ends_on: "2026-10-07",
+      id: "apc",
+      parallel: true,
+      starts_on: "2026-09-15",
+      status: "open",
+      title: "Отбор на кубок APC",
+      ...overrides,
+    });
+
+  it("closes a season once its last day is over in Moscow", () => {
+    const due = findSeasonsDueToClose([season({})], new Date("2026-10-08T09:00:00.000Z"));
+
+    expect(due.map((item) => item.id)).toEqual(["apc"]);
+  });
+
+  // 23:30 in Moscow on the last day is 20:30 UTC — the last evening is still on.
+  it("keeps a season open through its last day", () => {
+    expect(findSeasonsDueToClose([season({})], new Date("2026-10-07T20:30:00.000Z"))).toEqual([]);
+  });
+
+  it("counts the day after by Moscow time, not by UTC", () => {
+    // 00:30 on 8 October in Moscow, still the 7th in UTC.
+    const due = findSeasonsDueToClose([season({})], new Date("2026-10-07T21:30:00.000Z"));
+
+    expect(due).toHaveLength(1);
+  });
+
+  it("never closes a season without an end date, nor one already closed", () => {
+    const due = findSeasonsDueToClose(
+      [season({ ends_on: null, id: "autumn" }), season({ id: "spring", status: "closed" })],
+      new Date("2026-12-01T09:00:00.000Z"),
+    );
+
+    expect(due).toEqual([]);
   });
 });
 

@@ -18,6 +18,17 @@ function formatDate(value: string | null) {
   return `${day}.${month}.${year}`;
 }
 
+/** A season with an end date closes on its own at noon the day after its last one. */
+function describeStatus(season: Season) {
+  if (season.status === "closed") return "закрыт";
+  if (!season.endsOn) return "идёт";
+
+  const closingDay = new Date(`${season.endsOn}T00:00:00Z`);
+  closingDay.setUTCDate(closingDay.getUTCDate() + 1);
+  const [, month, day] = closingDay.toISOString().slice(0, 10).split("-");
+  return `идёт · закроется ${day}.${month} в 12:00`;
+}
+
 export function SeasonsManager({
   gamesBySeason,
   gamesWithoutSeason,
@@ -201,7 +212,7 @@ export function SeasonsManager({
                     </td>
                     <td>{season.countedGames ?? "все"}</td>
                     <td>{gamesBySeason[season.id] ?? 0}</td>
-                    <td>{season.status === "open" ? "идёт" : "закрыт"}</td>
+                    <td>{describeStatus(season)}</td>
                     <td className="events-row-actions">
                       <button
                         className="ghost-button"

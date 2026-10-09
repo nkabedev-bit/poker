@@ -146,6 +146,20 @@ export function arrangeSeasonsForRating(seasons: Season[]): Season[] {
   return [regular, ...seasons.filter((season) => season.id !== regular.id)];
 }
 
+/**
+ * Open seasons whose last day is behind the club. They close on their own the day after
+ * (pg_cron, 12:00 Moscow time — 202610090002): the last evening runs past midnight, and
+ * its results are in long before noon.
+ */
+export function findSeasonsDueToClose(seasons: Season[], now: Date) {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow" }).format(now);
+
+  return seasons.filter(
+    (season): season is Season & { endsOn: string } =>
+      season.status === "open" && season.endsOn !== null && season.endsOn < today,
+  );
+}
+
 /** A season covering a date, used to place imported games that predate the stamping. */
 export function findSeasonForDate(seasons: Season[], playedOn: string) {
   return (
