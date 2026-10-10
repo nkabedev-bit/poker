@@ -29,7 +29,10 @@ mkdir -p "$WORK"
 
 docker exec supabase-db psql -h localhost -U postgres -At -F $'\t' \
   -c "select jobname, schedule, command from cron.job" > "$WORK/cron-jobs.tsv"
-sudo tar -C /opt/supabase/volumes -czf "$WORK/storage.tar.gz" storage
+# Storage keeps each file's type in extended attributes (user.supabase.content-type).
+# Without them a restored photo comes back as application/octet-stream and /media refuses
+# it, so they go into the tarball — and back out with `tar --xattrs --xattrs-include='*'`.
+sudo tar -C /opt/supabase/volumes --xattrs --xattrs-include='*' -czf "$WORK/storage.tar.gz" storage
 
 ARCHIVE="$LOCAL/club-$STAMP.tar.gz"
 tar -C "$LOCAL" -czf "$ARCHIVE" "$STAMP"
