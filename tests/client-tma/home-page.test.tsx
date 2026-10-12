@@ -1,10 +1,12 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ClientHomePage from "@/app/client/page";
 import { ClientTMAContext } from "@/app/client/layout";
+
+const SOCHI_TRIP_POST_URL = "https://t.me/majesticpokerptz/1197";
 
 function stubClubApi() {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
@@ -38,6 +40,12 @@ function renderHome(initData: string) {
   );
 }
 
+/** The home screen opened at a given Moscow wall time. */
+function openAt(moscowTime: string) {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(`${moscowTime}+03:00`));
+}
+
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
@@ -57,5 +65,57 @@ describe("client home: the club broadcasts", () => {
     expect(await screen.findByText("kabedev")).toBeTruthy();
     expect(screen.queryByText("Баунти сегодня")).toBeNull();
     expect(fetchMock).not.toHaveBeenCalledWith("/api/client-tma/announcements", expect.anything());
+  });
+});
+
+describe("client home: the Sochi trip announcement", () => {
+  // The championship in Sochi runs 16–19 November.
+  it("points at the trip post until the championship is over", async () => {
+    openAt("2026-11-19T23:59:00");
+    stubClubApi();
+
+    renderHome("");
+
+    const card = await screen.findByRole("link", { name: /Majestic едет в Сочи/ });
+    expect(card.getAttribute("href")).toBe(SOCHI_TRIP_POST_URL);
+    expect(card.getAttribute("target")).toBe("_blank");
+    expect(card.textContent).toContain("Объявление клуба");
+    expect(card.textContent).toContain("нажмите для подробностей!");
+  });
+
+  it("is gone from 20 November", async () => {
+    openAt("2026-11-20T00:00:00");
+    stubClubApi();
+
+    renderHome("");
+
+    expect(await screen.findByText("kabedev")).toBeTruthy();
+    expect(screen.queryByText(/едет в Сочи/)).toBeNull();
+  });
+
+  it("opens the post inside Telegram when the app runs there", async () => {
+    openAt("2026-10-12T12:00:00");
+    const openTelegramLink = vi.fn();
+    vi.stubGlobal("Telegram", { WebApp: { openTelegramLink } });
+    stubClubApi();
+
+    renderHome("telegram-init-data");
+    fireEvent.click(await screen.findByRole("link", { name: /Majestic едет в Сочи/ }));
+
+    expect(openTelegramLink).toHaveBeenCalledWith(SOCHI_TRIP_POST_URL);
+  });
+
+  // On the web the Telegram script is loaded as well, and its link opener would navigate
+  // the app itself away; the plain link opens a new tab instead.
+  it("leaves the web to the link's own new tab", async () => {
+    openAt("2026-10-12T12:00:00");
+    const openTelegramLink = vi.fn();
+    vi.stubGlobal("Telegram", { WebApp: { openTelegramLink } });
+    stubClubApi();
+
+    renderHome("");
+    fireEvent.click(await screen.findByRole("link", { name: /Majestic едет в Сочи/ }));
+
+    expect(openTelegramLink).not.toHaveBeenCalled();
   });
 });

@@ -1,17 +1,19 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type MouseEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   ChevronRight,
   ClipboardList,
   LifeBuoy,
   MapPin,
+  Megaphone,
   Spade,
   Trophy,
 } from "lucide-react";
-import { useClientTMA } from "./layout";
+import { getClientTelegramWebApp, useClientTMA } from "./layout";
 import {
+  Eyebrow,
   GlassCard,
   IconTile,
   LoadingScreen,
@@ -51,13 +53,22 @@ type EventsResponse = {
 
 type RatingResponse = { me: RatingPlayer; players: RatingPlayer[] };
 
+// The club goes to the Russian club championship in Sochi (16–19 November), and the home
+// screen points players at the post about it until the championship is over.
+const SOCHI_TRIP_POST_URL = "https://t.me/majesticpokerptz/1197";
+const SOCHI_TRIP_CARD_UNTIL = Date.parse("2026-11-20T00:00:00+03:00");
+
 export default function ClientHomePage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<EventsResponse | null>(null);
   const [rating, setRating] = useState<RatingResponse | null>(null);
+  const [showSochiTripCard, setShowSochiTripCard] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
+    // The clock is read as the screen loads rather than while it renders.
+    setShowSochiTripCard(Date.now() < SOCHI_TRIP_CARD_UNTIL);
+
     try {
       const [eventsRes, ratingRes] = await Promise.all([
         fetch("/api/client-tma/events", { headers: { "X-Telegram-Init-Data": initData } }),
@@ -104,6 +115,18 @@ export default function ClientHomePage() {
 
   const myTier = me?.tier ?? null;
   const myPlace = me?.place ?? null;
+
+  // Inside Telegram the post opens in Telegram itself. On the web the link opens a new
+  // tab on its own: the Telegram script is loaded there too, and its openTelegramLink
+  // would take the whole app away to t.me.
+  const openSochiTripPost = (event: MouseEvent<HTMLAnchorElement>) => {
+    const tg = getClientTelegramWebApp();
+    if (!initData || !tg?.openTelegramLink) return;
+
+    event.preventDefault();
+    tg.HapticFeedback?.impactOccurred("light");
+    tg.openTelegramLink(SOCHI_TRIP_POST_URL);
+  };
 
   return (
     // On a computer the screen splits in two: the calendar on the left, the game on now,
@@ -176,6 +199,25 @@ export default function ClientHomePage() {
         <div className="order-3 desk:order-none">
           <WebAppCard />
         </div>
+      ) : null}
+
+      {showSochiTripCard ? (
+        <a
+          className="order-3 flex items-center gap-3.5 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] px-4 py-3.5 transition-transform active:scale-[0.98] desk:order-none"
+          href={SOCHI_TRIP_POST_URL}
+          rel="noopener noreferrer"
+          target="_blank"
+          onClick={openSochiTripPost}
+        >
+          <IconTile className="!bg-club-gold/15">
+            <Megaphone size={20} />
+          </IconTile>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <Eyebrow className="!text-club-gold">Объявление клуба</Eyebrow>
+            <p className="text-[14px] leading-snug">Majestic едет в Сочи, нажмите для подробностей!</p>
+          </div>
+          <ChevronRight className="shrink-0 text-club-gold" size={18} />
+        </a>
       ) : null}
 
       <div className="client-stagger contents desk:grid desk:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)] desk:items-start desk:gap-7">
