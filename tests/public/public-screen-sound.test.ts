@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPublicChipBankTotal,
   getPublicPlayerBadges,
+  getPublicPlayerHeadPrice,
   getPublicPlayerLabelKind,
   getRotatingPublicTableNumbers,
   getGeneratedBlindAlertAudioUrl,
@@ -98,6 +99,21 @@ describe("getRotatingPublicTableNumbers", () => {
         3,
       ),
     ).toEqual([1, 3]);
+  });
+});
+
+describe("getPublicPlayerHeadPrice", () => {
+  it("prices an active player's head by knockouts on the current bullet", () => {
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 0, status: "active" }, "progressive")).toBe(30);
+    expect(getPublicPlayerHeadPrice({ status: "active" }, "progressive")).toBe(30);
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 2, status: "active" }, "progressive")).toBe(70);
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 1.5, status: "active" }, "progressive")).toBe(60);
+  });
+
+  it("has no price for a player who is out or outside Progressive Bounty", () => {
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 2, status: "eliminated" }, "progressive")).toBeNull();
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 2, status: "active" }, "wanted")).toBeNull();
+    expect(getPublicPlayerHeadPrice({ progressiveKnockouts: 2, status: "active" })).toBeNull();
   });
 });
 

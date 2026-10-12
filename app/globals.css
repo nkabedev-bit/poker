@@ -2122,6 +2122,20 @@ p {
   flex: 0 0 auto;
 }
 
+/* Progressive Bounty: the price of the head, so the table sees who is worth hunting. */
+.public-player-head-price {
+  display: inline-flex;
+  align-items: center;
+  background: var(--poker-gold);
+  color: #111 !important;
+  font-weight: 900;
+  line-height: 1;
+  padding: 1px 5px;
+  border-radius: 999px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
 .public-player-mini-list div.public-player-mini-list-item--eliminated span,
 .public-player-mini-list div.public-player-mini-list-item--eliminated .public-player-name {
   color: #9ca3af;

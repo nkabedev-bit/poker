@@ -22,7 +22,7 @@ import {
   resolvePlayerTier,
   type PlayerTier,
 } from "@/lib/players/tier";
-import { isSideBountyPoints } from "@/lib/pts-rating";
+import { getProgressiveHeadPoints, isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { BlindsTable } from "@/components/public/blinds-table";
@@ -154,6 +154,17 @@ export function getPublicPlayerBadges(
   if (reentryCount > 0) badges.push(`🎟️ ${formatBountyCount(reentryCount)}`);
 
   return badges;
+}
+
+// Progressive Bounty: what knocking this player out is worth right now. Only someone still
+// at the table has a price; a player who is out gets a fresh head on re-entry.
+export function getPublicPlayerHeadPrice(
+  player: Pick<TournamentPlayer, "progressiveKnockouts" | "status">,
+  bountyType?: string,
+) {
+  if (bountyType !== "progressive" || player.status !== "active") return null;
+
+  return getProgressiveHeadPoints(player.progressiveKnockouts);
 }
 
 export function getPublicPlayerLabelKind(label?: string | null): "dealer" | "text" | null {
@@ -995,6 +1006,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
             {visiblePublicPlayers.map((player) => {
               const badges = getPublicPlayerBadges(player, isBounty, bountyType);
+              const headPrice = isBounty ? getPublicPlayerHeadPrice(player, bountyType) : null;
               const labelKind = getPublicPlayerLabelKind(player.label);
               const labelText = (player.label ?? "").trim();
               // What the player has earned by turning up, unless the club said otherwise.
@@ -1002,7 +1014,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                 games: player.gamesPlayed,
                 label: player.label,
               });
-              const hasLeading = labelKind !== null || badges.length > 0;
+              const hasLeading = labelKind !== null || headPrice !== null || badges.length > 0;
 
               return (
                 <div
@@ -1027,6 +1039,11 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
                           style={{ background: getPublicPlayerLabelColor(labelText) }}
                         >
                           {labelText}
+                        </span>
+                      ) : null}
+                      {headPrice !== null ? (
+                        <span className="public-player-head-price" title="Столько PTS даст выбивание сейчас">
+                          🎯 {formatBountyCount(headPrice)}
                         </span>
                       ) : null}
                       {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
