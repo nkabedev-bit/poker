@@ -6,7 +6,9 @@ import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../la
 import { LoadingScreen, MenuGroup, MenuRow, PageHeading } from "../../_components/ui";
 import { FavoriteHandPicker } from "../../_components/favorite-hand-picker";
 import { NicknameEditor } from "../../_components/nickname-editor";
+import { PhotoCropper } from "../../_components/photo-cropper";
 import { postFavoriteHand } from "../../_components/profile-requests";
+import { CROP_SOURCE_MAX_SIDE } from "@/lib/media/photo-crop";
 import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { formatRank, parseFavoriteHand, SUIT_SYMBOLS } from "@/lib/players/favorite-hand";
 import { getPlateColorName, getPlateForm, readPlateChoice, type PlateChoice } from "@/lib/players/plates";
@@ -35,6 +37,8 @@ export default function ClientSettingsPage() {
   const [nicknameEditorOpen, setNicknameEditorOpen] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  /** The picked photo while the player chooses which part of it goes in the circle. */
+  const [cropSource, setCropSource] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -85,22 +89,11 @@ export default function ClientSettingsPage() {
     return null;
   };
 
-  const uploadAvatar = async (file: File) => {
+  /** Stores a profile photo; answers whether it was stored. */
+  const sendAvatar = async (dataUrl: string) => {
     setAvatarBusy(true);
 
     try {
-      // Sent small: a camera photo runs to several megabytes, and a request over 4.5 MB
-      // is turned away before it reaches the club. One the browser cannot open goes as
-      // it is, and the server says what is wrong with it.
-      const dataUrl =
-        (await shrinkPhoto(file)) ??
-        (await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error("read failed"));
-          reader.onload = () => resolve(String(reader.result ?? ""));
-          reader.readAsDataURL(file);
-        }));
-
       const res = await fetch("/api/client-tma/avatar", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
@@ -114,16 +107,53 @@ export default function ClientSettingsPage() {
           data?.error ??
             (res.status === 413 ? "Фото слишком большое — выберите другое" : "Не удалось сохранить фото"),
         );
-        return;
+        return false;
       }
 
       getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
       setMe((current) => (current ? { ...current, avatarIsCustom: true } : current));
+      return true;
+    } catch {
+      showClientAlert("Не удалось сохранить фото");
+      return false;
+    } finally {
+      setAvatarBusy(false);
+    }
+  };
+
+  const pickAvatar = async (file: File) => {
+    setAvatarBusy(true);
+
+    try {
+      // Opened small enough to move about smoothly, and upright: the player then frames
+      // the part that goes in the circle. A request over 4.5 MB is turned away before it
+      // reaches the club, so a camera photo is never sent whole.
+      const preview = await shrinkPhoto(file, { maxSide: CROP_SOURCE_MAX_SIDE, quality: 0.92 });
+      if (preview) {
+        setCropSource(preview);
+        return;
+      }
+
+      // One the browser cannot open cannot be framed either: it goes as it is, the server
+      // squares it off itself and says what is wrong with it if it can't.
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error("read failed"));
+        reader.onload = () => resolve(String(reader.result ?? ""));
+        reader.readAsDataURL(file);
+      });
+      await sendAvatar(dataUrl);
     } catch {
       showClientAlert("Не удалось прочитать файл");
     } finally {
       setAvatarBusy(false);
     }
+  };
+
+  const saveCroppedAvatar = async (dataUrl: string) => {
+    const saved = await sendAvatar(dataUrl);
+    if (saved) setCropSource(null);
+    return saved;
   };
 
   const resetAvatar = async () => {
@@ -158,6 +188,14 @@ export default function ClientSettingsPage() {
           current={me?.displayName ?? ""}
           onClose={() => setNicknameEditorOpen(false)}
           onSave={saveNickname}
+        />
+      ) : null}
+
+      {cropSource ? (
+        <PhotoCropper
+          src={cropSource}
+          onCancel={() => setCropSource(null)}
+          onSave={saveCroppedAvatar}
         />
       ) : null}
 
@@ -239,7 +277,7 @@ export default function ClientSettingsPage() {
         onChange={(event) => {
           const file = event.target.files?.[0];
           event.target.value = "";
-          if (file) void uploadAvatar(file);
+          if (file) void pickAvatar(file);
         }}
       />
     </div>

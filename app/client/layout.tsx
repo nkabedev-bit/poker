@@ -48,6 +48,10 @@ export type ClientTelegramWebApp = {
     setItem: (key: string, value: string, callback?: (error: unknown, stored?: boolean) => void) => void;
   };
   isVersionAtLeast?: (version: string) => boolean;
+  /** Bot API 7.7+: whether a swipe down the page folds the app away. */
+  isVerticalSwipesEnabled?: boolean;
+  disableVerticalSwipes?: () => void;
+  enableVerticalSwipes?: () => void;
 };
 
 export function getClientTelegramWebApp(): ClientTelegramWebApp | undefined {
