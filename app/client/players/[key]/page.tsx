@@ -32,6 +32,7 @@ import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals"
 import { formatEventShortDateLabel } from "@/lib/events/types";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
+import { getPlayerHonor } from "@/lib/players/player-honor";
 import type { RatingPlayer } from "../../_components/rating-row";
 
 type PlayerGame = { knockouts: number; place: number | null; startedAt: string };
@@ -121,6 +122,7 @@ export default function ClientPlayerPage() {
   const place = rating.find(
     (row) => buildNicknameKey(row.name) === buildNicknameKey(player.name),
   )?.place;
+  const honor = getPlayerHonor(player.name);
 
   return (
     // On a computer the player's face stands in a card on the left, their figures and
@@ -144,7 +146,7 @@ export default function ClientPlayerPage() {
             {player.formerName ? (
               <p className="max-w-full truncate text-[13px] text-club-faint">ранее: {player.formerName}</p>
             ) : null}
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
               <span className="text-[14px] text-club-muted">{player.isMe ? "Это вы" : "Игрок клуба"}</span>
               {player.tier ? (
                 <Pill tone="goldOutline">
@@ -152,6 +154,7 @@ export default function ClientPlayerPage() {
                   {TIER_TITLES[player.tier]}
                 </Pill>
               ) : null}
+              {honor ? <Pill tone="gold">{honor}</Pill> : null}
             </div>
           </div>
         </div>

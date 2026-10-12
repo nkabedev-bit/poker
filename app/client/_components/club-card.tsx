@@ -7,6 +7,7 @@ import { TIER_TITLES, type PlayerTier } from "@/lib/players/tier";
  */
 export function ClubCard({
   avatar,
+  honor,
   name,
   nameAction,
   subtitle,
@@ -14,6 +15,8 @@ export function ClubCard({
 }: {
   /** The face, passed in so the profile can make it the button that changes the photo. */
   avatar: ReactNode;
+  /** A plate earned outside the club's own games, worn under the tier. */
+  honor?: string | null;
   name: string;
   /** Stands right after the name: the profile's button that changes the nickname. */
   nameAction?: ReactNode;
@@ -38,6 +41,13 @@ export function ClubCard({
       {tier ? (
         <span className="absolute right-[18px] top-[18px] rounded-lg border border-club-gold/60 px-2 py-1 text-[11px] font-extrabold tracking-[0.1em] text-club-gold">
           {TIER_TITLES[tier]}
+        </span>
+      ) : null}
+
+      {/* Under the tier and below the club's name, so a long one has the width it needs. */}
+      {honor ? (
+        <span className="absolute right-[18px] top-[66px] whitespace-nowrap rounded-lg bg-club-gold/15 px-2 py-1 text-[11px] font-bold text-club-gold">
+          {honor}
         </span>
       ) : null}
 

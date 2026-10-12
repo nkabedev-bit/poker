@@ -45,6 +45,7 @@ import { useAwardNews } from "../_components/use-award-news";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { type PlayerTier } from "@/lib/players/tier";
+import { getPlayerHonor } from "@/lib/players/player-honor";
 import { withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
 import { countEarnedMedals, getMedals, MEDALS_TOTAL } from "@/lib/client/medals";
 import { listHeldAwards, type AwardShelf } from "@/lib/client/award-news";
@@ -360,6 +361,7 @@ export default function ClientProfilePage() {
                   />
                 </button>
               }
+              honor={getPlayerHonor(me?.displayName)}
               name={name}
               nameAction={
                 // Only a nickname the club knows can be changed: without the questionnaire

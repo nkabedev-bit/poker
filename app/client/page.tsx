@@ -33,6 +33,7 @@ import { pickPlayerPhoto } from "@/lib/players/photo";
 import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
 import { isEventEveningOpen } from "@/lib/events/types";
 import { TIER_TITLES } from "@/lib/players/tier";
+import { getPlayerHonor } from "@/lib/players/player-honor";
 
 type EventsResponse = {
   events: EventCardData[];
@@ -115,6 +116,7 @@ export default function ClientHomePage() {
 
   const myTier = me?.tier ?? null;
   const myPlace = me?.place ?? null;
+  const myHonor = getPlayerHonor(data?.player.displayName);
 
   // Inside Telegram the post opens in Telegram itself. On the web the link opens a new
   // tab on its own: the Telegram script is loaded there too, and its openTelegramLink
@@ -143,9 +145,10 @@ export default function ClientHomePage() {
               {playerName}
             </span>
           </h1>
-          {myTier || myPlace ? (
-            <div className="mt-1.5 flex gap-1.5 md:mt-0 md:shrink-0 md:gap-2.5 md:pb-1">
+          {myTier || myHonor || myPlace ? (
+            <div className="mt-1.5 flex flex-wrap gap-1.5 md:mt-0 md:shrink-0 md:gap-2.5 md:pb-1">
               {myTier ? <Pill tone="goldOutline">{TIER_TITLES[myTier]}</Pill> : null}
+              {myHonor ? <Pill tone="gold">{myHonor}</Pill> : null}
               {myPlace ? (
                 <Link href="/client/rating">
                   <Pill>

@@ -8,14 +8,14 @@ import { ClientTMAContext } from "@/app/client/layout";
 
 const SOCHI_TRIP_POST_URL = "https://t.me/majesticpokerptz/1197";
 
-function stubClubApi() {
+function stubClubApi({ nickname = "kabedev" }: { nickname?: string } = {}) {
   const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
 
     if (url === "/api/client-tma/events") {
       return Response.json({
         events: [],
-        player: { displayName: "kabedev", profileSubmitted: true, username: "kabedev" },
+        player: { displayName: nickname, profileSubmitted: true, username: "kabedev" },
       });
     }
     if (url === "/api/client-tma/rating") return Response.json({ players: [] });
@@ -117,5 +117,24 @@ describe("client home: the Sochi trip announcement", () => {
     fireEvent.click(await screen.findByRole("link", { name: /Majestic едет в Сочи/ }));
 
     expect(openTelegramLink).not.toHaveBeenCalled();
+  });
+});
+
+describe("client home: the APC Side Event plate", () => {
+  it("stands beside Secret's own tier", async () => {
+    stubClubApi({ nickname: "Secret" });
+
+    renderHome("");
+
+    expect(await screen.findByText("2-ое место в Side Event APC")).toBeTruthy();
+  });
+
+  it("is nobody else's", async () => {
+    stubClubApi();
+
+    renderHome("");
+
+    expect(await screen.findByText("kabedev")).toBeTruthy();
+    expect(screen.queryByText("2-ое место в Side Event APC")).toBeNull();
   });
 });
