@@ -125,6 +125,43 @@ describe("client mini-app API: свой профиль", () => {
     expect(await response.json()).toMatchObject({ favoriteHand: "QsTs" });
   });
 
+  // The settings show the plate picked for the hall, and Secret alone sees second place.
+  it("sends the plate the player picked and the plates given to them by name", async () => {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase: {
+        from: () => ({
+          select: (columns: string) => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: columns === "plate_form, plate_color" ? { plate_color: null, plate_form: "apc_second" } : null,
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      },
+      user: { display_name: "Secret", id: "866d67e0-aa90-4170-a1f2-3bb16e344ec9", telegram_id: 6209948318 },
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({
+      honorPlates: ["apc", "apc_second"],
+      plate: { color: null, form: "apc_second" },
+    });
+  });
+
+  it("gives an ordinary player no plates by name", async () => {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase,
+      user: { display_name: "Kabedev", id: "me", telegram_id: 7 },
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ honorPlates: [], plate: null });
+  });
+
   it("says the nickname may be changed when the player never changed it", async () => {
     const response = await GET(new Request("http://localhost/api/client-tma/me"));
 

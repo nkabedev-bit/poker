@@ -7,6 +7,8 @@ import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-counts";
 import { readFavoriteHand } from "@/lib/players/favorite-hand";
+import { readPlayerPlate } from "@/lib/players/plate-store";
+import { listHonorPlates } from "@/lib/players/plate-honors";
 import { nextNicknameChangeAt, readLastNicknameChange } from "@/lib/players/nickname-change";
 import { isSameTelegramAccount } from "@/lib/players/same-account";
 import { resolvePlayerTier } from "@/lib/players/tier";
@@ -68,10 +70,11 @@ export async function GET(request: Request) {
       : isSameTelegramAccount(auth.user.telegram_id, item.telegramId),
   );
 
-  const [achievementStats, favoriteHand, lastNicknameChange] = await Promise.all([
+  const [achievementStats, favoriteHand, lastNicknameChange, plate] = await Promise.all([
     readAchievementStats(auth.supabase, auth.user.id),
     readFavoriteHand(auth.supabase, auth.user.id),
     readLastNicknameChange(auth.supabase, auth.user.id),
+    readPlayerPlate(auth.supabase, auth.user.id),
   ]);
 
   const now = new Date();
@@ -137,6 +140,10 @@ export async function GET(request: Request) {
     displayName: auth.user.display_name,
     // The two cards drawn on the player's avatar ("QsTs"); null until they pick them.
     favoriteHand,
+    // The plate picked for the hall's screen; null for the plate of the player's tier.
+    plate,
+    // Plates the club gave this player by name, which nobody else is shown.
+    honorPlates: listHonorPlates(auth.user.id),
     // When the nickname may be changed again; null when it may be changed now.
     nicknameChangeAvailableAt: nextNicknameChangeAt(lastNicknameChange, now),
     history: {
