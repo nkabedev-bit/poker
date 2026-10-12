@@ -40,4 +40,21 @@ describe("EventCard", () => {
 
     expect(screen.queryByText(/ из \d/)).toBeNull();
   });
+
+  // The Sochi team is picked by the rating up to 10 November; the poster says so beside
+  // its own plate.
+  it.each([
+    ["the featured poster", true],
+    ["a row further down", false],
+  ])("marks %s of a game up to 10 November as a Sochi qualifier", (_card, featured) => {
+    render(<EventCard event={event({ startsAt: "2026-11-10T19:00:00+03:00" })} featured={featured} />);
+
+    expect(screen.getByText("Отбор в Сочи")).toBeTruthy();
+  });
+
+  it("leaves the Sochi plate off a game after 10 November", () => {
+    render(<EventCard event={event({ startsAt: "2026-11-11T19:00:00+03:00" })} featured />);
+
+    expect(screen.queryByText("Отбор в Сочи")).toBeNull();
+  });
 });

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { CalendarDays, ChevronRight, Clock, Crown, Users } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock, Crown, Plane, Users } from "lucide-react";
 import { Eyebrow, Pill, PrimaryLink, ProgressBar } from "./ui";
 import { PosterImage } from "./poster-image";
 import { countAnnouncedSeats, formatSeatsTaken } from "@/lib/events/seats";
+import { isSochiQualifier, SOCHI_QUALIFIER_LABEL } from "@/lib/events/sochi-qualifier";
 import {
   formatEventDateParts,
   formatEventShortDateLabel,
@@ -46,6 +47,15 @@ function EventStatus({ event }: { event: EventCardData }) {
   if (event.waitlisted) return <Pill tone="muted">В листе ожидания</Pill>;
 
   return null;
+}
+
+/** "Отбор в Сочи", on every poster whose game counts towards the Sochi team. */
+function SochiQualifierPill() {
+  return (
+    <Pill tone="goldOutline">
+      <Plane size={14} /> {SOCHI_QUALIFIER_LABEL}
+    </Pill>
+  );
 }
 
 /** A dark red plate with a spade in it, standing in for a poster the club has not drawn. */
@@ -97,6 +107,7 @@ function FeaturedEventCard({ event }: { event: EventCardData }) {
               <Crown size={14} /> {event.badge}
             </Pill>
           ) : null}
+          {isSochiQualifier(event.startsAt) ? <SochiQualifierPill /> : null}
           <EventStatus event={event} />
         </div>
 
@@ -151,7 +162,8 @@ function EventRow({ event }: { event: EventCardData }) {
   const seats = countAnnouncedSeats(event);
   const date = formatEventDateParts(event.startsAt);
   const href = `/client/events/${event.id}`;
-  const status = event.awaiting || event.signedUp || event.waitlisted || event.badge;
+  const sochiQualifier = isSochiQualifier(event.startsAt);
+  const status = event.awaiting || event.signedUp || event.waitlisted || event.badge || sochiQualifier;
 
   // A row on a phone; on a wider screen a card in a grid, its date tile on top and the
   // poster's plate read as a line over the name.
@@ -191,6 +203,7 @@ function EventRow({ event }: { event: EventCardData }) {
               {event.badge}
             </Pill>
           ) : null}
+          {sochiQualifier ? <SochiQualifierPill /> : null}
         </div>
       </div>
 

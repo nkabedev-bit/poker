@@ -12,6 +12,7 @@ import {
   Crown,
   Info,
   MapPin,
+  Plane,
   ScrollText,
   Search,
   Sparkles,
@@ -53,6 +54,7 @@ import {
   countAnnouncedSeats,
   formatSeatsCount,
 } from "@/lib/events/seats";
+import { isSochiQualifier, SOCHI_QUALIFIER_LABEL } from "@/lib/events/sochi-qualifier";
 import {
   formatEventDayLabel,
   formatEventShortDateLabel,
@@ -613,6 +615,11 @@ export default function ClientEventPage() {
       ? "landing"
       : "resting"
     : undefined;
+  const sochiQualifier = isSochiQualifier(event.startsAt);
+  // Over the poster on a phone the plates are read as one caption.
+  const posterCaption = [event.badge, sochiQualifier ? SOCHI_QUALIFIER_LABEL : null]
+    .filter(Boolean)
+    .join(" · ");
   const featureLines = event.featuresText
     .split("\n")
     .map((line) => line.trim())
@@ -662,10 +669,19 @@ export default function ClientEventPage() {
       <div className="hidden md:block">
         <PageHeading
           actions={
-            event.badge ? (
-              <Pill tone="gold">
-                <Crown size={14} /> {event.badge}
-              </Pill>
+            event.badge || sochiQualifier ? (
+              <>
+                {event.badge ? (
+                  <Pill tone="gold">
+                    <Crown size={14} /> {event.badge}
+                  </Pill>
+                ) : null}
+                {sochiQualifier ? (
+                  <Pill tone="goldOutline">
+                    <Plane size={14} /> {SOCHI_QUALIFIER_LABEL}
+                  </Pill>
+                ) : null}
+              </>
             ) : null
           }
           subtitle={[
@@ -695,7 +711,7 @@ export default function ClientEventPage() {
 
             {/* A wider screen names the evening in the heading above instead. */}
             <div className="absolute inset-x-[18px] bottom-[18px] flex flex-col gap-3 md:hidden">
-              {event.badge ? <Eyebrow className="!text-club-gold">{event.badge}</Eyebrow> : null}
+              {posterCaption ? <Eyebrow className="!text-club-gold">{posterCaption}</Eyebrow> : null}
               <h1 className="font-display text-[28px] font-bold uppercase leading-[1.05] tracking-[-0.01em]">
                 {event.title}
               </h1>
