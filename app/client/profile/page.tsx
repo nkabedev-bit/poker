@@ -1,28 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
-  Camera,
   ChevronRight,
-  Loader2,
   Medal,
-  Pencil,
+  Settings,
   Star,
   Ticket,
   Trophy,
 } from "lucide-react";
 import type { ReactNode } from "react";
-import {
-  getClientTelegramWebApp,
-  showClientAlert,
-  tickClientSelection,
-  useClientTMA,
-} from "../layout";
+import { getClientTelegramWebApp, tickClientSelection, useClientTMA } from "../layout";
 import {
   Eyebrow,
-  GhostButton,
   GlassCard,
   LoadingScreen,
   MenuGroup,
@@ -39,11 +31,10 @@ import { countWord } from "@/lib/raffle/raffle-scenes";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { CountUp } from "../_components/count-up";
 import { FavoriteHandCard, FavoriteHandPicker } from "../_components/favorite-hand-picker";
-import { NicknameEditor } from "../_components/nickname-editor";
+import { postFavoriteHand } from "../_components/profile-requests";
 import { AwardCelebration } from "../_components/award-celebration";
 import { useAwardNews } from "../_components/use-award-news";
 import { pickPlayerPhoto } from "@/lib/players/photo";
-import { shrinkPhoto } from "@/lib/media/shrink-photo";
 import { type PlayerTier } from "@/lib/players/tier";
 import { getPlayerHonor } from "@/lib/players/player-honor";
 import { withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
@@ -67,7 +58,6 @@ type HistoryItem = { event: TournamentEvent; status: string };
 const PROFILE_SHELVES: AwardShelf[] = ["achievements", "medals", "tier"];
 
 type Me = {
-  avatarIsCustom?: boolean;
   avatarUrl: string | null;
   displayName: string | null;
   /** The two cards the player picked ("QsTs"); null until they pick them. */
@@ -75,9 +65,6 @@ type Me = {
   tier?: PlayerTier | null;
   freeEntries: { regular: number; vip: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
-  /** When the nickname may be changed again; null when it may be changed now. */
-  nicknameChangeAvailableAt?: string | null;
-  profileSubmitted: boolean;
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
   medals: Record<string, number> | null;
   stats: Partial<PlayerStats>;
@@ -105,12 +92,9 @@ export default function ClientProfilePage() {
   // The history slides only once the player switches it: the screen's own cascade brings
   // it in the first time.
   const [historySwitched, setHistorySwitched] = useState(false);
-  const [avatarBusy, setAvatarBusy] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
-  const [nicknameEditorOpen, setNicknameEditorOpen] = useState(false);
   // Set once a hand is picked here, so the new pair is dealt onto the face.
   const [handDealt, setHandDealt] = useState(false);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -136,67 +120,16 @@ export default function ClientProfilePage() {
     return () => window.clearTimeout(timeout);
   }, [load]);
 
-  const uploadAvatar = async (file: File) => {
-    const tg = getClientTelegramWebApp();
-    setAvatarBusy(true);
-
-    try {
-      // Sent small: a camera photo runs to several megabytes, and a request over 4.5 MB
-      // is turned away before it reaches the club. One the browser cannot open goes as
-      // it is, and the server says what is wrong with it.
-      const dataUrl =
-        (await shrinkPhoto(file)) ??
-        (await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onerror = () => reject(new Error("read failed"));
-          reader.onload = () => resolve(String(reader.result ?? ""));
-          reader.readAsDataURL(file);
-        }));
-
-      const res = await fetch("/api/client-tma/avatar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ dataUrl }),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        // A 413 comes from Vercel rather than from us, so it carries no message of ours.
-        showClientAlert(
-          data?.error ??
-            (res.status === 413
-              ? "Фото слишком большое — выберите другое"
-              : "Не удалось сохранить фото"),
-        );
-        return;
-      }
-
-      tg?.HapticFeedback?.notificationOccurred("success");
-      await load();
-    } catch {
-      showClientAlert("Не удалось прочитать файл");
-    } finally {
-      setAvatarBusy(false);
-    }
-  };
-
   /**
    * Stores the player's favourite hand, or takes it off with null. The profile and its
    * rating rows show the new hand at once, without reading everything again.
    */
   const saveFavoriteHand = async (hand: string | null): Promise<string | null> => {
-    try {
-      const res = await fetch("/api/client-tma/favorite-hand", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ hand }),
-      });
-      const data = await res.json().catch(() => null);
+    const result = await postFavoriteHand(initData, hand);
+    if ("error" in result) return result.error;
 
-      if (!res.ok) return data?.message ?? "Не удалось сохранить руку. Попробуйте ещё раз.";
-
-      const saved = (data?.hand as string | null | undefined) ?? null;
-      getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
+    const saved = result.hand;
+    getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
       setMe((current) => (current ? { ...current, favoriteHand: saved } : current));
       setRating((current) =>
         current
@@ -209,51 +142,9 @@ export default function ClientProfilePage() {
             }
           : current,
       );
-      setHandPickerOpen(false);
-      setHandDealt(true);
-      return null;
-    } catch {
-      return "Нет связи с сервером. Попробуйте ещё раз.";
-    }
-  };
-
-  /**
-   * Changes the player's nickname. The card and the player's rating rows take the new one
-   * at once, without reading everything again.
-   */
-  const saveNickname = async (nickname: string): Promise<string | null> => {
-    try {
-      const res = await fetch("/api/client-tma/nickname", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ nickname }),
-      });
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) return data?.message ?? "Не удалось сменить ник. Попробуйте ещё раз.";
-
-      const saved = String(data?.nickname ?? nickname);
-      const availableAt = (data?.availableAt as string | null | undefined) ?? null;
-      getClientTelegramWebApp()?.HapticFeedback?.notificationOccurred("success");
-      setMe((current) =>
-        current ? { ...current, displayName: saved, nicknameChangeAvailableAt: availableAt } : current,
-      );
-      setRating((current) =>
-        current
-          ? {
-              ...current,
-              me: current.me?.isMe ? { ...current.me, name: saved } : current.me,
-              players: current.players.map((player) =>
-                player.isMe ? { ...player, name: saved } : player,
-              ),
-            }
-          : current,
-      );
-      setNicknameEditorOpen(false);
-      return null;
-    } catch {
-      return "Нет связи с сервером. Попробуйте ещё раз.";
-    }
+    setHandPickerOpen(false);
+    setHandDealt(true);
+    return null;
   };
 
   const chooseHistoryTab = (next: "active" | "past") => {
@@ -262,19 +153,6 @@ export default function ClientProfilePage() {
     tickClientSelection();
     setHistoryTab(next);
     setHistorySwitched(true);
-  };
-
-  const resetAvatar = async () => {
-    setAvatarBusy(true);
-    try {
-      await fetch("/api/client-tma/avatar", {
-        method: "DELETE",
-        headers: { "X-Telegram-Init-Data": initData },
-      });
-      await load();
-    } finally {
-      setAvatarBusy(false);
-    }
   };
 
   // A player who has not played since the counters were added reads zero for the newer
@@ -317,18 +195,18 @@ export default function ClientProfilePage() {
     // the figures, the collections and the history on the right. On a phone the columns
     // melt into one list (`contents`) and `order` keeps the phone's sequence.
     <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:gap-8">
-      <PageTitle>Профиль</PageTitle>
+      <div className="flex items-center justify-between gap-3">
+        <PageTitle>Профиль</PageTitle>
+        <Link
+          aria-label="Настройки"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-club-line bg-club-surface text-club-text/80 active:scale-95"
+          href="/client/profile/settings"
+        >
+          <Settings size={18} />
+        </Link>
+      </div>
 
       {news ? <AwardCelebration award={news} left={newsLeft} onDone={dismissNews} /> : null}
-
-      {nicknameEditorOpen ? (
-        <NicknameEditor
-          availableAt={me?.nicknameChangeAvailableAt ?? null}
-          current={me?.displayName ?? ""}
-          onClose={() => setNicknameEditorOpen(false)}
-          onSave={saveNickname}
-        />
-      ) : null}
 
       {handPickerOpen ? (
         <FavoriteHandPicker
@@ -343,70 +221,20 @@ export default function ClientProfilePage() {
           <div className="order-1 flex flex-col gap-3">
             <ClubCard
               avatar={
-                // The player's own photo wins over the one Telegram hands us.
-                <button
-                  aria-label="Изменить фото"
-                  className="relative shrink-0 rounded-full active:scale-[0.98]"
-                  disabled={avatarBusy}
-                  type="button"
-                  onClick={() => photoInputRef.current?.click()}
-                >
-                  <PlayerAvatar
-                    dealHand={handDealt}
-                    hand={me?.favoriteHand}
-                    name={name}
-                    photoUrl={photoUrl}
-                    ring="gold"
-                    size={64}
-                  />
-                </button>
+                <PlayerAvatar
+                  dealHand={handDealt}
+                  hand={me?.favoriteHand}
+                  name={name}
+                  photoUrl={photoUrl}
+                  ring="gold"
+                  size={64}
+                />
               }
               honor={getPlayerHonor(me?.displayName)}
               name={name}
-              nameAction={
-                // Only a nickname the club knows can be changed: without the questionnaire
-                // the card shows the Telegram name.
-                me?.profileSubmitted ? (
-                  <button
-                    aria-label="Сменить ник"
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10 text-club-text/80 active:scale-95"
-                    type="button"
-                    onClick={() => setNicknameEditorOpen(true)}
-                  >
-                    <Pencil size={14} />
-                  </button>
-                ) : null
-              }
               subtitle={`${me?.username ? `@${me.username} · ` : ""}игрок клуба`}
               tier={tier}
             />
-
-            <input
-              accept="image/*"
-              className="hidden"
-              ref={photoInputRef}
-              type="file"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                event.target.value = "";
-                if (file) void uploadAvatar(file);
-              }}
-            />
-
-            <GhostButton disabled={avatarBusy} onClick={() => photoInputRef.current?.click()}>
-              {avatarBusy ? <Loader2 className="animate-spin" size={16} /> : <Camera size={16} />}
-              Сменить фото
-            </GhostButton>
-            {me?.avatarIsCustom ? (
-              <button
-                className="h-8 self-start text-[12px] text-club-faint underline underline-offset-2"
-                disabled={avatarBusy}
-                type="button"
-                onClick={() => void resetAvatar()}
-              >
-                Вернуть фото из Telegram
-              </button>
-            ) : null}
           </div>
 
           <div className="order-3">

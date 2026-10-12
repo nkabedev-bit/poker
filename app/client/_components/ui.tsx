@@ -191,22 +191,25 @@ export function IconTile({ children, className = "" }: { children: ReactNode; cl
 /** A row of a grouped menu: icon, title, a line under it, a value and a chevron. */
 export function MenuRow({
   children,
+  disabled = false,
   href,
   icon,
+  onClick,
   subtitle,
   title,
   value,
 }: {
   /** Anything that goes under the subtitle, such as a progress bar. */
   children?: ReactNode;
-  href: string;
+  disabled?: boolean;
   icon: ReactNode;
   subtitle?: ReactNode;
   title: ReactNode;
   value?: ReactNode;
-}) {
-  return (
-    <Link className="flex min-h-[68px] items-center gap-3.5 px-3.5 py-3 transition active:bg-white/[0.03]" href={href}>
+} & ({ href: string; onClick?: never } | { href?: never; onClick: () => void })) {
+  const className = "flex min-h-[68px] w-full items-center gap-3.5 px-3.5 py-3 text-left transition active:bg-white/[0.03] disabled:opacity-60";
+  const body = (
+    <>
       <IconTile>{icon}</IconTile>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="text-[15px] font-bold">{title}</p>
@@ -217,7 +220,18 @@ export function MenuRow({
         <span className="whitespace-nowrap font-display text-[14px] font-semibold text-club-muted">{value}</span>
       ) : null}
       <ChevronRight className="shrink-0 text-club-faint" size={18} />
+    </>
+  );
+
+  // A row that opens a sheet on the same screen is a button rather than a link.
+  return href ? (
+    <Link className={className} href={href}>
+      {body}
     </Link>
+  ) : (
+    <button className={className} disabled={disabled} type="button" onClick={onClick}>
+      {body}
+    </button>
   );
 }
 
