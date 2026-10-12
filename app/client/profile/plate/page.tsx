@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Loader2, Lock } from "lucide-react";
 import { getClientTelegramWebApp, tickClientSelection, useClientTMA } from "../../layout";
-import { BackLink } from "../../_components/back-link";
 import { Eyebrow, LoadingScreen, PageHeading } from "../../_components/ui";
 import { getPlatePadding, PlateArt, usePlateDrawing } from "@/components/player-plate";
 import {
@@ -149,10 +148,7 @@ export default function ClientPlatePage() {
 
   return (
     <div className="client-stagger flex flex-col gap-6 pt-1 md:pt-0 desk:max-w-[640px]">
-      <div className="flex flex-col gap-3">
-        <BackLink fallbackHref="/client/profile/settings" />
-        <PageHeading subtitle="Так вас видно в списке игроков на экране в зале" title="Моя плашка" />
-      </div>
+      <PageHeading subtitle="Так вас видно в списке игроков на экране в зале" title="Моя плашка" />
 
       <div className="sticky top-0 z-10 -mx-4 bg-club-ink/95 px-4 pb-3 pt-2 backdrop-blur-xl md:mx-0 md:px-0">
         <div className="flex flex-col gap-3 rounded-[20px] border border-club-line bg-[#070000] p-4">

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Camera, Loader2, Pencil, RectangleHorizontal, RotateCcw, Spade } from "lucide-react";
 import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
-import { BackLink } from "../../_components/back-link";
 import { LoadingScreen, MenuGroup, MenuRow, PageHeading } from "../../_components/ui";
 import { FavoriteHandPicker } from "../../_components/favorite-hand-picker";
 import { NicknameEditor } from "../../_components/nickname-editor";
@@ -170,10 +169,7 @@ export default function ClientSettingsPage() {
         />
       ) : null}
 
-      <div className="flex flex-col gap-3">
-        <BackLink fallbackHref="/client/profile" />
-        <PageHeading subtitle="Ник, плашка в зале, любимая рука и фото" title="Настройки" />
-      </div>
+      <PageHeading subtitle="Ник, плашка в зале, любимая рука и фото" title="Настройки" />
 
       <MenuGroup>
         <MenuRow
