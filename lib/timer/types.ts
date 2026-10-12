@@ -1,5 +1,6 @@
 import type { EventTemplate } from "@/lib/events/templates";
 import type { KnockoutBanner } from "@/lib/knockouts/banner";
+import type { PlateChoice } from "@/lib/players/plates";
 import type { Raffle } from "@/lib/raffle/raffle";
 
 export type TimerStatus =
@@ -120,6 +121,8 @@ export type TournamentPlayer = {
   duoTicket?: boolean;
   /** Games this player has behind them, filled in for the screen rather than stored. */
   gamesPlayed?: number;
+  /** The plate the player picked in the mini-app, filled in for the screen rather than stored. */
+  plate?: PlateChoice | null;
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
   freePass?: "regular" | "vip" | null;
   /**

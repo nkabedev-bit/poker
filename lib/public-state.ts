@@ -7,6 +7,10 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { mergeTournamentExtras } from "@/lib/tournament-extras";
 import { countGamesByNickname } from "@/lib/players/games-played";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
+import { listHonorPlates } from "@/lib/players/plate-honors";
+import { loadPlayerPlates } from "@/lib/players/plate-store";
+import { resolveShownPlate } from "@/lib/players/plates";
+import { resolvePlayerTier } from "@/lib/players/tier";
 import type {
   BlindLevel,
   PublicTournamentState,
@@ -203,6 +207,22 @@ export async function loadPublicState(
       // A badge is not worth a blank screen in the middle of a tournament.
       console.error("Failed to count games for the board", error);
     }
+
+    // The plate each player picked in the mini-app, kept only while their tier still
+    // opens it — the board draws the tier's own plate otherwise. The lookup never
+    // throws: without plates the board is what it was.
+    const plates = await loadPlayerPlates(supabase);
+    players = players.map((player) => {
+      const found = plates.find(player);
+      const plate = found
+        ? resolveShownPlate(found.choice, {
+            honors: listHonorPlates(found.accountId),
+            tier: resolvePlayerTier({ games: player.gamesPlayed, label: player.label }),
+          })
+        : null;
+
+      return plate ? { ...player, plate } : player;
+    });
   }
 
   return {

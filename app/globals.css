@@ -2051,7 +2051,7 @@ p {
   overflow: hidden;
 }
 
-.public-player-mini-list div {
+.public-player-mini-list > div {
   display: grid;
   /* Markers/badges take what they need but yield so the name keeps a floor and
      shrinks (via the name auto-fit) instead of overlapping on narrow panels. */
@@ -2067,11 +2067,11 @@ p {
   padding: 0 3px 0 8px;
 }
 
-.public-player-mini-list div.public-player-mini-list-item--name-only {
+.public-player-mini-list > div.public-player-mini-list-item--name-only {
   grid-template-columns: minmax(0, 1fr);
 }
 
-.public-player-mini-list div.public-player-mini-list-item--eliminated {
+.public-player-mini-list > div.public-player-mini-list-item--eliminated {
   border-color: rgb(156 163 175 / 0.18);
   background: rgb(107 114 128 / 0.16);
 }
@@ -2136,8 +2136,8 @@ p {
   flex: 0 0 auto;
 }
 
-.public-player-mini-list div.public-player-mini-list-item--eliminated span,
-.public-player-mini-list div.public-player-mini-list-item--eliminated .public-player-name {
+.public-player-mini-list > div.public-player-mini-list-item--eliminated span,
+.public-player-mini-list > div.public-player-mini-list-item--eliminated .public-player-name {
   color: #9ca3af;
 }
 
@@ -2165,7 +2165,7 @@ p {
   gap: 2px;
 }
 
-.public-player-mini-list--cozy div {
+.public-player-mini-list--cozy > div {
   height: clamp(20px, 2.6vh, 28px);
   padding: 0 4px 0 10px;
 }
@@ -2182,7 +2182,7 @@ p {
   gap: 3px;
 }
 
-.public-player-mini-list--roomy div {
+.public-player-mini-list--roomy > div {
   height: clamp(28px, 3.8vh, 42px);
   padding: 0 5px 0 13px;
 }
@@ -2199,7 +2199,7 @@ p {
   gap: 4px;
 }
 
-.public-player-mini-list--hero div {
+.public-player-mini-list--hero > div {
   height: clamp(36px, 5.2vh, 60px);
   padding: 0 6px 0 18px;
 }
@@ -2759,7 +2759,7 @@ p {
     grid-template-rows: minmax(0, 1fr) minmax(260px, 40vh);
   }
 
-  .public-player-mini-list div {
+  .public-player-mini-list > div {
     height: clamp(12px, 1.8vh, 18px);
   }
 
@@ -2771,7 +2771,7 @@ p {
     font-size: clamp(8px, 1.25vh, 10px);
   }
 
-  .public-player-mini-list--cozy div {
+  .public-player-mini-list--cozy > div {
     grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(18px, 3.2vh, 28px);
     padding: 0 5px;
@@ -2785,7 +2785,7 @@ p {
     font-size: clamp(10px, 2vh, 14px);
   }
 
-  .public-player-mini-list--roomy div {
+  .public-player-mini-list--roomy > div {
     grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(28px, 5vh, 42px);
     padding: 0 7px;
@@ -2799,7 +2799,7 @@ p {
     font-size: clamp(14px, 3vh, 20px);
   }
 
-  .public-player-mini-list--hero div {
+  .public-player-mini-list--hero > div {
     grid-template-columns: minmax(0, auto) minmax(56px, 1fr);
     height: clamp(38px, 7vh, 58px);
     padding: 0 8px;
@@ -3015,21 +3015,21 @@ p {
     margin-top: 3px;
   }
 
-  .public-player-mini-list div {
+  .public-player-mini-list > div {
     height: clamp(11px, 2.2vh, 17px);
   }
 
-  .public-player-mini-list--cozy div {
+  .public-player-mini-list--cozy > div {
     grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(17px, 3.2vh, 24px);
   }
 
-  .public-player-mini-list--roomy div {
+  .public-player-mini-list--roomy > div {
     grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
     height: clamp(24px, 4.7vh, 34px);
   }
 
-  .public-player-mini-list--hero div {
+  .public-player-mini-list--hero > div {
     grid-template-columns: minmax(0, auto) minmax(56px, 1fr);
     height: clamp(32px, 6.2vh, 48px);
   }
@@ -4079,6 +4079,56 @@ p {
 
 .tier-plate--champion {
   background: url("/tiers/champion.webp") center center / 100% 100% no-repeat !important;
+}
+
+/* A plate the player picked in the mini-app, drawn in layers by components/player-plate.tsx.
+   The row keeps the layers in its own stacking context, so they lie under its badges and
+   name but over whatever the row stands on. */
+.player-plate-row {
+  position: relative;
+  isolation: isolate;
+  /* The art is laid inside the row's border, so the row has none of its own. */
+  border-width: 0 !important;
+  background: transparent !important;
+}
+
+.player-plate-art {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.player-plate-monogram {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #6d8095;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+/* A champion's sheen crosses the plate in a little over a second, then rests. */
+.player-plate-sheen {
+  animation: player-plate-sheen 7s ease-in-out infinite;
+}
+
+@keyframes player-plate-sheen {
+  0% {
+    background-position: 100% 0;
+  }
+  18%,
+  100% {
+    background-position: 0% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-plate-sheen {
+    animation: none;
+  }
 }
 
 /* The shared `input` rule above sets padding on every field and sits outside Tailwind's

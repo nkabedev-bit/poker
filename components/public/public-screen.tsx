@@ -30,6 +30,7 @@ import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
 import { TableMergeOverlay } from "@/components/public/table-merge-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
+import { getPlatePadding, PlateArt, usePlateDrawing } from "@/components/player-plate";
 import {
   fullRefreshInterval,
   statePulseInterval,
@@ -196,18 +197,91 @@ function getPublicPlayersDensity(count: number) {
 function getPublicPlayerItemClassName({
   hasBadges,
   isEliminated,
+  plated = false,
   tier,
 }: {
   hasBadges: boolean;
   isEliminated: boolean;
+  /** The player picked a plate of their own, drawn in layers instead of the tier's art. */
+  plated?: boolean;
   tier?: PlayerTier | null;
 }) {
   const classes = [];
   if (!hasBadges) classes.push("public-player-mini-list-item--name-only");
   if (isEliminated) classes.push("public-player-mini-list-item--eliminated");
-  // Everyone stands on a plate; the tier decides which one.
-  if (!isEliminated) classes.push(getPlateClass(tier));
+  // Everyone stands on a plate: the one they picked, or the one of their tier.
+  if (!isEliminated) classes.push(plated ? "player-plate-row" : getPlateClass(tier));
   return classes.length > 0 ? classes.join(" ") : undefined;
+}
+
+/**
+ * One player in the column. A player still at the table stands on the plate they picked
+ * in the mini-app, or on their tier's; a player who is out keeps the grey one.
+ */
+function PublicPlayerRow({
+  bountyType,
+  isBounty,
+  player,
+  sheenDelay,
+}: {
+  bountyType: Parameters<typeof getPublicPlayerBadges>[2];
+  isBounty: boolean;
+  player: TournamentPlayer;
+  sheenDelay: number;
+}) {
+  const isActive = player.status === "active";
+  const plate = isActive ? (player.plate ?? null) : null;
+  const { drawing, ref } = usePlateDrawing<HTMLDivElement>(plate);
+  const badges = getPublicPlayerBadges(player, isBounty, bountyType);
+  const headPrice = isBounty ? getPublicPlayerHeadPrice(player, bountyType) : null;
+  const labelKind = getPublicPlayerLabelKind(player.label);
+  const labelText = (player.label ?? "").trim();
+  // What the player has earned by turning up, unless the club said otherwise.
+  const tier = resolvePlayerTier({
+    games: player.gamesPlayed,
+    label: player.label,
+  });
+  const hasLeading = labelKind !== null || headPrice !== null || badges.length > 0;
+
+  return (
+    <div
+      className={getPublicPlayerItemClassName({
+        hasBadges: hasLeading,
+        isEliminated: player.status === "eliminated",
+        plated: Boolean(plate),
+        // A player who is out keeps the grey plate: the tier is worn by whoever is
+        // still at the table.
+        tier: isActive ? tier : null,
+      })}
+      ref={ref}
+      style={getPlatePadding(drawing)}
+    >
+      {drawing ? <PlateArt drawing={drawing} sheenDelay={sheenDelay} /> : null}
+      {hasLeading ? (
+        <span className="public-player-badges">
+          {labelKind === "dealer" ? (
+            <span className="public-player-dealer-button">D</span>
+          ) : null}
+
+          {labelKind === "text" ? (
+            <span
+              className="public-player-label"
+              style={{ background: getPublicPlayerLabelColor(labelText) }}
+            >
+              {labelText}
+            </span>
+          ) : null}
+          {headPrice !== null ? (
+            <span className="public-player-head-price" title="Столько PTS даст выбивание сейчас">
+              🎯 {formatBountyCount(headPrice)}
+            </span>
+          ) : null}
+          {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
+        </span>
+      ) : null}
+      <PublicPlayerName name={player.name} />
+    </div>
+  );
 }
 
 export function getRotatingPublicTableNumbers(
@@ -1004,55 +1078,15 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           </div>
           <div className="public-final-table">{publicPlayersTitle}</div>
           <div className={`public-player-mini-list public-player-mini-list--${playersDensity}`}>
-            {visiblePublicPlayers.map((player) => {
-              const badges = getPublicPlayerBadges(player, isBounty, bountyType);
-              const headPrice = isBounty ? getPublicPlayerHeadPrice(player, bountyType) : null;
-              const labelKind = getPublicPlayerLabelKind(player.label);
-              const labelText = (player.label ?? "").trim();
-              // What the player has earned by turning up, unless the club said otherwise.
-              const tier = resolvePlayerTier({
-                games: player.gamesPlayed,
-                label: player.label,
-              });
-              const hasLeading = labelKind !== null || headPrice !== null || badges.length > 0;
-
-              return (
-                <div
-                  className={getPublicPlayerItemClassName({
-                    hasBadges: hasLeading,
-                    // A player who is out keeps the grey plate: the tier is worn by
-                    // whoever is still at the table.
-                    tier: player.status === "active" ? tier : null,
-                    isEliminated: player.status === "eliminated",
-                  })}
-                  key={player.id}
-                >
-                  {hasLeading ? (
-                    <span className="public-player-badges">
-                      {labelKind === "dealer" ? (
-                        <span className="public-player-dealer-button">D</span>
-                      ) : null}
-
-                      {labelKind === "text" ? (
-                        <span
-                          className="public-player-label"
-                          style={{ background: getPublicPlayerLabelColor(labelText) }}
-                        >
-                          {labelText}
-                        </span>
-                      ) : null}
-                      {headPrice !== null ? (
-                        <span className="public-player-head-price" title="Столько PTS даст выбивание сейчас">
-                          🎯 {formatBountyCount(headPrice)}
-                        </span>
-                      ) : null}
-                      {badges.length > 0 ? <span>{badges.join(" | ")} |</span> : null}
-                    </span>
-                  ) : null}
-                  <PublicPlayerName name={player.name} />
-                </div>
-              );
-            })}
+            {visiblePublicPlayers.map((player, index) => (
+              <PublicPlayerRow
+                bountyType={bountyType}
+                isBounty={isBounty}
+                key={player.id}
+                player={player}
+                sheenDelay={index % 7}
+              />
+            ))}
           </div>
           {showReentryInfo ? (
             <div className="public-reentry-info">
