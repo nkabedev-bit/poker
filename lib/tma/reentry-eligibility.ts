@@ -19,6 +19,12 @@ export function isDoubleReentryBannedByFormat(format: TournamentExtras["settings
   return format === "phoenix" || format === "deepstack";
 }
 
+// Wanted and Progressive Bounty take no per-player limit: a player may rebuy as long as
+// the re-entry window is open.
+export function hasUnlimitedReentries(bountyType: TournamentExtras["settings"]["bountyType"]) {
+  return bountyType === "wanted" || bountyType === "progressive";
+}
+
 export function resolveReentryEligibility({
   blindLevels,
   now,
@@ -37,9 +43,9 @@ export function resolveReentryEligibility({
   timerState: TimerState;
 }): ReentryEligibility {
   const isWantedBounty = settings.bountyType === "wanted";
-  // Progressive Bounty runs the same unlimited re-entry rule as Wanted: a player may
-  // rebuy as long as the window is open, and each new bullet starts a fresh head.
-  const isUnlimitedReentry = isWantedBounty || settings.bountyType === "progressive";
+  // Progressive Bounty runs the same unlimited re-entry rule as Wanted, and each new
+  // bullet starts a fresh head.
+  const isUnlimitedReentry = hasUnlimitedReentries(settings.bountyType);
   const playerReentries = Math.max(0, Number(player.rebuys ?? 0));
   const maxReentries = Math.max(1, Number(settings.maxReentries ?? 1));
 

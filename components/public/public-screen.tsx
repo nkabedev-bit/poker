@@ -25,9 +25,11 @@ import {
 import { getProgressiveHeadPoints, isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
+import { buildModeRules, shouldShowModeRules } from "@/lib/timer/mode-rules";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
+import { ModeRulesScreen } from "@/components/public/mode-rules-screen";
 import { TableMergeOverlay } from "@/components/public/table-merge-overlay";
 import { TimerDisplay } from "@/components/public/timer-display";
 import { getPlatePadding, PlateArt, usePlateDrawing } from "@/components/player-plate";
@@ -836,6 +838,15 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   const publicPlayersTitle = isFinalTableMode
     ? "🏆 ФИНАЛЬНЫЙ СТОЛ"
     : `НОМЕР СТОЛА ${displayedTableNumber}`;
+  // Until the clock is started the room is still being seated: the board shows the rules
+  // of tonight's game, and the clock takes over the moment the admin presses start.
+  const modeRules = useMemo(
+    () =>
+      shouldShowModeRules(state.timerState.status, state.extras.players.length)
+        ? buildModeRules(state)
+        : null,
+    [state],
+  );
   const totalChips = getPublicChipBankTotal(state);
   const averageStack = getPublicAverageStack(totalChips, activePlayers.length);
 
@@ -1131,6 +1142,13 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <strong className="public-break-overlay__notice">{breakChipNotice}</strong>
           <span className="public-break-overlay__clock">{formatClock(remainingSeconds)}</span>
         </div>
+      ) : null}
+      {modeRules ? (
+        <ModeRulesScreen
+          isFullscreen={isFullscreen}
+          rules={modeRules}
+          onToggleFullscreen={() => void toggleFullscreen()}
+        />
       ) : null}
       {/* Last, and so on top of everything: a player going out is the newest thing that
           has happened in the room, and it holds the board for five seconds. */}

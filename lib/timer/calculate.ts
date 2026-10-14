@@ -124,13 +124,18 @@ export function resolveEffectiveBigBlind(levels: BlindLevel[], currentIndex: num
   return 0;
 }
 
+// A knockout in Standard and Progressive Bounty pays this many big blinds into the
+// killer's stack, halved to one once the last break is behind.
+export const BOUNTY_CHIP_AWARD_BIG_BLINDS = 2;
+
 export function getBountyChipAward(
   levels: BlindLevel[],
   currentLevelIndex: number,
 ): number {
   const currentIndex = Math.max(0, Math.trunc(currentLevelIndex));
   const lastBreakIndex = levels.findLastIndex((level) => level.isBreak);
-  const multiplier = lastBreakIndex !== -1 && currentIndex > lastBreakIndex ? 1 : 2;
+  const multiplier =
+    lastBreakIndex !== -1 && currentIndex > lastBreakIndex ? 1 : BOUNTY_CHIP_AWARD_BIG_BLINDS;
   return resolveEffectiveBigBlind(levels, currentIndex) * multiplier;
 }
 
