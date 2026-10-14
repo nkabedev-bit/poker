@@ -95,7 +95,7 @@ describe("re-entry settings UI", () => {
     expect(screen.getByLabelText<HTMLSelectElement>(/формат турнира/i).value).toBe("deepstack");
     expect(screen.getByLabelText<HTMLSelectElement>(/добавить аддон/i).value).toBe("no");
     expect(screen.getByLabelText<HTMLSelectElement>(/включить ре-энтри/i).value).toBe("yes");
-    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("2");
+    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("3");
   });
 
   it("keeps manual edits after a preset was applied", () => {
@@ -112,10 +112,10 @@ describe("re-entry settings UI", () => {
       target: { value: "deepstack" },
     });
     fireEvent.change(screen.getByLabelText(/кол-во ре-энтри/i), {
-      target: { value: "3" },
+      target: { value: "4" },
     });
 
-    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("3");
+    expect(screen.getByLabelText<HTMLInputElement>(/кол-во ре-энтри/i).value).toBe("4");
   });
 
   it("puts the bounty type and the starting stack of the picked preset into the form", () => {

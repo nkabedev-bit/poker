@@ -17,7 +17,7 @@ export type BlindAlertSound = "standard" | "double" | "chime" | "custom" | "off"
 export type BountyType = "standard" | "mystery" | "dealer" | "wanted" | "progressive";
 
 // Tournament format presets: PHOENIX — no addons, 1 regular re-entry; DEEP STACK — no
-// addons, 2 regular re-entries. Both disable the double (x2) re-entry option. FREEROLL
+// addons, 3 regular re-entries. Both disable the double (x2) re-entry option. FREEROLL
 // plays like a regular tournament and only differs in money: the entry ticket is free,
 // so nothing is charged for it in the finance sheet.
 export type TournamentFormat = "regular" | "phoenix" | "deepstack" | "freeroll";
