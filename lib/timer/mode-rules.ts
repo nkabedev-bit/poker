@@ -2,7 +2,13 @@ import { resolveMedalKey, type MedalKey } from "@/lib/client/medals";
 import { getProgressiveHeadPoints, PROGRESSIVE_BASE_POINTS, PROGRESSIVE_STEP_POINTS } from "@/lib/pts-rating";
 import { BOUNTY_CHIP_AWARD_BIG_BLINDS, resolveEffectiveBigBlind } from "@/lib/timer/calculate";
 import { hasUnlimitedReentries, isDoubleReentryBannedByFormat } from "@/lib/tma/reentry-eligibility";
-import type { BlindLevel, PublicTournamentState, TimerState, TournamentExtras } from "@/lib/timer/types";
+import type {
+  BlindLevel,
+  PublicTournamentState,
+  TimerState,
+  TournamentExtras,
+  TournamentPlayer,
+} from "@/lib/timer/types";
 
 /**
  * The rules of tonight's game, put on the hall's screen while the room is being seated.
@@ -89,9 +95,19 @@ const REENTRY_COUNT_GENITIVE = ["одного", "двух", "трёх", "чет�
  *
  * From the first player seated until the admin starts the clock: the room is filling
  * up and there is nothing on the clock to watch yet.
+ *
+ * The admin app never resets a finished clock, so the next evening is seated on top of
+ * "finished". The finish clears the roster, which tells the two apart: a list where
+ * nobody is out yet is tonight's room, while one with players out is the evening that
+ * just ended, caught in the moment before its roster is wiped.
  */
-export function shouldShowModeRules(status: TimerState["status"], playersCount: number) {
-  return status === "not_started" && playersCount > 0;
+export function shouldShowModeRules(
+  status: TimerState["status"],
+  players: ReadonlyArray<Pick<TournamentPlayer, "status">>,
+) {
+  if (status !== "not_started" && status !== "finished") return false;
+
+  return players.length > 0 && players.every((player) => player.status === "active");
 }
 
 /**

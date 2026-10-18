@@ -842,7 +842,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   // of tonight's game, and the clock takes over the moment the admin presses start.
   const modeRules = useMemo(
     () =>
-      shouldShowModeRules(state.timerState.status, state.extras.players.length)
+      shouldShowModeRules(state.timerState.status, state.extras.players)
         ? buildModeRules(state)
         : null,
     [state],

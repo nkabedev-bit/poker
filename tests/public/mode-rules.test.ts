@@ -121,18 +121,31 @@ function stat(rules: ModeRules, label: string) {
 }
 
 describe("shouldShowModeRules", () => {
+  const seated = { status: "active" } as const;
+  const out = { status: "eliminated" } as const;
+
   it("shows the rules once the first player is seated before the start", () => {
-    expect(shouldShowModeRules("not_started", 1)).toBe(true);
+    expect(shouldShowModeRules("not_started", [seated])).toBe(true);
+  });
+
+  // The admin app seats the next evening straight on top of the last one's finish.
+  it("shows the rules for a room seated after the previous game finished", () => {
+    expect(shouldShowModeRules("finished", [seated, seated])).toBe(true);
   });
 
   it("keeps the usual board while nobody is seated yet", () => {
-    expect(shouldShowModeRules("not_started", 0)).toBe(false);
+    expect(shouldShowModeRules("not_started", [])).toBe(false);
+    expect(shouldShowModeRules("finished", [])).toBe(false);
   });
 
-  it.each(["running", "paused", "break", "finished"] as const)(
+  it("keeps the finished game's board until its roster is wiped", () => {
+    expect(shouldShowModeRules("finished", [seated, out, out])).toBe(false);
+  });
+
+  it.each(["running", "paused", "break"] as const)(
     "hands the board back to the clock once it is %s",
     (status) => {
-      expect(shouldShowModeRules(status, 12)).toBe(false);
+      expect(shouldShowModeRules(status, [seated, seated])).toBe(false);
     },
   );
 });
