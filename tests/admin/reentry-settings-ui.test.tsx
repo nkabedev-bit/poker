@@ -272,7 +272,7 @@ describe("the ticket prices of a preset", () => {
     cleanup();
   });
 
-  function renderSettings(prices: { buyIn: number; duoBuyIn: number; vipBuyIn: number }) {
+  function renderSettings(prices: { buyIn: number; duoBuyIn: number }) {
     render(
       <SettingsForm
         action={vi.fn()}
@@ -290,43 +290,41 @@ describe("the ticket prices of a preset", () => {
     return {
       buyIn: (screen.getByLabelText("Цена билета") as HTMLInputElement).value,
       duoBuyIn: (screen.getByLabelText("Цена билета 1+1") as HTMLInputElement).value,
-      vipBuyIn: (screen.getByLabelText("Цена VIP билета") as HTMLInputElement).value,
     };
   }
 
-  it("prices a freeroll: a free ordinary seat, no pair, VIP at 1000", () => {
-    renderSettings({ buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 });
+  it("prices a freeroll: a free seat and no pair", () => {
+    renderSettings({ buyIn: 1250, duoBuyIn: 2000 });
 
     fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
 
-    expect(prices()).toEqual({ buyIn: "0", duoBuyIn: "0", vipBuyIn: "1000" });
+    expect(prices()).toEqual({ buyIn: "0", duoBuyIn: "0" });
   });
 
   it.each(["phoenix", "deepstack", "bounty", "progressive", "mystery", "lastchance"])(
     "puts the club's prices back when %s is picked after a freeroll",
     (preset) => {
-      renderSettings({ buyIn: 0, duoBuyIn: 0, vipBuyIn: 1000 });
+      renderSettings({ buyIn: 0, duoBuyIn: 0 });
 
       fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: preset } });
 
-      expect(prices()).toEqual({ buyIn: "1250", duoBuyIn: "2000", vipBuyIn: "2000" });
+      expect(prices()).toEqual({ buyIn: "1250", duoBuyIn: "2000" });
     },
   );
 
   it("still lets the admin type a price over the preset", () => {
-    renderSettings({ buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 });
+    renderSettings({ buyIn: 1250, duoBuyIn: 2000 });
 
     fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "freeroll" } });
     fireEvent.change(screen.getByLabelText("Цена билета"), { target: { value: "500" } });
-    fireEvent.change(screen.getByLabelText("Цена VIP билета"), { target: { value: "1500" } });
 
-    expect(prices()).toEqual({ buyIn: "500", duoBuyIn: "0", vipBuyIn: "1500" });
+    expect(prices()).toEqual({ buyIn: "500", duoBuyIn: "0" });
   });
 
   it("keeps the saved prices until a preset is picked", () => {
-    renderSettings({ buyIn: 1500, duoBuyIn: 2400, vipBuyIn: 2500 });
+    renderSettings({ buyIn: 1500, duoBuyIn: 2400 });
 
-    expect(prices()).toEqual({ buyIn: "1500", duoBuyIn: "2400", vipBuyIn: "2500" });
+    expect(prices()).toEqual({ buyIn: "1500", duoBuyIn: "2400" });
   });
 });
 

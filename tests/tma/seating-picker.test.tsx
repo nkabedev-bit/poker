@@ -34,11 +34,10 @@ function renderPicker(overrides: Partial<Parameters<typeof SeatingPicker>[0]> = 
 }
 
 describe("SeatingPicker", () => {
-  it("draws every table with ten chairs and marks the VIP one", () => {
+  it("draws every table with ten chairs", () => {
     renderPicker();
 
     expect(screen.getAllByRole("button")).toHaveLength(30);
-    expect(screen.getAllByText("VIP")).toHaveLength(1);
   });
 
   it("reports the chair the admin taps", () => {

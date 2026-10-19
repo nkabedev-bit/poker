@@ -2,8 +2,6 @@ import { CARD_NUMBER_WIDTH } from "@/lib/cards/card-batch";
 import { buildPlayerCharge, type FinancePrices, type PlayerCharge } from "@/lib/finance/player-charge";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
-export type TicketType = "regular" | "vip";
-
 /**
  * What the admin sees after scanning a card. No prices: the club reads the composition
  * off the screen and takes payment at the desk.
@@ -38,7 +36,6 @@ export type CardSession = {
   table: number | null;
   /** The questionnaire is found by the account first; this is the fallback. */
   telegramId: number | null;
-  ticketType: TicketType;
 };
 
 /** Every card the club prints carries this prefix, so the admin only types the number. */
@@ -66,10 +63,6 @@ export function buildCardCodeFromDigits(digits: string, prefix = CARD_CODE_PREFI
 /** Codes are printed on the cards; scanning brings back whatever the QR holds. */
 export function normalizeCardCode(value: unknown) {
   return String(value ?? "").trim().slice(0, 64);
-}
-
-export function isTicketType(value: unknown): value is TicketType {
-  return value === "regular" || value === "vip";
 }
 
 /**
@@ -101,7 +94,7 @@ export function buildCardSession(
     // apart so the desk can tell one from the other.
     doubleReentries: doubleRebuys,
     // A pass covers the entry only: re-entries and add-ons are still paid for.
-    freePass: player.freePass === "regular" || player.freePass === "vip",
+    freePass: Boolean(player.freePass),
     paid: player.paid === true,
     paidAt: readPaidAt(player),
     name: player.name,
@@ -110,6 +103,5 @@ export function buildCardSession(
     seat: player.seat ?? null,
     table: player.table ?? null,
     telegramId: player.telegramId ?? null,
-    ticketType: player.ticketType === "vip" ? "vip" : "regular",
   };
 }

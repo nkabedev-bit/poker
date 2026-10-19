@@ -106,10 +106,9 @@ export type TournamentPlayer = {
   registrationNumber?: number | null;
   /**
    * Numbers this player was called by earlier tonight, kept so that a number handed back
-   * when a ticket changed is not given to somebody else an hour later.
+   * is not given to somebody else an hour later.
    */
   previousRegistrationNumbers?: number[];
-  category?: "VIP" | "Normal";
   registeredVia?: "admin" | "client_bot";
   telegramId?: number | null;
   /**
@@ -121,11 +120,10 @@ export type TournamentPlayer = {
   // Venue card handed out at the door for the evening; the code is printed on the card
   // and the card is reused by whoever comes next.
   cardCode?: string | null;
-  ticketType?: "regular" | "vip";
   /**
    * Set when the player came in on a "1+1": one ticket for two, and the pair splits its
-   * price in half. Their seat and registration number are the regular kind, so the
-   * ticket above still says what they are — this only decides what they owe.
+   * price in half. Their seat and registration number are like anybody else's — this
+   * only decides what they owe.
    */
   duoTicket?: boolean;
   /** Games this player has behind them, filled in for the screen rather than stored. */
@@ -133,7 +131,7 @@ export type TournamentPlayer = {
   /** The plate the player picked in the mini-app, filled in for the screen rather than stored. */
   plate?: PlateChoice | null;
   /** Set when the entry was paid with a free pass, so the desk charges nothing for it. */
-  freePass?: "regular" | "vip" | null;
+  freePass?: "regular" | null;
   /**
    * Set once the player has settled up. Payment happens at the break that closes
    * re-entries and add-ons, so nothing is bought after it and the bill cannot change.
@@ -210,8 +208,6 @@ export type TournamentExtras = {
     blindAlertSeconds: number;
     blindAlertSound: BlindAlertSound;
     buyIn: number;
-    // Ticket price for a VIP seat; regular seats pay `buyIn`.
-    vipBuyIn: number;
     // What a "1+1" costs for the pair; each of the two pays half of it.
     duoBuyIn: number;
     // Price of the double (x2) re-entry; a single re-entry costs `rebuyPrice`.

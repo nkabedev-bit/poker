@@ -124,7 +124,7 @@ describe("the poster a player opens", () => {
     vi.useFakeTimers();
     mocks.requireClientTmaAuth.mockResolvedValue({
       supabase,
-      user: { free_entries: 0, id: "account-1", vip_free_entries: 0 },
+      user: { free_entries: 0, id: "account-1" },
     });
     mocks.getEvent.mockResolvedValue(TONIGHT);
     mocks.countActiveSignups.mockResolvedValue(new Map());

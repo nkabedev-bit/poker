@@ -2,19 +2,16 @@ import { describe, expect, it } from "vitest";
 import {
   buildEliminationSheetRows,
   buildPlayerOrderRows,
-  buildVipSheetGrid,
-  removeFromVipSheetGrid,
   getEffectiveSessionStart,
   getEliminationSheetName,
   getMoscowDayRange,
   getSheetStandingsPlayers,
-  getVipPlayersForGame,
   pickTodayBirthdayNicknames,
   pickUpcomingBirthdays,
 } from "@/lib/google-sheets";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
-function vipPlayer(
+function rosterPlayer(
   id: string,
   name: string,
   overrides: Partial<TournamentPlayer> = {},
@@ -149,10 +146,10 @@ describe("Google Sheets tournament day sync helpers", () => {
   });
   it("builds the player order block sorted by registration number without gaps", () => {
     const players = [
-      vipPlayer("c", "Carol", { registrationNumber: 22 }),
-      vipPlayer("a", "Alice", { registrationNumber: 1 }),
-      vipPlayer("nonum", "Nobody"), // no registration number -> excluded
-      vipPlayer("b", "Bob", { registrationNumber: 19, status: "eliminated" }),
+      rosterPlayer("c", "Carol", { registrationNumber: 22 }),
+      rosterPlayer("a", "Alice", { registrationNumber: 1 }),
+      rosterPlayer("nonum", "Nobody"), // no registration number -> excluded
+      rosterPlayer("b", "Bob", { registrationNumber: 19, status: "eliminated" }),
     ];
 
     expect(buildPlayerOrderRows(players)).toEqual([
@@ -165,10 +162,10 @@ describe("Google Sheets tournament day sync helpers", () => {
   it("reports addons / single rebuys / double rebuys as counters, blank when zero", () => {
     const players = [
       // rebuys counts every re-entry including doubles, so 3 rebuys with 1 double = 2 singles
-      vipPlayer("a", "Alice", { registrationNumber: 1, addons: 2, rebuys: 3, doubleRebuys: 1 }),
+      rosterPlayer("a", "Alice", { registrationNumber: 1, addons: 2, rebuys: 3, doubleRebuys: 1 }),
       // a double-only re-entry: singles column stays blank
-      vipPlayer("b", "Bob", { registrationNumber: 2, rebuys: 1, doubleRebuys: 1 }),
-      vipPlayer("c", "Carol", { registrationNumber: 3 }),
+      rosterPlayer("b", "Bob", { registrationNumber: 2, rebuys: 1, doubleRebuys: 1 }),
+      rosterPlayer("c", "Carol", { registrationNumber: 3 }),
     ];
 
     expect(buildPlayerOrderRows(players)).toEqual([
@@ -183,8 +180,8 @@ describe("Google Sheets tournament day sync helpers", () => {
     // The order block must fall back to the last log snapshot, same as the standings,
     // instead of clearing K/L (the 2026-06-09 incident).
     const finalRoster = [
-      vipPlayer("b", "Bob", { registrationNumber: 2, status: "eliminated", finishPlace: 2 }),
-      vipPlayer("a", "Alice", { registrationNumber: 1, finishPlace: 1 }),
+      rosterPlayer("b", "Bob", { registrationNumber: 2, status: "eliminated", finishPlace: 2 }),
+      rosterPlayer("a", "Alice", { registrationNumber: 1, finishPlace: 1 }),
     ];
 
     const standingsPlayers = getSheetStandingsPlayers([], [
@@ -200,231 +197,6 @@ describe("Google Sheets tournament day sync helpers", () => {
     expect(buildPlayerOrderRows(standingsPlayers)).toEqual([
       [1, "Alice", "", "", ""],
       [2, "Bob", "", "", ""],
-    ]);
-  });
-});
-
-describe("VIP sheet", () => {
-  it("selects VIP players solely by registration number 21-30 (category is ignored)", () => {
-    const players = [
-      vipPlayer("a", "Alice", { registrationNumber: 21 }),
-      vipPlayer("b", "Bob", { registrationNumber: 5, category: "VIP" }),
-      vipPlayer("c", "Carol", { registrationNumber: 30 }),
-      vipPlayer("d", "Dave", { category: "VIP" }), // no number -> not VIP
-    ];
-
-    expect(getVipPlayersForGame(players)).toEqual(["Alice", "Carol"]);
-  });
-
-  it("anchors the summary at A/B and creates the first game column with count 1", () => {
-    const grid = buildVipSheetGrid([], "04/06", ["Alice", "Carol"]);
-
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 1, "", "Alice"],
-      ["Carol", 1, "", "Carol"],
-    ]);
-  });
-
-  it("is idempotent when re-syncing the same game date", () => {
-    const first = buildVipSheetGrid([], "04/06", ["Alice"]);
-    const stringified = first.map((row) => row.map((cell) => String(cell)));
-    const second = buildVipSheetGrid(stringified, "04/06", ["Alice", "Carol"]);
-
-    expect(second).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 1, "", "Alice"],
-      ["Carol", 1, "", "Carol"],
-    ]);
-  });
-
-  it("appends a new game column to the right and bumps repeat players' counts", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "1", "", "Alice"],
-    ];
-
-    const grid = buildVipSheetGrid(existing, "11/06", ["Alice", "Carol"]);
-
-    expect(grid[0]).toEqual(["Игрок", "Раз в VIP", "", "04/06", "11/06"]);
-    // Alice is VIP in both games (count 2), Carol in one (count 1).
-    expect(grid[1]).toEqual(["Alice", 2, "", "Alice", "Alice"]);
-    expect(grid[2]).toEqual(["Carol", 1, "", "", "Carol"]);
-  });
-
-  it("does NOT wipe a populated game column when the roster is empty", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "1", "", "Alice"],
-      ["Carol", "1", "", "Carol"],
-    ];
-
-    const grid = buildVipSheetGrid(existing, "04/06", []);
-
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 1, "", "Alice"],
-      ["Carol", 1, "", "Carol"],
-    ]);
-  });
-
-  it("preserves manually-added summary players that are not in the roster", () => {
-    // Owner hand-added Javmaz & Anderson and deleted the game columns.
-    const existing = [
-      ["Игрок", "Раз в VIP", ""],
-      ["Javmaz", "1", ""],
-      ["Anderson", "1", ""],
-    ];
-
-    const grid = buildVipSheetGrid(existing, "11/06", ["Alice"]);
-
-    expect(grid[0]).toEqual(["Игрок", "Раз в VIP", "", "11/06"]);
-    expect(grid[1]).toEqual(["Javmaz", 1, "", "Alice"]);
-    expect(grid[2]).toEqual(["Anderson", 1, "", ""]);
-    expect(grid[3]).toEqual(["Alice", 1, "", ""]);
-  });
-
-  it("preserves stored counts instead of recomputing them from columns", () => {
-    // Count is 2 but only one column survives (the other was deleted by hand).
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "2", "", "Alice"],
-    ];
-
-    const grid = buildVipSheetGrid(existing, "04/06", ["Alice"]);
-
-    // Alice already recorded for 04/06 -> no bump, count stays 2 (not reset to 1).
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 2, "", "Alice"],
-    ]);
-  });
-
-  it("regression: a second game keeps the first game's column (2026-06-07 incident)", () => {
-    // The 04/06 game recorded 9 VIP players; Саймон is one of them.
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["1$", "1", "", "Seka_Machine"],
-      ["ДЕД", "1", "", "Саймон"],
-      ["Саймон", "1", "", "ДЕД"],
-      ["Izya", "1", "", "Neklid"],
-      ["Kr.ma.vl", "1", "", "Kr.ma.vl"],
-      ["Neklid", "1", "", "1$"],
-      ["Seka_Machine", "1", "", "Izya"],
-      ["Javmaz", "1", "", "Javmaz"],
-      ["Anderson", "1", "", "Anderson"],
-    ];
-
-    // 07/06 game: 6 VIP players, Саймон plays again.
-    const grid = buildVipSheetGrid(existing, "07/06", [
-      "Gal",
-      "Саймон",
-      "ZHAR",
-      "Юран",
-      "inrikki",
-      "Киберпсих",
-    ]);
-
-    // Both game columns survive side by side.
-    expect(grid[0]).toEqual(["Игрок", "Раз в VIP", "", "04/06", "07/06"]);
-    // Саймон appeared in both games -> count 2, not 1.
-    const simon = grid.find((row) => row[0] === "Саймон");
-    expect(simon?.[1]).toBe(2);
-    // The 04/06 column is byte-for-byte preserved.
-    expect(grid.slice(1).map((row) => row[3])).toEqual([
-      "Seka_Machine",
-      "Саймон",
-      "ДЕД",
-      "Neklid",
-      "Kr.ma.vl",
-      "1$",
-      "Izya",
-      "Javmaz",
-      "Anderson",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ]);
-  });
-
-  it("superset invariant: no non-empty cell ever becomes empty after an additive merge", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "1", "", "Alice"],
-      ["Bob", "1", "", "Bob"],
-    ];
-
-    const grid = buildVipSheetGrid(existing, "11/06", ["Alice", "Carol"]);
-
-    for (let row = 0; row < existing.length; row += 1) {
-      for (let col = 0; col < existing[row].length; col += 1) {
-        const before = existing[row][col];
-        if (before === "") continue;
-        // Counts may grow (string "1" -> number 2); only assert it never blanks.
-        expect(String(grid[row]?.[col] ?? "")).not.toBe("");
-      }
-    }
-  });
-
-  it("removes an erroneous VIP entry from the current game's column and -1 its counter", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "1", "", "Alice"],
-      ["Carol", "1", "", "Carol"],
-    ];
-
-    const grid = removeFromVipSheetGrid(existing, "04/06", "Carol");
-
-    // Carol's count hit 0 -> summary row dropped; column entry removed.
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 1, "", "Alice"],
-    ]);
-  });
-
-  it("keeps a removed player who was VIP in other games (counter just -1)", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "28/05", "04/06"],
-      ["Alice", "2", "", "Alice", "Alice"],
-    ];
-
-    const grid = removeFromVipSheetGrid(existing, "04/06", "Alice");
-
-    // Alice removed from 04/06 only; still counted for 28/05; the now-empty 04/06 column drops.
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "28/05"],
-      ["Alice", 1, "", "Alice"],
-    ]);
-  });
-
-  it("does not touch manual entries or other players when removing a player", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Javmaz", "1", "", "Carol"], // Javmaz/Anderson are manual summary-only entries
-      ["Anderson", "1", "", "Dave"],
-    ];
-
-    const grid = removeFromVipSheetGrid(existing, "04/06", "Carol");
-
-    // Carol removed from the column; Dave stays; Javmaz/Anderson summary preserved.
-    expect(grid).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Javmaz", 1, "", "Dave"],
-      ["Anderson", 1, "", ""],
-    ]);
-  });
-
-  it("is a no-op when the player is not in the game column", () => {
-    const existing = [
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", "1", "", "Alice"],
-    ];
-
-    expect(removeFromVipSheetGrid(existing, "04/06", "Nobody")).toEqual([
-      ["Игрок", "Раз в VIP", "", "04/06"],
-      ["Alice", 1, "", "Alice"],
     ]);
   });
 });

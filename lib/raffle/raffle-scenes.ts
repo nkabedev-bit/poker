@@ -206,18 +206,13 @@ function pickSpotlightHops(random: () => number, { numbers, winnerNumber }: Scen
 }
 
 /**
- * How tonight's draw runs, and for how long.
- *
- * Any of the eight, as likely as each other — except the one the evening's other draw
- * just ran.
+ * How tonight's draw runs, and for how long: any of the eight, as likely as each other.
  */
 export function pickRaffleMotion(
   random: () => number,
-  previous: string | null | undefined,
   draw: SceneDraw,
 ): { motion: RaffleMotion; spinSeconds: number } {
-  const styles = RAFFLE_STYLES.filter((style) => style !== previous);
-  const style = styles[pickIndex(random, styles.length)];
+  const style = RAFFLE_STYLES[pickIndex(random, RAFFLE_STYLES.length)];
 
   switch (style) {
     case "finalTable":

@@ -80,7 +80,7 @@ const PROGRESSIVE_LADDER_STEPS = 4;
 const MYSTERY_PRIZES: Extract<ModeRulesFeature, { kind: "mystery" }>["prizes"] = [
   { icon: "star", note: "очки ITP", title: "Рейтинг" },
   { icon: "stack", note: "фишки в стек", title: "Блайнды" },
-  { icon: "ticket", note: "обычная или VIP", title: "Проходки" },
+  { icon: "ticket", note: "вход в турнир", title: "Проходки" },
   { icon: "gift", note: "сюрприз от клуба", title: "Особые призы" },
 ];
 

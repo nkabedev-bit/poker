@@ -1,10 +1,7 @@
-import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { CLASSIC_TRAVEL_CELLS } from "@/lib/raffle/reel-motion";
 import type { RaffleMotion } from "@/lib/raffle/raffle-scenes";
 import type { TournamentPlayer } from "@/lib/timer/types";
-
-export type RaffleKind = "regular" | "vip";
 
 /** How the winner's prize ended up, so the admin knows whether to hand anything over. */
 export type RafflePrize = "granted" | "manual" | "none";
@@ -37,7 +34,6 @@ export type Raffle = {
   faces?: RaffleFace[];
   /** A new id per spin, so a screen that reloads mid-spin does not replay the old one. */
   id: string;
-  kind: RaffleKind;
   /**
    * How the draw runs — one of the reel's five ways or one of the three scenes — picked
    * with the result so every screen plays the same run. Missing on draws taken before
@@ -95,15 +91,11 @@ export function buildRaffleReel(
 /**
  * What the winner reads in the club's bot.
  *
- * The pass is credited to the profile before this is sent, so the regular message can
- * say so outright — a player who is told to look in the app must find it there. The VIP
- * certificate is a piece of paper handed over at the table, and says nothing about the
- * app at all.
+ * The pass is credited to the profile before this is sent, so the message can say so
+ * outright — a player who is told to look in the app must find it there.
  */
-export const RAFFLE_WIN_MESSAGE: Record<RaffleKind, string> = {
-  regular: "Вы победили в розыгрыше! Ваш приз — проходка, она уже начислена в приложении.",
-  vip: "Вы победили в розыгрыше для VIP игроков! Ваш приз — сертификат от наших партнёров.",
-};
+export const RAFFLE_WIN_MESSAGE =
+  "Вы победили в розыгрыше! Ваш приз — проходка, она уже начислена в приложении.";
 
 /**
  * The people behind the draw, who stay out of it: the club's developer, who builds it and
@@ -116,29 +108,19 @@ const EXCLUDED_NICKNAME_KEYS = new Set(["kabedev", "Киберпсих"].map(bui
  * Everyone in tonight's draw.
  *
  * The whole room takes part, knocked-out players included: they paid their entry and
- * are still in the hall. The club's developer and the venue's owner alone are left out,
- * of both draws.
- *
- * The free pass is drawn on the whole room — a VIP ticket is a better ticket, not a
- * smaller draw, so VIP guests stand in it alongside everyone else. The VIP draw is the
- * one that narrows: it is for VIP tickets only, which the club reads off the
- * registration number — 21 to 30 is the VIP range. A VIP guest therefore stands in both
- * and can win both, which is the point of the ticket.
+ * are still in the hall. The club's developer and the venue's owner alone are left out.
  */
 export function listRaffleEntrants(
   players: Array<
     Pick<TournamentPlayer, "accountId" | "name" | "registrationNumber" | "telegramId">
   >,
-  kind: RaffleKind,
 ): RaffleEntrant[] {
   return players
     .filter((player) => {
       if (EXCLUDED_NICKNAME_KEYS.has(buildNicknameKey(player.name))) return false;
 
       const number = Number(player.registrationNumber);
-      if (!Number.isInteger(number) || number <= 0) return false;
-
-      return kind === "vip" ? isVipRegistrationNumber(number) : true;
+      return Number.isInteger(number) && number > 0;
     })
     .map((player) => ({
       accountId: player.accountId ?? null,
@@ -217,10 +199,8 @@ export function findLastRaffleWin(entrant: RaffleIdentity, wins: RaffleWinRecord
 /**
  * Each entrant's weight in tonight's draw, in the entrants' order.
  *
- * Wins of both kinds count: a player who took the free pass tonight stands in the VIP
- * draw at the lowered weight, which is the point — one guest collecting both prizes is
- * exactly what the club wants to be rare. Tonight is one of the ten games; the evenings
- * before it come from the results, which are written only when a game finishes.
+ * Tonight is one of the ten games; the evenings before it come from the results, which
+ * are written only when a game finishes.
  */
 export function getRaffleWeights(
   entrants: RaffleIdentity[],

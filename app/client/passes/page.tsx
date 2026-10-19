@@ -9,18 +9,13 @@ import { CountUp } from "../_components/count-up";
 import { formatEventDateParts } from "@/lib/events/types";
 
 /** A pass written down for a game the player signed up for and has not played yet. */
-type PassHold = { eventId: string; pass: "regular" | "vip"; startsAt: string; title: string };
+type PassHold = { eventId: string; startsAt: string; title: string };
 
-type FreeEntries = { heldFor: PassHold[]; regular: number; vip: number };
-
-const HELD_PASS_TITLES: Record<PassHold["pass"], string> = {
-  regular: "Обычная",
-  vip: "VIP",
-};
+type FreeEntries = { heldFor: PassHold[]; regular: number };
 
 export default function ClientPassesPage() {
   const { initData } = useClientTMA();
-  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ heldFor: [], regular: 0, vip: 0 });
+  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ heldFor: [], regular: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -34,7 +29,6 @@ export default function ClientPassesPage() {
         setFreeEntries({
           heldFor: Array.isArray(data.freeEntries?.heldFor) ? data.freeEntries.heldFor : [],
           regular: Number(data.freeEntries?.regular ?? 0),
-          vip: Number(data.freeEntries?.vip ?? 0),
         });
       }
     } finally {
@@ -49,7 +43,7 @@ export default function ClientPassesPage() {
 
   if (loading) return <LoadingScreen />;
 
-  const total = freeEntries.regular + freeEntries.vip;
+  const total = freeEntries.regular;
   const held = freeEntries.heldFor;
 
   return (
@@ -61,8 +55,7 @@ export default function ClientPassesPage() {
       </div>
 
       <div className={`flex gap-2.5 desk:gap-4 ${held.length > 0 ? "desk:col-span-2" : "desk:col-span-3"}`}>
-        <PassStub count={freeEntries.regular} title="Обычные" />
-        <PassStub count={freeEntries.vip} gold title="VIP" />
+        <PassStub count={freeEntries.regular} title="Доступно" />
       </div>
 
       {/* A pass written down for a game is taken out of the count above, and the page
@@ -86,7 +79,7 @@ export default function ClientPassesPage() {
                 </div>
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="truncate text-[15px] font-extrabold">{hold.title}</p>
-                  <p className="text-[13px] text-club-muted">{HELD_PASS_TITLES[hold.pass]} проходка</p>
+                  <p className="text-[13px] text-club-muted">Проходка</p>
                 </div>
               </Link>
             );
@@ -123,14 +116,12 @@ export default function ClientPassesPage() {
 }
 
 /** A pass count on a ticket stub: the two notches in its sides are what make it a ticket. */
-function PassStub({ count, gold = false, title }: { count: number; gold?: boolean; title: string }) {
-  const edge = gold ? "border-club-gold/45" : "border-club-line";
+function PassStub({ count, title }: { count: number; title: string }) {
+  const edge = "border-club-line";
 
   return (
     <div
-      className={`relative flex h-[150px] flex-1 basis-0 flex-col justify-between overflow-hidden rounded-[20px] border p-[18px] md:h-[180px] md:p-6 ${edge} ${
-        gold ? "bg-club-gold/10 text-club-gold" : "bg-club-surface text-club-text"
-      }`}
+      className={`relative flex h-[150px] flex-1 basis-0 flex-col justify-between overflow-hidden rounded-[20px] border bg-club-surface p-[18px] text-club-text md:h-[180px] md:p-6 ${edge}`}
     >
       <span className={`absolute -left-[11px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border bg-club-ink ${edge}`} />
       <span className={`absolute -right-[11px] top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border bg-club-ink ${edge}`} />

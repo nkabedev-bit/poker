@@ -70,7 +70,6 @@ export const defaultTournamentExtras: TournamentExtras = {
     blindAlertSound: defaultBlindAlertSettings.sound,
     bountyType: "standard",
     buyIn: 1250,
-    vipBuyIn: 2000,
     duoBuyIn: 2000,
     doubleRebuyPrice: 2000,
     isBounty: false,

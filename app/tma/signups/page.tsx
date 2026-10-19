@@ -38,8 +38,8 @@ type Signup = {
   seated: boolean;
   /** Null for a player who joined through the web: they have no Telegram at all. */
   telegramId: number | null;
-  ticketType: "regular" | "vip" | "duo" | "duo_plus_one";
-  usePass: "none" | "regular" | "vip";
+  ticketType: "regular" | "duo" | "duo_plus_one";
+  usePass: "none" | "regular";
   /** The account behind the sign-up, which is who the player is on either door. */
   userId: string;
   username: string | null;
@@ -65,15 +65,7 @@ const TICKET_LABELS = {
   duo: "Билет 1+1",
   duo_plus_one: "Билет 1+1 · второй игрок",
   regular: "Обычный билет",
-  vip: "VIP билет",
 } as const;
-
-/** A pair plays at the ordinary tables, so seating asks for a regular seat. */
-function seatingTicket(ticket: Signup["ticketType"]) {
-  return ticket === "vip" ? "vip" : "regular";
-}
-
-const PASS_LABELS = { regular: "по проходке", vip: "по VIP проходке" } as const;
 
 /** One evening the desk can look at, as the day strip shows it. */
 type EventOption = { id: string; signupsCount: number; startsAt: string; title: string };
@@ -107,12 +99,10 @@ export default function TMASignupsPage() {
   // Which list is open. The queue sits behind its own tab: most evenings the desk works
   // the sign-ups and never opens it, and it only matters when somebody fails to turn up.
   const [listTab, setListTab] = useState<"seated" | "waiting" | "waitlist">("waiting");
-  // Somebody from the queue, opened: their questionnaire first, then the ticket and the
-  // chair once the desk decides to sit them down.
+  // Somebody from the queue, opened: their questionnaire first, then the chair once the
+  // desk decides to sit them down.
   const [queueEntry, setQueueEntry] = useState<WaitlistEntry | null>(null);
   const [queueSeatingOpen, setQueueSeatingOpen] = useState(false);
-  // A place in line says what the player hoped for; the desk decides at the door.
-  const [queueTicket, setQueueTicket] = useState<"regular" | "vip">("regular");
   // The table whose chairs are being changed, so its buttons wait for the answer.
   const [changingTable, setChangingTable] = useState<number | null>(null);
 
@@ -160,8 +150,6 @@ export default function TMASignupsPage() {
     setQueueEntry(entry);
     setQueueSeatingOpen(false);
     setSeatChoice(null);
-    // What they asked for in the queue is the obvious first guess; the desk can change it.
-    setQueueTicket(entry.ticketType === "vip" ? "vip" : "regular");
   };
 
   const closeQueueEntry = () => {
@@ -187,7 +175,6 @@ export default function TMASignupsPage() {
         body: JSON.stringify({
           seat: choice.seat,
           table: choice.table,
-          ticketType: queueTicket,
         }),
       });
 
@@ -229,19 +216,18 @@ export default function TMASignupsPage() {
     }
   };
 
-  /** A free chair for the ticket — or, with the room full, one brought to a table. */
-  const drawSeat = (ticket: "regular" | "vip") =>
+  /** A free chair — or, with the room full, one brought to a table. */
+  const drawSeat = () =>
     drawSeatOrGrowTable({
       initData,
       onFormatsChanged: applyTableFormats,
       players,
       tableFormats,
       tablesCount: data?.tablesCount ?? 1,
-      ticket,
     });
 
   const seatAtRandom = async (signup: Signup) => {
-    const picked = await drawSeat(seatingTicket(signup.ticketType));
+    const picked = await drawSeat();
     if (!picked) return;
 
     setSeatChoice(picked);
@@ -260,7 +246,6 @@ export default function TMASignupsPage() {
         body: JSON.stringify({
           seat: choice.seat,
           table: choice.table,
-          ticketType: seatingTicket(signup.ticketType),
         }),
       });
 
@@ -345,9 +330,7 @@ export default function TMASignupsPage() {
           <div className="tma-card">
             <span className="text-[20px] font-bold">{queueEntry.name}</span>
             <span className="tma-row__badges">
-              <span className={`tma-badge${queueEntry.ticketType === "vip" ? " tma-badge--gold" : ""}`}>
-                Просил: {TICKET_LABELS[queueEntry.ticketType]}
-              </span>
+              <span className="tma-badge">Просил: {TICKET_LABELS[queueEntry.ticketType]}</span>
               {queueEntry.username ? <span className="tma-badge">@{queueEntry.username}</span> : null}
             </span>
             {queueEntry.offerExpiresAt && !queueEntry.seated ? (
@@ -399,28 +382,8 @@ export default function TMASignupsPage() {
           <span className="tma-hint">Из листа ожидания</span>
         </div>
 
-        {/* The queue said what they hoped for; what they get is decided here, at the
-            door, and that is the ticket they pay for. */}
-        <SectionLabel title="Какой билет" />
-        <div className="tma-segment">
-          {(["regular", "vip"] as const).map((ticket) => (
-            <button
-              key={ticket}
-              aria-pressed={queueTicket === ticket}
-              disabled={Boolean(seatingId)}
-              type="button"
-              onClick={() => {
-                setQueueTicket(ticket);
-                setSeatChoice(null);
-              }}
-            >
-              {TICKET_LABELS[ticket]}
-            </button>
-          ))}
-        </div>
-
         {seatingPlan(async () => {
-          const picked = await drawSeat(queueTicket);
+          const picked = await drawSeat();
           if (!picked) return;
 
           setSeatChoice(picked);
@@ -470,7 +433,7 @@ export default function TMASignupsPage() {
           {opened.usePass !== "none" ? (
             <div className="tma-note tma-note--green">
               <Ticket size={18} />
-              <span>Вход {PASS_LABELS[opened.usePass]}</span>
+              <span>Вход по проходке</span>
             </div>
           ) : null}
           {opened.partnerName ? (
@@ -608,8 +571,6 @@ export default function TMASignupsPage() {
                 <span className="flex shrink-0 items-center gap-2">
                   {entry.seated ? (
                     <CheckCircle2 className="text-[var(--tma-cyan)]" size={18} />
-                  ) : entry.ticketType === "vip" ? (
-                    <span className="tma-badge tma-badge--gold">VIP</span>
                   ) : entry.ticketType === "duo" || entry.ticketType === "duo_plus_one" ? (
                     <span className="tma-badge tma-badge--cyan">1+1</span>
                   ) : null}
@@ -649,12 +610,11 @@ export default function TMASignupsPage() {
                       {signup.reserved ? (
                         <span className="tma-badge tma-badge--amber">отложен · не подтвердил</span>
                       ) : null}
-                      {signup.ticketType === "vip" ? <span className="tma-badge tma-badge--gold">VIP</span> : null}
                       {signup.ticketType === "duo" || signup.ticketType === "duo_plus_one" ? (
                         <span className="tma-badge tma-badge--cyan">1+1</span>
                       ) : null}
                       {signup.usePass !== "none" ? (
-                        <span className="tma-badge tma-badge--green">{PASS_LABELS[signup.usePass]}</span>
+                        <span className="tma-badge tma-badge--green">по проходке</span>
                       ) : null}
                     </span>
                   ) : null}
@@ -713,7 +673,6 @@ export default function TMASignupsPage() {
 
 /** The ticket a sign-up came in on, in the colour the lists use for it. */
 function TicketBadge({ ticket }: { ticket: Signup["ticketType"] }) {
-  const tone =
-    ticket === "vip" ? " tma-badge--gold" : ticket === "duo" || ticket === "duo_plus_one" ? " tma-badge--cyan" : "";
+  const tone = ticket === "duo" || ticket === "duo_plus_one" ? " tma-badge--cyan" : "";
   return <span className={`tma-badge${tone}`}>{TICKET_LABELS[ticket]}</span>;
 }

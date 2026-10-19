@@ -21,14 +21,12 @@ export type EventTemplate = {
   lateEntryMinutes: number | null;
   maxDuoTickets: number | null;
   maxPlayers: number | null;
-  maxVipPlayers: number | null;
   name: string;
   posterUrl: string | null;
   rulesText: string;
   startingStack: number | null;
   title: string;
   venueAddress: string;
-  vipBuyIn: number | null;
 };
 
 export type EventDraft = Omit<TournamentEvent, "id">;
@@ -62,14 +60,12 @@ export function makeEventTemplate(
     lateEntryMinutes: toLateEntryMinutes(event),
     maxDuoTickets: event.maxDuoTickets,
     maxPlayers: event.maxPlayers,
-    maxVipPlayers: event.maxVipPlayers,
     name: normalizeTemplateName(name),
     posterUrl: event.posterUrl,
     rulesText: event.rulesText,
     startingStack: event.startingStack,
     title: event.title,
     venueAddress: event.venueAddress,
-    vipBuyIn: event.vipBuyIn,
   };
 }
 
@@ -107,14 +103,12 @@ export function applyEventTemplate(
     lateEntryUntil,
     maxDuoTickets: template.maxDuoTickets ?? null,
     maxPlayers: template.maxPlayers,
-    maxVipPlayers: template.maxVipPlayers,
     posterUrl: template.posterUrl,
     rulesText: template.rulesText,
     startingStack: template.startingStack,
     startsAt,
     title: template.title,
     venueAddress: template.venueAddress,
-    vipBuyIn: template.vipBuyIn,
   };
 }
 

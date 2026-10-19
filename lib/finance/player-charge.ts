@@ -7,7 +7,6 @@ export type FinancePrices = {
   /** What a "1+1" costs for the pair; each half of it is one player's ticket. */
   duoBuyIn: number;
   rebuyPrice: number;
-  vipBuyIn: number;
 };
 
 function toPrice(value: unknown) {
@@ -25,7 +24,6 @@ export function getFinancePrices(
     doubleRebuyPrice: toPrice(settings.doubleRebuyPrice),
     duoBuyIn: toPrice(settings.duoBuyIn),
     rebuyPrice: toPrice(settings.rebuyPrice),
-    vipBuyIn: toPrice(settings.vipBuyIn),
   };
 }
 
@@ -60,8 +58,7 @@ const VENUE_OWNER_NICKNAME = "киберпсих";
  *
  * Every ticket is priced from the settings, whatever the tournament is called. A
  * freeroll is a game whose entry costs nothing — so its entry is set to nothing — and
- * not a rule that overrides the prices: the club runs freerolls with a paid VIP seat,
- * and a rule that knew better than the settings billed those guests nothing.
+ * not a rule that overrides the prices.
  *
  * The entry is free only when the club gave the player a pass. Re-entries and add-ons
  * are always paid for, since a pass covers the seat alone, and a "1+1" halves the entry
@@ -70,7 +67,7 @@ const VENUE_OWNER_NICKNAME = "киберпсих";
 export function buildPlayerCharge(
   player: Pick<
     TournamentPlayer,
-    "addons" | "doubleRebuys" | "duoTicket" | "freePass" | "rebuys" | "ticketType"
+    "addons" | "doubleRebuys" | "duoTicket" | "freePass" | "rebuys"
   > &
     Partial<Pick<TournamentPlayer, "name">>,
   prices: FinancePrices,
@@ -83,14 +80,10 @@ export function buildPlayerCharge(
   const onTheHouse = String(player.name ?? "").trim().toLowerCase() === VENUE_OWNER_NICKNAME;
   const charged = (price: number) => (onTheHouse ? 0 : price);
 
-  const free = player.freePass === "regular" || player.freePass === "vip";
+  const free = Boolean(player.freePass);
   // A "1+1" is one ticket for two, and the pair splits what it costs: each of them owes
   // half, whichever of the two bought it.
-  const ticketPrice = player.duoTicket
-    ? Math.round(prices.duoBuyIn / 2)
-    : player.ticketType === "vip"
-      ? prices.vipBuyIn
-      : prices.buyIn;
+  const ticketPrice = player.duoTicket ? Math.round(prices.duoBuyIn / 2) : prices.buyIn;
   const ticket = { ...line(free ? 0 : 1, free ? 0 : charged(ticketPrice)), free };
 
   const charge = {

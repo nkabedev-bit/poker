@@ -14,7 +14,7 @@ import { getBountyChipAward, getDealerKnockoutChipAward, getEffectiveTimerState,
 import {
   describeMysteryPrize,
   getMysteryPrizeChips,
-  getMysteryPrizePasses,
+  countMysteryPrizePasses,
   getMysteryPrizePoints,
   parseMysteryPrizes,
   type MysteryPrize,
@@ -52,7 +52,6 @@ export type MysteryPassResult = {
   /** False when the player has no Telegram account to credit — the admin hands it over. */
   granted: boolean;
   nickname: string;
-  vip: boolean;
 };
 
 /**
@@ -65,7 +64,6 @@ async function grantMysteryBountyPass(
   supabase: SupabaseClient,
   killer: { id: string; name: string },
   players: TournamentPlayer[],
-  vip: boolean,
 ): Promise<MysteryPassResult> {
   const seat = players.find((player) => player.id === killer.id);
   // The account behind the seat, whichever door its owner came through. A player the
@@ -85,7 +83,6 @@ async function grantMysteryBountyPass(
           by.column === "id"
             ? { accountId: String(by.value) }
             : { telegramId: Number(by.value) },
-        vip,
       });
 
       granted = change !== null;
@@ -95,12 +92,12 @@ async function grantMysteryBountyPass(
   }
 
   try {
-    await appendFreeEntryGrant({ count: 1, nickname: killer.name, source: "mystery", vip });
+    await appendFreeEntryGrant({ count: 1, nickname: killer.name, source: "mystery" });
   } catch (sheetError) {
     console.error("Failed to log the mystery bounty pass", sheetError);
   }
 
-  return { granted, nickname: killer.name, vip };
+  return { granted, nickname: killer.name };
 }
 
 function getErrorMessage(error: unknown) {
@@ -350,12 +347,11 @@ export async function POST(request: Request) {
     // The passes are credited once the knockout itself is safely recorded.
     const mysteryPasses: MysteryPassResult[] = [];
     for (const killer of killersWithBountyChips) {
-      // A Joker can turn up two passes, and both are the killer's — one regular and one
-      // VIP are different entries, so each is credited on its own.
-      for (const pass of killer.prize ? getMysteryPrizePasses(killer.prize) : []) {
-        mysteryPasses.push(
-          await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers, pass === "vip"),
-        );
+      // A Joker can turn up two passes, and both are the killer's — each is credited on
+      // its own.
+      const passes = killer.prize ? countMysteryPrizePasses(killer.prize) : 0;
+      for (let pass = 0; pass < passes; pass += 1) {
+        mysteryPasses.push(await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers));
       }
     }
 

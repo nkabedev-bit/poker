@@ -7,21 +7,19 @@ import { EventCard, type EventCardData } from "@/app/client/_components/event-ca
 
 afterEach(cleanup);
 
-/** A poster like the club's: 16 regular seats, one "1+1" ticket and a VIP table of 9. */
+/** A poster like the club's: 25 regular seats and one "1+1" ticket. */
 function event(overrides: Partial<EventCardData> = {}): EventCardData {
   return {
     badge: "Глубина 400BB",
     duoBuyIn: 2000,
     id: "e1",
     maxDuoTickets: 1,
-    maxPlayers: 16,
-    maxVipPlayers: 9,
+    maxPlayers: 25,
     posterUrl: null,
     signedUp: false,
     signupsCount: 20,
     startsAt: "2026-09-08T19:00:00+03:00",
     title: "DEEP STACK",
-    vipBuyIn: 3000,
     ...overrides,
   } as EventCardData;
 }

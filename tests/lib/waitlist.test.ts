@@ -35,20 +35,18 @@ const waiting = (
   ...over,
 });
 
-const seats = (over: Partial<{ duo: number; regular: number | null; vip: number | null }> = {}) => ({
+const seats = (over: Partial<{ duo: number; regular: number | null }> = {}) => ({
   duo: 0,
   regular: 0,
-  vip: 0,
   ...over,
 });
 
 describe("who the freed place goes to", () => {
-  const queue = [waiting("a", "regular"), waiting("b", "vip"), waiting("c", "duo")];
+  const queue = [waiting("a", "regular"), waiting("c", "duo")];
 
-  // The three allotments run out separately, and so does the news.
+  // The two allotments run out separately, and so does the news.
   it("offers only to those waiting for the kind that opened", () => {
     expect(pickWaitlistOffers(queue, seats({ regular: 1 }), NOW).map((e) => e.id)).toEqual(["a"]);
-    expect(pickWaitlistOffers(queue, seats({ vip: 1 }), NOW).map((e) => e.id)).toEqual(["b"]);
     expect(pickWaitlistOffers(queue, seats({ duo: 1 }), NOW).map((e) => e.id)).toEqual(["c"]);
   });
 
@@ -163,7 +161,7 @@ describe("what the player is told", () => {
   it("says which kind of place opened and until when it is held", () => {
     const until = new Date("2026-09-09T12:30:00.000Z");
 
-    expect(waitlistOfferMessage("ЧЕТВЕРГОВЫЙ", "vip", until)).toContain("VIP-место");
+    expect(waitlistOfferMessage("ЧЕТВЕРГОВЫЙ", "regular", until)).toContain("освободилось место");
     expect(waitlistOfferMessage("ЧЕТВЕРГОВЫЙ", "duo", until)).toContain("билет 1+1");
     expect(waitlistOfferMessage("ЧЕТВЕРГОВЫЙ", "regular", until)).toContain("ЧЕТВЕРГОВЫЙ");
     // Moscow wall time, which is what the posters quote.

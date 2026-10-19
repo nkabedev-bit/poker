@@ -57,9 +57,9 @@ function askTheDesk(question: string) {
 }
 
 /**
- * A free chair for the ticket, drawn the way the club seats people.
+ * A free chair, drawn the way the club seats people.
  *
- * When every table of its kind is full, the desk is asked whether to bring a chair to the
+ * When every table is full, the desk is asked whether to bring a chair to the
  * table with the fewest players that still has room for one — late players no longer send
  * the admin to the settings. Null when no chair came of it.
  */
@@ -69,28 +69,22 @@ export async function drawSeatOrGrowTable({
   players,
   tableFormats,
   tablesCount,
-  ticket,
 }: {
   initData: string;
   onFormatsChanged: (formats: number[]) => void;
   players: SeatingPlayer[];
   tableFormats: TableFormats;
   tablesCount: number;
-  ticket: "regular" | "vip";
 }) {
   const tg = getTelegramWebApp();
   const tables = buildSeatingTables(players, tablesCount, tableFormats);
-  const picked = pickRandomSeat(tables, ticket);
+  const picked = pickRandomSeat(tables);
   if (picked) return picked;
 
-  const grow = pickTableToGrow(tables, ticket);
+  const grow = pickTableToGrow(tables);
   if (!grow) {
     tg?.HapticFeedback.notificationOccurred("error");
-    tg?.showAlert(
-      ticket === "vip"
-        ? "Свободных мест за VIP-столом нет, и больше 10 мест за ним не поставить"
-        : "Свободных мест за обычными столами нет, и за каждым уже 10 мест",
-    );
+    tg?.showAlert("Свободных мест нет, и за каждым столом уже 10 мест");
     return null;
   }
 
@@ -103,5 +97,5 @@ export async function drawSeatOrGrowTable({
   if (!formats) return null;
 
   onFormatsChanged(formats);
-  return pickRandomSeat(buildSeatingTables(players, tablesCount, formats), ticket);
+  return pickRandomSeat(buildSeatingTables(players, tablesCount, formats));
 }

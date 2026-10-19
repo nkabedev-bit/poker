@@ -40,14 +40,13 @@ type PresetPrices = {
   buyIn: number;
   /** A "1+1": what the pair pays together, half of it each. */
   duoBuyIn: number;
-  vipBuyIn: number;
 };
 
 /** What the tickets cost at every game the club runs but a freeroll. A "1+1" is 1000 each. */
-const CLUB_PRICES: PresetPrices = { buyIn: 1250, duoBuyIn: 2000, vipBuyIn: 2000 };
+const CLUB_PRICES: PresetPrices = { buyIn: 1250, duoBuyIn: 2000 };
 
-/** A freeroll: the ordinary seat is free, no pair is sold, and the VIP seat costs 1000. */
-const FREEROLL_PRICES: PresetPrices = { buyIn: 0, duoBuyIn: 0, vipBuyIn: 1000 };
+/** A freeroll: the seat is free and no pair is sold. */
+const FREEROLL_PRICES: PresetPrices = { buyIn: 0, duoBuyIn: 0 };
 
 type TournamentPreset = {
   addonEnabled: boolean;
@@ -179,7 +178,6 @@ export function SettingsForm({
   // Controlled so that a preset can put its prices in: the price is what makes an entry
   // free now, and a price left over from the last game would bill this one wrong.
   const [buyIn, setBuyIn] = useState(settings.buyIn);
-  const [vipBuyIn, setVipBuyIn] = useState(settings.vipBuyIn);
   const [duoBuyIn, setDuoBuyIn] = useState(settings.duoBuyIn);
   // The picked type is saved with the tournament: it names the game (and so the medal its
   // winner earns), while the fields below stay free to edit afterwards.
@@ -205,7 +203,6 @@ export function SettingsForm({
     setStartingStack(preset.startingStack);
     setTournamentFormat(preset.tournamentFormat);
     setBuyIn(preset.prices.buyIn);
-    setVipBuyIn(preset.prices.vipBuyIn);
     setDuoBuyIn(preset.prices.duoBuyIn);
   }
 
@@ -440,18 +437,6 @@ export function SettingsForm({
             type="number"
             value={buyIn}
             onChange={(event) => setBuyIn(Number(event.target.value) || 0)}
-          />
-        </label>
-        <label>
-          VIP билет, ₽
-          <input
-            aria-label="Цена VIP билета"
-            inputMode="numeric"
-            min={0}
-            name="vipBuyIn"
-            type="number"
-            value={vipBuyIn}
-            onChange={(event) => setVipBuyIn(Number(event.target.value) || 0)}
           />
         </label>
         <label>

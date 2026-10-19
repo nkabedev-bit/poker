@@ -29,7 +29,6 @@ export function waitlistOfferDeadline(
 
 /** Which allotment a ticket is counted against; both halves of a pair share one. */
 function seatKind(ticket: EventTicketType): keyof FreeSeats {
-  if (ticket === "vip") return "vip";
   if (ticket === "duo" || ticket === "duo_plus_one") return "duo";
 
   return "regular";
@@ -54,8 +53,8 @@ function orderInQueue(waitlist: EventSignup[]) {
  * telling them twice about the same seat says nothing new. So is one whose turn came
  * and passed in silence — the seat moves down the line and is open to everybody once
  * the line runs out, rather than coming back to them every half hour for the rest of
- * the week. The three allotments run out separately, so somebody waiting for a VIP seat
- * hears nothing when a regular one opens.
+ * the week. The two allotments run out separately, so somebody waiting for a "1+1"
+ * hears nothing when a regular seat opens.
  */
 export function pickWaitlistOffers(
   waitlist: EventSignup[],
@@ -65,7 +64,6 @@ export function pickWaitlistOffers(
   const left: Record<keyof FreeSeats, number | null> = {
     duo: seats.duo,
     regular: seats.regular,
-    vip: seats.vip,
   };
   const offered: EventSignup[] = [];
 
@@ -91,7 +89,6 @@ const TICKET_WORDS: Record<EventTicketType, string> = {
   duo: "билет 1+1",
   duo_plus_one: "место",
   regular: "место",
-  vip: "VIP-место",
 };
 
 export function waitlistOfferMessage(

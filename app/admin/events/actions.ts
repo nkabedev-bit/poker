@@ -81,14 +81,12 @@ export async function saveTournamentEvent(formData: FormData) {
     lateEntryUntil: formData.get("lateEntryUntil"),
     maxDuoTickets: optionalNumber(formData.get("maxDuoTickets")),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
-    maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
     posterUrl: formData.get("posterUrl"),
     rulesText: formData.get("rulesText"),
     startingStack: optionalNumber(formData.get("startingStack")),
     startsAt: formData.get("startsAt"),
     title: formData.get("title"),
     venueAddress: formData.get("venueAddress"),
-    vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
   });
 
   if (!parsed.success) {
@@ -232,14 +230,12 @@ export async function saveTournamentEventTemplate(formData: FormData) {
     lateEntryUntil: formData.get("lateEntryUntil"),
     maxDuoTickets: optionalNumber(formData.get("maxDuoTickets")),
     maxPlayers: optionalNumber(formData.get("maxPlayers")),
-    maxVipPlayers: optionalNumber(formData.get("maxVipPlayers")),
     posterUrl: formData.get("posterUrl"),
     rulesText: formData.get("rulesText"),
     startingStack: optionalNumber(formData.get("startingStack")),
     startsAt: formData.get("startsAt"),
     title: formData.get("title"),
     venueAddress: formData.get("venueAddress"),
-    vipBuyIn: optionalNumber(formData.get("vipBuyIn")),
   });
 
   if (!parsed.success) {

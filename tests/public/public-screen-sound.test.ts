@@ -225,7 +225,7 @@ describe("getPublicPlayerLabelKind", () => {
   });
 
   it("treats any other non-empty label as a text badge", () => {
-    expect(getPublicPlayerLabelKind("vip")).toBe("text");
+    expect(getPublicPlayerLabelKind("гость")).toBe("text");
     expect(getPublicPlayerLabelKind("новичок")).toBe("text");
   });
 

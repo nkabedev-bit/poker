@@ -1,12 +1,10 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { isEventOpenForSeating, mapEventRow, type FreePassChoice } from "@/lib/events/types";
-
-export type HeldPass = Exclude<FreePassChoice, "none">;
+import { isEventOpenForSeating, mapEventRow } from "@/lib/events/types";
 
 /** A pass written down against a game the player has not played yet. */
-export type PassHold = { eventId: string; pass: HeldPass; startsAt: string; title: string };
+export type PassHold = { eventId: string; startsAt: string; title: string };
 
 /**
  * The sign-ups whose pass is still promised: a ticket the player holds and has not used.
@@ -34,7 +32,7 @@ export async function loadPassHolds(
     .select("use_pass, tournament_events(id, title, starts_at, late_entry_until)")
     .eq("user_id", userId)
     .in("status", PASS_HOLDING_STATUSES)
-    .in("use_pass", ["regular", "vip"]);
+    .eq("use_pass", "regular");
 
   if (error) throw error;
 
@@ -53,7 +51,6 @@ export async function loadPassHolds(
 
       const hold: PassHold = {
         eventId: event.id,
-        pass: record.use_pass === "vip" ? "vip" : "regular",
         startsAt: event.startsAt,
         title: event.title,
       };
@@ -71,17 +68,14 @@ export async function loadPassHolds(
  * the pass it is already holding.
  */
 export function countFreePasses(
-  account: { free_entries?: number | null; vip_free_entries?: number | null },
+  account: { free_entries?: number | null },
   holds: PassHold[],
   exceptEventId?: string,
 ) {
   const heldFor = holds.filter((hold) => hold.eventId !== exceptEventId);
-  const left = (onAccount: number | null | undefined, pass: HeldPass) =>
-    Math.max(0, Number(onAccount ?? 0) - heldFor.filter((hold) => hold.pass === pass).length);
 
   return {
     heldFor,
-    regular: left(account.free_entries, "regular"),
-    vip: left(account.vip_free_entries, "vip"),
+    regular: Math.max(0, Number(account.free_entries ?? 0) - heldFor.length),
   };
 }

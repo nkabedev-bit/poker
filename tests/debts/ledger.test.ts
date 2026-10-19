@@ -169,7 +169,6 @@ describe("buildEveningDebts", () => {
     doubleRebuyPrice: 2000,
     duoBuyIn: 2000,
     rebuyPrice: 1250,
-    vipBuyIn: 2000,
   };
 
   function seat(extra: Partial<TournamentPlayer>): TournamentPlayer {

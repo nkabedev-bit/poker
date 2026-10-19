@@ -26,7 +26,6 @@ import type { Reservation } from "@/lib/events/reservations";
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
-const DEFAULT_VIP_BUY_IN = "2000";
 const DEFAULT_DUO_BUY_IN = "2000";
 
 const EMPTY_DRAFT = {
@@ -39,7 +38,6 @@ const EMPTY_DRAFT = {
   lateEntryUntil: "",
   maxDuoTickets: "",
   maxPlayers: "",
-  maxVipPlayers: "",
   posterUrl: "",
   publishAt: "",
   rulesText: "",
@@ -47,7 +45,6 @@ const EMPTY_DRAFT = {
   startsAt: "",
   title: "",
   venueAddress: "",
-  vipBuyIn: DEFAULT_VIP_BUY_IN,
 };
 
 type Draft = typeof EMPTY_DRAFT;
@@ -64,7 +61,6 @@ function toDraft(event: TournamentEvent, publishAt?: string): Draft {
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
     maxDuoTickets: event.maxDuoTickets ? String(event.maxDuoTickets) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
-    maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterUrl: event.posterUrl ?? "",
     publishAt: publishAt ? utcISOToMoscowLocal(publishAt) : "",
     rulesText: event.rulesText,
@@ -72,7 +68,6 @@ function toDraft(event: TournamentEvent, publishAt?: string): Draft {
     startsAt: utcISOToMoscowLocal(event.startsAt),
     title: event.title,
     venueAddress: event.venueAddress,
-    vipBuyIn: event.vipBuyIn ? String(event.vipBuyIn) : "",
   };
 }
 
@@ -125,13 +120,11 @@ export function EventsManager({
           : current.lateEntryUntil,
       maxDuoTickets: template.maxDuoTickets ? String(template.maxDuoTickets) : "",
       maxPlayers: template.maxPlayers ? String(template.maxPlayers) : "",
-      maxVipPlayers: template.maxVipPlayers ? String(template.maxVipPlayers) : "",
       posterUrl: template.posterUrl ?? "",
       rulesText: template.rulesText,
       startingStack: template.startingStack ? String(template.startingStack) : "",
       title: template.title,
       venueAddress: template.venueAddress,
-      vipBuyIn: template.vipBuyIn ? String(template.vipBuyIn) : "",
     }));
     setTemplateName(template.name);
   };
@@ -263,16 +256,6 @@ export function EventsManager({
             />
           </label>
           <label>
-            VIP-мест
-            <input
-              name="maxVipPlayers"
-              inputMode="numeric"
-              placeholder="10"
-              value={draft.maxVipPlayers}
-              onChange={(event) => update({ maxVipPlayers: event.target.value })}
-            />
-          </label>
-          <label>
             Билетов 1+1
             <input
               name="maxDuoTickets"
@@ -289,15 +272,6 @@ export function EventsManager({
               inputMode="numeric"
               value={draft.buyIn}
               onChange={(event) => update({ buyIn: event.target.value })}
-            />
-          </label>
-          <label>
-            VIP билет, ₽
-            <input
-              name="vipBuyIn"
-              inputMode="numeric"
-              value={draft.vipBuyIn}
-              onChange={(event) => update({ vipBuyIn: event.target.value })}
             />
           </label>
           <label>
@@ -323,7 +297,6 @@ export function EventsManager({
         <p className="muted">{describeAnnouncedSeats({
             duoTickets: Number(draft.maxDuoTickets) || 0,
             regular: Number(draft.maxPlayers) || 0,
-            vip: Number(draft.maxVipPlayers) || 0,
           })}</p>
 
         <label>
@@ -393,11 +366,7 @@ export function EventsManager({
                     <li key={held.id}>
                       <span>
                         <strong>{held.nickname}</strong>
-                        {held.ticketType === "vip"
-                          ? " · VIP"
-                          : held.ticketType === "duo"
-                            ? " · 1+1"
-                            : " · обычный"}
+                        {held.ticketType === "duo" ? " · 1+1" : " · обычный"}
                         {held.notified ? " · оповещён" : " · ждёт публикации"}
                       </span>
                       <SubmitButton
@@ -425,7 +394,6 @@ export function EventsManager({
                 />
                 <select defaultValue="regular" name="reservedTicket">
                   <option value="regular">Обычный</option>
-                  <option value="vip">VIP</option>
                   <option value="duo">1+1</option>
                 </select>
                 <SubmitButton

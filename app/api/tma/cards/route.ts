@@ -4,13 +4,12 @@ import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   buildCardSession,
   type CardSession,
-  isTicketType,
   normalizeCardCode,
 } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import {
-  applySeatingTicket,
   buildNumbersExhaustedMessage,
+  ensureRegistrationNumber,
   isRegistrationNumbersExhaustedError,
 } from "@/lib/tournament-player-registration";
 import { getSettlingPlayers } from "@/lib/timer/lifecycle";
@@ -98,7 +97,6 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const cardCode = normalizeCardCode(body.cardCode);
   const playerId = String(body.playerId ?? "");
-  const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
   const tableNumber = Number(body.table);
   const seatNumber = Number(body.seat);
 
@@ -147,24 +145,20 @@ export async function POST(request: Request) {
     }
   }
 
-  // The desk has just chosen the ticket, and on an evening without cards nothing else
-  // would write it down — the card RPC below is skipped. The number follows the ticket,
-  // so a walk-in who had none gets theirs here too.
+  // A walk-in who had no number yet gets theirs now that the desk has sat them down.
   const seatedExtras = await loadTournamentExtras(t.id, auth.supabase);
   try {
-    await applySeatingTicket({
+    await ensureRegistrationNumber({
       extras: seatedExtras,
       playerId,
-      redirectTo: "/tma/players",
       supabase: auth.supabase,
-      ticketType,
+      tournamentId: t.id,
     });
   } catch (error) {
     // The chair above is already written and stays written — same as a clashing card.
-    // The desk is told which range ran dry so it can seat them on the other ticket.
     if (!isRegistrationNumbersExhaustedError(error)) throw error;
 
-    return NextResponse.json({ error: buildNumbersExhaustedMessage(error) }, { status: 409 });
+    return NextResponse.json({ error: buildNumbersExhaustedMessage() }, { status: 409 });
   }
 
   if (!cardCode) {
@@ -184,7 +178,6 @@ export async function POST(request: Request) {
     p_tournament_id: t.id,
     p_player_id: playerId,
     p_card_code: cardCode,
-    p_ticket_type: ticketType,
   });
 
   if (error) {

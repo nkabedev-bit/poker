@@ -1,7 +1,6 @@
 import { after, NextResponse } from "next/server";
 import { isDoubleReentryBannedByFormat } from "@/lib/tma/reentry-eligibility";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { syncVipSheet } from "@/lib/google-sheets";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
   appendTournamentPlayerWithRegistrationNumber,
@@ -13,7 +12,6 @@ import {
   TournamentRegistrationCapacityError,
 } from "@/lib/tournament-player-registration";
 import { findClientBotUserByNickname } from "@/lib/client-bot/nickname-match";
-import { isTicketType } from "@/lib/cards/card-code";
 import { markTonightSignupSeated } from "@/lib/events/store";
 import { getEffectiveTimerState, isReentryAvailable } from "@/lib/timer/calculate";
 import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
@@ -121,10 +119,6 @@ export async function POST(request: Request) {
   // Half of a "1+1", typed in at the door: the ticket was bought by the player who
   // brought them, and the two split its price.
   const duoTicket = body.duoTicket === true;
-  // The ticket the desk picked for a walk-in, when it already knows. The number follows
-  // it — a VIP guest typed in by hand belongs in the VIP draw wherever they end up
-  // sitting — and without one the table decides, as it always did.
-  const ticketType = isTicketType(body.ticketType) ? body.ticketType : null;
 
   if (!name) return NextResponse.json({ error: "Name is required" }, { status: 400 });
 
@@ -184,15 +178,14 @@ export async function POST(request: Request) {
     finishPlace: null,
     registeredVia: "admin" as const,
     ...(duoTicket ? { duoTicket } : {}),
-    ...(ticketType ? { ticketType } : {}),
     ...(match.user ? { accountId: match.user.id, telegramId: match.user.telegramId } : {}),
   };
 
   try {
-    // Somebody who walked in off the street has picked no ticket yet, and the number
-    // follows the ticket — so they go on the roster bare and turn up on the desk's
-    // screen among those still to be seated. A table given here means the admin has
-    // already decided, and the old path stands.
+    // Somebody who walked in off the street goes on the roster bare and turns up on the
+    // desk's screen among those still to be seated; the number is issued when they sit
+    // down. A table given here means the admin has already decided, and the number is
+    // issued now.
     const player = newPlayer.table
       ? await appendTournamentPlayerWithRegistrationNumber({
           extras,
@@ -209,17 +202,9 @@ export async function POST(request: Request) {
           supabase: auth.supabase,
         });
 
-    // The sheet is the club's own copy, not something the admin waits for: writing it
-    // took a second of its own while a queue stood at the door.
+    // They are at a table now, so their own sign-up is not waiting for anything — least
+    // of all a place in the queue they were standing in.
     after(async () => {
-      try {
-        await syncVipSheet(auth.supabase, t.id);
-      } catch (sheetError) {
-        console.error("Failed to sync VIP sheet", sheetError);
-      }
-
-      // They are at a table now, so their own sign-up is not waiting for anything —
-      // least of all a place in the queue they were standing in.
       if (!match.user) return;
       try {
         await markTonightSignupSeated(auth.supabase, match.user.id);
@@ -250,7 +235,7 @@ export async function POST(request: Request) {
     }
 
     if (isRegistrationNumbersExhaustedError(error)) {
-      return NextResponse.json({ error: buildNumbersExhaustedMessage(error) }, { status: 409 });
+      return NextResponse.json({ error: buildNumbersExhaustedMessage() }, { status: 409 });
     }
 
     const message = error instanceof Error ? error.message : "Unknown error";

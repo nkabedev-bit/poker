@@ -3429,13 +3429,6 @@ p {
   background: #14532d;
 }
 
-.seating-table__vip {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 2px;
-  color: #e9c07a;
-}
-
 .seating-seat {
   position: absolute;
   width: 38px;
@@ -4494,12 +4487,12 @@ p {
   }
 }
 
-/* A button's words change in place — «Записаться · VIP» — rather than blink. */
+/* A button's words change in place — «Записаться · 1+1» — rather than blink. */
 .client-swap-in {
   animation: client-swap-in 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
 }
 
-/* The VIP ticket catches the light every few seconds. */
+/* A ticket on sale catches the light every few seconds. */
 .client-glint::after {
   content: "";
   position: absolute;

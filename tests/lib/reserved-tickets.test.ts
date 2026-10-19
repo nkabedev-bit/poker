@@ -3,9 +3,8 @@ import { isReservableTicket } from "@/lib/events/types";
 import { reservedTicketMessage } from "@/lib/events/reservations";
 
 describe("the tickets the club can hold", () => {
-  it("takes the three it sells", () => {
+  it("takes the two it sells", () => {
     expect(isReservableTicket("regular")).toBe(true);
-    expect(isReservableTicket("vip")).toBe(true);
     expect(isReservableTicket("duo")).toBe(true);
   });
 
@@ -19,7 +18,6 @@ describe("the tickets the club can hold", () => {
 
 describe("what the club tells a player whose ticket is waiting", () => {
   it("names the tournament and the kind of seat", () => {
-    expect(reservedTicketMessage("ЧЕТВЕРГОВЫЙ", "vip")).toContain("VIP");
     expect(reservedTicketMessage("ЧЕТВЕРГОВЫЙ", "regular")).toContain("обычный");
     expect(reservedTicketMessage("ЧЕТВЕРГОВЫЙ", "regular")).toContain("ЧЕТВЕРГОВЫЙ");
   });

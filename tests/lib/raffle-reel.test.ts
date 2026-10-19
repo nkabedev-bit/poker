@@ -36,7 +36,7 @@ describe("the reel the room watches", () => {
     expect(lengths[0]).toBeLessThan(70);
   });
 
-  // A VIP draw can be four people, and four cells would cross the screen in one blink.
+  // A quiet evening can be four people, and four cells would cross the screen in one blink.
   it("brings a short list round more often", () => {
     expect(buildRaffleReel(4, 0).passes).toBeGreaterThan(buildRaffleReel(30, 0).passes);
   });

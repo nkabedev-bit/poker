@@ -69,9 +69,8 @@ function shuffle<T>(items: T[], random: () => number) {
  * and six. At that table the chair is the one farthest from anybody already sitting
  * there, the same way a walk-in is seated, so the newcomers spread round the felt.
  *
- * Only tables somebody is playing at take anybody: an empty table stays empty. Tickets
- * are not looked at — once tables are merged a VIP holder may sit anywhere, and the
- * number they are called by stays with them.
+ * Only tables somebody is playing at take anybody: an empty table stays empty. The number
+ * a player is called by stays with them.
  */
 export function planTableBreak({
   formats,
@@ -96,8 +95,6 @@ export function planTableBreak({
     .filter((candidate) => candidate.number !== table && countSeated(candidate) > 0)
     .map((candidate) => ({
       ...candidate,
-      // Every table is one kind here, so the draw looks at them all alike.
-      isVip: false,
       seats: candidate.seats.map((seat) => ({ ...seat })),
     }));
   if (destinations.length === 0) return { ok: false, reason: "no_other_tables" };
@@ -118,7 +115,7 @@ export function planTableBreak({
   const moves: TableMove[] = [];
 
   for (const mover of shuffle(movers, random)) {
-    const chosen = pickRandomSeat(destinations, "regular", random);
+    const chosen = pickRandomSeat(destinations, random);
     // Counted above, so there is always a chair; this only keeps a bad count honest.
     if (!chosen) return shortOfSeats;
 

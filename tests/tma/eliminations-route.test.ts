@@ -184,7 +184,7 @@ function createSupabaseMock(options: {
           select: vi.fn(() => ({
             eq: vi.fn(() => ({
               maybeSingle: vi.fn(async () => ({
-                data: options.clientBotAccount ?? { free_entries: 0, vip_free_entries: 0 },
+                data: options.clientBotAccount ?? { free_entries: 0 },
                 error: null,
               })),
             })),
@@ -226,12 +226,10 @@ function createSupabaseMock(options: {
         };
       }
       if (fnName === "adjust_free_entries") {
-        const adjust = args as unknown as { p_delta: number; p_vip: boolean };
+        const adjust = args as unknown as { p_delta: number };
         passAdjustments.push(adjust);
         const account = (options.clientBotAccount ?? {}) as Record<string, number>;
-        const held = Number(
-          (adjust.p_vip ? account.vip_free_entries : account.free_entries) ?? 0,
-        );
+        const held = Number(account.free_entries ?? 0);
         return {
           data: { after: Math.max(0, held + adjust.p_delta), before: held },
           error: null,
@@ -778,7 +776,7 @@ describe("TMA eliminations route", () => {
   });
 
   it("mystery mode: a pass card credits the profile and reaches the ledger", async () => {
-    const supabase = createSupabaseMock({ clientBotAccount: { vip_free_entries: 2 } });
+    const supabase = createSupabaseMock({ clientBotAccount: { free_entries: 2 } });
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
       mergeTournamentExtras({
@@ -798,23 +796,22 @@ describe("TMA eliminations route", () => {
         body: JSON.stringify({
           eliminated_id: "out",
           killers: [{ id: "killer", name: "Killer", share: 1 }],
-          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass", pass: "vip" } }],
+          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass" } }],
         }),
       }),
     );
 
     expect(response.status).toBe(200);
     expect(supabase.passAdjustments).toEqual([
-      expect.objectContaining({ p_delta: 1, p_vip: true }),
+      expect.objectContaining({ p_delta: 1 }),
     ]);
     expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
       count: 1,
       nickname: "Killer",
       source: "mystery",
-      vip: true,
     });
     await expect(response.json()).resolves.toMatchObject({
-      mysteryPasses: [{ granted: true, nickname: "Killer", vip: true }],
+      mysteryPasses: [{ granted: true, nickname: "Killer" }],
     });
   });
 
@@ -835,7 +832,7 @@ describe("TMA eliminations route", () => {
         body: JSON.stringify({
           eliminated_id: "out",
           killers: [{ id: "killer", name: "Killer", share: 1 }],
-          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass", pass: "regular" } }],
+          mystery_prizes: [{ killerId: "killer", prize: { kind: "pass" } }],
         }),
       }),
     );

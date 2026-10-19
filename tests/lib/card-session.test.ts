@@ -8,7 +8,6 @@ const PRICES = {
   doubleRebuyPrice: 2000,
   duoBuyIn: 2000,
   rebuyPrice: 1000,
-  vipBuyIn: 2000,
 };
 
 const player = (over: Partial<TournamentPlayer> = {}): TournamentPlayer => ({
@@ -54,7 +53,7 @@ describe("the card the desk works from", () => {
   });
 
   it("says when the entry was covered by a pass", () => {
-    expect(buildCardSession(player({ freePass: "vip" }), "", PRICES).freePass).toBe(true);
+    expect(buildCardSession(player({ freePass: "regular" }), "", PRICES).freePass).toBe(true);
     expect(buildCardSession(player(), "", PRICES).freePass).toBe(false);
   });
 

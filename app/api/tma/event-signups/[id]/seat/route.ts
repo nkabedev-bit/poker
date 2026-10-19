@@ -1,8 +1,7 @@
-import { after, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
-import { syncVipSheet } from "@/lib/google-sheets";
-import { buildCardSession, isTicketType, normalizeCardCode } from "@/lib/cards/card-code";
+import { buildCardSession, normalizeCardCode } from "@/lib/cards/card-code";
 import { getFinancePrices } from "@/lib/finance/player-charge";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
 import {
@@ -37,14 +36,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Seating and handing over a card are one movement at the door, so the card travels
   // with this request instead of costing a second round trip.
   const cardCode = normalizeCardCode(body.cardCode);
-  const ticketType = isTicketType(body.ticketType) ? body.ticketType : "regular";
 
   // `!user_id` picks the account the sign-up belongs to: several columns of the row
   // point at client_bot_users, and an unnamed embed is ambiguous.
   const { data: signup, error: signupError } = await auth.supabase
     .from("event_signups")
     .select(
-      "id, event_id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users!user_id(display_name, free_entries, vip_free_entries)",
+      "id, event_id, user_id, telegram_id, status, use_pass, ticket_type, client_bot_users!user_id(display_name, free_entries)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -78,7 +76,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const accountId = String((signup as { user_id: unknown }).user_id ?? "") || null;
   const embedded = (signup as Record<string, unknown>).client_bot_users;
   const player = (Array.isArray(embedded) ? embedded[0] : embedded) as
-    | { display_name?: string | null; free_entries?: number | null; vip_free_entries?: number | null }
+    | { display_name?: string | null; free_entries?: number | null }
     | undefined;
   const name = player?.display_name?.trim();
 
@@ -113,25 +111,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
 
   // The player picked a free entry when signing up; it is spent here, at the door, and
-  // only if they still hold one of that exact kind — a VIP pass never covers a regular
-  // seat and the other way round.
+  // only if they still hold one.
   const requestedPass = (signup as { use_pass?: unknown }).use_pass;
-  const heldPasses =
-    requestedPass === "vip"
-      ? Number(player?.vip_free_entries ?? 0)
-      : requestedPass === "regular"
-        ? Number(player?.free_entries ?? 0)
-        : 0;
-  const passUsed = heldPasses > 0 ? (requestedPass as "regular" | "vip") : null;
-  // A pass decides the ticket: what the admin picked on screen cannot contradict it.
-  const seatTicketType = passUsed ?? ticketType;
+  const passUsed =
+    requestedPass === "regular" && Number(player?.free_entries ?? 0) > 0 ? ("regular" as const) : null;
   // Half a "1+1" is charged half its price, and only the sign-up may say so — the desk
-  // cannot hand out the discount by picking it on screen. The seat itself stays regular:
-  // the pair plays at the ordinary tables and draws ordinary registration numbers.
-  // A queue entry says what the player hoped for, not what they got: the desk picks the
-  // ticket at the door, and a pair ticket is not among the choices — nobody is coming
-  // in with them.
-  const signupTicket = signupStatus === "waitlist" ? ticketType : (signup as { ticket_type?: unknown }).ticket_type;
+  // cannot hand out the discount on screen. A queue entry says what the player hoped for,
+  // not what they got: from the queue they are seated on a regular ticket, since nobody
+  // is coming in with them.
+  const signupTicket =
+    signupStatus === "waitlist" ? "regular" : (signup as { ticket_type?: unknown }).ticket_type;
   const duoTicket = signupTicket === "duo" || signupTicket === "duo_plus_one";
 
   const playerDraft: TournamentPlayer = {
@@ -151,9 +140,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     status: "active",
     table: tableNumber,
     telegramId,
-    // The registration number is drawn from the VIP range by ticket, so the ticket has
-    // to be on the player before the number is handed out.
-    ticketType: seatTicketType,
   };
 
   let seatedPlayer;
@@ -184,17 +170,17 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     // fault: without this the admin was told "не удалось посадить игрока" and nothing more.
     if (isRegistrationNumbersExhaustedError(error)) {
       return NextResponse.json(
-        { error: buildNumbersExhaustedMessage(error) },
+        { error: buildNumbersExhaustedMessage() },
         { status: 409 },
       );
     }
     throw error;
   }
 
-  // A queue entry that has been seated is a ticket now, of the kind the desk picked.
+  // A queue entry that has been seated is a regular ticket now.
   const seatedUpdate =
     signupStatus === "waitlist"
-      ? { status: "seated", ticket_type: seatTicketType }
+      ? { status: "seated", ticket_type: "regular" }
       : { status: "seated" };
 
   const spendPass = async () => {
@@ -204,7 +190,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       await adjustFreeEntries(auth.supabase, {
         delta: -1,
         holder: { accountId },
-        vip: passUsed === "vip",
       });
     } catch (passError) {
       console.error("Failed to spend a free entry", passError);
@@ -217,7 +202,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       p_tournament_id: t.id,
       p_player_id: seatedPlayer.id,
       p_card_code: cardCode,
-      p_ticket_type: seatTicketType,
     });
 
     // The player is seated by now, and a clashing card must not undo that: the seat
@@ -247,16 +231,6 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq("id", accountId);
 
   await spendPass();
-
-  // Same reason as everywhere else: the admin is handing over a card, not waiting for
-  // Google to acknowledge a row.
-  after(async () => {
-    try {
-      await syncVipSheet(auth.supabase, t.id);
-    } catch (sheetError) {
-      console.error("Failed to sync VIP sheet", sheetError);
-    }
-  });
 
   return NextResponse.json({
     passUsed,

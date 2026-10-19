@@ -4,7 +4,6 @@ import {
   CARD_CODE_PREFIXES,
   GUEST_CARD_CODE_PREFIX,
   buildCardSession,
-  isTicketType,
   normalizeCardCode,
 } from "@/lib/cards/card-code";
 
@@ -14,7 +13,6 @@ const prices = {
   doubleRebuyPrice: 2000,
   duoBuyIn: 2000,
   rebuyPrice: 1250,
-  vipBuyIn: 2000,
 };
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -49,14 +47,6 @@ describe("normalizeCardCode", () => {
   });
 });
 
-describe("isTicketType", () => {
-  it("accepts only the two tickets the club sells", () => {
-    expect(isTicketType("regular")).toBe(true);
-    expect(isTicketType("vip")).toBe(true);
-    expect(isTicketType("free")).toBe(false);
-  });
-});
-
 describe("buildCardSession", () => {
   // `rebuys` counts doubles too, and the desk needs them apart.
   it("reports single and double re-entries separately", () => {
@@ -64,14 +54,6 @@ describe("buildCardSession", () => {
 
     expect(session.reentries).toBe(2);
     expect(session.doubleReentries).toBe(1);
-  });
-
-  it("shows the ticket the player was handed", () => {
-    expect(buildCardSession(player({ ticketType: "vip" }), "MJ-014", prices).ticketType).toBe("vip");
-  });
-
-  it("falls back to a regular ticket when none was recorded", () => {
-    expect(buildCardSession(player(), "MJ-014", prices).ticketType).toBe("regular");
   });
 
   it("carries the identity the admin needs at the desk", () => {
@@ -92,7 +74,7 @@ describe("buildCardSession", () => {
   });
 
   it("marks a ticket paid with a free pass so the desk takes nothing for it", () => {
-    expect(buildCardSession(player({ freePass: "vip" }), "MJ-014", prices).freePass).toBe(true);
+    expect(buildCardSession(player({ freePass: "regular" }), "MJ-014", prices).freePass).toBe(true);
     expect(buildCardSession(player(), "MJ-014", prices).freePass).toBe(false);
     expect(buildCardSession(player({ freePass: null }), "MJ-014", prices).freePass).toBe(false);
   });

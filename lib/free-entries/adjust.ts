@@ -27,7 +27,7 @@ function isMissingRpc(error: unknown) {
  */
 export async function adjustFreeEntries(
   supabase: SupabaseClient,
-  { delta, holder, vip }: { delta: number; holder: FreeEntryHolder; vip: boolean },
+  { delta, holder }: { delta: number; holder: FreeEntryHolder },
 ): Promise<FreeEntryChange | null> {
   const accountId = holder.accountId ?? null;
   const telegramId = holder.telegramId ?? null;
@@ -37,12 +37,11 @@ export async function adjustFreeEntries(
     p_account_id: accountId,
     p_delta: delta,
     p_telegram_id: accountId ? null : telegramId,
-    p_vip: vip,
   });
 
   // The function is applied by hand, so a deploy can land before it exists. Until then
   // the old read-then-write keeps working — the race is rarer than a broken pass.
-  if (error && isMissingRpc(error)) return adjustByReadingFirst(supabase, { delta, holder, vip });
+  if (error && isMissingRpc(error)) return adjustByReadingFirst(supabase, { delta, holder });
   if (error) throw error;
   if (!data) return null;
 
@@ -53,9 +52,9 @@ export async function adjustFreeEntries(
 /** What every caller did before the function existed. Kept only as a fallback. */
 async function adjustByReadingFirst(
   supabase: SupabaseClient,
-  { delta, holder, vip }: { delta: number; holder: FreeEntryHolder; vip: boolean },
+  { delta, holder }: { delta: number; holder: FreeEntryHolder },
 ): Promise<FreeEntryChange | null> {
-  const column = vip ? "vip_free_entries" : "free_entries";
+  const column = "free_entries";
   const by = holder.accountId
     ? { column: "id", value: holder.accountId as string | number }
     : { column: "telegram_id", value: holder.telegramId as string | number };

@@ -10,7 +10,7 @@ export const MYSTERY_POINT_AMOUNTS = [20, 40, 60] as const;
 export type MysteryBasePrize =
   | { amount: number; kind: "bigBlinds" }
   | { amount: number; kind: "points" }
-  | { kind: "pass"; pass: "regular" | "vip" }
+  | { kind: "pass" }
   | { kind: "other" };
 
 /**
@@ -85,11 +85,9 @@ function parseMysteryBasePrize(value: unknown): MysteryBasePrize | null {
       : null;
   }
 
-  if (record.kind === "pass") {
-    return record.pass === "regular" || record.pass === "vip"
-      ? { kind: "pass", pass: record.pass }
-      : null;
-  }
+  // A pass is one kind of card. Cards logged before 19.10.2026 still name the kind of
+  // pass they paid, and are read as the pass they were.
+  if (record.kind === "pass") return { kind: "pass" };
 
   return record.kind === "other" ? { kind: "other" } : null;
 }
@@ -131,13 +129,11 @@ export function getMysteryPrizePoints(prize: MysteryPrize): number {
 }
 
 /**
- * The free entries a card pays out.
- *
- * A list rather than one pass: a Joker can turn up two of them, and both are the
- * player's — including one regular and one VIP, which are different entries entirely.
+ * How many free entries a card pays out — a Joker can turn up two, and both are the
+ * player's.
  */
-export function getMysteryPrizePasses(prize: MysteryPrize): Array<"regular" | "vip"> {
-  return readPrizeParts(prize).flatMap((part) => (part.kind === "pass" ? [part.pass] : []));
+export function countMysteryPrizePasses(prize: MysteryPrize): number {
+  return readPrizeParts(prize).filter((part) => part.kind === "pass").length;
 }
 
 /** What the dealer sees on the confirmation screen, and what the knockout log keeps. */
@@ -147,7 +143,7 @@ export function describeMysteryPrize(prize: MysteryPrize): string {
   }
   if (prize.kind === "bigBlinds") return `${prize.amount} ББ в стек`;
   if (prize.kind === "points") return `${prize.amount} PTS`;
-  if (prize.kind === "pass") return prize.pass === "vip" ? "VIP проходка" : "Проходка";
+  if (prize.kind === "pass") return "Проходка";
 
   return "Другое";
 }

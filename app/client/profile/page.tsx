@@ -63,7 +63,7 @@ type Me = {
   /** The two cards the player picked ("QsTs"); null until they pick them. */
   favoriteHand?: string | null;
   tier?: PlayerTier | null;
-  freeEntries: { regular: number; vip: number } | null;
+  freeEntries: { regular: number } | null;
   history: { active: HistoryItem[]; past: HistoryItem[] };
   registered: { name: string; registrationNumber: number | null; table: number | null } | null;
   medals: Record<string, number> | null;
@@ -185,7 +185,7 @@ export default function ClientProfilePage() {
   });
   const myRating = rating?.me ? withOwnPhoto([rating.me], photoUrl)[0] : undefined;
   const upcoming = me?.history.active ?? [];
-  const passesTotal = (me?.freeEntries?.regular ?? 0) + (me?.freeEntries?.vip ?? 0);
+  const passesTotal = me?.freeEntries?.regular ?? 0;
 
   const tier = me?.tier ?? null;
   const achievementsShare = achievements.length > 0 ? earned / achievements.length : 0;
@@ -305,7 +305,7 @@ export default function ClientProfilePage() {
               <MenuRow
                 href="/client/passes"
                 icon={<Ticket className="text-club-rose" size={20} />}
-                subtitle={passesTotal > 0 ? "Обычные и VIP" : "Пока нет"}
+                subtitle={passesTotal > 0 ? "На вход в турнир" : "Пока нет"}
                 title="Бесплатные проходки"
                 value={<CountUp value={passesTotal} />}
               />

@@ -1,11 +1,10 @@
 import { after, NextResponse } from "next/server";
-import { removePlayerFromVipSheet, syncTournamentToSheets, syncVipSheet } from "@/lib/google-sheets";
-import { isVipRegistrationNumber } from "@/lib/player-registration-number";
-import { isSeatAtTable, isVipTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
+import { syncTournamentToSheets } from "@/lib/google-sheets";
+import { isSeatAtTable, nameSeat, readTableFormats } from "@/lib/tables/seating";
 import {
   buildNumbersExhaustedMessage,
+  ensureRegistrationNumber,
   isRegistrationNumbersExhaustedError,
-  reissueRegistrationNumberForTicket,
 } from "@/lib/tournament-player-registration";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
 import { getProgressiveKnockoutsBefore, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
@@ -63,10 +62,6 @@ function getSeatNumber(value: unknown) {
   return Number.isInteger(seatNumber) && seatNumber > 0 ? seatNumber : null;
 }
 
-function getTicketType(value: unknown): "regular" | "vip" | null {
-  return value === "regular" || value === "vip" ? value : null;
-}
-
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireTmaAuth(request);
   if (auth.error) return auth.error;
@@ -81,24 +76,12 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
 
   const id = (await params).id;
 
-  // Capture the player before deletion so we can clean up an erroneous VIP entry.
-  const extras = await loadTournamentExtras(t.id, auth.supabase);
-  const deletedPlayer = extras.players.find((player) => player.id === id);
-
   const { error: rpcError } = await auth.supabase.rpc("delete_tournament_player", {
     p_tournament_id: t.id,
     p_player_id: id,
   });
 
   if (rpcError) throw rpcError;
-
-  if (deletedPlayer && isVipRegistrationNumber(deletedPlayer.registrationNumber)) {
-    try {
-      await removePlayerFromVipSheet(auth.supabase, t.id, deletedPlayer.name);
-    } catch (sheetError) {
-      console.error("Failed to remove player from VIP sheet", sheetError);
-    }
-  }
 
   return new NextResponse(null, { status: 204 });
 }
@@ -371,48 +354,32 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     // A chair always comes with a number. A walk-in typed in at the desk has none yet —
     // that is the whole reason they could not be put in the draw — so seating them here
-    // issues one, on the ticket the admin picked or, failing that, the one the table
-    // implies. A player who already has a number keeps it unless the admin said in so
-    // many words that the ticket changed: the room has been calling them by it all
-    // evening.
-    const ticketType = getTicketType(body.ticketType);
-    const hasNumber = Number(player.registrationNumber) > 0;
-    if (!ticketType && hasNumber) return NextResponse.json({ player: seated });
+    // issues one. A player who already has a number keeps it: the room has been calling
+    // them by it all evening.
+    if (Number(player.registrationNumber) > 0) return NextResponse.json({ player: seated });
 
-    let reissued: TournamentPlayer | null = null;
+    let numbered: TournamentPlayer | null = null;
     try {
-      reissued = await reissueRegistrationNumberForTicket({
+      numbered = await ensureRegistrationNumber({
         extras: await loadTournamentExtras(t.id, auth.supabase),
         playerId: id,
         supabase: auth.supabase,
-        ticketType: ticketType ?? (isVipTable(tableNumber, tablesCount) ? "vip" : "regular"),
         tournamentId: t.id,
       });
     } catch (error) {
       if (!isRegistrationNumbersExhaustedError(error)) throw error;
 
-      // The chair is already theirs; only the number could not be changed.
+      // The chair is already theirs; only the number could not be given.
       return NextResponse.json(
-        { error: buildNumbersExhaustedMessage(error), player: seated },
+        { error: buildNumbersExhaustedMessage(), player: seated },
         { status: 409 },
       );
     }
 
-    // A number is what the club's sheets call a player: the game sheet lists them by it,
-    // the money sheet charges them by the ticket it came from, and the VIP tab is the
-    // list the draw is run on. A new number has to reach all three.
-    const wasVip = isVipRegistrationNumber(player.registrationNumber);
-    const isVipNow = isVipRegistrationNumber(reissued?.registrationNumber);
-    if (reissued && reissued.registrationNumber !== player.registrationNumber) {
+    // A number is what the club's sheets call a player: the game sheet lists them by it.
+    if (numbered) {
       after(async () => {
         try {
-          // The VIP tab is only ever added to, so a player who left it has to be struck
-          // out by name.
-          if (wasVip && !isVipNow) {
-            await removePlayerFromVipSheet(auth.supabase, t.id, player.name);
-          }
-          if (isVipNow) await syncVipSheet(auth.supabase, t.id);
-
           await syncTournamentToSheets(auth.supabase, t.id);
         } catch (sheetError) {
           console.error("Non-critical seating sheets sync error:", sheetError);
@@ -420,7 +387,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       });
     }
 
-    return NextResponse.json({ player: reissued ?? seated });
+    return NextResponse.json({ player: numbered ?? seated });
   }
 
   if (action === "move_table") {

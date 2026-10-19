@@ -49,7 +49,6 @@ const POSTER_TOO_BIG = "Картинка афиши слишком больша�
 
 // The club's standing prices; an admin can still change them per tournament.
 const DEFAULT_BUY_IN = "1250";
-const DEFAULT_VIP_BUY_IN = "2000";
 const DEFAULT_DUO_BUY_IN = "2000";
 
 const EMPTY_DRAFT = {
@@ -62,7 +61,6 @@ const EMPTY_DRAFT = {
   lateEntryUntil: "",
   maxDuoTickets: "",
   maxPlayers: "",
-  maxVipPlayers: "",
   posterDataUrl: "",
   posterUrl: "",
   publishAt: "",
@@ -71,7 +69,6 @@ const EMPTY_DRAFT = {
   startsAt: "",
   title: "",
   venueAddress: "",
-  vipBuyIn: DEFAULT_VIP_BUY_IN,
 };
 
 type Draft = typeof EMPTY_DRAFT;
@@ -88,7 +85,6 @@ function toDraft(event: EventRow): Draft {
     lateEntryUntil: event.lateEntryUntil ? utcISOToMoscowLocal(event.lateEntryUntil) : "",
     maxDuoTickets: event.maxDuoTickets ? String(event.maxDuoTickets) : "",
     maxPlayers: event.maxPlayers ? String(event.maxPlayers) : "",
-    maxVipPlayers: event.maxVipPlayers ? String(event.maxVipPlayers) : "",
     posterDataUrl: "",
     posterUrl: event.posterUrl ?? "",
     publishAt: event.publishAt ? utcISOToMoscowLocal(event.publishAt) : "",
@@ -97,7 +93,6 @@ function toDraft(event: EventRow): Draft {
     startsAt: utcISOToMoscowLocal(event.startsAt),
     title: event.title,
     venueAddress: event.venueAddress,
-    vipBuyIn: event.vipBuyIn ? String(event.vipBuyIn) : "",
   };
 }
 
@@ -196,14 +191,12 @@ export default function TMAEventsPage() {
                 ? addMinutesToMoscowLocal(current.startsAt, template.lateEntryMinutes)
                 : current.lateEntryUntil,
             maxPlayers: template.maxPlayers ? String(template.maxPlayers) : "",
-            maxVipPlayers: template.maxVipPlayers ? String(template.maxVipPlayers) : "",
             posterDataUrl: "",
             posterUrl: template.posterUrl ?? "",
             rulesText: template.rulesText,
             startingStack: template.startingStack ? String(template.startingStack) : "",
             title: template.title,
             venueAddress: template.venueAddress,
-            vipBuyIn: template.vipBuyIn ? String(template.vipBuyIn) : "",
           }
         : current,
     );
@@ -242,7 +235,6 @@ export default function TMAEventsPage() {
           lateEntryUntil: draft.lateEntryUntil,
           maxDuoTickets: draft.maxDuoTickets ? Number(draft.maxDuoTickets) : null,
           maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
-          maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
           name: draft.title,
           // A picture chosen but not yet saved would otherwise be lost from the
           // template, which is the one thing every poster of the club shares.
@@ -253,7 +245,6 @@ export default function TMAEventsPage() {
           startsAt: draft.startsAt,
           title: draft.title,
           venueAddress: draft.venueAddress,
-          vipBuyIn: draft.vipBuyIn ? Number(draft.vipBuyIn) : null,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -307,7 +298,6 @@ export default function TMAEventsPage() {
         lateEntryUntil: draft.lateEntryUntil,
         maxDuoTickets: draft.maxDuoTickets ? Number(draft.maxDuoTickets) : null,
         maxPlayers: draft.maxPlayers ? Number(draft.maxPlayers) : null,
-        maxVipPlayers: draft.maxVipPlayers ? Number(draft.maxVipPlayers) : null,
         posterDataUrl: draft.posterDataUrl || undefined,
         posterUrl: draft.posterUrl,
         // Only a draft waits for a time of its own.
@@ -317,7 +307,6 @@ export default function TMAEventsPage() {
         startsAt: draft.startsAt,
         title: draft.title,
         venueAddress: draft.venueAddress,
-        vipBuyIn: draft.vipBuyIn ? Number(draft.vipBuyIn) : null,
       };
 
       const res = await fetch(draft.id ? `/api/tma/events/${draft.id}` : "/api/tma/events", {
@@ -448,11 +437,11 @@ export default function TMAEventsPage() {
                 onChange={(event) => update({ maxPlayers: event.target.value })}
               />
             </Field>
-            <Field title="VIP-мест">
+            <Field title="Обычный билет ₽">
               <input
                 inputMode="numeric"
-                value={draft.maxVipPlayers}
-                onChange={(event) => update({ maxVipPlayers: event.target.value })}
+                value={draft.buyIn}
+                onChange={(event) => update({ buyIn: event.target.value })}
               />
             </Field>
             <Field title="Стек">
@@ -464,20 +453,6 @@ export default function TMAEventsPage() {
             </Field>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Field title="Обычный билет ₽">
-              <input
-                inputMode="numeric"
-                value={draft.buyIn}
-                onChange={(event) => update({ buyIn: event.target.value })}
-              />
-            </Field>
-            <Field title="VIP билет ₽">
-              <input
-                inputMode="numeric"
-                value={draft.vipBuyIn}
-                onChange={(event) => update({ vipBuyIn: event.target.value })}
-              />
-            </Field>
             <Field title="Билетов 1+1">
               <input
                 inputMode="numeric"
@@ -497,7 +472,6 @@ export default function TMAEventsPage() {
             {describeAnnouncedSeats({
               duoTickets: Number(draft.maxDuoTickets) || 0,
               regular: Number(draft.maxPlayers) || 0,
-              vip: Number(draft.maxVipPlayers) || 0,
             })}
           </p>
         </div>
@@ -570,11 +544,7 @@ export default function TMAEventsPage() {
                       <span className="tma-row__body">
                         <span className="tma-row__title">{held.nickname}</span>
                         <span className="tma-row__sub">
-                          {held.ticketType === "vip"
-                            ? "VIP"
-                            : held.ticketType === "duo"
-                              ? "1+1"
-                              : "обычный"}{" "}
+                          {held.ticketType === "duo" ? "1+1" : "обычный"}{" "}
                           · {held.notified ? "оповещён" : "ждёт публикации"}
                         </span>
                       </span>
@@ -606,14 +576,14 @@ export default function TMAEventsPage() {
                 onChange={(item) => setReservedNickname(item.target.value)}
               />
               <div className="tma-segment">
-                {(["regular", "vip", "duo"] as const).map((ticket) => (
+                {(["regular", "duo"] as const).map((ticket) => (
                   <button
                     key={ticket}
                     aria-pressed={reservedTicket === ticket}
                     type="button"
                     onClick={() => setReservedTicket(isReservableTicket(ticket) ? ticket : "regular")}
                   >
-                    {ticket === "vip" ? "VIP" : ticket === "duo" ? "1+1" : "Обычный"}
+                    {ticket === "duo" ? "1+1" : "Обычный"}
                   </button>
                 ))}
               </div>

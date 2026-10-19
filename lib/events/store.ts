@@ -15,7 +15,7 @@ import {
 import { readAllPages } from "@/lib/supabase/read-all-pages";
 
 const EVENT_COLUMNS =
-  "id, title, badge, starts_at, late_entry_until, max_players, max_vip_players, max_duo_tickets, buy_in, vip_buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
+  "id, title, badge, starts_at, late_entry_until, max_players, max_duo_tickets, buy_in, duo_buy_in, starting_stack, venue_address, rules_text, features_text, poster_url, is_published";
 
 const SIGNUP_COLUMNS =
   "id, event_id, user_id, telegram_id, status, ticket_type, use_pass, created_at, duo_partner_user_id, duo_partner_name, duo_host_user_id, duo_confirmed_at, duo_invite_token, notified_at, waitlist_offer_expires_at, waitlist_offered_at";
@@ -107,12 +107,12 @@ export async function deleteEvent(supabase: SupabaseClient, id: string) {
 }
 
 /** Live sign-up counts per event id — cancelled requests do not take a seat. */
-export type EventSignupCount = { duo: number; regular: number; total: number; vip: number };
+export type EventSignupCount = { duo: number; regular: number; total: number };
 
 /**
- * How many seats of each kind an event has spoken for. The three are counted apart: the
- * club opens a different number of regular seats, VIP seats and "1+1" tickets, so a full
- * VIP table must not close the regular ones.
+ * How many seats of each kind an event has spoken for. The two are counted apart: the
+ * club opens a different number of regular seats and "1+1" tickets, so selling out the
+ * pairs must not close the regular seats.
  *
  * A "1+1" is one ticket held by two people: the buyer spends it, and the +1 who joins
  * them takes nothing more — their seat was sold with it. `total` counts heads instead of
@@ -164,7 +164,7 @@ export async function countActiveSignups(
     }
 
     const eventId = String(record.event_id);
-    const taken = counts.get(eventId) ?? { duo: 0, regular: 0, total: 0, vip: 0 };
+    const taken = counts.get(eventId) ?? { duo: 0, regular: 0, total: 0 };
     const ticket = record.ticket_type;
     // A member brought as a +1 counts on their own row once they accept; a guest from
     // outside the club has no row of their own and is counted here, on the buyer's.
@@ -175,7 +175,6 @@ export async function countActiveSignups(
       duo: taken.duo + (ticket === "duo" ? 1 : 0),
       regular: taken.regular + (ticket === "regular" ? 1 : 0),
       total: taken.total + (bringsGuest ? 2 : 1),
-      vip: taken.vip + (ticket === "vip" ? 1 : 0),
     });
   }
 
@@ -278,7 +277,7 @@ export async function getUserSignups(
 /**
  * Who is standing in line for a sold-out poster, oldest first.
  *
- * The place in line remembers which ticket they wanted, so a freed VIP seat reaches the
+ * The place in line remembers which ticket they wanted, so a freed "1+1" reaches the
  * players waiting for one and leaves the rest alone.
  */
 /** The queue, in the order it formed — with names, because the desk reads it too. */

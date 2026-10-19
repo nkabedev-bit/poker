@@ -153,9 +153,8 @@ describe("TMAPlayersPage", () => {
     );
   });
 
-  // The number follows the ticket, so moving between the VIP table and a regular one is
-  // the admin's call and not the screen's.
-  it("asks about the ticket before seating a regular player at the VIP table", async () => {
+  // The last table is a table like any other: the player is moved straight away.
+  it("seats a player at the last table without asking about a ticket", async () => {
     const fetchMock = mockSeatingPage([seatedPlayer()]);
 
     render(<TMAPlayersPage />);
@@ -164,23 +163,21 @@ describe("TMAPlayersPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Стол 3, место 2, свободно" }));
     fireEvent.click(screen.getByRole("button", { name: /пересадить: стол 3, место 2/i }));
 
-    fireEvent.click(await screen.findByRole("button", { name: /сменить на VIP билет/i }));
-
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tma/players/player-1",
         expect.objectContaining({
-          body: JSON.stringify({ action: "move_seat", seat: 2, table: 3, ticketType: "vip" }),
+          body: JSON.stringify({ action: "move_seat", seat: 2, table: 3 }),
         }),
       );
     });
   });
 
   // The walk-in from the evening this was written for: on the roster, at a table, and
-  // out of the draw because nobody had ever said which ticket they came in on.
-  it("asks which ticket a numberless walk-in holds, so they get a number", async () => {
+  // out of the draw because they had never been given a number. Seating them gives one.
+  it("seats a numberless walk-in straight away, so the server gives them a number", async () => {
     const fetchMock = mockSeatingPage([
-      seatedPlayer({ registrationNumber: null, seat: null, table: null, ticketType: undefined }),
+      seatedPlayer({ registrationNumber: null, seat: null, table: null }),
     ]);
 
     render(<TMAPlayersPage />);
@@ -189,22 +186,19 @@ describe("TMAPlayersPage", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Стол 1, место 3, свободно" }));
     fireEvent.click(screen.getByRole("button", { name: /пересадить: стол 1, место 3/i }));
 
-    fireEvent.click(await screen.findByRole("button", { name: /VIP билет/i }));
-
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         "/api/tma/players/player-1",
         expect.objectContaining({
-          body: JSON.stringify({ action: "move_seat", seat: 3, table: 1, ticketType: "vip" }),
+          body: JSON.stringify({ action: "move_seat", seat: 3, table: 1 }),
         }),
       );
     });
   });
 
   /**
-   * The desk types a walk-in in and says on the spot what they came in on: the ticket
-   * decides the range their number is drawn from, and a "1+1" is a regular ticket sold
-   * for two — half the price, an ordinary chair and an ordinary number.
+   * The desk types a walk-in in and says on the spot what they came in on: a "1+1" is a
+   * regular ticket sold for two — half the price, an ordinary chair and an ordinary number.
    */
   it("hands a walk-in the ticket and the chair the desk picked", async () => {
     const fetchMock = mockSeatingPage([]);
@@ -230,7 +224,6 @@ describe("TMAPlayersPage", () => {
         body: JSON.stringify({
           duoTicket: true,
           name: "Гость",
-          ticketType: "regular",
           seat: 5,
           table: 2,
         }),
@@ -238,26 +231,24 @@ describe("TMAPlayersPage", () => {
     );
   });
 
-  it("draws a VIP walk-in a number out of the VIP range", async () => {
+  it("adds a walk-in with no chair on a regular ticket", async () => {
     const fetchMock = mockSeatingPage([]);
 
     render(<TMAPlayersPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: "Добавить игрока" }));
     fireEvent.change(screen.getByLabelText("Ник"), { target: { value: "Гость" } });
-    fireEvent.click(screen.getByRole("button", { name: "VIP" }));
 
     const mainButton = window.Telegram?.WebApp?.MainButton.onClick as ReturnType<typeof vi.fn>;
     await act(async () => {
       await mainButton.mock.calls.at(-1)?.[0]();
     });
 
-    // No chair picked: they go on the roster bare and are seated from their card, but the
-    // ticket the desk named travels with them.
+    // No chair picked: they go on the roster bare and are seated from their card.
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/tma/players",
       expect.objectContaining({
-        body: JSON.stringify({ duoTicket: false, name: "Гость", ticketType: "vip" }),
+        body: JSON.stringify({ duoTicket: false, name: "Гость" }),
       }),
     );
   });

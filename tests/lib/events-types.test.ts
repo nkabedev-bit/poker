@@ -29,7 +29,6 @@ const row = {
   starts_at: "2026-09-01T16:00:00.000Z",
   title: "ONE SHOT KNOCKOUT",
   venue_address: "Москва, Большая Новодмитровская улица, 36с13",
-  vip_buy_in: 2000,
 };
 
 function event(overrides: Partial<TournamentEvent> = {}): TournamentEvent {
@@ -44,16 +43,10 @@ describe("mapEventRow", () => {
     expect(mapped.posterUrl).toBeNull();
   });
 
-  it("reads the VIP ticket price, or null when the game has no VIP seat", () => {
-    expect(mapEventRow(row).vipBuyIn).toBe(2000);
-    expect(mapEventRow({ ...row, vip_buy_in: null }).vipBuyIn).toBeNull();
-  });
-
   it("rejects non-positive counts instead of surfacing zeros", () => {
     const mapped = mapEventRow({ ...row, max_players: 0, starting_stack: -5 });
 
     expect(mapped.maxPlayers).toBeNull();
-    expect(mapped.maxVipPlayers).toBeNull();
     expect(mapped.startingStack).toBeNull();
   });
 
@@ -62,7 +55,6 @@ describe("mapEventRow", () => {
 
     expect(toEventRow(mapped)).toMatchObject({
       buy_in: 1500,
-      vip_buy_in: 2000,
       is_published: true,
       max_players: 90,
       starts_at: "2026-09-01T16:00:00.000Z",
@@ -109,13 +101,17 @@ describe("mapSignupRow", () => {
   };
 
   it("reads the ticket the player asked for", () => {
-    expect(mapSignupRow({ ...signupRow, ticket_type: "vip" }).ticketType).toBe("vip");
-    // A sign-up written before VIP tickets existed is a regular seat.
+    expect(mapSignupRow({ ...signupRow, ticket_type: "duo" }).ticketType).toBe("duo");
+    // A sign-up written before tickets were told apart is a regular seat.
     expect(mapSignupRow(signupRow).ticketType).toBe("regular");
   });
 
+  // Ticket kinds the club no longer sells are read as the regular seat they now are.
+  it("reads a ticket kind the club stopped selling as a regular seat", () => {
+    expect(mapSignupRow({ ...signupRow, ticket_type: "gold" }).ticketType).toBe("regular");
+  });
+
   it("reads the free entry the player asked to pay with", () => {
-    expect(mapSignupRow({ ...signupRow, use_pass: "vip" }).usePass).toBe("vip");
     expect(mapSignupRow({ ...signupRow, use_pass: "regular" }).usePass).toBe("regular");
   });
 
@@ -125,13 +121,13 @@ describe("mapSignupRow", () => {
   });
 });
 
-describe("a poster with no VIP table", () => {
-  it("keeps a zero VIP limit instead of reading it as 'not set'", () => {
-    expect(mapEventRow({ ...row, max_vip_players: 0 }).maxVipPlayers).toBe(0);
+describe("a poster that sells no pair tonight", () => {
+  it("keeps a zero 1+1 limit instead of reading it as 'not set'", () => {
+    expect(mapEventRow({ ...row, max_duo_tickets: 0 }).maxDuoTickets).toBe(0);
   });
 
   it("still treats a missing limit as unset", () => {
-    expect(mapEventRow({ ...row, max_vip_players: null }).maxVipPlayers).toBeNull();
+    expect(mapEventRow({ ...row, max_duo_tickets: null }).maxDuoTickets).toBeNull();
   });
 });
 

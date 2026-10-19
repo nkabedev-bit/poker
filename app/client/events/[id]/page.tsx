@@ -71,9 +71,9 @@ import type { LiveRoom } from "@/lib/tables/live-tables";
 import type { SignupListEntry } from "@/lib/events/signup-list";
 import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
 
-type FreePassChoice = "none" | "regular" | "vip";
+type FreePassChoice = "none" | "regular";
 
-type TicketType = "regular" | "vip" | "duo";
+type TicketType = "regular" | "duo";
 
 /** What a sign-up can say; the +1's half is given out by accepting, never chosen. */
 type HeldTicket = TicketType | "duo_plus_one";
@@ -93,7 +93,7 @@ type EventDetails = TournamentEvent & {
   /** Who the player is bringing on a "1+1", as they wrote the name down. */
   partnerName: string | null;
   /** A ticket the admin put aside, waiting on this player to say they are coming. */
-  reservedTicket?: "regular" | "vip" | "duo" | null;
+  reservedTicket?: "regular" | "duo" | null;
   /** Their place went to the queue after they did not come. */
   seatGivenAway?: boolean;
   signedUp: boolean;
@@ -109,14 +109,13 @@ type EventDetails = TournamentEvent & {
 /** A pass the player already wrote down for another game they have not played yet. */
 type PassHold = {
   eventId: string;
-  pass: Exclude<FreePassChoice, "none">;
   startsAt: string;
   title: string;
 };
 
-type FreeEntries = { heldFor: PassHold[]; regular: number; vip: number };
+type FreeEntries = { heldFor: PassHold[]; regular: number };
 
-type FreeSeats = { duo: number; regular: number | null; vip: number | null };
+type FreeSeats = { duo: number; regular: number | null };
 
 const MAX_PARTNER_NAME_LENGTH = 40;
 
@@ -129,16 +128,10 @@ const CELEBRATION_MS = 1600;
 /** A member of the club, offered as the +1 of a pair. */
 type PartnerMatch = { avatarUrl: string | null; key: string; name: string };
 
-const PASS_TITLES: Record<Exclude<FreePassChoice, "none">, string> = {
-  regular: "Обычная проходка",
-  vip: "VIP проходка",
-};
-
 const TICKET_TITLES: Record<HeldTicket, string> = {
   duo: "1+1",
   duo_plus_one: "1+1 · второй игрок",
   regular: "Обычный",
-  vip: "VIP",
 };
 
 function seatsLabel(left: number | null) {
@@ -159,8 +152,8 @@ export default function ClientEventPage() {
   const eventId = params?.id;
 
   const [event, setEvent] = useState<EventDetails | null>(null);
-  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ heldFor: [], regular: 0, vip: 0 });
-  const [freeSeats, setFreeSeats] = useState<FreeSeats>({ duo: 0, regular: null, vip: null });
+  const [freeEntries, setFreeEntries] = useState<FreeEntries>({ heldFor: [], regular: 0 });
+  const [freeSeats, setFreeSeats] = useState<FreeSeats>({ duo: 0, regular: null });
   const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [usePass, setUsePass] = useState<FreePassChoice>("none");
   const [partnerName, setPartnerName] = useState("");
@@ -203,9 +196,8 @@ export default function ClientEventPage() {
   // rather than asking the server about every letter.
   const searchTimer = useRef<number | null>(null);
 
-  // A pass belongs to its own kind of ticket, so switching the ticket lets go of a
-  // choice that no longer applies — and a "1+1" is bought at its own price, never with
-  // a pass.
+  // A "1+1" is bought at its own price, never with a pass, so switching to it lets go of
+  // the pass.
   const selectTicket = (ticket: TicketType) => {
     if (ticket !== ticketType) tickClientSelection();
     if (ticket === "duo" && ticket !== ticketType) setPartnerWindowOpen(true);
@@ -213,7 +205,7 @@ export default function ClientEventPage() {
     setUsePass((chosen) => (chosen === ticket ? chosen : "none"));
   };
 
-  /** A pass belongs to one kind of ticket, so picking it picks that ticket too. */
+  /** A pass buys a regular ticket, so picking it picks that ticket too. */
   const selectPass = (pass: FreePassChoice) => {
     if (pass !== usePass) tickClientSelection();
     setUsePass(pass);
@@ -239,12 +231,10 @@ export default function ClientEventPage() {
         setFreeEntries({
           heldFor: Array.isArray(data.freeEntries?.heldFor) ? data.freeEntries.heldFor : [],
           regular: Number(data.freeEntries?.regular ?? 0),
-          vip: Number(data.freeEntries?.vip ?? 0),
         });
         setFreeSeats({
           duo: Number(data.freeSeats?.duo ?? 0),
           regular: data.freeSeats?.regular ?? null,
-          vip: data.freeSeats?.vip ?? null,
         });
         setInvite(data.duoInvite ?? null);
         setSignupBan(data.signupBan ?? null);
@@ -507,14 +497,9 @@ export default function ClientEventPage() {
     );
   }
 
-  // The poster offers VIP when the club priced it or opened seats for it — and zero
-  // seats means there is no VIP table tonight, whatever the price says.
-  const offersVip =
-    event.maxVipPlayers !== 0 && (event.vipBuyIn !== null || event.maxVipPlayers !== null);
   // A "1+1" needs both halves: tickets to sell and a price to charge for the pair.
   const offersDuo = (event.maxDuoTickets ?? 0) > 0 && event.duoBuyIn !== null;
-  const seatsLeft =
-    ticketType === "vip" ? freeSeats.vip : ticketType === "duo" ? freeSeats.duo : freeSeats.regular;
+  const seatsLeft = ticketType === "duo" ? freeSeats.duo : freeSeats.regular;
   const soldOut = seatsLeft !== null && seatsLeft <= 0;
   // What the club has already given this player: their sign-up, or the ticket it is
   // holding for them. Either way it is shown rather than chosen.
@@ -538,7 +523,7 @@ export default function ClientEventPage() {
       ) ?? null);
   const shownInviteLinks = inviteLinks ?? event.inviteLinks ?? null;
   const hasInviteLinks = Boolean(shownInviteLinks?.telegram || shownInviteLinks?.web);
-  const ticketsInRow = 1 + (offersVip ? 1 : 0) + (offersDuo ? 1 : 0);
+  const ticketsInRow = 1 + (offersDuo ? 1 : 0);
   const announcedSeats = countAnnouncedSeats(event);
   // The buyer keeps the ticket when their partner backs out, so the screen has to let
   // them name somebody else without cancelling and starting over.
@@ -551,17 +536,14 @@ export default function ClientEventPage() {
   const queuedPartnerMissing =
     queuedTicket === "duo" && partnerMode === "member" && !partnerName.trim();
 
-  // Every pass the player holds is shown, whichever ticket is picked: a pass buys the
-  // ticket of its own kind, so choosing one switches the ticket to match.
-  const vipSoldOut = freeSeats.vip !== null && freeSeats.vip <= 0;
-  // A pass promised to another game stays on the list, greyed out and naming that game:
-  // one that simply vanished would read as lost rather than taken.
-  const heldNote = (pass: Exclude<FreePassChoice, "none">) => {
-    const hold = freeEntries.heldFor.find((item) => item.pass === pass);
-    return hold ? `Занята записью: ${hold.title}, ${formatEventDayLabel(hold.startsAt)}` : null;
-  };
-  const regularHeldNote = heldNote("regular");
-  const vipHeldNote = heldNote("vip");
+  // The pass is shown whichever ticket is picked: it buys a regular ticket, so choosing it
+  // switches the ticket to match. A pass promised to another game stays on the list,
+  // greyed out and naming that game: one that simply vanished would read as lost rather
+  // than taken.
+  const heldPass = freeEntries.heldFor[0];
+  const regularHeldNote = heldPass
+    ? `Занята записью: ${heldPass.title}, ${formatEventDayLabel(heldPass.startsAt)}`
+    : null;
   const passOptions: Array<{
     disabled?: boolean;
     note: string | null;
@@ -571,32 +553,15 @@ export default function ClientEventPage() {
     ...(freeEntries.regular > 0
       ? [{
           note: `Осталось: ${freeEntries.regular} · обычный билет`,
-          title: PASS_TITLES.regular,
+          title: "Проходка",
           value: "regular" as const,
         }]
       : regularHeldNote
         ? [{
             disabled: true,
             note: regularHeldNote,
-            title: PASS_TITLES.regular,
+            title: "Проходка",
             value: "regular" as const,
-          }]
-        : []),
-    ...(freeEntries.vip > 0 && offersVip
-      ? [{
-          disabled: vipSoldOut,
-          note: vipSoldOut
-            ? "VIP-мест не осталось"
-            : `Осталось: ${freeEntries.vip} · VIP билет`,
-          title: PASS_TITLES.vip,
-          value: "vip" as const,
-        }]
-      : offersVip && vipHeldNote
-        ? [{
-            disabled: true,
-            note: vipHeldNote,
-            title: PASS_TITLES.vip,
-            value: "vip" as const,
           }]
         : []),
   ];
@@ -625,16 +590,12 @@ export default function ClientEventPage() {
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const priceOf = (ticket: TicketType) =>
-    ticket === "vip" ? event.vipBuyIn : ticket === "duo" ? event.duoBuyIn : event.buyIn;
+  const priceOf = (ticket: TicketType) => (ticket === "duo" ? event.duoBuyIn : event.buyIn);
   // What the chosen ticket comes to at the desk: nothing when a pass covers it.
   const chosenPrice = usePass !== "none" ? 0 : priceOf(ticketType);
   const freeSeatsLine = [
     `Обычных — ${freeSeats.regular === null ? "есть места" : freeSeats.regular > 0 ? `${freeSeats.regular} свободно` : "разобрали"}`,
     ...(offersDuo ? [`1+1 — ${freeSeats.duo > 0 ? freeSeats.duo : "разобрали"}`] : []),
-    ...(offersVip
-      ? [`VIP — ${freeSeats.vip === null ? "есть места" : freeSeats.vip > 0 ? `${freeSeats.vip} свободно` : "разобрали"}`]
-      : []),
   ].join(" · ");
   const aboutItems = [
     ...(featureLines.length > 0 || event.startingStack
@@ -812,15 +773,6 @@ export default function ClientEventPage() {
                     state={heldTicket === "duo" || heldTicket === "duo_plus_one" ? "chosen" : "muted"}
                   />
                 ) : null}
-                {offersVip ? (
-                  <TicketOption
-                    kind="vip"
-                    price={event.vipBuyIn}
-                    seats={freeSeats.vip}
-                    stamp={heldTicket === "vip" ? heldStamp : undefined}
-                    state={heldTicket === "vip" ? "chosen" : "muted"}
-                  />
-                ) : null}
               </>
             ) : (
               <>
@@ -838,15 +790,6 @@ export default function ClientEventPage() {
                     price={event.duoBuyIn}
                     seats={freeSeats.duo}
                     state={ticketType === "duo" ? "chosen" : "idle"}
-                  />
-                ) : null}
-                {offersVip ? (
-                  <TicketOption
-                    kind="vip"
-                    onSelect={() => selectTicket("vip")}
-                    price={event.vipBuyIn}
-                    seats={freeSeats.vip}
-                    state={ticketType === "vip" ? "chosen" : "idle"}
                   />
                 ) : null}
               </>
@@ -1031,8 +974,8 @@ export default function ClientEventPage() {
             <div className="order-6 flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3">
               <Ticket className="shrink-0 text-club-rose" size={18} />
               <p className="text-[13px] text-club-muted">
-                Вход по проходке: {PASS_TITLES[event.usePass]}. Её спишут, когда вы придёте на игру, а
-                до тех пор она закреплена за этой записью.
+                Вход по проходке. Её спишут, когда вы придёте на игру, а до тех пор она закреплена
+                за этой записью.
               </p>
             </div>
           ) : null}
@@ -1101,11 +1044,7 @@ export default function ClientEventPage() {
               <>
                 <div className="client-breathe relative rounded-[18px] border border-club-gold/35 bg-club-gold/10 px-4 py-3.5 text-center text-[15px] font-extrabold text-club-gold">
                   Вам отложен{" "}
-                  {event.reservedTicket === "vip"
-                    ? "VIP-билет"
-                    : event.reservedTicket === "duo"
-                      ? "билет 1+1"
-                      : "обычный билет"}
+                  {event.reservedTicket === "duo" ? "билет 1+1" : "обычный билет"}
                   <span className="mt-1 block text-[13px] font-semibold text-club-gold/75">
                     {reservedDuo
                       ? "Место держим за вами — впишите напарника и подтвердите."
@@ -1195,11 +1134,7 @@ export default function ClientEventPage() {
                   Встать в лист ожидания
                 </PrimaryButton>
                 <p className="px-2 text-center text-[12px] text-club-faint">
-                  {ticketType === "vip"
-                    ? "VIP-места разобрали."
-                    : ticketType === "duo"
-                      ? "Билеты 1+1 разобрали."
-                      : "Места разобрали."}{" "}
+                  {ticketType === "duo" ? "Билеты 1+1 разобрали." : "Места разобрали."}{" "}
                   Если кто-то отменит запись, мы вам сообщим.
                 </p>
               </>
@@ -1374,7 +1309,6 @@ const LAST_SEATS = 3;
 const TICKET_NOTES: Record<TicketType, string> = {
   duo: "Вход для двоих по одной цене",
   regular: "Вход для одного игрока",
-  vip: "Место за столом выдаёт администратор",
 };
 
 /** One line of a single choice: a radio, a title with a note under it, and whatever sits on the right. */
@@ -1438,14 +1372,13 @@ function TicketOption({
   const soldOut = seats !== null && seats <= 0;
   const chosen = state === "chosen";
   // The last seats of a kind pulse; a ticket that is sold out or not on the table keeps
-  // still. VIP catches the light while it is on sale — the ticket the club would rather sell.
+  // still.
   const lastSeats = seats !== null && seats > 0 && seats <= LAST_SEATS && state !== "muted";
-  const glints = kind === "vip" && !soldOut && state !== "muted";
 
   return (
     <ChoiceRow
       chosen={chosen}
-      className={`${glints ? "client-glint" : ""} ${stamp === "landing" ? "client-jolt" : ""} ${
+      className={`${stamp === "landing" ? "client-jolt" : ""} ${
         state === "muted" ? "opacity-50" : ""
       }`}
       disabled={!onSelect || (soldOut && !chosen)}

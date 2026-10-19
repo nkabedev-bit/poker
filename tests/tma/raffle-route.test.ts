@@ -122,21 +122,18 @@ function createSupabaseMock(accounts: AccountRow[] = [], pastWinners: WinnerRow[
   };
 }
 
-function request(kind: "regular" | "vip") {
-  return new Request("http://localhost/api/tma/raffle", {
-    method: "POST",
-    body: JSON.stringify({ kind }),
-  });
+function request() {
+  return new Request("http://localhost/api/tma/raffle", { method: "POST", body: "{}" });
 }
 
 /** One player in the room, so the draw can only land on them. */
-async function runDraw(kind: "regular" | "vip", only: TournamentPlayer, accounts: AccountRow[] = []) {
+async function runDraw(only: TournamentPlayer, accounts: AccountRow[] = []) {
   const supabase = createSupabaseMock(accounts);
   mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
   mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [only] }));
 
   const { POST } = await import("@/app/api/tma/raffle/route");
-  const response = await POST(request(kind));
+  const response = await POST(request());
 
   return { body: await response.json(), response, supabase };
 }
@@ -173,33 +170,21 @@ describe("POST /api/tma/raffle — telling the winner", () => {
   });
 
   it("tells the free pass winner it is already in the app", async () => {
-    const { body } = await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+    const { body } = await runDraw(player(4, { accountId: "account-4", telegramId: 44 }));
     await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(body.raffle.prize).toBe("granted");
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(
       expect.anything(),
       "account-4",
-      RAFFLE_WIN_MESSAGE.regular,
-    );
-  });
-
-  it("promises the VIP winner a partner certificate", async () => {
-    const { body } = await runDraw("vip", player(23, { accountId: "account-23", telegramId: 23 }));
-    await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
-
-    expect(body.raffle.prize).toBe("none");
-    expect(mocks.notifyClientUser).toHaveBeenCalledWith(
-      expect.anything(),
-      "account-23",
-      RAFFLE_WIN_MESSAGE.vip,
+      RAFFLE_WIN_MESSAGE,
     );
   });
 
   // Sent at once, the message reached the winner's phone while the reel in the hall was
   // still turning: the winner knew before the room did.
   it("lets the reel stop before the winner hears about it", async () => {
-    await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+    await runDraw(player(4, { accountId: "account-4", telegramId: 44 }));
 
     expect(mocks.broadcastPublicState).toHaveBeenCalledWith("token-1");
     await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS - 1);
@@ -214,7 +199,7 @@ describe("POST /api/tma/raffle — telling the winner", () => {
   it("stays quiet when the pass could not be credited", async () => {
     mocks.adjustFreeEntries.mockResolvedValue(null);
 
-    const { body } = await runDraw("regular", player(4, { accountId: "account-4", telegramId: 44 }));
+    const { body } = await runDraw(player(4, { accountId: "account-4", telegramId: 44 }));
     await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(body.raffle.prize).toBe("manual");
@@ -222,7 +207,7 @@ describe("POST /api/tma/raffle — telling the winner", () => {
   });
 
   it("stays quiet for a player the admin seated by hand", async () => {
-    await runDraw("vip", player(23));
+    await runDraw(player(23));
     await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
 
     expect(mocks.notifyClientUser).not.toHaveBeenCalled();
@@ -234,7 +219,6 @@ describe("POST /api/tma/raffle — telling the winner", () => {
     const error = vi.spyOn(console, "error").mockImplementation(() => {});
 
     const { body, response } = await runDraw(
-      "regular",
       player(4, { accountId: "account-4", telegramId: 44 }),
     );
     const running = await waitAfterResponse(RAFFLE_WIN_NOTICE_DELAY_MS);
@@ -259,7 +243,7 @@ describe("POST /api/tma/raffle — the faces on the reel", () => {
   // Frozen with the draw rather than looked up by the screen: a player seated while the
   // reel is turning must not change what the room is watching.
   it("writes the club's photo down with the draw", async () => {
-    const { supabase } = await runDraw("regular", player(4, { telegramId: 555 }), [
+    const { supabase } = await runDraw(player(4, { telegramId: 555 }), [
       {
         avatar_thumb_url: "https://club.example/thumbs/4.webp",
         avatar_url: "https://club.example/faces/4.jpg",
@@ -276,7 +260,7 @@ describe("POST /api/tma/raffle — the faces on the reel", () => {
   // Somebody the admin seated by hand has no account, so there is no face to find —
   // the reel runs their nickname instead, and the draw says so.
   it("leaves the face empty for a player the club has no photo of", async () => {
-    const { supabase } = await runDraw("regular", player(9));
+    const { supabase } = await runDraw(player(9));
 
     expect(storedDraw(supabase).faces).toEqual([
       { avatarUrl: null, name: "Игрок 9", number: 9 },
@@ -318,7 +302,7 @@ describe("POST /api/tma/raffle — how large the faces are sent", () => {
     );
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    await POST(request("regular"));
+    await POST(request());
     return storedDraw(supabase);
   }
 
@@ -357,7 +341,7 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
 
   // Picked with the result, so every screen in the hall plays the same run.
   it("writes down how the draw runs with the draw", async () => {
-    const { supabase } = await runDraw("regular", player(4));
+    const { supabase } = await runDraw(player(4));
     const stored = storedDraw(supabase);
 
     expect(stored.motion).toBeDefined();
@@ -378,7 +362,7 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
     );
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    await POST(request("regular"));
+    await POST(request());
     const stored = storedDraw(supabase);
 
     expect(stored.motion?.style).toBe("finalTable");
@@ -387,9 +371,8 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
     expect(stored.spinSeconds).toBe(planFinalTable(3).totalMs / 1000);
   });
 
-  // Pinned randomness picks the first run on the list; the regular draw already ran it.
-  it("never runs tonight's second draw the way the first one ran", async () => {
-    mocks.randomInt.mockImplementation(() => 0);
+  // One draw a tournament: the second press is refused with the result of the first.
+  it("refuses a second draw tonight", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
     mocks.loadTournamentExtras.mockResolvedValue(
@@ -398,7 +381,6 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
         raffleHistory: [
           {
             id: "tonight-regular",
-            kind: "regular",
             motion: { style: REEL_STYLES[0] },
             numbers: [23],
             prize: "granted",
@@ -412,10 +394,13 @@ describe("POST /api/tma/raffle — how the reel runs", () => {
     );
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const response = await POST(request("vip"));
+    const response = await POST(request());
 
-    expect(response.status).toBe(200);
-    expect(storedDraw(supabase).motion?.style).not.toBe(REEL_STYLES[0]);
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe(
+      "Розыгрыш уже проводился сегодня — победил номер 23 (Игрок 23)",
+    );
+    expect(supabase.rpc).not.toHaveBeenCalledWith("set_tournament_raffle", expect.anything());
   });
 });
 
@@ -427,7 +412,7 @@ describe("POST /api/tma/raffle — who stands in the draw", () => {
     mocks.appendFreeEntryGrant.mockResolvedValue(undefined);
   });
 
-  it("puts VIP numbers on the free pass wheel too", async () => {
+  it("puts every number of the evening on the wheel", async () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
     mocks.loadTournamentExtras.mockResolvedValue(
@@ -435,23 +420,11 @@ describe("POST /api/tma/raffle — who stands in the draw", () => {
     );
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const body = await (await POST(request("regular"))).json();
+    const body = await (await POST(request())).json();
 
     expect(body.raffle.numbers).toEqual([1, 2, 21, 22]);
   });
 
-  it("keeps regular numbers off the VIP wheel", async () => {
-    const supabase = createSupabaseMock();
-    mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 1 });
-    mocks.loadTournamentExtras.mockResolvedValue(
-      mergeTournamentExtras({ players: [player(1), player(2), player(21), player(22)] }),
-    );
-
-    const { POST } = await import("@/app/api/tma/raffle/route");
-    const body = await (await POST(request("vip"))).json();
-
-    expect(body.raffle.numbers).toEqual([21, 22]);
-  });
 });
 
 describe("POST /api/tma/raffle — sharing the prizes round", () => {
@@ -468,7 +441,7 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players }));
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const response = await POST(request("regular"));
+    const response = await POST(request());
 
     return { body: await response.json(), supabase };
   }
@@ -479,7 +452,6 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     expect(supabase.insertedWinners).toEqual([
       expect.objectContaining({
         account_id: "account-4",
-        kind: "regular",
         player_name: "Игрок 4",
         raffle_id: body.raffle.id,
         telegram_id: 44,
@@ -514,7 +486,7 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     );
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const response = await POST(request("regular"));
+    const response = await POST(request());
 
     expect(response.status).toBe(200);
     expect(results.filters.or).toBe("player_key.in.(shark),telegram_id.in.(44)");
@@ -532,7 +504,7 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [player(4, { name: "Shark" })] }));
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const response = await POST(request("regular"));
+    const response = await POST(request());
 
     expect(response.status).toBe(200);
     expect((await response.json()).raffle.winnerNumber).toBe(4);
@@ -554,7 +526,7 @@ describe("POST /api/tma/raffle — sharing the prizes round", () => {
     mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [player(4)] }));
 
     const { POST } = await import("@/app/api/tma/raffle/route");
-    const response = await POST(request("regular"));
+    const response = await POST(request());
 
     expect(response.status).toBe(200);
     expect((await response.json()).raffle.winnerNumber).toBe(4);

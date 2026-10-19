@@ -15,7 +15,6 @@ const DRAW: Raffle = {
     { avatarUrl: null, name: "Козочка", number: 2 },
   ],
   id: "draw-1",
-  kind: "regular",
   numbers: [1, 2],
   prize: "manual",
   spinSeconds: 10,
@@ -170,10 +169,10 @@ describe("RaffleStrip", () => {
       await vi.advanceTimersByTimeAsync(DRAW.spinSeconds * 1000 + 2000);
     });
 
-    rerender(<RaffleStrip raffle={{ ...DRAW, id: "draw-2", kind: "vip" }} />);
+    rerender(<RaffleStrip raffle={{ ...DRAW, id: "draw-2" }} />);
 
     expect(container.querySelector(".raffle-result--shown")).toBeNull();
-    expect(screen.getByText("VIP розыгрыш")).toBeTruthy();
+    expect(screen.getByText("Розыгрыш бесплатной проходки")).toBeTruthy();
   });
 
   // Draws taken before the reel existed carry numbers and nothing else.
@@ -298,7 +297,6 @@ describe("RaffleStrip — the scenes", () => {
       number,
     })),
     id: "scene-1",
-    kind: "regular",
     numbers: [1, 2, 3, 4, 5],
     prize: "manual",
     spinSeconds: 11,

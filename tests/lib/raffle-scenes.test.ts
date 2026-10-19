@@ -10,7 +10,6 @@ import {
   raffleFacePhoto,
   readRaffleMotion,
   SPOTLIGHT_HOPS,
-  type RaffleStyle,
 } from "@/lib/raffle/raffle-scenes";
 
 /** A repeatable stand-in for the server's randomness (mulberry32). */
@@ -33,9 +32,9 @@ function room(size: number, winnerNumber = 1) {
   return { numbers: Array.from({ length: size }, (_, index) => index + 1), winnerNumber };
 }
 
-function picks(count: number, previous: RaffleStyle | null = null, draw = { numbers: ROOM, winnerNumber: WINNER }) {
+function picks(count: number, draw = { numbers: ROOM, winnerNumber: WINNER }) {
   const random = seeded(11);
-  return Array.from({ length: count }, () => pickRaffleMotion(random, previous, draw));
+  return Array.from({ length: count }, () => pickRaffleMotion(random, draw));
 }
 
 describe("pickRaffleMotion", () => {
@@ -44,21 +43,11 @@ describe("pickRaffleMotion", () => {
     expect(new Set(picks(400).map(({ motion }) => motion.style))).toEqual(new Set(RAFFLE_STYLES));
   });
 
-  // Two draws an evening: the VIP one never runs the way the regular one just did.
-  it("never runs the evening's second draw the way the first one ran", () => {
-    for (const previous of RAFFLE_STYLES) {
-      const styles = picks(200, previous).map(({ motion }) => motion.style);
-
-      expect(styles).not.toContain(previous);
-      expect(new Set(styles).size).toBe(RAFFLE_STYLES.length - 1);
-    }
-  });
-
   // The winner's bot message waits a minute, and a screen off its live connection may
   // only pick the draw up 45 seconds in.
   it("keeps every run short of the winner's message, whatever the size of the room", () => {
     for (const size of [1, 2, 5, 12, 25, 40, 60]) {
-      for (const { spinSeconds } of picks(200, null, room(size))) {
+      for (const { spinSeconds } of picks(200, room(size))) {
         expect(spinSeconds).toBeLessThanOrEqual(MAX_REEL_SPIN_SECONDS);
       }
     }
@@ -93,7 +82,7 @@ describe("pickRaffleMotion", () => {
 
   it("still lands on the winner in a room of one or two", () => {
     for (const size of [1, 2]) {
-      for (const { motion } of picks(200, null, room(size, size))) {
+      for (const { motion } of picks(200, room(size, size))) {
         if (motion.style === "spotlight") expect(motion.hops.at(-1)).toBe(size);
         if (motion.style === "finalTable") expect(motion.order).toEqual(size === 2 ? [1] : []);
       }

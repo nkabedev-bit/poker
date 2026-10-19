@@ -157,7 +157,7 @@ export type TableSeat = {
   seat: number;
 };
 
-export type SeatingTable = { format: number; isVip: boolean; number: number; seats: TableSeat[] };
+export type SeatingTable = { format: number; number: number; seats: TableSeat[] };
 
 /** Anybody who may be holding a chair, as much of them as the seating plan needs. */
 export type SeatingPlayer = Pick<TournamentPlayer, "id" | "name" | "status"> & {
@@ -165,14 +165,6 @@ export type SeatingPlayer = Pick<TournamentPlayer, "id" | "name" | "status"> & {
   seat?: number | null;
   table?: number | null;
 };
-
-/**
- * The VIP table is the last one the club opens — with a single table there is no VIP
- * seating to speak of.
- */
-export function isVipTable(tableNumber: number, tablesCount: number) {
-  return tablesCount > 1 && tableNumber === tablesCount;
-}
 
 /**
  * The room as the admin sees it at the door: every table, every chair, and who is in it.
@@ -208,7 +200,6 @@ export function buildSeatingTables(
 
     return {
       format,
-      isVip: isVipTable(number, tables),
       number,
       seats: seatsOfFormat(format).map((seat) => ({
         label: seatLabel(seat, format),
@@ -220,18 +211,13 @@ export function buildSeatingTables(
   });
 }
 
-/**
- * The free seats a ticket may be given: a VIP ticket belongs at the VIP table, a
- * regular one at the regular tables, and the two are never mixed.
- */
-export function listFreeSeats(tables: SeatingTable[], ticket: "regular" | "vip") {
-  return tables
-    .filter((table) => table.isVip === (ticket === "vip"))
-    .flatMap((table) =>
-      table.seats
-        .filter((seat) => seat.player === null)
-        .map((seat) => ({ seat: seat.seat, table: table.number })),
-    );
+/** Every chair in the room nobody is sitting in. */
+export function listFreeSeats(tables: SeatingTable[]) {
+  return tables.flatMap((table) =>
+    table.seats
+      .filter((seat) => seat.player === null)
+      .map((seat) => ({ seat: seat.seat, table: table.number })),
+  );
 }
 
 function distanceAround(from: number, to: number) {
@@ -242,8 +228,7 @@ function distanceAround(from: number, to: number) {
 /**
  * A seat drawn for a player who did not choose one.
  *
- * The draw is made among the emptiest tables this ticket may sit at, and only then among
- * their chairs: drawing from every free chair at once fills the first table to the brim
+ * The draw is made among the emptiest tables, and only then among their chairs: drawing from every free chair at once fills the first table to the brim
  * before the second one is touched, because the emptiest table always has the fewest
  * chairs to be drawn.
  *
@@ -251,13 +236,8 @@ function distanceAround(from: number, to: number) {
  * half-empty table fills evenly round the felt instead of six players huddled along one
  * side of it. Chairs equally far are left to the draw.
  */
-export function pickRandomSeat(
-  tables: SeatingTable[],
-  ticket: "regular" | "vip",
-  random: () => number = Math.random,
-) {
-  const allowed = tables.filter((table) => table.isVip === (ticket === "vip"));
-  const withRoom = allowed.filter((table) => table.seats.some((seat) => seat.player === null));
+export function pickRandomSeat(tables: SeatingTable[], random: () => number = Math.random) {
+  const withRoom = tables.filter((table) => table.seats.some((seat) => seat.player === null));
   if (withRoom.length === 0) return null;
 
   const fewestPlayers = Math.min(
@@ -284,12 +264,11 @@ export function pickRandomSeat(
 }
 
 /**
- * Where to bring a chair when every seat the ticket may take is gone: the table of its
- * kind with the fewest players among those that can still take one more format.
+ * Where to bring a chair when every seat is gone: the table with the fewest players among
+ * those that can still take one more format.
  */
-export function pickTableToGrow(tables: SeatingTable[], ticket: "regular" | "vip") {
+export function pickTableToGrow(tables: SeatingTable[]) {
   const [chosen] = tables
-    .filter((table) => table.isVip === (ticket === "vip"))
     .flatMap((table) => {
       const format = nextTableFormat(table.format);
       if (format === null) return [];

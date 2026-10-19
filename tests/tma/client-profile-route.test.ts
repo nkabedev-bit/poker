@@ -19,7 +19,6 @@ const questionnaire = {
   profile_submitted_at: "2026-09-01T10:05:00.000Z",
   telegram_id: 77,
   username: "shark",
-  vip_free_entries: 0,
 };
 
 function supabaseWithQuestionnaire() {

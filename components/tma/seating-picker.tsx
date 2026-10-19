@@ -27,7 +27,7 @@ type SeatingPickerProps = {
 
 /**
  * The room, drawn the way it stands: a table per oval with the chairs the club has put at
- * it, the VIP table marked in the middle. The admin taps the chair the player is going to,
+ * it. The admin taps the chair the player is going to,
  * and can bring a chair to a table when the late ones arrive.
  */
 export function SeatingPicker({
@@ -119,9 +119,7 @@ function SeatingTableView({
       </div>
 
       <div className="seating-table">
-        <div className="seating-table__felt">
-          {table.isVip ? <span className="seating-table__vip">VIP</span> : null}
-        </div>
+        <div className="seating-table__felt" />
 
         {table.seats.map((seat) => {
           const position = getSeatPosition(seat);

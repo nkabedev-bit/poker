@@ -434,7 +434,7 @@ describe("TMA players route", () => {
     const supabase = createSupabaseMock();
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
-      seatingExtras({ registrationNumber: 5, ticketType: "regular" }),
+      seatingExtras({ registrationNumber: 5 }),
     );
 
     const response = await moveSeat({ seat: 4, table: 2 });
@@ -460,12 +460,16 @@ describe("TMA players route", () => {
       seatingExtras({ registrationNumber: null, seat: null, table: null }),
     );
 
-    const response = await moveSeat({ seat: 3, table: 3, ticketType: "vip" });
+    const response = await moveSeat({ seat: 3, table: 3 });
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.player.registrationNumber).toBe(21);
-    expect(data.player.ticketType).toBe("vip");
+    expect(data.player.registrationNumber).toBe(1);
+    expect(supabase.rpc).toHaveBeenCalledWith("update_tournament_player", {
+      p_patch: { registrationNumber: 1 },
+      p_player_id: "player-1",
+      p_tournament_id: "tournament-1",
+    });
   });
 
   it("says who is in a chair it cannot give away", async () => {
@@ -478,7 +482,7 @@ describe("TMA players route", () => {
     ) as unknown as typeof supabase.rpc;
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(
-      seatingExtras({ registrationNumber: 5, ticketType: "regular" }),
+      seatingExtras({ registrationNumber: 5 }),
     );
 
     const response = await moveSeat({ seat: 4, table: 2 });
@@ -613,8 +617,7 @@ describe("TMA players route", () => {
     const data = await response.json();
 
     expect(response.status).toBe(200);
-    expect(data.player.registrationNumber).toBe(21);
-    expect(data.player.category).toBe("VIP");
+    expect(data.player.registrationNumber).toBe(1);
     expect(supabase.rpc).toHaveBeenCalledWith(
       "append_tournament_player",
       expect.any(Object),
@@ -624,8 +627,7 @@ describe("TMA players route", () => {
         players: [
           expect.objectContaining({
             name: "Fallback Player",
-            registrationNumber: 21,
-            category: "VIP",
+            registrationNumber: 1,
           }),
         ],
       },

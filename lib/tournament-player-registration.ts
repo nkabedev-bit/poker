@@ -1,13 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
-import {
-  getPlayerCategory,
-  isVipRegistrationNumber,
-  REGISTRATION_NUMBERS_PER_EVENING,
-  REGULAR_REGISTRATION_NUMBER_RANGES,
-  shouldTakeVipNumber,
-  VIP_REGISTRATION_NUMBER_RANGE,
-} from "@/lib/player-registration-number";
+import { REGISTRATION_NUMBERS_PER_EVENING } from "@/lib/player-registration-number";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { countSeats, readTableFormats, SEATS_PER_TABLE } from "@/lib/tables/seating";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
@@ -28,19 +21,11 @@ export class TournamentRegistrationCapacityError extends Error {
   }
 }
 
-/** The evening's regular numbers — 1–20 and 36–40 — are all spoken for. */
-export class RegularRegistrationNumbersExhaustedError extends Error {
+/** The evening's numbers — 1–40 — are all spoken for. */
+export class RegistrationNumbersExhaustedError extends Error {
   constructor() {
-    super("Regular registration numbers exhausted");
-    this.name = "RegularRegistrationNumbersExhaustedError";
-  }
-}
-
-/** The evening's VIP numbers — 21–35 — are all spoken for. */
-export class VipRegistrationNumbersExhaustedError extends Error {
-  constructor() {
-    super("VIP registration numbers exhausted");
-    this.name = "VipRegistrationNumbersExhaustedError";
+    super("Registration numbers exhausted");
+    this.name = "RegistrationNumbersExhaustedError";
   }
 }
 
@@ -52,28 +37,16 @@ export function isTournamentRegistrationCapacityError(error: unknown) {
   return message.includes("Tournament capacity reached");
 }
 
-export function isRegularRegistrationNumbersExhaustedError(error: unknown) {
-  if (error instanceof RegularRegistrationNumbersExhaustedError) return true;
-  if (!error || typeof error !== "object") return false;
-
-  const message = String((error as { message?: unknown }).message ?? "");
-  return message.includes("Regular registration numbers exhausted");
-}
-
-export function isVipRegistrationNumbersExhaustedError(error: unknown) {
-  if (error instanceof VipRegistrationNumbersExhaustedError) return true;
-  if (!error || typeof error !== "object") return false;
-
-  const message = String((error as { message?: unknown }).message ?? "");
-  return message.includes("VIP registration numbers exhausted");
-}
-
-/** The numbers of the ticket asked for have run out, whichever ticket that was. */
+/**
+ * The evening's numbers have run out. The database said so in other words before
+ * 19.10.2026 ("Regular registration numbers exhausted"), and both are read the same.
+ */
 export function isRegistrationNumbersExhaustedError(error: unknown) {
-  return (
-    isRegularRegistrationNumbersExhaustedError(error) ||
-    isVipRegistrationNumbersExhaustedError(error)
-  );
+  if (error instanceof RegistrationNumbersExhaustedError) return true;
+  if (!error || typeof error !== "object") return false;
+
+  const message = String((error as { message?: unknown }).message ?? "");
+  return message.toLowerCase().includes("registration numbers exhausted");
 }
 
 export function buildAdminRegistrationFullMessage(registeredPlayersCount: number) {
@@ -92,18 +65,9 @@ export function buildRegistrationFullMessage(error: unknown, seatedCount: number
   return buildAdminRegistrationFullMessage(seatedCount);
 }
 
-function formatNumberRange([from, to]: readonly [number, number]) {
-  return `${from}–${to}`;
-}
-
-/** What the desk is told when the numbers of the ticket it asked for have run out. */
-export function buildNumbersExhaustedMessage(error: unknown) {
-  if (isVipRegistrationNumbersExhaustedError(error)) {
-    return `VIP-номера ${formatNumberRange(VIP_REGISTRATION_NUMBER_RANGE)} закончились. Посадите игрока по обычному билету или освободите номер`;
-  }
-
-  const regular = REGULAR_REGISTRATION_NUMBER_RANGES.map(formatNumberRange).join(" и ");
-  return `Обычные номера ${regular} закончились. Посадите игрока по VIP-билету или освободите номер`;
+/** What the desk is told when the evening's numbers have run out. */
+export function buildNumbersExhaustedMessage() {
+  return `Номера 1–${REGISTRATION_NUMBERS_PER_EVENING} закончились. Освободите номер, чтобы посадить игрока`;
 }
 
 /**
@@ -135,12 +99,10 @@ function getCapacity(extras: TournamentExtras) {
   };
 }
 
-/** The first number of `ranges`, in their order, that nobody holds tonight — or 0. */
-function firstFreeNumber(ranges: ReadonlyArray<readonly [number, number]>, used: Set<number>) {
-  for (const [from, to] of ranges) {
-    for (let candidate = from; candidate <= to; candidate += 1) {
-      if (!used.has(candidate)) return candidate;
-    }
+/** The first number of the evening that nobody holds tonight — or 0. */
+function firstFreeNumber(used: Set<number>) {
+  for (let candidate = 1; candidate <= REGISTRATION_NUMBERS_PER_EVENING; candidate += 1) {
+    if (!used.has(candidate)) return candidate;
   }
 
   return 0;
@@ -160,16 +122,12 @@ function isMissingAppendPlayerRpcError(error: unknown) {
 }
 
 /**
- * The next free number of the kind this player's ticket takes.
- *
- * The ranges never meet: 1–20 and then 36–40 belong to the regular tickets, 21–35 to the
- * VIP ones, which is what lets the club read a ticket off a number alone. Forty numbers in
- * all, and the evening holds no more players than that.
+ * The next free number of the evening: 1–40 in the order players are seated, and the
+ * evening holds no more players than that.
  *
  * A number is spoken for by anyone who ever held it tonight. A player who busted an hour
- * ago is still in the draw and on the club's sheet, and so is a number handed back when a
- * ticket changed: calling two people "number 24" over one evening is worse than skipping
- * a number.
+ * ago is still in the draw and on the club's sheet, and so is a number handed back before:
+ * calling two people "number 24" over one evening is worse than skipping a number.
  */
 export function assignRegistrationNumber(player: TournamentPlayer, players: TournamentPlayer[]) {
   const tableNumber = Math.max(1, Math.floor(Number(player.table ?? 1)));
@@ -182,19 +140,12 @@ export function assignRegistrationNumber(player: TournamentPlayer, players: Tour
     }
   }
 
-  let registrationNumber = 0;
-  if (shouldTakeVipNumber(player.ticketType, tableNumber)) {
-    registrationNumber = firstFreeNumber([VIP_REGISTRATION_NUMBER_RANGE], usedNumbers);
-    if (!registrationNumber) throw new VipRegistrationNumbersExhaustedError();
-  } else {
-    registrationNumber = firstFreeNumber(REGULAR_REGISTRATION_NUMBER_RANGES, usedNumbers);
-    if (!registrationNumber) throw new RegularRegistrationNumbersExhaustedError();
-  }
+  const registrationNumber = firstFreeNumber(usedNumbers);
+  if (!registrationNumber) throw new RegistrationNumbersExhaustedError();
 
   return {
     ...player,
     registrationNumber,
-    category: getPlayerCategory(registrationNumber),
     table: tableNumber,
   };
 }
@@ -276,11 +227,8 @@ export async function appendTournamentPlayerWithRegistrationNumber({
           "evening",
         );
       }
-      if (isRegularRegistrationNumbersExhaustedError(error)) {
-        throw new RegularRegistrationNumbersExhaustedError();
-      }
-      if (isVipRegistrationNumbersExhaustedError(error)) {
-        throw new VipRegistrationNumbersExhaustedError();
+      if (isRegistrationNumbersExhaustedError(error)) {
+        throw new RegistrationNumbersExhaustedError();
       }
 
       throw error;
@@ -305,12 +253,8 @@ export async function appendTournamentPlayerWithRegistrationNumber({
 /**
  * Puts a walk-in on the roster without a chair or a number.
  *
- * The number belongs to the ticket — the club keeps 21–35 for VIP guests —
- * and at the door nobody has asked yet which one this player wants. Handing out a regular
- * number on the way in decided that for them, and it could not be taken back.
- *
- * So they are added bare and appear on the desk's screen among those still to be seated;
- * the number is issued there, once the ticket is known.
+ * They are added bare and appear on the desk's screen among those still to be seated;
+ * the number is issued there, in the order players actually sit down.
  */
 export async function appendUnseatedTournamentPlayer({
   extras,
@@ -348,108 +292,28 @@ export async function appendUnseatedTournamentPlayer({
 }
 
 /**
- * Writes the ticket the desk chose onto a player, and gives them a number if they have
- * none yet.
+ * Gives a player the desk has just sat down a number, if they have none yet.
  *
- * Both halves matter. On an evening played without cards nothing else records the
- * ticket at all — the card RPC is what used to do it, and there is no card — so a guest
- * who asked for a VIP seat was charged for a regular one. And the number follows the
- * ticket, so it can only be handed out once the ticket is known.
- *
- * A number already given stays: it is what the club calls a player all evening, and it
- * does not change under them. Changing it is a thing the admin asks for by name —
- * `reissueRegistrationNumberForTicket` below.
+ * A walk-in typed in at the door goes on the roster without one and gets theirs here.
+ * A number already given stays — it is what the club calls a player all evening, and it
+ * does not change under them.
  */
-export async function applySeatingTicket({
-  extras,
-  playerId,
-  redirectTo,
-  supabase,
-  ticketType,
-}: {
-  extras: TournamentExtras;
-  playerId: string;
-  redirectTo: string;
-  supabase: SupabaseClient;
-  ticketType: "regular" | "vip";
-}) {
-  const player = extras.players.find((item) => item.id === playerId);
-  if (!player) return null;
-
-  const withTicket = { ...player, ticketType };
-  const next =
-    Number(player.registrationNumber) > 0
-      ? withTicket
-      : assignRegistrationNumber(withTicket, extras.players);
-
-  if (next.ticketType === player.ticketType && next.registrationNumber === player.registrationNumber) {
-    return player;
-  }
-
-  await saveTournamentExtras(
-    { players: extras.players.map((item) => (item.id === playerId ? next : item)) },
-    redirectTo,
-    supabase,
-  );
-
-  return next;
-}
-
-/**
- * Moves a player from one kind of ticket to the other and calls them by a new number.
- *
- * Only ever on the admin's say-so: a player has been announced by their number all
- * evening, so the screen asks before this runs. What it buys is the case the desk could
- * not settle otherwise — a guest upgraded to VIP mid-evening, who has to be in the VIP
- * draw and pay the VIP price, and neither follows from a number out of the regular range.
- *
- * The old number is kept on the player rather than dropped, so it is not handed to
- * somebody else an hour later.
- */
-export async function reissueRegistrationNumberForTicket({
+export async function ensureRegistrationNumber({
   extras,
   playerId,
   supabase,
-  ticketType,
   tournamentId,
 }: {
   extras: TournamentExtras;
   playerId: string;
   supabase: SupabaseClient;
-  ticketType: "regular" | "vip";
   tournamentId: string;
 }) {
   const player = extras.players.find((item) => item.id === playerId);
   if (!player) return null;
+  if (Number(player.registrationNumber) > 0) return player;
 
-  const currentNumber = Number(player.registrationNumber);
-  const holdsMatchingNumber =
-    Number.isInteger(currentNumber) &&
-    currentNumber > 0 &&
-    isVipRegistrationNumber(currentNumber) === (ticketType === "vip");
-
-  // The number already says what the ticket says: nothing to re-issue, and the player
-  // keeps the number the room knows them by.
-  if (holdsMatchingNumber && player.ticketType === ticketType) return player;
-
-  let patch: Partial<TournamentPlayer> = { ticketType };
-  if (!holdsMatchingNumber) {
-    const previousRegistrationNumbers = [
-      ...(player.previousRegistrationNumbers ?? []),
-      ...(Number.isInteger(currentNumber) && currentNumber > 0 ? [currentNumber] : []),
-    ];
-    const next = assignRegistrationNumber(
-      { ...player, previousRegistrationNumbers, ticketType },
-      extras.players,
-    );
-
-    patch = {
-      category: next.category,
-      previousRegistrationNumbers,
-      registrationNumber: next.registrationNumber,
-      ticketType,
-    };
-  }
+  const { registrationNumber } = assignRegistrationNumber(player, extras.players);
 
   // One player, patched under the row lock, rather than the whole roster written back:
   // this runs while the tournament is live, and a knockout recorded in between must not
@@ -457,7 +321,7 @@ export async function reissueRegistrationNumberForTicket({
   const { data, error } = await supabase.rpc("update_tournament_player", {
     p_tournament_id: tournamentId,
     p_player_id: playerId,
-    p_patch: patch,
+    p_patch: { registrationNumber },
   });
 
   if (error) throw error;

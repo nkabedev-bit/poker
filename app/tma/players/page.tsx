@@ -5,7 +5,6 @@ import Link from "next/link";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
 import {
-  ArrowRight,
   ArrowRightLeft,
   BadgeMinus,
   BadgePlus,
@@ -18,14 +17,10 @@ import {
   Search,
   Skull,
   Trash2,
-  TriangleAlert,
 } from "lucide-react";
-import {
-  formatPlayerNameWithRegistrationNumber,
-  isVipRegistrationNumber,
-} from "@/lib/player-registration-number";
+import { formatPlayerNameWithRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
-import { isVipTable, nameSeat } from "@/lib/tables/seating";
+import { nameSeat } from "@/lib/tables/seating";
 import { changeTableFormat, readTableFormatsFrom, type TableFormats } from "../table-formats";
 import { ScreenHeader, SectionLabel, TableChips } from "../ui";
 
@@ -72,47 +67,31 @@ type Player = {
   seat: number;
   stack: number;
   status: "active" | "eliminated";
-  ticketType?: "regular" | "vip";
 };
 
 type SeatChoice = { seat: number; table: number };
 
-const TICKET_LABELS = { regular: "обычный билет", vip: "VIP билет" } as const;
-
 /** What the desk can hand a walk-in. A pair is a regular ticket sold for two. */
-const NEW_PLAYER_TICKETS = ["regular", "duo", "vip"] as const;
+const NEW_PLAYER_TICKETS = ["regular", "duo"] as const;
 type NewPlayerTicket = (typeof NEW_PLAYER_TICKETS)[number];
 
 const NEW_PLAYER_TICKET_LABELS: Record<NewPlayerTicket, string> = {
   duo: "1+1",
   regular: "Обычный",
-  vip: "VIP",
 };
 
 const NEW_PLAYER_TICKET_HINTS: Record<NewPlayerTicket, string> = {
-  duo: "Половина цены билета — как и у того, кто его привёл. Номер и стол обычные.",
-  regular: "Номер из обычного диапазона.",
-  vip: "Номер из VIP-диапазона, игрок попадает в VIP-розыгрыш.",
+  duo: "Половина цены билета — как и у того, кто его привёл.",
+  regular: "Полная цена билета.",
 };
-
-/**
- * The ticket a player holds, as the screen can tell.
- *
- * Written down since the desk started picking it at the card; before that the number is
- * the only record there is, and above 20 means the VIP draw.
- */
-function readPlayerTicket(player: Player): "regular" | "vip" {
-  return player.ticketType ?? (isVipRegistrationNumber(player.registrationNumber) ? "vip" : "regular");
-}
 
 export default function TMAPlayersPage() {
   const { initData, signOut } = useTMA();
   const [players, setPlayers] = useState<Player[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
-  // The ticket a walk-in came in on, which only the desk knows. It decides two things at
-  // once: the range their registration number is drawn from, and what they owe — half of
-  // a "1+1" pays half, and the pair plays at the ordinary tables like anybody else.
+  // The ticket a walk-in came in on, which only the desk knows. It decides what they owe:
+  // half of a "1+1" pays half.
   const [newTicket, setNewTicket] = useState<NewPlayerTicket>("regular");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
   const [addonEnabled, setAddonEnabled] = useState(false);
@@ -128,11 +107,8 @@ export default function TMAPlayersPage() {
   // Where the admin is sending this player: a chair, not just a table.
   const [moveSeat, setMoveSeat] = useState<SeatChoice | null>(null);
   const [isMovingSeat, setIsMovingSeat] = useState(false);
-  // The chosen chair belongs to the other kind of table than the player's ticket, and
-  // only the admin can say which of the two is right now.
-  const [seatTicketChoiceOpen, setSeatTicketChoiceOpen] = useState(false);
-  // A walk-in the desk already knows the ticket for: the number follows it, so picking
-  // it here is what lets a VIP guest be seated with a VIP number straight away.
+  // A walk-in the desk already knows the chair for is seated, and given a number,
+  // straight away.
   const [newSeat, setNewSeat] = useState<SeatChoice | null>(null);
   const [reentryAvailable, setReentryAvailable] = useState(false);
   const [doubleReentryAvailable, setDoubleReentryAvailable] = useState(false);
@@ -207,11 +183,9 @@ export default function TMAPlayersPage() {
               "X-Telegram-Init-Data": initData,
             },
             body: JSON.stringify({
-              // A pair is a regular ticket that two people share: it changes the price,
-              // never the range the number comes from.
+              // A pair is a regular ticket that two people share: it changes the price.
               duoTicket: newTicket === "duo",
               name,
-              ticketType: newTicket === "vip" ? "vip" : "regular",
               ...(newSeat ? { seat: newSeat.seat, table: newSeat.table } : {}),
             }),
           });
@@ -283,7 +257,6 @@ export default function TMAPlayersPage() {
   const closePlayerDetails = () => {
     setSelectedPlayerId(null);
     setRestoreChoiceOpen(false);
-    setSeatTicketChoiceOpen(false);
     setMoveSeat(null);
   };
 
@@ -437,13 +410,8 @@ export default function TMAPlayersPage() {
     });
   };
 
-  /**
-   * Sits the player in the chair the admin tapped.
-   *
-   * A ticket is only sent when the admin said out loud to change it — the number goes
-   * with the ticket, and a player has been called by theirs all evening.
-   */
-  const submitMoveSeat = async (ticketType?: "regular" | "vip") => {
+  /** Sits the player in the chair the admin tapped; a walk-in gets their number with it. */
+  const submitMoveSeat = async () => {
     const tg = getTelegramWebApp();
     if (!selectedPlayer || !moveSeat || isMovingSeat) return;
 
@@ -459,13 +427,11 @@ export default function TMAPlayersPage() {
           action: "move_seat",
           seat: moveSeat.seat,
           table: moveSeat.table,
-          ...(ticketType ? { ticketType } : {}),
         }),
       });
 
       if (res.ok) {
         tg?.HapticFeedback.notificationOccurred("success");
-        setSeatTicketChoiceOpen(false);
         await fetchPlayers();
         return;
       }
@@ -476,24 +442,6 @@ export default function TMAPlayersPage() {
     } finally {
       setIsMovingSeat(false);
     }
-  };
-
-  const startMoveSeat = () => {
-    if (!selectedPlayer || !moveSeat) return;
-
-    // Two reasons to ask before the player is moved. A walk-in has no number yet, and it
-    // is drawn from the range the ticket names — nobody but the desk knows which ticket
-    // they came in on. And a player whose ticket disagrees with the table they are being
-    // sent to may be changing tickets or may just be sitting elsewhere; both happen.
-    const movingToVipTable = isVipTable(moveSeat.table, tablesCount);
-    const hasNumber = Number(selectedPlayer.registrationNumber) > 0;
-
-    if (!hasNumber || movingToVipTable !== (readPlayerTicket(selectedPlayer) === "vip")) {
-      setSeatTicketChoiceOpen(true);
-      return;
-    }
-
-    void submitMoveSeat();
   };
 
   // Returning a player has to say WHY: an erroneous knockout is erased, while a re-entry
@@ -687,95 +635,6 @@ export default function TMAPlayersPage() {
     );
   }
 
-  if (selectedPlayer && seatTicketChoiceOpen && moveSeat) {
-    const movingToVipTable = isVipTable(moveSeat.table, tablesCount);
-    const hasNumber = Number(selectedPlayer.registrationNumber) > 0;
-    // A player without a number is being given one, and the table is the best guess at
-    // which range it comes from; one who has a number keeps the ticket they hold unless
-    // the admin picks the other.
-    const defaultTicket = hasNumber
-      ? readPlayerTicket(selectedPlayer)
-      : movingToVipTable
-        ? "vip"
-        : "regular";
-    const otherTicket = defaultTicket === "vip" ? "regular" : "vip";
-
-    return (
-      <div className="tma-screen">
-        <ScreenHeader
-          back={{ disabled: isMovingSeat, label: "Назад", onClick: () => setSeatTicketChoiceOpen(false) }}
-          title="Пересадка"
-        />
-
-        <div className="tma-card">
-          <span className="tma-hint">Пересаживаем</span>
-          <span className="text-[20px] font-bold">
-            {selectedPlayer.name}
-            {hasNumber ? <span className="tma-muted font-medium"> #{selectedPlayer.registrationNumber}</span> : null}
-          </span>
-          <span className="flex items-center gap-2 text-sm">
-            <span className="tma-badge">
-              {selectedPlayer.seat
-                ? `Стол ${selectedPlayer.table} · м. ${nameSeat(tableFormats, Number(selectedPlayer.table), selectedPlayer.seat)}`
-                : "без места"}
-            </span>
-            <ArrowRight className="tma-muted" size={16} />
-            <span className="tma-badge tma-badge--blue">
-              {movingToVipTable ? "VIP стол" : "Стол"} {moveSeat.table} · м.{" "}
-              {nameSeat(tableFormats, moveSeat.table, moveSeat.seat)}
-            </span>
-          </span>
-        </div>
-
-        <div className="tma-note tma-note--amber">
-          <TriangleAlert size={18} />
-          <span>
-            {hasNumber
-              ? `У игрока ${TICKET_LABELS[readPlayerTicket(selectedPlayer)]} и номер #${selectedPlayer.registrationNumber}. Номер идёт за билетом, а не за столом — менять его нужно, только если игрок действительно перешёл на другой билет.`
-              : "У игрока ещё нет номера для розыгрыша. Номер выдаётся по билету: VIP-билет получает номер из VIP-диапазона, обычный — из обычного."}
-          </span>
-        </div>
-
-        <SectionLabel title="Билет" />
-        <button
-          className="tma-choice tma-choice--primary"
-          disabled={isMovingSeat}
-          type="button"
-          onClick={() => void submitMoveSeat(defaultTicket)}
-        >
-          <span className="tma-choice__body">
-            <span className="tma-choice__title">
-              {hasNumber ? `Оставить ${TICKET_LABELS[defaultTicket]}` : TICKET_LABELS[defaultTicket]}
-            </span>
-            <span className="tma-choice__sub">
-              {hasNumber
-                ? "Пересадить, номер и цена не меняются"
-                : `Выдать номер${defaultTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
-            </span>
-          </span>
-        </button>
-
-        <button
-          className="tma-choice"
-          disabled={isMovingSeat}
-          type="button"
-          onClick={() => void submitMoveSeat(otherTicket)}
-        >
-          <span className="tma-choice__body">
-            <span className="tma-choice__title">
-              {hasNumber ? `Сменить на ${TICKET_LABELS[otherTicket]}` : TICKET_LABELS[otherTicket]}
-            </span>
-            <span className="tma-choice__sub">
-              {hasNumber
-                ? `Новый номер${otherTicket === "vip" ? " из VIP-диапазона, игрок попадёт в VIP-розыгрыш" : " из обычных"}, цена билета изменится`
-                : `Выдать номер${otherTicket === "vip" ? " из VIP-диапазона" : " из обычных"}`}
-            </span>
-          </span>
-        </button>
-      </div>
-    );
-  }
-
   if (selectedPlayer && restoreChoiceOpen) {
     return (
       <div className="tma-screen">
@@ -859,11 +718,6 @@ export default function TMAPlayersPage() {
                 <span className="tma-badge tma-badge--green">● В игре</span>
               ) : (
                 <span className="tma-badge tma-badge--red">Выбыл</span>
-              )}
-              {readPlayerTicket(selectedPlayer) === "vip" ? (
-                <span className="tma-badge tma-badge--gold">VIP билет</span>
-              ) : (
-                <span className="tma-badge">Обычный билет</span>
               )}
               {selectedPlayer.seat ? (
                 <span className="tma-badge">
@@ -997,7 +851,7 @@ export default function TMAPlayersPage() {
               className="tma-btn tma-btn--primary tma-btn--big"
               disabled={isMovingSeat || !moveSeat || moveTargetIsCurrent}
               type="button"
-              onClick={startMoveSeat}
+              onClick={() => void submitMoveSeat()}
             >
               <ArrowRightLeft size={18} />
               {moveSeat && !moveTargetIsCurrent
@@ -1012,7 +866,6 @@ export default function TMAPlayersPage() {
 
   const openPlayer = (player: Player) => {
     setMoveSeat(player.table && player.seat ? { seat: player.seat, table: player.table } : null);
-    setSeatTicketChoiceOpen(false);
     setSelectedPlayerId(player.id);
     getTelegramWebApp()?.HapticFeedback.impactOccurred("light");
   };
@@ -1124,9 +977,7 @@ export default function TMAPlayersPage() {
         return (
           <div key={tableNumber} className="tma-card tma-card--flush">
             <div className="tma-card__head">
-              <span>
-                {isVipTable(tableNumber, tablesCount) ? "VIP · " : ""}Стол {tableNumber}
-              </span>
+              <span>Стол {tableNumber}</span>
               <span className="tma-card__head-meta">{atTable.length} игр.</span>
             </div>
             {atTable.map((player) => (

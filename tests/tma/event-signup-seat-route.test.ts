@@ -6,12 +6,10 @@ const mocks = vi.hoisted(() => ({
   appendTournamentPlayerWithRegistrationNumber: vi.fn(),
   loadTournamentExtras: vi.fn(),
   requireTmaAuth: vi.fn(),
-  syncVipSheet: vi.fn(),
 }));
 
 vi.mock("@/lib/tma/require-auth", () => ({ requireTmaAuth: mocks.requireTmaAuth }));
 vi.mock("@/lib/free-entries/adjust", () => ({ adjustFreeEntries: mocks.adjustFreeEntries }));
-vi.mock("@/lib/google-sheets", () => ({ syncVipSheet: mocks.syncVipSheet }));
 vi.mock("@/lib/tournament-extras", () => ({ loadTournamentExtras: mocks.loadTournamentExtras }));
 vi.mock("@/lib/tournament-player-registration", () => ({
   appendTournamentPlayerWithRegistrationNumber: mocks.appendTournamentPlayerWithRegistrationNumber,
@@ -27,7 +25,7 @@ vi.mock("next/server", () => ({
 
 /** A player standing in line for tonight, the way the sign-ups table holds them. */
 const QUEUED = {
-  client_bot_users: { display_name: "Иван Очередь", free_entries: 0, vip_free_entries: 0 },
+  client_bot_users: { display_name: "Иван Очередь", free_entries: 0 },
   event_id: "event-1",
   id: "wait-1",
   status: "waitlist",
@@ -110,27 +108,28 @@ describe("seating a player from the waitlist", () => {
   });
 
   // People come late, and the desk cannot tell who of those signed up is still coming.
-  it("seats them on the ticket picked, in nobody's stead", async () => {
-    const { supabase, writes } = supabaseSpy(QUEUED);
+  it("seats them on a regular ticket, in nobody's stead", async () => {
+    const { supabase, writes } = supabaseSpy({ ...QUEUED, ticket_type: "duo" });
     mocks.requireTmaAuth.mockResolvedValue({ supabase });
 
-    const response = await seat({ seat: 3, table: 1, ticketType: "vip" });
+    const response = await seat({ seat: 3, table: 1 });
 
     expect(response.status).toBe(200);
     expect(mocks.appendTournamentPlayerWithRegistrationNumber).toHaveBeenCalledWith(
       expect.objectContaining({
         player: expect.objectContaining({
+          duoTicket: false,
           name: "Иван Очередь",
           seat: 3,
           table: 1,
-          ticketType: "vip",
         }),
       }),
     );
+    // A queue entry hoping for a pair is seated alone: nobody is coming in with them.
     expect(writes).toContainEqual({
       id: "wait-1",
       table: "event_signups",
-      values: { status: "seated", ticket_type: "vip" },
+      values: { status: "seated", ticket_type: "regular" },
     });
     expect(writes.some((write) => write.values.status === "no_show")).toBe(false);
   });
@@ -145,7 +144,6 @@ describe("seating a player from the waitlist", () => {
       replacesSignupId: "signup-1",
       seat: 3,
       table: 1,
-      ticketType: "regular",
     });
 
     expect(response.status).toBe(200);

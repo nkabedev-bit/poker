@@ -9,7 +9,7 @@ type ClientProfile = {
   birthDate: string;
   discoverySource: string;
   displayName: string | null;
-  freeEntries: { regular: number; vip: number };
+  freeEntries: number;
   fullName: string;
   /** The member who brought the player in; empty when nobody did. */
   invitedBy?: string;
@@ -148,11 +148,7 @@ export function ClientProfileCard({
       />
       <ProfileRow
         label="Проходки"
-        value={
-          profile.freeEntries.regular + profile.freeEntries.vip > 0
-            ? `обычных ${profile.freeEntries.regular}, VIP ${profile.freeEntries.vip}`
-            : "нет"
-        }
+        value={profile.freeEntries > 0 ? String(profile.freeEntries) : "нет"}
       />
       <ProfileRow
         label="Анкета заполнена"

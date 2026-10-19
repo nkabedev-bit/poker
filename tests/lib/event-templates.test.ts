@@ -14,15 +14,13 @@ const event = {
   isPublished: true,
   lateEntryUntil: "2026-09-10T19:00:00.000Z",
   maxDuoTickets: 1,
-  maxPlayers: 20,
-  maxVipPlayers: 10,
+  maxPlayers: 25,
   posterUrl: "https://example.test/poster.png",
   rulesText: "Классический холдем",
   startingStack: 30000,
   startsAt: "2026-09-10T17:00:00.000Z",
   title: "ЧЕТВЕРГОВЫЙ",
   venueAddress: "Петрозаводск",
-  vipBuyIn: 2000,
 };
 
 describe("makeEventTemplate", () => {
@@ -32,7 +30,7 @@ describe("makeEventTemplate", () => {
     expect(template).toMatchObject({
       badge: "ГАРАНТИЯ 100 000",
       buyIn: 1250,
-      maxVipPlayers: 10,
+      maxPlayers: 25,
       name: "Четверг",
       title: "ЧЕТВЕРГОВЫЙ",
     });

@@ -78,7 +78,6 @@ const settingsSchema = z.object({
   blindAlertSound: blindAlertSoundSchema.optional(),
   bountyType: z.enum(["standard", "mystery", "dealer", "wanted", "progressive"]).optional(),
   buyIn: z.number().int().min(0).optional(),
-  vipBuyIn: z.number().int().min(0).optional(),
   duoBuyIn: z.number().int().min(0).optional(),
   doubleRebuyPrice: z.number().int().min(0).optional(),
   cardsEnabled: z.boolean().optional(),

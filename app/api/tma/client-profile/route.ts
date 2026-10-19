@@ -38,7 +38,7 @@ export async function GET(request: Request) {
   const query = auth.supabase
     .from("client_bot_users")
     .select(
-      "telegram_id, username, display_name, avatar_url, created_at, profile_submitted_at, pending_profile_answers, free_entries, vip_free_entries",
+      "telegram_id, username, display_name, avatar_url, created_at, profile_submitted_at, pending_profile_answers, free_entries",
     );
 
   const { data, error } = await (byTelegram
@@ -58,7 +58,6 @@ export async function GET(request: Request) {
     profile_submitted_at: string | null;
     telegram_id: number | null;
     username: string | null;
-    vip_free_entries: number | null;
   };
   const answers = record.pending_profile_answers ?? {};
   // A dealer seats players and needs to know who is who, not how to reach them.
@@ -71,10 +70,7 @@ export async function GET(request: Request) {
       birthDate: showContacts ? answers.birthDate ?? "" : "",
       discoverySource: answers.discoverySource ?? "",
       displayName: record.display_name,
-      freeEntries: {
-        regular: Number(record.free_entries ?? 0),
-        vip: Number(record.vip_free_entries ?? 0),
-      },
+      freeEntries: Number(record.free_entries ?? 0),
       fullName: answers.fullName ?? "",
       // The admin's eyes only: players never see who brought whom.
       invitedBy: answers.invitedBy ?? "",

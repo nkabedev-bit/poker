@@ -18,8 +18,8 @@ function player(registrationNumber: number, overrides: Record<string, unknown> =
   };
 }
 
-// The club's numbers run 1-20 for regular seats and 21-30 for VIP, so a night with
-// fifteen regulars and five VIPs has no numbers 16-20 at all.
+// Numbers a long evening has left behind: a number handed back is not reused, so a
+// night of twenty players can be called 1-15 and 21-25.
 const ROOM = [
   ...Array.from({ length: 15 }, (_, index) => player(index + 1)),
   ...Array.from({ length: 5 }, (_, index) => player(21 + index)),
@@ -27,70 +27,43 @@ const ROOM = [
 
 describe("listRaffleEntrants", () => {
   it("takes only the numbers that exist tonight", () => {
-    const numbers = listRaffleEntrants(ROOM, "regular").map((entrant) => entrant.number);
+    const numbers = listRaffleEntrants(ROOM).map((entrant) => entrant.number);
 
     expect(numbers).toEqual([...Array.from({ length: 15 }, (_, index) => index + 1), 21, 22, 23, 24, 25]);
     expect(numbers).not.toContain(16);
   });
 
-  // The free pass is drawn on the whole room: a VIP ticket buys a better seat, not a
-  // smaller draw.
-  it("draws the free pass on VIP tickets as well as regular ones", () => {
-    const numbers = listRaffleEntrants(ROOM, "regular").map((entrant) => entrant.number);
-
-    expect(numbers).toContain(21);
-    expect(numbers).toHaveLength(20);
-  });
-
-  it("keeps the VIP draw to VIP tickets", () => {
-    expect(listRaffleEntrants(ROOM, "vip").map((entrant) => entrant.number)).toEqual([
-      21, 22, 23, 24, 25,
-    ]);
-  });
-
-  // The same guest can take both prizes; that is what the VIP ticket is for.
-  it("stands a VIP guest in both draws", () => {
-    const inRegular = listRaffleEntrants(ROOM, "regular").some((entrant) => entrant.number === 23);
-    const inVip = listRaffleEntrants(ROOM, "vip").some((entrant) => entrant.number === 23);
-
-    expect([inRegular, inVip]).toEqual([true, true]);
+  it("draws on the whole room", () => {
+    expect(listRaffleEntrants(ROOM)).toHaveLength(20);
   });
 
   // Everyone who came takes part: they paid their entry and are still in the hall.
   it("keeps a player who is already out", () => {
-    const entrants = listRaffleEntrants(
-      [player(3, { status: "eliminated" }), player(4)],
-      "regular",
-    );
+    const entrants = listRaffleEntrants([player(3, { status: "eliminated" }), player(4)]);
 
     expect(entrants.map((entrant) => entrant.number)).toEqual([3, 4]);
   });
 
   it("skips a player who never got a number", () => {
-    expect(listRaffleEntrants([player(0), player(7)], "regular")).toHaveLength(1);
+    expect(listRaffleEntrants([player(0), player(7)])).toHaveLength(1);
   });
 
   // The developer sets the draw up and the venue's owner hosts the evening, so a prize of
   // theirs would look rigged to the room.
-  it("leaves the club's developer out of both draws, however the nickname is written", () => {
+  it("leaves the club's developer out of the draw, however the nickname is written", () => {
     const room = [player(3, { name: "kabedev" }), player(4), player(22, { name: "Kabedev " }), player(23)];
 
-    expect(listRaffleEntrants(room, "regular").map((entrant) => entrant.number)).toEqual([4, 23]);
-    expect(listRaffleEntrants(room, "vip").map((entrant) => entrant.number)).toEqual([23]);
+    expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([4, 23]);
   });
 
-  it("leaves the venue's owner out of both draws, however the nickname is written", () => {
+  it("leaves the venue's owner out of the draw, however the nickname is written", () => {
     const room = [player(5, { name: "Киберпсих" }), player(6), player(24, { name: "киберпсих" }), player(25)];
 
-    expect(listRaffleEntrants(room, "regular").map((entrant) => entrant.number)).toEqual([6, 25]);
-    expect(listRaffleEntrants(room, "vip").map((entrant) => entrant.number)).toEqual([25]);
+    expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([6, 25]);
   });
 
   it("carries the account the prize will go to", () => {
-    const [entrant] = listRaffleEntrants(
-      [player(2, { accountId: "account-1", telegramId: 555 })],
-      "regular",
-    );
+    const [entrant] = listRaffleEntrants([player(2, { accountId: "account-1", telegramId: 555 })]);
 
     expect(entrant).toEqual({
       accountId: "account-1",
@@ -103,17 +76,14 @@ describe("listRaffleEntrants", () => {
   // A player who signed in on the web has no Telegram id, and the account is the only
   // thing their free entry can be credited to.
   it("carries the account of a player who has no Telegram", () => {
-    const [entrant] = listRaffleEntrants(
-      [player(2, { accountId: "account-web", telegramId: null })],
-      "regular",
-    );
+    const [entrant] = listRaffleEntrants([player(2, { accountId: "account-web", telegramId: null })]);
 
     expect(entrant).toMatchObject({ accountId: "account-web", telegramId: null });
   });
 });
 
 describe("pickRaffleWinner", () => {
-  const entrants = listRaffleEntrants(ROOM, "regular");
+  const entrants = listRaffleEntrants(ROOM);
 
   it("draws the first entrant at the bottom of the range", () => {
     expect(pickRaffleWinner(entrants, () => 0)?.number).toBe(1);
@@ -138,21 +108,14 @@ describe("pickRaffleWinner", () => {
 
 describe("what the winner is told", () => {
   it("sends the free pass winner to the app, where it has already landed", () => {
-    expect(RAFFLE_WIN_MESSAGE.regular).toContain("проходка");
-    expect(RAFFLE_WIN_MESSAGE.regular).toContain("начислена в приложении");
-  });
-
-  it("promises the VIP winner a certificate and says nothing about the app", () => {
-    expect(RAFFLE_WIN_MESSAGE.vip).toContain("VIP");
-    expect(RAFFLE_WIN_MESSAGE.vip).toContain("сертификат");
-    expect(RAFFLE_WIN_MESSAGE.vip).not.toContain("приложении");
+    expect(RAFFLE_WIN_MESSAGE).toContain("проходка");
+    expect(RAFFLE_WIN_MESSAGE).toContain("начислена в приложении");
   });
 });
 
-describe("a tournament gets one draw of each kind", () => {
+describe("a tournament gets one draw", () => {
   const held = {
     id: "raffle-1",
-    kind: "regular" as const,
     numbers: [1, 2, 3],
     prize: "granted" as const,
     spinSeconds: 10,
@@ -165,8 +128,7 @@ describe("a tournament gets one draw of each kind", () => {
     const history: Raffle[] = [held];
 
     expect(isRaffle(held)).toBe(true);
-    expect(history.find((item) => item.kind === "regular")).toBeTruthy();
-    expect(history.find((item) => item.kind === "vip")).toBeUndefined();
+    expect(history[0]).toBe(held);
   });
 
   it("keeps rubbish out of the history", () => {
@@ -194,7 +156,7 @@ describe("getRaffleWeights", () => {
     expect(getRaffleWeights([{ accountId: null, name: "Новичок" }], [], [], "2026-09-16")).toEqual([1]);
   });
 
-  it("counts a win in either draw, so tonight's pass winner stands low in the VIP draw", () => {
+  it("counts tonight's win, so the winner stands low in any draw held the same evening", () => {
     expect(getRaffleWeights([{ accountId: null, name: "1$" }], [win("1$", "2026-09-16")], [], "2026-09-16")).toEqual([0.2]);
   });
 

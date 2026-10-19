@@ -280,7 +280,7 @@ describe("the settling list", () => {
         birthDate: "14.06.1990",
         discoverySource: "Друзья",
         displayName: "Ушёл",
-        freeEntries: { regular: 0, vip: 0 },
+        freeEntries: 0,
         fullName: "Иван Иванов",
         notificationsConsent: true,
         phone: "+7 (911) 000-00-00",

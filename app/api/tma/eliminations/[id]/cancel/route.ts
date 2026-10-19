@@ -3,7 +3,7 @@ import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
-import { getMysteryPrizePasses, parseMysteryPrize } from "@/lib/mystery/prizes";
+import { countMysteryPrizePasses, parseMysteryPrize } from "@/lib/mystery/prizes";
 import { getProgressiveKnockoutsBefore, getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
@@ -59,7 +59,8 @@ async function revokeMysteryPasses(
     const telegramId = owner?.telegramId ?? null;
 
     // Both halves of a Joker go back, and a card that paid no pass gives nothing back.
-    for (const pass of prize ? getMysteryPrizePasses(prize) : []) {
+    const passes = prize ? countMysteryPrizePasses(prize) : 0;
+    for (let pass = 0; pass < passes; pass += 1) {
       // A player who joined through the web has no Telegram id, and the pass hangs on
       // their account like anybody else's.
       if (accountId || telegramId) {
@@ -67,7 +68,6 @@ async function revokeMysteryPasses(
           await adjustFreeEntries(supabase, {
             delta: -1,
             holder: { accountId, telegramId },
-            vip: pass === "vip",
           });
         } catch (error) {
           console.error("Failed to take the mystery bounty pass back", error);
@@ -79,7 +79,6 @@ async function revokeMysteryPasses(
           count: -1,
           nickname,
           source: "mystery",
-          vip: pass === "vip",
         });
       } catch (sheetError) {
         console.error("Failed to log the cancelled mystery bounty pass", sheetError);

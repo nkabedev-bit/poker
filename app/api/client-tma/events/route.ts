@@ -102,7 +102,6 @@ export async function GET(request: Request) {
       favoriteHand,
       freeEntries: {
         regular: Number(auth.user.free_entries ?? 0),
-        vip: Number(auth.user.vip_free_entries ?? 0),
       },
       profileSubmitted: Boolean(auth.user.profile_submitted_at),
       // Somebody who signed in on the web and has answered nothing yet may still be a

@@ -184,10 +184,8 @@ export function reservedTicketMessage(eventTitle: string, ticket: EventTicketTyp
     );
   }
 
-  const kind = ticket === "vip" ? "VIP" : "обычный";
-
   return (
-    `Вам был отложен ${kind} билет на «${eventTitle}» — подтвердите, пожалуйста, участие. ` +
+    `Вам был отложен обычный билет на «${eventTitle}» — подтвердите, пожалуйста, участие. ` +
     "Откройте приложение и нажмите «Подтвердить»."
   );
 }

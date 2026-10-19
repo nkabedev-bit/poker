@@ -126,9 +126,7 @@ export function RaffleStage({
   return (
     <div className="raffle-overlay">
       <div className={scene ? "raffle-stage raffle-stage--scene" : "raffle-stage"}>
-        <p className="raffle-title">
-          {raffle.kind === "vip" ? "VIP розыгрыш" : "Розыгрыш бесплатной проходки"}
-        </p>
+        <p className="raffle-title">Розыгрыш бесплатной проходки</p>
 
         {children}
 
@@ -139,11 +137,7 @@ export function RaffleStage({
           </div>
           <div className="raffle-result__who">
             <p className="raffle-result__name">{raffle.winnerName}</p>
-            <p className="raffle-result__prize">
-              {raffle.kind === "vip"
-                ? "Приз от партнёров клуба"
-                : "Бесплатная проходка на следующую игру"}
-            </p>
+            <p className="raffle-result__prize">Бесплатная проходка на следующую игру</p>
           </div>
         </div>
       </div>

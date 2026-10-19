@@ -9,7 +9,6 @@ import { buildNicknameKey } from "@/lib/players/nickname-key";
 const TICKET_LABELS: Record<string, string> = {
   duo: "1+1",
   duo_plus_one: "1+1",
-  vip: "VIP",
 };
 
 function Entry({ player }: { player: SignupListEntry }) {

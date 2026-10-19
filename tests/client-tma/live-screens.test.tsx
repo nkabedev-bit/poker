@@ -206,13 +206,13 @@ describe("SignupList", () => {
   it("lists who is coming and keeps the queue apart from the tickets", () => {
     render(
       <SignupList
-        players={[entry("Чура"), entry("ВИП-гость", { ticketType: "vip" as const })]}
+        players={[entry("Чура"), entry("Пара", { ticketType: "duo" as const })]}
         waitlist={[entry("В очереди")]}
       />,
     );
 
     expect(screen.getByText("Чура")).toBeTruthy();
-    expect(screen.getByText("VIP")).toBeTruthy();
+    expect(screen.getByText("1+1")).toBeTruthy();
     expect(screen.getByText("Лист ожидания")).toBeTruthy();
     expect(screen.getByText("В очереди")).toBeTruthy();
   });

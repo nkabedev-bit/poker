@@ -596,7 +596,7 @@ bot.command("resync", async (ctx) => {
       return ctx.reply("Ошибка: турнир не найден.");
     }
 
-    const { getEffectiveSessionStart, syncTournamentToSheets, syncVipSheet } = await import("@/lib/google-sheets");
+    const { getEffectiveSessionStart, syncTournamentToSheets } = await import("@/lib/google-sheets");
 
     const { data: extrasData } = await supabase
       .from("tournament_extras")
@@ -617,11 +617,6 @@ bot.command("resync", async (ctx) => {
     if (!result) {
       return ctx.reply("Google Sheets не настроен: нет GOOGLE_SHEET_ID или GOOGLE_SERVICE_ACCOUNT_KEY.");
     }
-
-    // The per-elimination sync no longer touches the VIP tab (a knockout cannot change who
-    // is VIP — that is fixed by registration number), so this manual rebuild is the place
-    // that repairs a VIP write lost during registration.
-    await syncVipSheet(supabase, tournament.id);
 
     const warning = sessionExpired
       ? "\n\nВнимание: сессия игры устарела (>12 часов), лист выбран по текущей дате."
@@ -784,8 +779,8 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   if (!parsed) {
     return ctx.reply(
       direction === 1
-        ? "Использование: /free [vip] <ник> [сколько]"
-        : "Использование: /delete free [vip] <ник> [сколько]",
+        ? "Использование: /free <ник> [сколько]"
+        : "Использование: /delete free <ник> [сколько]",
     );
   }
 
@@ -807,7 +802,6 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
     change = await adjustFreeEntries(supabase, {
       delta: direction * parsed.count,
       holder: { accountId: match.user.id },
-      vip: parsed.vip,
     });
   } catch (error) {
     console.error("Failed to change free entries", error);
@@ -821,11 +815,10 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   const next = change.after;
   const changed = Math.abs(change.after - change.before);
   const action = direction === 1 ? "Выдано" : "Снято";
-  const kindLeft = parsed.vip ? "VIP-проходок" : "проходок";
 
   return ctx.reply(
-    `${action}: ${describeFreeEntries(changed, parsed.vip)} игроку «${match.user.displayName}».\n` +
-      `Теперь у него ${next} ${kindLeft}.`,
+    `${action}: ${describeFreeEntries(changed)} игроку «${match.user.displayName}».\n` +
+      `Теперь у него ${next} проходок.`,
   );
 }
 

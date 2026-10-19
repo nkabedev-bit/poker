@@ -56,13 +56,11 @@ describe("grantWinnerPass", () => {
     expect(mocks.adjustFreeEntries).toHaveBeenCalledWith(supabase, {
       delta: 1,
       holder: { accountId: "acc-1", telegramId: 77 },
-      vip: false,
     });
     expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
       count: 1,
       nickname: "1$",
       source: "win",
-      vip: false,
     });
     expect(mocks.notifyClientUser).toHaveBeenCalledWith(supabase, "acc-1", WINNER_PASS_MESSAGE);
   });

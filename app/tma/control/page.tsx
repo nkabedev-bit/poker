@@ -5,7 +5,7 @@ import { getTelegramWebApp, useTMA } from "../layout";
 import { useVisiblePolling } from "../use-visible-polling";
 import { TMA_DESK_CHANGED_EVENT, useClockView } from "../tournament-clock";
 import { ScreenHeader, SectionLabel } from "../ui";
-import { Crown, Gift, Pause, Play, Shuffle, SkipBack, SkipForward, Square, X } from "lucide-react";
+import { Gift, Pause, Play, Shuffle, SkipBack, SkipForward, Square, X } from "lucide-react";
 import type { TableMerge, TimerState } from "@/lib/timer/types";
 import type { Raffle } from "@/lib/raffle/raffle";
 import {
@@ -91,14 +91,11 @@ export default function TMAControlPage() {
    * Runs a draw on the big screen. The winner is decided on the server, so what comes
    * back is only news: whether the prize reached the player's profile by itself.
    */
-  const runRaffle = async (kind: "regular" | "vip") => {
+  const runRaffle = async () => {
     const tg = getTelegramWebApp();
     if (raffleBusy) return;
 
-    const question =
-      kind === "vip"
-        ? "Запустить VIP розыгрыш на экране?"
-        : "Запустить розыгрыш бесплатной проходки на экране?";
+    const question = "Запустить розыгрыш бесплатной проходки на экране?";
 
     if (!(await new Promise<boolean>((resolve) =>
       tg?.showConfirm ? tg.showConfirm(question, resolve) : resolve(window.confirm(question)),
@@ -111,7 +108,6 @@ export default function TMAControlPage() {
       const res = await fetch("/api/tma/raffle", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: JSON.stringify({ kind }),
       });
       const data = await res.json().catch(() => null);
 
@@ -171,9 +167,8 @@ export default function TMAControlPage() {
 
   if (!state) return <div className="tma-empty">Загрузка…</div>;
 
-  // One draw of each kind per tournament, so a finished one is shown rather than offered.
-  const heldRegular = state.raffleHistory?.find((item) => item.kind === "regular");
-  const heldVip = state.raffleHistory?.find((item) => item.kind === "vip");
+  // One draw per tournament, so a finished one is shown rather than offered.
+  const heldRaffle = state.raffleHistory?.[0];
   const timerStatus = state.timerState.status;
   const tournamentActive = timerStatus === "running" || timerStatus === "paused" || timerStatus === "break";
   const merging = Boolean(state.tableMerge);
@@ -213,7 +208,7 @@ export default function TMAControlPage() {
         </button>
       </div>
 
-      <SectionLabel title="Розыгрыши" />
+      <SectionLabel title="Розыгрыш" />
       {state.raffle ? (
         <div className="tma-card">
           <div className="flex items-center justify-between">
@@ -237,19 +232,11 @@ export default function TMAControlPage() {
       <div className="tma-card tma-card--flush">
         <RaffleRow
           busy={raffleBusy || Boolean(state.raffle)}
-          held={heldRegular}
+          held={heldRaffle}
           icon={<Gift size={18} />}
-          label={heldRegular ? "Розыгрыш проведён" : "Провести розыгрыш"}
+          label={heldRaffle ? "Розыгрыш проведён" : "Провести розыгрыш"}
           title="Проходка"
-          onRun={() => void runRaffle("regular")}
-        />
-        <RaffleRow
-          busy={raffleBusy || Boolean(state.raffle)}
-          held={heldVip}
-          icon={<Crown className="text-[var(--tma-gold)]" size={18} />}
-          label={heldVip ? "VIP розыгрыш проведён" : "Провести VIP розыгрыш"}
-          title="VIP"
-          onRun={() => void runRaffle("vip")}
+          onRun={() => void runRaffle()}
         />
       </div>
 

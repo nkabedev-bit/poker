@@ -36,7 +36,7 @@ describe("persistent player labels (by nickname)", () => {
     expect(isDealerLabel("дилер")).toBe(true);
     expect(isDealerLabel(" Dealer ")).toBe(true);
     expect(isDealerLabel("D")).toBe(true);
-    expect(isDealerLabel("vip")).toBe(false);
+    expect(isDealerLabel("гость")).toBe(false);
     expect(isDealerLabel("")).toBe(false);
     expect(isDealerLabel(null)).toBe(false);
   });

@@ -33,9 +33,9 @@ type PlayersResponse = {
 // The prize deck the dealer reads off the card, in the order the questions are asked.
 // "jokerConfirm" stands between the Joker and the two cards it pays: it is the one card
 // that doubles a knockout, and a misread of it cannot be taken back at the table.
-type PrizeStage = "kind" | "bigBlinds" | "points" | "pass" | "jokerConfirm";
+type PrizeStage = "kind" | "bigBlinds" | "points" | "jokerConfirm";
 
-type MysteryPassNote = { nickname: string; vip: boolean };
+type MysteryPassNote = { nickname: string };
 
 function createClientRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
@@ -301,10 +301,9 @@ export default function TMAEliminationsPage() {
         // A pass is money: the admin is told whether it landed in the profile or has to
         // be handed over by name, and the knockout remembers it in case it is undone.
         const passes: MysteryPassNote[] = Array.isArray(data.mysteryPasses)
-          ? data.mysteryPasses.map((pass: { granted?: boolean; nickname?: string; vip?: boolean }) => ({
+          ? data.mysteryPasses.map((pass: { granted?: boolean; nickname?: string }) => ({
             granted: Boolean(pass.granted),
             nickname: String(pass.nickname ?? ""),
-            vip: Boolean(pass.vip),
           }))
           : [];
 
@@ -316,13 +315,12 @@ export default function TMAEliminationsPage() {
           localStorage.setItem("tma_last_elim_passes", JSON.stringify(passes));
           setLastElimPasses(passes);
           tg?.showAlert?.(
-            (data.mysteryPasses as Array<{ granted: boolean; nickname: string; vip: boolean }>)
-              .map((pass) => {
-                const kind = pass.vip ? "VIP проходка" : "Проходка";
-                return pass.granted
-                  ? `${kind} начислена в профиль: ${pass.nickname}`
-                  : `${kind} для ${pass.nickname}: игрок не привязан к Telegram — выдайте командой /free ${pass.vip ? "vip " : ""}${pass.nickname}`;
-              })
+            (data.mysteryPasses as Array<{ granted: boolean; nickname: string }>)
+              .map((pass) =>
+                pass.granted
+                  ? `Проходка начислена в профиль: ${pass.nickname}`
+                  : `Проходка для ${pass.nickname}: игрок не привязан к Telegram — выдайте командой /free ${pass.nickname}`,
+              )
               .join("\n"),
           );
         } else {
@@ -418,7 +416,7 @@ export default function TMAEliminationsPage() {
       // re-entering leaves the pass with whoever won it.
       if (lastElimPasses.length > 0) {
         const names = lastElimPasses
-          .map((pass) => `${pass.nickname} — ${pass.vip ? "VIP проходка" : "проходка"}`)
+          .map((pass) => `${pass.nickname} — проходка`)
           .join("\n");
         tg.showConfirm(
           `В этом выбивании выпала проходка:\n${names}\n\nСнять её? Да — если это был промах. Нет — если игрок делает ре-энтри.`,
@@ -990,7 +988,7 @@ export default function TMAEliminationsPage() {
             <button className="tma-option" type="button" onClick={() => setPrizeStage("points")}>
               Рейтинговые очки
             </button>
-            <button className="tma-option" type="button" onClick={() => setPrizeStage("pass")}>
+            <button className="tma-option" type="button" onClick={() => savePrize({ kind: "pass" })}>
               Проходка
             </button>
             {/* A Joker inside a Joker is not a card this club deals, so while one is
@@ -1067,27 +1065,6 @@ export default function TMAEliminationsPage() {
           </>
         )}
 
-        {prizeStage === "pass" && (
-          <>
-            <SectionLabel title="Какая проходка?" />
-            <div className="tma-options tma-options--2">
-              <button
-                className="tma-option"
-                type="button"
-                onClick={() => savePrize({ kind: "pass", pass: "regular" })}
-              >
-                Стандарт
-              </button>
-              <button
-                className="tma-option"
-                type="button"
-                onClick={() => savePrize({ kind: "pass", pass: "vip" })}
-              >
-                VIP
-              </button>
-            </div>
-          </>
-        )}
       </div>
     );
   }

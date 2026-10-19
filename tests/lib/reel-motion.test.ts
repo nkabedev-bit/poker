@@ -68,7 +68,7 @@ describe("pickReelMotion", () => {
     );
   });
 
-  // Two draws an evening: the VIP one never runs the way the regular one just did.
+  // A run it is told about is never the one it picks.
   it("never runs the evening's second draw the way the first one ran", () => {
     for (const previous of REEL_STYLES) {
       const styles = draws(100, previous).map(({ motion: picked }) => picked.style);

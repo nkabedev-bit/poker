@@ -23,8 +23,6 @@ export const eventInputSchema = z.object({
   // Zero means the club sells no pair tonight, so it has to survive the form.
   maxDuoTickets: z.coerce.number().int().min(0).nullable().optional().default(null),
   maxPlayers: z.coerce.number().int().positive().nullable().optional().default(null),
-  // Zero means the club opens no VIP table for this one, so it has to survive the form.
-  maxVipPlayers: z.coerce.number().int().min(0).nullable().optional().default(null),
   posterUrl: z.string().trim().url().or(z.literal("")).optional().default(""),
   // When a draft goes up by itself; empty leaves it waiting for the admin.
   publishAt: z.string().trim().optional().default(""),
@@ -33,7 +31,6 @@ export const eventInputSchema = z.object({
   startsAt: z.string().trim().min(1, "Укажите дату и время начала"),
   title: z.string().trim().min(1, "Укажите название").max(80),
   venueAddress: z.string().trim().max(200).optional().default(""),
-  vipBuyIn: z.coerce.number().int().min(0).nullable().optional().default(null),
 });
 
 export type EventInput = z.infer<typeof eventInputSchema>;
@@ -61,14 +58,12 @@ export function toEventDraft(input: EventInput): Omit<TournamentEvent, "id"> {
     lateEntryUntil,
     maxDuoTickets: input.maxDuoTickets ?? null,
     maxPlayers: input.maxPlayers ?? null,
-    maxVipPlayers: input.maxVipPlayers ?? null,
     posterUrl: input.posterUrl || null,
     rulesText: input.rulesText,
     startingStack: input.startingStack ?? null,
     startsAt,
     title: input.title,
     venueAddress: input.venueAddress,
-    vipBuyIn: input.vipBuyIn ?? null,
   };
 }
 

@@ -25,7 +25,6 @@ export async function grantWinnerPass(supabase: SupabaseClient, players: Tournam
       const change = await adjustFreeEntries(supabase, {
         delta: 1,
         holder: { accountId: winner.accountId ?? null, telegramId: winner.telegramId ?? null },
-        vip: false,
       });
       granted = change !== null;
     } catch (error) {
@@ -35,7 +34,7 @@ export async function grantWinnerPass(supabase: SupabaseClient, players: Tournam
 
   try {
     const { appendFreeEntryGrant } = await import("@/lib/google-sheets");
-    await appendFreeEntryGrant({ count: 1, nickname: winner.name, source: "win", vip: false });
+    await appendFreeEntryGrant({ count: 1, nickname: winner.name, source: "win" });
   } catch (sheetError) {
     console.error("Failed to log the winner pass", sheetError);
   }

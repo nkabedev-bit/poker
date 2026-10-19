@@ -35,8 +35,8 @@ const SIGNUP = {
   reserved: false,
   seated: false,
   telegramId: 555,
-  ticketType: "vip" as const,
-  usePass: "vip" as const,
+  ticketType: "regular" as const,
+  usePass: "regular" as const,
   userId: "account-1",
   username: "ace",
 };
@@ -58,7 +58,7 @@ const PROFILE = {
   birthDate: "14.06.1990",
   discoverySource: "Друзья",
   displayName: "Ace High",
-  freeEntries: { regular: 0, vip: 1 },
+  freeEntries: 1,
   fullName: "Иван Иванов",
   notificationsConsent: true,
   phone: "+7 911 000-00-00",
@@ -382,14 +382,13 @@ describe("the waiting list at the desk", () => {
 
   // People come late, and the desk cannot tell at the door who of those signed up is
   // still on the way — so nobody is named as the one the queue replaces.
-  it("seats a player from the queue on the ticket picked, naming nobody they replace", async () => {
+  it("seats a player from the queue, naming nobody they replace", async () => {
     const fetchMock = mockFetch({ waitlist: [QUEUED] });
     render(<TMASignupsPage />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Очередь/ }));
     fireEvent.click(screen.getByText("Иван Очередь"));
     fireEvent.click(await screen.findByRole("button", { name: "Посадить за стол" }));
-    fireEvent.click(screen.getByRole("button", { name: "VIP билет" }));
     fireEvent.click(screen.getByRole("button", { name: /Посадить на случайное место/ }));
 
     await waitFor(() =>
@@ -404,7 +403,7 @@ describe("the waiting list at the desk", () => {
     ) as unknown as [string, { body: string }];
     const sent = JSON.parse(seatCall[1].body);
 
-    expect(sent.ticketType).toBe("vip");
+    expect(sent).not.toHaveProperty("ticketType");
     expect(sent).not.toHaveProperty("replacesSignupId");
   });
 

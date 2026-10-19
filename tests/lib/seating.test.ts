@@ -4,7 +4,6 @@ import {
   countSeats,
   getSeatPosition,
   isSeatAtTable,
-  isVipTable,
   listFreeSeats,
   nameSeat,
   nextTableFormat,
@@ -27,17 +26,6 @@ function player(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
-
-describe("isVipTable", () => {
-  it("makes the last table the VIP one", () => {
-    expect(isVipTable(3, 3)).toBe(true);
-    expect(isVipTable(2, 3)).toBe(false);
-  });
-
-  it("leaves a lone table plain", () => {
-    expect(isVipTable(1, 1)).toBe(false);
-  });
-});
 
 describe("table formats", () => {
   // Short-handed, the chairs are spread round the felt instead of pushed together.
@@ -126,7 +114,6 @@ describe("buildSeatingTables", () => {
 
     expect(tables).toHaveLength(3);
     expect(tables[0].seats).toHaveLength(SEATS_PER_TABLE);
-    expect(tables.map((table) => table.isVip)).toEqual([false, false, true]);
   });
 
   it("draws each table in its own format", () => {
@@ -207,24 +194,17 @@ describe("picking a seat at random", () => {
     2,
   );
 
-  it("offers a VIP ticket only the VIP table", () => {
-    const free = listFreeSeats(tables, "vip");
+  it("offers every empty chair at every table", () => {
+    const free = listFreeSeats(tables);
 
-    expect(free.every((item) => item.table === 2)).toBe(true);
-    expect(free).toHaveLength(9);
-  });
-
-  it("keeps a regular ticket off the VIP table", () => {
-    const free = listFreeSeats(tables, "regular");
-
-    expect(free.every((item) => item.table === 1)).toBe(true);
-    expect(free).toHaveLength(8);
+    expect(free.filter((item) => item.table === 1)).toHaveLength(8);
+    expect(free.filter((item) => item.table === 2)).toHaveLength(9);
   });
 
   // One player at place 1: places 6 and 7 are the farthest from them round the table.
   it("sits the next player as far as possible from the one already there", () => {
-    expect(pickRandomSeat(tables, "vip", () => 0)).toEqual({ seat: 6, table: 2 });
-    expect(pickRandomSeat(tables, "vip", () => 0.99)).toEqual({ seat: 7, table: 2 });
+    expect(pickRandomSeat(tables, () => 0)).toEqual({ seat: 6, table: 2 });
+    expect(pickRandomSeat(tables, () => 0.99)).toEqual({ seat: 7, table: 2 });
   });
 
   // The evening this was written for: players drawn next to each other at a half-empty
@@ -236,19 +216,19 @@ describe("picking a seat at random", () => {
       9,
     );
 
-    expect(pickRandomSeat(room, "regular", () => 0)).toEqual({ seat: 9, table: 1 });
+    expect(pickRandomSeat(room, () => 0)).toEqual({ seat: 9, table: 1 });
   });
 
   it("leaves chairs that are equally far to the draw", () => {
     const empty = buildSeatingTables([], 1);
 
-    expect(pickRandomSeat(empty, "regular", () => 0)).toEqual({ seat: 1, table: 1 });
-    expect(pickRandomSeat(empty, "regular", () => 0.999999999)).toEqual({ seat: 10, table: 1 });
+    expect(pickRandomSeat(empty, () => 0)).toEqual({ seat: 1, table: 1 });
+    expect(pickRandomSeat(empty, () => 0.999999999)).toEqual({ seat: 10, table: 1 });
   });
 
   // Drawing from every free chair at once fills one table first: the emptiest table
   // always offers the fewest chairs, so it is the least likely to come up.
-  it("sends the next player to the emptiest table of their kind", () => {
+  it("sends the next player to the emptiest table", () => {
     const room = buildSeatingTables(
       [
         player({ id: "a", seat: 1, table: 1 }),
@@ -256,34 +236,30 @@ describe("picking a seat at random", () => {
         player({ id: "c", seat: 3, table: 1 }),
         player({ id: "d", seat: 1, table: 2 }),
       ],
-      3,
+      2,
     );
 
-    expect(pickRandomSeat(room, "regular", () => 0)?.table).toBe(2);
-    expect(pickRandomSeat(room, "regular", () => 0.99)?.table).toBe(2);
+    expect(pickRandomSeat(room, () => 0)?.table).toBe(2);
+    expect(pickRandomSeat(room, () => 0.99)?.table).toBe(2);
   });
 
   it("spreads across tables that are equally empty", () => {
     const room = buildSeatingTables([], 3);
-    const first = pickRandomSeat(room, "regular", () => 0);
-    const second = pickRandomSeat(room, "regular", () => 0.99);
+    const first = pickRandomSeat(room, () => 0);
+    const second = pickRandomSeat(room, () => 0.99);
 
-    expect([first?.table, second?.table].sort()).toEqual([1, 2]);
+    expect([first?.table, second?.table].sort()).toEqual([1, 3]);
   });
 
-  it("reports nothing when the tables of that kind are full", () => {
+  it("reports nothing when every table is full", () => {
     const full = buildSeatingTables(
       Array.from({ length: 10 }, (_, index) =>
-        player({ id: `p${index}`, seat: index + 1, table: 2 }),
+        player({ id: `p${index}`, seat: index + 1, table: 1 }),
       ),
-      2,
+      1,
     );
 
-    expect(pickRandomSeat(full, "vip")).toBeNull();
-  });
-
-  it("reports nothing when the club opened no VIP table at all", () => {
-    expect(pickRandomSeat(buildSeatingTables([], 1), "vip")).toBeNull();
+    expect(pickRandomSeat(full)).toBeNull();
   });
 });
 
@@ -291,19 +267,24 @@ describe("bringing a chair to a full room", () => {
   const seatedAt = (table: number, format: number) =>
     seatsOfFormat(format).map((seat) => player({ id: `t${table}-s${seat}`, seat, table }));
 
-  it("picks the regular table with the fewest players", () => {
-    const tables = buildSeatingTables([...seatedAt(1, 7), ...seatedAt(2, 6)], 3, [7, 6, 6]);
+  it("picks the table with the fewest players", () => {
+    const tables = buildSeatingTables(
+      [...seatedAt(1, 7), ...seatedAt(2, 6), ...seatedAt(3, 8)],
+      3,
+      [7, 6, 8],
+    );
 
-    expect(pickTableToGrow(tables, "regular")).toEqual({ format: 7, table: 2 });
+    expect(pickTableToGrow(tables)).toEqual({ format: 7, table: 2 });
   });
 
-  it("brings a VIP chair only to the VIP table", () => {
-    const tables = buildSeatingTables([], 3, [6, 6, 9]);
+  // The last table is a table like any other now.
+  it("brings a chair to the last table when it is the emptiest", () => {
+    const tables = buildSeatingTables([...seatedAt(1, 7), ...seatedAt(2, 7)], 3, [7, 7, 6]);
 
-    expect(pickTableToGrow(tables, "vip")).toEqual({ format: 10, table: 3 });
+    expect(pickTableToGrow(tables)).toEqual({ format: 7, table: 3 });
   });
 
   it("has nowhere to bring one once every table is ten-handed", () => {
-    expect(pickTableToGrow(buildSeatingTables([], 2, 10), "regular")).toBeNull();
+    expect(pickTableToGrow(buildSeatingTables([], 2, 10))).toBeNull();
   });
 });

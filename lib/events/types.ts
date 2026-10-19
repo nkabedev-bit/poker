@@ -13,15 +13,12 @@ export type TournamentEvent = {
   maxDuoTickets: number | null;
   /** Seats at the regular tables. */
   maxPlayers: number | null;
-  /** Seats at the VIP table, counted apart from the regular ones. */
-  maxVipPlayers: number | null;
   posterUrl: string | null;
   rulesText: string;
   startingStack: number | null;
   startsAt: string;
   title: string;
   venueAddress: string;
-  vipBuyIn: number | null;
 };
 
 export type EventSignupStatus =
@@ -134,25 +131,23 @@ export type EventSignup = {
  * `duo_plus_one` is the member who came on their invitation. Only the first is counted
  * against the poster's allotment — the seat of the second is inside the same ticket.
  */
-export type EventTicketType = "regular" | "vip" | "duo" | "duo_plus_one";
+export type EventTicketType = "regular" | "duo" | "duo_plus_one";
 
-export type FreePassChoice = "none" | "regular" | "vip";
+export type FreePassChoice = "none" | "regular";
 
 /**
  * The tickets the club can hold for somebody who asked ahead. A "1+1" is one of them:
  * the seat is promised, and who fills its second half is the player's to say when they
  * confirm.
  */
-export type ReservableTicket = "regular" | "vip" | "duo";
+export type ReservableTicket = "regular" | "duo";
 
 export function isReservableTicket(value: unknown): value is ReservableTicket {
-  return value === "regular" || value === "vip" || value === "duo";
+  return value === "regular" || value === "duo";
 }
 
 export function isEventTicketType(value: unknown): value is EventTicketType {
-  return (
-    value === "regular" || value === "vip" || value === "duo" || value === "duo_plus_one"
-  );
+  return value === "regular" || value === "duo" || value === "duo_plus_one";
 }
 
 /** Both halves of a "1+1", as against a ticket bought for one player. */
@@ -161,23 +156,16 @@ export function isDuoTicket(ticket: EventTicketType) {
 }
 
 export function isFreePassChoice(value: unknown): value is FreePassChoice {
-  return value === "none" || value === "regular" || value === "vip";
+  return value === "none" || value === "regular";
 }
 
-/**
- * A free entry covers the ticket of its own kind and nothing else: a regular pass never
- * opens a VIP seat, and a VIP pass is not spent on a regular one.
- */
-export function passMatchesTicket(pass: FreePassChoice, ticket: EventTicketType) {
-  return pass === "none" || pass === ticket;
-}
 
 function optionalText(value: unknown) {
   const text = typeof value === "string" ? value.trim() : "";
   return text || null;
 }
 
-/** Zero is a real answer here: the club runs this one without a VIP table. */
+/** Zero is a real answer here: the poster keeps the price but sells none tonight. */
 function optionalSeatCount(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
 
@@ -215,14 +203,12 @@ export function mapEventRow(row: Record<string, unknown>): TournamentEvent {
     // Zero is a real answer: the poster keeps the price but sells no pair tonight.
     maxDuoTickets: optionalSeatCount(row.max_duo_tickets),
     maxPlayers: optionalPositiveInt(row.max_players),
-    maxVipPlayers: optionalSeatCount(row.max_vip_players),
     posterUrl: optionalText(row.poster_url),
     rulesText: String(row.rules_text ?? ""),
     startingStack: optionalPositiveInt(row.starting_stack),
     startsAt: String(row.starts_at),
     title: String(row.title ?? ""),
     venueAddress: String(row.venue_address ?? ""),
-    vipBuyIn: optionalPrice(row.vip_buy_in),
   };
 }
 
@@ -257,14 +243,12 @@ export function toEventRow(event: Omit<TournamentEvent, "id">) {
     late_entry_until: event.lateEntryUntil,
     max_duo_tickets: event.maxDuoTickets,
     max_players: event.maxPlayers,
-    max_vip_players: event.maxVipPlayers,
     poster_url: event.posterUrl,
     rules_text: event.rulesText,
     starting_stack: event.startingStack,
     starts_at: event.startsAt,
     title: event.title,
     venue_address: event.venueAddress,
-    vip_buy_in: event.vipBuyIn,
   };
 }
 

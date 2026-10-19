@@ -21,7 +21,6 @@ import { CashTabs } from "../cash-tabs";
 import { formatRubles } from "@/lib/debts/ledger";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { formatEventTimeLabel } from "@/lib/events/types";
-import { isVipRegistrationNumber } from "@/lib/player-registration-number";
 import { SeatingPicker } from "@/components/tma/seating-picker";
 import { nameSeat } from "@/lib/tables/seating";
 import {
@@ -36,7 +35,6 @@ import {
   CARD_CODE_PREFIXES,
   type CardCodePrefix,
   type CardSession,
-  type TicketType,
 } from "@/lib/cards/card-code";
 import type { ChargeLine } from "@/lib/finance/player-charge";
 
@@ -44,8 +42,7 @@ type Signup = {
   id: string;
   name: string;
   seated: boolean;
-  ticketType: TicketType;
-  usePass: "none" | "regular" | "vip";
+  usePass: "none" | "regular";
   userId?: string | null;
   username: string | null;
 };
@@ -77,16 +74,6 @@ function targetName(target: SeatingTarget) {
   return target.kind === "signup" ? target.signup.name : target.player.name;
 }
 
-const TICKET_LABELS: Record<TicketType, string> = {
-  regular: "Обычный билет",
-  vip: "VIP билет",
-};
-
-const PASS_LABELS: Record<TicketType, string> = {
-  regular: "проходка",
-  vip: "VIP проходка",
-};
-
 export default function TMACardsPage() {
   const { initData } = useTMA();
   const [players, setPlayers] = useState<Player[]>([]);
@@ -113,7 +100,6 @@ export default function TMACardsPage() {
   const [cardsEnabled, setCardsEnabled] = useState(true);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [ticketType, setTicketType] = useState<TicketType>("regular");
   const [pastDebts, setPastDebts] = useState<PastDebt[]>([]);
 
   const loadPlayers = useCallback(async () => {
@@ -249,7 +235,6 @@ export default function TMACardsPage() {
           playerId: player.id,
           seat: choice.seat,
           table: choice.table,
-          ticketType,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -283,8 +268,6 @@ export default function TMACardsPage() {
   const startSeating = (signup: Signup) => {
     const tg = getTelegramWebApp();
     const openPlan = () => {
-      // The player already said which ticket they wanted; the admin can still change it.
-      setTicketType(signup.ticketType);
       setSeatChoice(null);
       setSeating({ kind: "signup", signup });
     };
@@ -294,12 +277,7 @@ export default function TMACardsPage() {
       return;
     }
 
-    tg.showAlert(
-      signup.usePass === "vip"
-        ? "Игрок использовал бесплатную VIP проходку"
-        : "Игрок использовал бесплатную проходку",
-      openPlan,
-    );
+    tg.showAlert("Игрок использовал бесплатную проходку", openPlan);
   };
 
   /**
@@ -307,9 +285,6 @@ export default function TMACardsPage() {
    * chair is chosen rather than left at whatever the roster defaulted to.
    */
   const startSeatingPlayer = (player: Player) => {
-    // A VIP registration number means a VIP seat, so the ticket is pre-picked to match
-    // and the admin only overrides the exception.
-    setTicketType(isVipRegistrationNumber(player.registrationNumber) ? "vip" : "regular");
     setSeatChoice(
       player.table && player.seat ? { seat: player.seat, table: player.table } : null,
     );
@@ -317,10 +292,8 @@ export default function TMACardsPage() {
   };
 
   /**
-   * Sends the player to a free seat the club drew for them. The ticket decides the
-   * room: a VIP ticket — bought or covered by a VIP pass — belongs at the VIP table,
-   * a regular one at the regular tables. With the room full, the desk is offered a chair
-   * at the emptiest table that can still take one.
+   * Sends the player to a free seat the club drew for them. With the room full, the desk
+   * is offered a chair at the emptiest table that can still take one.
    */
   const seatAtRandom = async (target: SeatingTarget) => {
     const seated =
@@ -333,7 +306,6 @@ export default function TMACardsPage() {
       players: seated,
       tableFormats,
       tablesCount,
-      ticket: ticketType,
     });
     if (!picked) return;
 
@@ -377,7 +349,6 @@ export default function TMACardsPage() {
           cardCode: scannedCode ?? "",
           seat: choice.seat,
           table: choice.table,
-          ticketType,
         }),
       });
       const data = await res.json().catch(() => null);
@@ -505,12 +476,11 @@ export default function TMACardsPage() {
 
         <div className="tma-card">
           <span className="text-[20px] font-bold">{targetName(seating)}</span>
-          <span className="tma-row__badges">
-            <span className={`tma-badge${ticketType === "vip" ? " tma-badge--gold" : ""}`}>
-              {TICKET_LABELS[ticketType]}
+          {scannedCode ? (
+            <span className="tma-row__badges">
+              <span className="tma-badge">карта {scannedCode}</span>
             </span>
-            {scannedCode ? <span className="tma-badge">карта {scannedCode}</span> : null}
-          </span>
+          ) : null}
         </div>
 
         <button
@@ -719,7 +689,7 @@ export default function TMACardsPage() {
 
             <div className="flex items-center gap-2 rounded-[10px] bg-[var(--tma-surface-2)] px-3 py-2.5">
               <Ticket className="text-[var(--tma-link)]" size={18} />
-              <span className="font-semibold">{TICKET_LABELS[session.ticketType]}</span>
+              <span className="font-semibold">Билет</span>
               {session.freePass ? (
                 <span className="tma-badge tma-badge--green ml-auto">0 ₽ · проходка</span>
               ) : null}
@@ -887,19 +857,6 @@ export default function TMACardsPage() {
         <>
           <SectionLabel title={cardsEnabled ? "Карта свободна — кому выдать?" : "Кого посадить за стол?"} />
 
-          <div className="tma-segment">
-            {(Object.keys(TICKET_LABELS) as TicketType[]).map((type) => (
-              <button
-                key={type}
-                aria-pressed={ticketType === type}
-                type="button"
-                onClick={() => setTicketType(type)}
-              >
-                {TICKET_LABELS[type]}
-              </button>
-            ))}
-          </div>
-
           {cardsEnabled ? searchBox : null}
 
           {waitingSignups.length > 0 ? (
@@ -925,14 +882,11 @@ export default function TMACardsPage() {
                     <span className="tma-row__sub">
                       {signup.username ? `@${signup.username}` : "записался в приложении"}
                     </span>
-                    {signup.ticketType === "vip" || signup.usePass !== "none" || debtBadge({ accountId: signup.userId, name: signup.name }) ? (
+                    {signup.usePass !== "none" || debtBadge({ accountId: signup.userId, name: signup.name }) ? (
                       <span className="tma-row__badges">
                         {debtBadge({ accountId: signup.userId, name: signup.name })}
-                        {signup.ticketType === "vip" ? (
-                          <span className="tma-badge tma-badge--gold">VIP билет</span>
-                        ) : null}
                         {signup.usePass !== "none" ? (
-                          <span className="tma-badge tma-badge--green">{PASS_LABELS[signup.usePass]}</span>
+                          <span className="tma-badge tma-badge--green">проходка</span>
                         ) : null}
                       </span>
                     ) : null}

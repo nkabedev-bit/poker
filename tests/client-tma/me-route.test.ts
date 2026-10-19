@@ -13,7 +13,7 @@ vi.mock("@/lib/client-tma/require-auth", () => ({
 vi.mock("@/lib/client-bot/server", () => ({ loadCurrentTournamentContext: async () => null }));
 vi.mock("@/lib/events/store", () => ({ getUserSignupsWithEvents: async () => [] }));
 vi.mock("@/lib/free-entries/holds", () => ({
-  countFreePasses: () => ({ regular: 0, vip: 0 }),
+  countFreePasses: () => ({ heldFor: [], regular: 0 }),
   loadPassHolds: async () => [],
 }));
 vi.mock("@/lib/players/medal-counts", () => ({

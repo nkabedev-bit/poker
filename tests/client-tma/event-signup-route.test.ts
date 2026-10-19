@@ -64,10 +64,8 @@ const FUTURE_EVENT = mapEventRow({
   is_published: true,
   late_entry_until: "2999-01-01T19:00:00.000Z",
   max_players: 2,
-  max_vip_players: 1,
   starts_at: "2999-01-01T16:00:00.000Z",
   title: "ONE SHOT KNOCKOUT",
-  vip_buy_in: 2500,
 });
 
 const DUO_EVENT = mapEventRow({
@@ -77,19 +75,13 @@ const DUO_EVENT = mapEventRow({
   is_published: true,
   late_entry_until: "2999-01-01T19:00:00.000Z",
   max_duo_tickets: 1,
-  max_players: 16,
-  max_vip_players: 9,
+  max_players: 25,
   starts_at: "2999-01-01T16:00:00.000Z",
   title: "ЧЕТВЕРГОВЫЙ",
-  vip_buy_in: 2000,
 });
 
-function taken({
-  duo = 0,
-  regular = 0,
-  vip = 0,
-}: { duo?: number; regular?: number; vip?: number } = {}) {
-  return new Map([["event-1", { duo, regular, total: regular + vip + duo * 2, vip }]]);
+function taken({ duo = 0, regular = 0 }: { duo?: number; regular?: number } = {}) {
+  return new Map([["event-1", { duo, regular, total: regular + duo * 2 }]]);
 }
 
 /**
@@ -194,12 +186,10 @@ function authWith({
   freeEntries = 0,
   profileSubmitted = true,
   supabase = upsertSpy().supabase,
-  vipFreeEntries = 0,
 }: {
   freeEntries?: number;
   profileSubmitted?: boolean;
   supabase?: unknown;
-  vipFreeEntries?: number;
 } = {}) {
   return {
     supabase,
@@ -209,7 +199,6 @@ function authWith({
       id: "account-host",
       profile_submitted_at: profileSubmitted ? "2026-08-01T00:00:00.000Z" : null,
       telegram_id: 555,
-      vip_free_entries: vipFreeEntries,
     },
   };
 }
@@ -366,48 +355,24 @@ describe("client sign-up route", () => {
 
   it("remembers the free entry the player chose to pay with", async () => {
     const { supabase, upsert } = upsertSpy();
-    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase, vipFreeEntries: 2 }));
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 2, supabase }));
 
-    const response = await postSignup({ ticketType: "vip", usePass: "vip" });
+    const response = await postSignup({ usePass: "regular" });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ usePass: "vip" });
+    expect(await response.json()).toMatchObject({ usePass: "regular" });
     expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ use_pass: "vip" }),
+      expect.objectContaining({ use_pass: "regular" }),
       { onConflict: "event_id,user_id" },
     );
   });
 
-  it("records the ticket the player asked for", async () => {
+  // The club sells a regular seat and a "1+1": any other ticket asked for is a regular one.
+  it("signs up on a regular ticket when asked for one the club does not sell", async () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
 
-    const response = await postSignup({ ticketType: "vip" });
-
-    expect(response.status).toBe(200);
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ ticket_type: "vip" }),
-      { onConflict: "event_id,user_id" },
-    );
-  });
-
-  it("refuses a VIP seat once the VIP table is spoken for", async () => {
-    const { supabase, upsert } = upsertSpy();
-    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
-    mocks.countActiveSignups.mockResolvedValue(taken({ vip: 1 }));
-
-    const response = await postSignup({ ticketType: "vip" });
-
-    expect(response.status).toBe(409);
-    expect(upsert).not.toHaveBeenCalled();
-  });
-
-  it("keeps the regular seats open when only the VIP table is full", async () => {
-    const { supabase, upsert } = upsertSpy();
-    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
-    mocks.countActiveSignups.mockResolvedValue(taken({ vip: 1 }));
-
-    const response = await postSignup({ ticketType: "regular" });
+    const response = await postSignup({ ticketType: "gold" });
 
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
@@ -416,26 +381,22 @@ describe("client sign-up route", () => {
     );
   });
 
-  // A pass buys the ticket of its own kind and nothing else.
-  it("does not spend a regular pass on a VIP ticket", async () => {
+  it("refuses a regular seat once the regular seats are spoken for", async () => {
     const { supabase, upsert } = upsertSpy();
-    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 3, supabase }));
+    mocks.requireClientTmaAuth.mockResolvedValue(authWith({ supabase }));
+    mocks.countActiveSignups.mockResolvedValue(taken({ regular: 2 }));
 
-    await postSignup({ ticketType: "vip", usePass: "regular" });
+    const response = await postSignup({ ticketType: "regular" });
 
-    expect(upsert).toHaveBeenCalledWith(
-      expect.objectContaining({ ticket_type: "vip", use_pass: "none" }),
-      { onConflict: "event_id,user_id" },
-    );
+    expect(response.status).toBe(409);
+    expect(upsert).not.toHaveBeenCalled();
   });
 
-  it("ignores a pass the player does not hold", async () => {
+  it("ignores a pass of a kind the club does not hand out", async () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 3, supabase }));
 
-    // A VIP pass is a different thing from a regular one, so holding three regular
-    // entries does not let the player claim a VIP seat for free.
-    const response = await postSignup({ usePass: "vip" });
+    const response = await postSignup({ usePass: "gold" });
 
     expect(response.status).toBe(200);
     expect(upsert).toHaveBeenCalledWith(
@@ -450,7 +411,7 @@ describe("client sign-up route", () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 1, supabase }));
     mocks.loadPassHolds.mockResolvedValue([
-      { eventId: "event-2", pass: "regular", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
+      { eventId: "event-2", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
     ]);
 
     const response = await postSignup({ usePass: "regular" });
@@ -468,7 +429,6 @@ describe("client sign-up route", () => {
     mocks.loadPassHolds.mockResolvedValue([
       {
         eventId: "event-1",
-        pass: "regular",
         startsAt: "2999-01-01T16:00:00.000Z",
         title: "ONE SHOT KNOCKOUT",
       },
@@ -487,7 +447,7 @@ describe("client sign-up route", () => {
     const { supabase, upsert } = upsertSpy();
     mocks.requireClientTmaAuth.mockResolvedValue(authWith({ freeEntries: 2, supabase }));
     mocks.loadPassHolds.mockResolvedValue([
-      { eventId: "event-2", pass: "regular", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
+      { eventId: "event-2", startsAt: "2999-01-02T16:00:00.000Z", title: "Phoenix" },
     ]);
 
     const response = await postSignup({ usePass: "regular" });

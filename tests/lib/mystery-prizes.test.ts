@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   describeMysteryPrize,
+  countMysteryPrizePasses,
   getMysteryPrizeChips,
-  getMysteryPrizePasses,
   getMysteryPrizePoints,
   parseMysteryPrize,
   parseMysteryPrizes,
@@ -12,15 +12,19 @@ describe("parseMysteryPrize", () => {
   it("accepts the cards the deck actually holds", () => {
     expect(parseMysteryPrize({ amount: 3, kind: "bigBlinds" })).toEqual({ amount: 3, kind: "bigBlinds" });
     expect(parseMysteryPrize({ amount: 20, kind: "points" })).toEqual({ amount: 20, kind: "points" });
-    expect(parseMysteryPrize({ kind: "pass", pass: "vip" })).toEqual({ kind: "pass", pass: "vip" });
+    expect(parseMysteryPrize({ kind: "pass" })).toEqual({ kind: "pass" });
     expect(parseMysteryPrize({ kind: "other" })).toEqual({ kind: "other" });
+  });
+
+  // Cards logged before there was one kind of pass named the kind; they are still a pass.
+  it("reads a pass logged with its kind as a pass", () => {
+    expect(parseMysteryPrize({ kind: "pass", pass: "regular" })).toEqual({ kind: "pass" });
   });
 
   // The prize moves chips and rating points, so an unknown value is no prize at all.
   it("refuses a value that is not printed on a card", () => {
     expect(parseMysteryPrize({ amount: 4, kind: "bigBlinds" })).toBeNull();
     expect(parseMysteryPrize({ amount: 999, kind: "points" })).toBeNull();
-    expect(parseMysteryPrize({ kind: "pass", pass: "gold" })).toBeNull();
     expect(parseMysteryPrize({ kind: "chips" })).toBeNull();
     expect(parseMysteryPrize(null)).toBeNull();
   });
@@ -62,14 +66,14 @@ describe("what a card pays", () => {
   it("keeps points and passes apart from chips", () => {
     expect(getMysteryPrizePoints({ amount: 60, kind: "points" })).toBe(60);
     expect(getMysteryPrizePoints({ kind: "other" })).toBe(0);
-    expect(getMysteryPrizePasses({ kind: "pass", pass: "regular" })).toEqual(["regular"]);
-    expect(getMysteryPrizePasses({ amount: 1, kind: "bigBlinds" })).toEqual([]);
+    expect(countMysteryPrizePasses({ kind: "pass" })).toBe(1);
+    expect(countMysteryPrizePasses({ amount: 1, kind: "bigBlinds" })).toBe(0);
   });
 
   it("says out loud what the dealer drew", () => {
     expect(describeMysteryPrize({ amount: 1, kind: "bigBlinds" })).toBe("1 ББ в стек");
     expect(describeMysteryPrize({ amount: 40, kind: "points" })).toBe("40 PTS");
-    expect(describeMysteryPrize({ kind: "pass", pass: "vip" })).toBe("VIP проходка");
+    expect(describeMysteryPrize({ kind: "pass" })).toBe("Проходка");
     expect(describeMysteryPrize({ kind: "other" })).toBe("Другое");
   });
 });
@@ -135,17 +139,14 @@ describe("the Joker", () => {
     expect(getMysteryPrizeChips(doubleChips, 400)).toBe(2000);
   });
 
-  // Two passes are two entries, and a regular one never covers a VIP seat.
+  // Two passes are two entries.
   it("pays both passes a Joker turns up", () => {
     const twoPasses = {
       kind: "joker" as const,
-      prizes: [
-        { kind: "pass" as const, pass: "regular" as const },
-        { kind: "pass" as const, pass: "vip" as const },
-      ],
+      prizes: [{ kind: "pass" as const }, { kind: "pass" as const }],
     };
 
-    expect(getMysteryPrizePasses(twoPasses)).toEqual(["regular", "vip"]);
+    expect(countMysteryPrizePasses(twoPasses)).toBe(2);
   });
 
   it("names both halves for the dealer and the log", () => {

@@ -137,33 +137,25 @@ export async function POST(request: Request) {
 
   if (!t) return NextResponse.json({ error: "No tournament" }, { status: 404 });
 
-  const body = await request.json().catch(() => ({}));
-  const kind = body.kind === "vip" ? "vip" : "regular";
-
   const extras = await loadTournamentExtras(t.id, auth.supabase);
 
-  // One of each kind per tournament. Checked here so the admin is told why, and again
-  // in the database so two taps at once cannot both get through.
-  const held = extras.raffleHistory.find((item) => item.kind === kind);
+  // One draw per tournament. Checked here so the admin is told why, and again in the
+  // database so two taps at once cannot both get through.
+  const held = extras.raffleHistory[0];
   if (held) {
     return NextResponse.json(
       {
-        error: `${kind === "vip" ? "VIP розыгрыш" : "Розыгрыш"} уже проводился сегодня — победил номер ${held.winnerNumber} (${held.winnerName})`,
+        error: `Розыгрыш уже проводился сегодня — победил номер ${held.winnerNumber} (${held.winnerName})`,
       },
       { status: 409 },
     );
   }
 
-  const entrants = listRaffleEntrants(extras.players, kind);
+  const entrants = listRaffleEntrants(extras.players);
 
   if (entrants.length === 0) {
     return NextResponse.json(
-      {
-        error:
-          kind === "vip"
-            ? "Сегодня нет игроков с VIP-билетом"
-            : "Нет игроков с номерами — розыгрыш не из кого проводить",
-      },
+      { error: "Нет игроков с номерами — розыгрыш не из кого проводить" },
       { status: 409 },
     );
   }
@@ -184,11 +176,9 @@ export async function POST(request: Request) {
   const avatars = await loadPlayerAvatars(auth.supabase);
 
   // How the draw runs to the winner — a reel or one of the scenes — drawn with the result
-  // so every screen plays the same run, and never the way tonight's other draw ran.
-  const previousDraw = extras.raffleHistory[extras.raffleHistory.length - 1];
+  // so every screen plays the same run.
   const { motion, spinSeconds } = pickRaffleMotion(
     () => randomInt(0, 2 ** 31) / 2 ** 31,
-    previousDraw?.motion?.style ?? null,
     { numbers: entrants.map((entrant) => entrant.number), winnerNumber: winner.number },
   );
 
@@ -205,12 +195,11 @@ export async function POST(request: Request) {
       number: entrant.number,
     })),
     id: crypto.randomUUID(),
-    kind,
     motion,
     numbers: entrants.map((entrant) => entrant.number),
-    // A VIP prize is a certificate handed over at the table; a regular one is a free
-    // entry, credited below once the draw itself is safely written down.
-    prize: kind === "vip" ? "none" : "manual",
+    // The prize is a free entry, credited below once the draw itself is safely written
+    // down.
+    prize: "manual",
     spinSeconds,
     startedAt: drawnAt.toISOString(),
     winnerName: winner.name,
@@ -250,7 +239,6 @@ export async function POST(request: Request) {
   // weighting of later draws, never this one.
   const { error: winLogError } = await auth.supabase.from("raffle_winners").insert({
     account_id: winner.accountId,
-    kind: raffle.kind,
     played_on: tonight,
     player_name: winner.name,
     raffle_id: raffle.id,
@@ -261,13 +249,12 @@ export async function POST(request: Request) {
   // The free entry goes to the winner's profile, which exists for anyone seated from a
   // sign-up — through the bot or through the web. A player the admin added by hand has
   // no account behind the seat, and the pass is handed over at the table instead.
-  if (raffle.kind === "regular" && (winner.accountId || winner.telegramId)) {
+  if (winner.accountId || winner.telegramId) {
     let granted = false;
     try {
       const change = await adjustFreeEntries(auth.supabase, {
         delta: 1,
         holder: { accountId: winner.accountId, telegramId: winner.telegramId },
-        vip: false,
       });
 
       granted = change !== null;
@@ -285,7 +272,6 @@ export async function POST(request: Request) {
           count: 1,
           nickname: winner.name,
           source: "raffle",
-          vip: false,
         });
       } catch (sheetError) {
         console.error("Failed to log the raffle pass", sheetError);
@@ -304,14 +290,13 @@ export async function POST(request: Request) {
   // out a minute later, after the response — sent at once, it reached the winner's phone
   // while the reel was still turning and told them before the room saw it.
   //
-  // A regular pass is announced only once it has actually been credited — the message
-  // sends the player to look for it in the app, and must not send them to an empty
-  // profile. The VIP certificate is handed over at the table, so its message waits on
-  // nothing being credited. A player seated by hand has no account and no chat to write to;
-  // the admin is told to hand the prize over instead.
-  if (winner.accountId && (raffle.kind === "vip" || raffle.prize === "granted")) {
+  // The pass is announced only once it has actually been credited — the message sends
+  // the player to look for it in the app, and must not send them to an empty profile. A
+  // player seated by hand has no account and no chat to write to; the admin is told to
+  // hand the prize over instead.
+  if (winner.accountId && raffle.prize === "granted") {
     const accountId = winner.accountId;
-    const message = RAFFLE_WIN_MESSAGE[raffle.kind];
+    const message = RAFFLE_WIN_MESSAGE;
 
     after(async () => {
       await new Promise((resolve) => setTimeout(resolve, RAFFLE_WIN_NOTICE_DELAY_MS));

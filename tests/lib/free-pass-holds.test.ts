@@ -7,7 +7,6 @@ const NOW = new Date("2026-09-14T12:00:00.000Z");
 function hold(overrides: Partial<PassHold> = {}): PassHold {
   return {
     eventId: "event-phoenix",
-    pass: "regular",
     startsAt: "2026-09-15T16:00:00.000Z",
     title: "Phoenix",
     ...overrides,
@@ -33,7 +32,7 @@ function signupFor(event: Record<string, unknown>, pass = "regular") {
 
 describe("countFreePasses", () => {
   it("takes a pass promised to another game out of what is left", () => {
-    const passes = countFreePasses({ free_entries: 1, vip_free_entries: 0 }, [hold()]);
+    const passes = countFreePasses({ free_entries: 1 }, [hold()]);
 
     expect(passes.regular).toBe(0);
     expect(passes.heldFor).toEqual([hold()]);
@@ -43,12 +42,6 @@ describe("countFreePasses", () => {
     const passes = countFreePasses({ free_entries: 2 }, [hold()]);
 
     expect(passes.regular).toBe(1);
-  });
-
-  it("counts a VIP pass apart from a regular one", () => {
-    const passes = countFreePasses({ free_entries: 1, vip_free_entries: 1 }, [hold({ pass: "vip" })]);
-
-    expect(passes).toMatchObject({ regular: 1, vip: 0 });
   });
 
   // Sending the sign-up again must not trip over the pass it already holds.
@@ -69,17 +62,18 @@ describe("countFreePasses", () => {
 describe("loadPassHolds", () => {
   it("lists the games still ahead, soonest first", async () => {
     const supabase = supabaseReturning([
-      signupFor(
-        { id: "event-mystery", starts_at: "2026-09-20T14:00:00.000Z", title: "Mystery Bounty" },
-        "vip",
-      ),
+      signupFor({ id: "event-mystery", starts_at: "2026-09-20T14:00:00.000Z", title: "Mystery Bounty" }),
       signupFor({ id: "event-phoenix", starts_at: "2026-09-15T16:00:00.000Z", title: "Phoenix" }),
     ]);
 
     const holds = await loadPassHolds(supabase, "account-1", NOW);
 
     expect(holds.map((item) => item.title)).toEqual(["Phoenix", "Mystery Bounty"]);
-    expect(holds[1]).toMatchObject({ eventId: "event-mystery", pass: "vip" });
+    expect(holds[1]).toEqual({
+      eventId: "event-mystery",
+      startsAt: "2026-09-20T14:00:00.000Z",
+      title: "Mystery Bounty",
+    });
   });
 
   // The night ending without the player gives the pass back, with nobody returning it.

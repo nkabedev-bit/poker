@@ -23,7 +23,7 @@ export type EventCardData = TournamentEvent & {
 
 /** The cheapest way in tonight, for the "вход от" under the featured poster. */
 function lowestBuyIn(event: EventCardData) {
-  const prices = [event.buyIn, event.duoBuyIn, event.vipBuyIn].filter(
+  const prices = [event.buyIn, event.duoBuyIn].filter(
     (price): price is number => typeof price === "number" && price > 0,
   );
 

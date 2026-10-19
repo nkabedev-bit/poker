@@ -15,7 +15,7 @@ import {
 import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance";
 import { readCancellationRows, type CancellationRow } from "@/lib/players/cancellations";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
-import { hasRegistrationNumber, isVipRegistrationNumber } from "@/lib/player-registration-number";
+import { hasRegistrationNumber } from "@/lib/player-registration-number";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import { getFinanceRoster } from "@/lib/timer/lifecycle";
@@ -32,11 +32,6 @@ const ELIMINATION_SHEET_HEADERS = [
   "PTS",
   "Кол-во баунти",
 ];
-
-const VIP_SHEET_NAME = "VIP";
-const VIP_SHEET_HEADERS = ["Игрок", "Раз в VIP"];
-// Game-date columns start after the summary (A, B) and a spacer column (C).
-const VIP_FIRST_GAME_COLUMN_INDEX = 3;
 
 const MOSCOW_TIME_ZONE = "Europe/Moscow";
 const MOSCOW_UTC_OFFSET_HOURS = 3;
@@ -174,176 +169,6 @@ export function getSheetStandingsPlayers(
   }
 
   return currentPlayers;
-}
-
-function isVipPlayer(player: TournamentPlayer) {
-  // VIP membership is decided purely by the registration number range
-  // (lib/player-registration-number.ts), so a stale/missing category cannot
-  // mis-classify a player.
-  return isVipRegistrationNumber(player.registrationNumber);
-}
-
-// Names of players who registered as VIP (registration number 21–35 / table 3),
-// in registration order, de-duplicated.
-export function getVipPlayersForGame(players: TournamentPlayer[]) {
-  const seen = new Set<string>();
-  const names: string[] = [];
-
-  for (const player of players) {
-    if (!isVipPlayer(player)) continue;
-    const name = player.name?.trim();
-    if (!name || seen.has(name)) continue;
-    seen.add(name);
-    names.push(name);
-  }
-
-  return names;
-}
-
-type VipGameColumn = { date: string; names: string[] };
-type VipSummaryEntry = { name: string; count: number };
-
-function parseVipGameColumns(grid: string[][]): VipGameColumn[] {
-  const headerRow = grid[0] ?? [];
-  const columns: VipGameColumn[] = [];
-
-  for (let col = VIP_FIRST_GAME_COLUMN_INDEX; col < headerRow.length; col += 1) {
-    const date = String(headerRow[col] ?? "").trim();
-    if (!date) continue;
-
-    const names: string[] = [];
-    for (let row = 1; row < grid.length; row += 1) {
-      const name = String(grid[row]?.[col] ?? "").trim();
-      if (name) names.push(name);
-    }
-
-    columns.push({ date, names });
-  }
-
-  return columns;
-}
-
-// Read the existing A/B summary (player name + "Раз в VIP" count) as-is, preserving order.
-// Counts are preserved (not recomputed) so manual edits and prior games survive.
-function parseVipSummary(grid: string[][]): VipSummaryEntry[] {
-  const summary: VipSummaryEntry[] = [];
-
-  for (let row = 1; row < grid.length; row += 1) {
-    const name = String(grid[row]?.[0] ?? "").trim();
-    if (!name) continue;
-    const count = Number(grid[row]?.[1]);
-    summary.push({ name, count: Number.isFinite(count) ? count : 0 });
-  }
-
-  return summary;
-}
-
-// Additively merge today's VIP players into the VIP grid. This NEVER removes a name,
-// blanks a column, or drops a summary row — it only appends newly-seen VIP players to
-// today's game column and bumps their "Раз в VIP" counter by 1 (once per game, because a
-// name already present in today's column is skipped on repeat syncs). The A/B summary is
-// preserved as read, so manual edits and previously recorded games are kept intact.
-export function buildVipSheetGrid(
-  existingGrid: string[][],
-  todayDate: string,
-  todayNames: string[],
-): (string | number)[][] {
-  const columns = parseVipGameColumns(existingGrid);
-  const summary = parseVipSummary(existingGrid);
-  const summaryIndex = new Map(summary.map((entry, index) => [entry.name, index]));
-
-  let todayColumn = columns.find((column) => column.date === todayDate);
-  if (!todayColumn && todayNames.length > 0) {
-    todayColumn = { date: todayDate, names: [] };
-    columns.push(todayColumn);
-  }
-
-  if (todayColumn) {
-    const alreadyRecorded = new Set(todayColumn.names);
-    for (const name of todayNames) {
-      if (alreadyRecorded.has(name)) continue;
-      alreadyRecorded.add(name);
-      todayColumn.names.push(name);
-
-      const existing = summaryIndex.get(name);
-      if (existing === undefined) {
-        summaryIndex.set(name, summary.length);
-        summary.push({ name, count: 1 });
-      } else {
-        summary[existing].count += 1;
-      }
-    }
-  }
-
-  return serializeVipGrid(summary, columns);
-}
-
-function serializeVipGrid(
-  summary: VipSummaryEntry[],
-  columns: VipGameColumn[],
-): (string | number)[][] {
-  const bodyRowCount = Math.max(
-    summary.length,
-    ...columns.map((column) => column.names.length),
-    0,
-  );
-
-  const grid: (string | number)[][] = [
-    [
-      VIP_SHEET_HEADERS[0],
-      VIP_SHEET_HEADERS[1],
-      "",
-      ...columns.map((column) => column.date),
-    ],
-  ];
-
-  for (let row = 0; row < bodyRowCount; row += 1) {
-    const summaryEntry = summary[row];
-    const line: (string | number)[] = [
-      summaryEntry ? summaryEntry.name : "",
-      summaryEntry ? summaryEntry.count : "",
-      "",
-      ...columns.map((column) => column.names[row] ?? ""),
-    ];
-    grid.push(line);
-  }
-
-  return grid;
-}
-
-// Remove a single player from the given game's VIP column and decrement their "Раз в VIP"
-// counter by 1 (dropping the summary row at 0). Used to correct an erroneous VIP entry when
-// an admin deletes the player. Only touches the named player in the named game's column —
-// other games, other players, and manual edits are left untouched. No-op if the player is
-// not in that column.
-export function removeFromVipSheetGrid(
-  existingGrid: string[][],
-  gameDate: string,
-  playerName: string,
-): (string | number)[][] {
-  const columns = parseVipGameColumns(existingGrid);
-  const summary = parseVipSummary(existingGrid);
-
-  const gameColumn = columns.find((column) => column.date === gameDate);
-  const nameIndex = gameColumn ? gameColumn.names.indexOf(playerName) : -1;
-  if (!gameColumn || nameIndex === -1) {
-    return serializeVipGrid(summary, columns);
-  }
-
-  gameColumn.names.splice(nameIndex, 1);
-  if (gameColumn.names.length === 0) {
-    columns.splice(columns.indexOf(gameColumn), 1);
-  }
-
-  const summaryIndex = summary.findIndex((entry) => entry.name === playerName);
-  if (summaryIndex !== -1) {
-    summary[summaryIndex].count -= 1;
-    if (summary[summaryIndex].count <= 0) {
-      summary.splice(summaryIndex, 1);
-    }
-  }
-
-  return serializeVipGrid(summary, columns);
 }
 
 export function getCurrentEliminationSheetName() {
@@ -913,8 +738,8 @@ export type AttendanceSyncResult = {
  *
  * The list of players can only grow, so a count that came back smaller than what the tab
  * already holds means the read was short, not that the club shrank: the write is refused
- * rather than allowed to blank a populated tab, which is the failure that cost the VIP tab
- * its history on 2026-06-07.
+ * rather than allowed to blank a populated tab, which is the failure that cost one of the
+ * club's tabs its history on 2026-06-07.
  */
 export async function syncAttendanceSheet(
   supabase: SupabaseClient,
@@ -1370,7 +1195,6 @@ export type FreeEntryGrant = {
   count: number;
   nickname: string;
   source: FreeEntrySource;
-  vip: boolean;
 };
 
 export function buildFreeEntryGrantRow(
@@ -1383,7 +1207,9 @@ export function buildFreeEntryGrantRow(
     `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year}`,
     grant.nickname,
     FREE_ENTRY_SOURCE_LABELS[grant.source],
-    grant.vip ? "VIP" : "Обычная",
+    // The ledger keeps its column of the pass's kind, so the rows written before 19.10.2026
+    // line up with the new ones: there is one kind of pass now.
+    "Обычная",
     grant.count,
   ];
 }
@@ -1509,142 +1335,6 @@ export async function syncTournamentToSheets(
     sheetName,
     standingsCount: standingsPlayers.length,
   };
-}
-
-// Read the VIP grid as a string matrix. Guards against a transient empty read: a populated
-// VIP sheet always has at least one game-date column, so if the first read returns none we
-// re-read once. This means a momentary empty API response can never drive a destructive
-// rewrite that drops the recorded game history (the failure seen on 2026-06-07). On a genuine
-// first VIP game the re-read is harmless — it just confirms the sheet is still empty.
-async function readVipGrid(
-  sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
-): Promise<string[][]> {
-  const readOnce = async () => {
-    const existing = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
-    });
-    return ((existing.data.values ?? []) as unknown[][]).map((row) =>
-      row.map((cell) => String(cell ?? "")),
-    );
-  };
-
-  let grid = await readOnce();
-  if (parseVipGameColumns(grid).length === 0) {
-    grid = await readOnce();
-  }
-  return grid;
-}
-
-// Write a VIP grid WITHOUT clearing the sheet first. The additive merge always returns a
-// superset of what we read (existing columns keep their position, rows only grow, a new game
-// adds a column on the right), so an in-place update leaves no stale cells while never
-// blanking the sheet. The header row is written RAW so date labels like "07/06" stay text —
-// USER_ENTERED would coerce them into dates that read back differently and spawn a duplicate
-// column on the next sync. Body rows use USER_ENTERED so the "Раз в VIP" counts stay numeric.
-async function writeVipGridNoClear(
-  sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
-  grid: (string | number)[][],
-) {
-  if (grid.length === 0) return;
-
-  const [header, ...body] = grid;
-  const lastColumn = getSheetColumnName(Math.max(header.length, 1));
-
-  await batchUpdateValues(sheets, spreadsheetId, "RAW", [
-    { range: `'${VIP_SHEET_NAME}'!A1:${lastColumn}1`, values: [header] },
-  ]);
-
-  if (body.length > 0) {
-    await batchUpdateValues(sheets, spreadsheetId, "USER_ENTERED", [
-      { range: `'${VIP_SHEET_NAME}'!A2`, values: body },
-    ]);
-  }
-}
-
-async function writeVipSheet(
-  sheets: sheets_v4.Sheets,
-  spreadsheetId: string,
-  gameDate: string,
-  players: TournamentPlayer[],
-) {
-  // No header write of its own: serializeVipGrid already puts VIP_SHEET_HEADERS in row 0 of
-  // the grid written below, so a separate one would just spend a request on the same values.
-  await ensureSheetExists(sheets, spreadsheetId, VIP_SHEET_NAME);
-
-  const existingGrid = await readVipGrid(sheets, spreadsheetId);
-  const grid = buildVipSheetGrid(existingGrid, gameDate, getVipPlayersForGame(players));
-
-  // Additive path: never clear — the new grid is a superset of the existing one.
-  await writeVipGridNoClear(sheets, spreadsheetId, grid);
-}
-
-// Refresh the VIP tab (the game-date column + the running summary) for the current
-// game. Keyed by the game date, so it is safe to call on every registration / sync.
-export async function syncVipSheet(supabase: SupabaseClient, tournamentId: string) {
-  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
-
-  const { data } = await supabase
-    .from("tournament_extras")
-    .select("data")
-    .eq("tournament_id", tournamentId)
-    .maybeSingle();
-  const extras = mergeTournamentExtras(data?.data);
-
-  const auth = await getAuth();
-  const sheets = google.sheets({ version: "v4", auth });
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-  const gameDate = getEliminationSheetName(
-    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
-  );
-
-  await writeVipSheet(sheets, spreadsheetId, gameDate, extras.players);
-}
-
-// Correct an erroneous VIP entry: remove the player from the current game's VIP column and
-// decrement their counter. Call when an admin deletes a player who had a VIP registration
-// number. Best-effort and idempotent (no-op if the player isn't in that column).
-export async function removePlayerFromVipSheet(
-  supabase: SupabaseClient,
-  tournamentId: string,
-  playerName: string,
-) {
-  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return;
-
-  const name = playerName.trim();
-  if (!name) return;
-
-  const { data } = await supabase
-    .from("tournament_extras")
-    .select("data")
-    .eq("tournament_id", tournamentId)
-    .maybeSingle();
-  const extras = mergeTournamentExtras(data?.data);
-
-  const auth = await getAuth();
-  const sheets = google.sheets({ version: "v4", auth });
-  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-  const gameDate = getEliminationSheetName(
-    getEffectiveSessionStart(extras.settings.sheetsSessionStartedAt),
-  );
-
-  // No header write of its own: serializeVipGrid already puts VIP_SHEET_HEADERS in row 0 of
-  // the grid written below, so a separate one would just spend a request on the same values.
-  await ensureSheetExists(sheets, spreadsheetId, VIP_SHEET_NAME);
-
-  const existingGrid = await readVipGrid(sheets, spreadsheetId);
-  const grid = removeFromVipSheetGrid(existingGrid, gameDate, name);
-
-  // Removal can shrink the grid (a name leaves a column, an emptied column drops), so unlike
-  // the additive path this one clears first to wipe any now-orphaned trailing cells, then
-  // rewrites the smaller grid in place.
-  await sheets.spreadsheets.values.clear({
-    spreadsheetId,
-    range: `'${VIP_SHEET_NAME}'!A1:ZZ`,
-  });
-  await writeVipGridNoClear(sheets, spreadsheetId, grid);
 }
 
 export async function clearTournamentSheet(spreadsheetId: string, sheetName: string) {

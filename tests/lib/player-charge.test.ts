@@ -7,11 +7,10 @@ const prices = {
   doubleRebuyPrice: 2000,
   duoBuyIn: 2000,
   rebuyPrice: 1250,
-  vipBuyIn: 2000,
 };
 
 function player(overrides: Record<string, unknown> = {}) {
-  return { addons: 0, doubleRebuys: 0, rebuys: 0, ticketType: "regular" as const, ...overrides };
+  return { addons: 0, doubleRebuys: 0, rebuys: 0, ...overrides };
 }
 
 describe("the 1+1 ticket", () => {
@@ -62,7 +61,7 @@ describe("the venue's owner", () => {
   });
 
   it("keeps an entry he came in on with a pass marked as a pass", () => {
-    expect(buildPlayerCharge(player({ freePass: "vip", name: "Киберпсих" }), prices).ticket).toEqual({
+    expect(buildPlayerCharge(player({ freePass: "regular", name: "Киберпсих" }), prices).ticket).toEqual({
       count: 0,
       free: true,
       price: 0,
@@ -93,14 +92,10 @@ describe("buildPlayerCharge", () => {
     expect(buildPlayerCharge(player({ addons: 2 }), prices).total).toBe(1250 + 2500);
   });
 
-  it("charges the VIP price for a VIP ticket", () => {
-    expect(buildPlayerCharge(player({ ticketType: "vip" }), prices).ticket.sum).toBe(2000);
-  });
-
   // A pass covers the seat and nothing else.
   it("gives the entry away on a free pass but still charges the re-entries", () => {
     const charge = buildPlayerCharge(
-      player({ addons: 1, freePass: "vip", rebuys: 1, ticketType: "vip" }),
+      player({ addons: 1, freePass: "regular", rebuys: 1 }),
       prices,
     );
 
@@ -108,18 +103,17 @@ describe("buildPlayerCharge", () => {
     expect(charge.total).toBe(1250 + 1250);
   });
 
-  // The club runs freerolls with a paid VIP table: the entry that is set to nothing
-  // costs nothing, and the one that is priced is still billed.
-  it("bills each ticket at the price the settings give it", () => {
+  // A freeroll is an entry set to nothing, and nothing else about it is special.
+  it("bills the ticket at the price the settings give it", () => {
     const freerollPrices = { ...prices, buyIn: 0 };
 
     expect(buildPlayerCharge(player(), freerollPrices).total).toBe(0);
-    expect(buildPlayerCharge(player({ ticketType: "vip" }), freerollPrices).total).toBe(2000);
+    expect(buildPlayerCharge(player({ rebuys: 1 }), freerollPrices).total).toBe(1250);
   });
 
   // A pass is the one thing that still overrides the price.
   it("charges nothing to a player who came in on a pass", () => {
-    const charge = buildPlayerCharge(player({ freePass: "vip", ticketType: "vip" }), prices);
+    const charge = buildPlayerCharge(player({ freePass: "regular" }), prices);
 
     expect(charge.ticket).toMatchObject({ free: true, sum: 0 });
   });

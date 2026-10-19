@@ -1,47 +1,39 @@
 import type { EventSignupCount } from "@/lib/events/store";
 import type { EventTicketType, TournamentEvent } from "@/lib/events/types";
-import { SEATS_PER_TABLE } from "@/lib/tables/seating";
 
-/** The three allotments of a poster, and how many players they let in together. */
+/** The two allotments of a poster, and how many players they let in together. */
 export type AnnouncedSeats = {
   /** Tickets, not seats: each one brings a pair. */
   duoTickets: number;
   regular: number;
   total: number;
-  vip: number;
 };
 
 export type FreeSeats = {
   /** "1+1" tickets left; zero when the poster sells none tonight. */
   duo: number;
-  /** Seats left of each kind; null means the poster sets no limit. */
+  /** Regular seats left; null means the poster sets no limit. */
   regular: number | null;
-  vip: number | null;
 };
 
-const NO_SIGNUPS: EventSignupCount = { duo: 0, regular: 0, total: 0, vip: 0 };
+const NO_SIGNUPS: EventSignupCount = { duo: 0, regular: 0, total: 0 };
 
 /**
- * What is left of a poster's three allotments.
+ * What is left of a poster's two allotments.
  *
- * The club opens the regular tables, the VIP table and the "1+1" tickets separately, so
- * a full VIP table says nothing about the regular seats — and a poster that names no
- * limit for a kind simply does not run out of it. The pair's second seat is inside the
- * duo ticket itself and is never counted against the regular allotment.
+ * The club opens the regular seats and the "1+1" tickets separately, and a poster that
+ * names no regular limit simply does not run out of it. The pair's second seat is inside
+ * the duo ticket itself and is never counted against the regular allotment.
  */
 export function countFreeSeats(
-  event: Pick<TournamentEvent, "maxDuoTickets" | "maxPlayers" | "maxVipPlayers">,
+  event: Pick<TournamentEvent, "maxDuoTickets" | "maxPlayers">,
   taken: EventSignupCount | undefined,
 ): FreeSeats {
   const counted = taken ?? NO_SIGNUPS;
-  // There is one VIP table and it seats ten, so a poster that leaves the field empty
-  // still has a number to show — and cannot sell more VIP seats than the room has.
-  const vipLimit = event.maxVipPlayers ?? SEATS_PER_TABLE;
 
   return {
     duo: Math.max(0, (event.maxDuoTickets ?? 0) - counted.duo),
     regular: event.maxPlayers === null ? null : Math.max(0, event.maxPlayers - counted.regular),
-    vip: Math.max(0, vipLimit - counted.vip),
   };
 }
 
@@ -55,69 +47,47 @@ export function hasFreeSeat(seats: FreeSeats, ticket: EventTicketType) {
   if (ticket === "duo_plus_one") return true;
   if (ticket === "duo") return seats.duo > 0;
 
-  const left = ticket === "vip" ? seats.vip : seats.regular;
-  return left === null || left > 0;
-}
-
-/**
- * Whether the poster offers a VIP ticket at all: the club prices it, or opens seats for
- * it. Without either there is nothing for the player to choose between.
- */
-export function offersVipTicket(
-  event: Pick<TournamentEvent, "maxVipPlayers" | "vipBuyIn">,
-) {
-  // Zero VIP seats means there is no VIP table tonight, whatever the price says.
-  if (event.maxVipPlayers === 0) return false;
-
-  return event.vipBuyIn !== null || event.maxVipPlayers !== null;
+  return seats.regular === null || seats.regular > 0;
 }
 
 /**
  * How many players the poster lets in altogether, spelled out by kind — a "1+1" ticket
  * brings two of them.
  *
- * The three allotments are sold apart and nothing here limits anything: the line is for
+ * The two allotments are sold apart and nothing here limits anything: the line is for
  * the admin filling the poster in, because only they know how many chairs the room has.
  */
 export function describeAnnouncedSeats({
   duoTickets,
   regular,
-  vip,
 }: {
   duoTickets: number;
   regular: number;
-  vip: number;
 }) {
   const duoSeats = duoTickets * 2;
   const parts = [`${regular} обычных`];
   if (duoSeats) parts.push(`${duoSeats} по билетам 1+1`);
-  if (vip) parts.push(`${vip} VIP`);
 
-  return `Всего мест: ${regular + duoSeats + vip} (${parts.join(" · ")})`;
+  return `Всего мест: ${regular + duoSeats} (${parts.join(" · ")})`;
 }
 
 /**
- * What the poster announces, by kind and altogether: the regular tables, the VIP table
- * and both halves of every "1+1" ticket. Null when the club named no regular limit —
- * without it there is no total to show.
+ * What the poster announces, by kind and altogether: the regular seats and both halves
+ * of every "1+1" ticket. Null when the club named no regular limit — without it there is
+ * no total to show.
  */
 export function countAnnouncedSeats(
-  event: Pick<
-    TournamentEvent,
-    "duoBuyIn" | "maxDuoTickets" | "maxPlayers" | "maxVipPlayers" | "vipBuyIn"
-  >,
+  event: Pick<TournamentEvent, "duoBuyIn" | "maxDuoTickets" | "maxPlayers">,
 ): AnnouncedSeats | null {
   if (event.maxPlayers === null) return null;
 
-  // A kind the poster does not sell adds nothing, whatever number is left in its field.
-  const vip = offersVipTicket(event) ? event.maxVipPlayers ?? SEATS_PER_TABLE : 0;
+  // A "1+1" the poster does not sell adds nothing, whatever number is left in its field.
   const duoTickets = offersDuoTicket(event) ? event.maxDuoTickets ?? 0 : 0;
 
   return {
     duoTickets,
     regular: event.maxPlayers,
-    total: event.maxPlayers + duoTickets * 2 + vip,
-    vip,
+    total: event.maxPlayers + duoTickets * 2,
   };
 }
 

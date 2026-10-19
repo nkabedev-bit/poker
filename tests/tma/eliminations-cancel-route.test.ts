@@ -112,7 +112,7 @@ function createSupabaseMock(log: Record<string, unknown>, account: Record<string
       }
       if (fnName === "adjust_free_entries") {
         passAdjustments.push(args);
-        const held = Number((account as Record<string, number> | null)?.vip_free_entries ?? 0);
+        const held = Number((account as Record<string, number> | null)?.free_entries ?? 0);
         return { data: { after: Math.max(0, held + args.p_delta), before: held }, error: null };
       }
       return { data: null, error: null };
@@ -173,10 +173,10 @@ describe("TMA elimination cancellation route", () => {
       {
         id: "elim-1",
         eliminated_id: "out",
-        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass", pass: "vip" } }],
+        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass" } }],
         tournament_id: "tournament-1",
       },
-      { vip_free_entries: 2 },
+      { free_entries: 2 },
     );
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [killer] }));
@@ -192,13 +192,12 @@ describe("TMA elimination cancellation route", () => {
 
     expect(response.status).toBe(200);
     expect(supabase.passAdjustments).toEqual([
-      expect.objectContaining({ p_delta: -1, p_vip: true }),
+      { p_account_id: null, p_delta: -1, p_telegram_id: 777 },
     ]);
     expect(mocks.appendFreeEntryGrant).toHaveBeenCalledWith({
       count: -1,
       nickname: "Killer",
       source: "mystery",
-      vip: true,
     });
   });
 
@@ -208,10 +207,10 @@ describe("TMA elimination cancellation route", () => {
       {
         id: "elim-1",
         eliminated_id: "out",
-        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass", pass: "vip" } }],
+        killers: [{ id: "killer", name: "Killer", share: 1, prize: { kind: "pass" } }],
         tournament_id: "tournament-1",
       },
-      { vip_free_entries: 2 },
+      { free_entries: 2 },
     );
     mocks.requireTmaAuth.mockResolvedValue({ supabase, userId: 42 });
     mocks.loadTournamentExtras.mockResolvedValue(mergeTournamentExtras({ players: [killer] }));

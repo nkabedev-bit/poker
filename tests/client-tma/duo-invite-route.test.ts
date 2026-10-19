@@ -170,7 +170,7 @@ describe("answering a 1+1 invitation", () => {
         duoPartnerName: null,
         duoPartnerUserId: null,
         eventId: "event-1",
-        ticketType: "vip",
+        ticketType: "regular",
         userId: "account-plus-one",
       },
     ]);
@@ -178,7 +178,7 @@ describe("answering a 1+1 invitation", () => {
     const response = await answer({ accept: true });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ joined: true, releasedTicket: "vip" });
+    expect(await response.json()).toEqual({ joined: true, releasedTicket: "regular" });
     expect(upsert).toHaveBeenCalledWith(
       expect.objectContaining({ ticket_type: "duo_plus_one" }),
       { onConflict: "event_id,user_id" },

@@ -14,17 +14,16 @@ export function canManageFreeEntries(telegramId: number | undefined) {
 export type FreeEntryCommand = {
   count: number;
   nickname: string;
-  vip: boolean;
 };
 
 const MAX_PASSES_PER_COMMAND = 50;
 
 /**
- * Reads "/free vip Старый узбек 3" and its /delete free twin.
+ * Reads "/free Старый узбек 3" and its /delete free twin.
  *
  * Club nicknames contain spaces, so the parts are recognised by shape rather than by
- * position: "vip" right after the command marks the ticket type, a trailing number is
- * how many, and everything in between is the nickname. Without a number it is one pass.
+ * position: a trailing number is how many, and everything before it is the nickname.
+ * Without a number it is one pass.
  */
 export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   const withoutCommand = text
@@ -36,16 +35,12 @@ export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   const parts = withoutCommand.split(/\s+/).filter(Boolean);
   if (parts.length === 0) return null;
 
-  const vip = parts[0].toLocaleLowerCase("ru-RU") === "vip";
-  const rest = vip ? parts.slice(1) : parts;
-  if (rest.length === 0) return null;
-
-  const last = rest[rest.length - 1];
+  const last = parts[parts.length - 1];
   const trailingNumber = /^\d+$/.test(last) ? Number(last) : null;
   // A nickname made only of digits exists in this club ("123"), so a lone number is the
   // player, not the count.
-  const countIsGiven = trailingNumber !== null && rest.length > 1;
-  const nicknameParts = countIsGiven ? rest.slice(0, -1) : rest;
+  const countIsGiven = trailingNumber !== null && parts.length > 1;
+  const nicknameParts = countIsGiven ? parts.slice(0, -1) : parts;
   const nickname = nicknameParts.join(" ").trim();
 
   if (!nickname) return null;
@@ -53,18 +48,16 @@ export function parseFreeEntryCommand(text: string): FreeEntryCommand | null {
   return {
     count: Math.min(MAX_PASSES_PER_COMMAND, Math.max(1, countIsGiven ? trailingNumber : 1)),
     nickname,
-    vip,
   };
 }
 
-/** "3 VIP-проходки", "1 проходка" — for the confirmations the bot sends back. */
-export function describeFreeEntries(count: number, vip: boolean) {
-  const prefix = vip ? "VIP-" : "";
+/** "3 проходки", "1 проходка" — for the confirmations the bot sends back. */
+export function describeFreeEntries(count: number) {
   const lastTwo = count % 100;
   const last = count % 10;
 
-  if (last === 1 && lastTwo !== 11) return `${count} ${prefix}проходка`;
-  if (last >= 2 && last <= 4 && (lastTwo < 10 || lastTwo >= 20)) return `${count} ${prefix}проходки`;
+  if (last === 1 && lastTwo !== 11) return `${count} проходка`;
+  if (last >= 2 && last <= 4 && (lastTwo < 10 || lastTwo >= 20)) return `${count} проходки`;
 
-  return `${count} ${prefix}проходок`;
+  return `${count} проходок`;
 }

@@ -4,7 +4,7 @@ import { notifyClientUser } from "@/lib/client-bot/notify";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
 import { waitlistOfferMessage } from "@/lib/events/waitlist";
 import { offerFreedSeats } from "@/lib/events/waitlist-offers";
-import { countFreeSeats, hasFreeSeat, offersDuoTicket, offersVipTicket } from "@/lib/events/seats";
+import { countFreeSeats, hasFreeSeat, offersDuoTicket } from "@/lib/events/seats";
 import {
   cancelDuoPlusOne,
   createDuoInviteToken,
@@ -21,7 +21,6 @@ import {
   isCancellationClosed,
   isEventTicketType,
   isUpcomingEvent,
-  passMatchesTicket,
   waitlistOfferIsLive,
 } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
@@ -69,7 +68,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // What the player chose to pay with. Nothing is spent here — a pass is only used when
   // they turn up and are seated — but the sign-up holds it, so the same pass cannot be
   // written down for another game in the meantime.
-  const requestedPass = body.usePass === "vip" ? "vip" : body.usePass === "regular" ? "regular" : "none";
+  const requestedPass = body.usePass === "regular" ? "regular" : "none";
 
   const id = (await params).id;
   const event = await getEvent(auth.supabase, id);
@@ -103,12 +102,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  const wantsDuo = requestedTicket === "duo" && offersDuoTicket(event);
-  const ticketType = wantsDuo
-    ? "duo"
-    : requestedTicket === "vip" && offersVipTicket(event)
-      ? "vip"
-      : "regular";
+  const ticketType = requestedTicket === "duo" && offersDuoTicket(event) ? "duo" : "regular";
 
   // A "1+1" is bought for two, and the club needs to know who the second one is: the
   // whole point of the ticket is that the +1 is expected by name, not a surprise.
@@ -154,13 +148,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     );
   }
 
-  // A pass opens the seat of its own kind only. It buys a single ticket, so it never
-  // covers a pair — the "1+1" already has its own price. Whether the player still has one
-  // to give is asked below, once the room is known to have a seat for them.
-  const usePass =
-    ticketType !== "duo" && requestedPass !== "none" && passMatchesTicket(requestedPass, ticketType)
-      ? requestedPass
-      : "none";
+  // A pass buys a single ticket, so it never covers a pair — the "1+1" already has its
+  // own price. Whether the player still has one to give is asked below, once the room is
+  // known to have a seat for them.
+  const usePass = ticketType === "regular" ? requestedPass : "none";
 
   const [counts, mySignups] = await Promise.all([
     countActiveSignups(auth.supabase, [event.id]),
@@ -221,11 +212,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       {
         error: "full",
         message:
-          ticketType === "vip"
-            ? "VIP-места разобрали. Выберите обычный билет или напишите в поддержку."
-            : ticketType === "duo"
-              ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
-              : "Все места разобрали. Напишите в поддержку.",
+          ticketType === "duo"
+            ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
+            : "Все места разобрали. Напишите в поддержку.",
       },
       { status: 409 },
     );
@@ -241,8 +230,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       event.id,
     );
 
-    if (passes[usePass] <= 0) {
-      const promised = passes.heldFor.find((hold) => hold.pass === usePass);
+    if (passes.regular <= 0) {
+      const promised = passes.heldFor[0];
 
       return NextResponse.json(
         promised
@@ -252,7 +241,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
             }
           : {
               error: "no_pass",
-              message: "Проходок этого типа не осталось. Запишитесь без проходки.",
+              message: "Проходок не осталось. Запишитесь без проходки.",
             },
         { status: 409 },
       );
@@ -311,11 +300,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       {
         error: "full",
         message:
-          ticketType === "vip"
-            ? "VIP-места разобрали. Выберите обычный билет или напишите в поддержку."
-            : ticketType === "duo"
-              ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
-              : "Все места разобрали. Напишите в поддержку.",
+          ticketType === "duo"
+            ? "Билеты 1+1 разобрали. Выберите обычный билет или напишите в поддержку."
+            : "Все места разобрали. Напишите в поддержку.",
       },
       { status: 409 },
     );

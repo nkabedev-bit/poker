@@ -16,7 +16,6 @@ export type ClientAccount = {
   avatar_is_custom: boolean | null;
   avatar_synced_at: string | null;
   free_entries: number;
-  vip_free_entries: number;
   avatar_url: string | null;
   /** The small copy the lists draw; null on an account photographed before them. */
   avatar_thumb_url: string | null;
@@ -34,7 +33,7 @@ export type ClientAccount = {
 };
 
 const ACCOUNT_COLUMNS =
-  "id, telegram_id, yandex_id, email, username, display_name, avatar_url, avatar_thumb_url, avatar_is_custom, avatar_synced_at, free_entries, vip_free_entries, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count";
+  "id, telegram_id, yandex_id, email, username, display_name, avatar_url, avatar_thumb_url, avatar_is_custom, avatar_synced_at, free_entries, profile_submitted_at, registered_player_id, games_played, eliminations_count, top7_count";
 
 // Authenticates a client app request through either door. Unlike requireTmaAuth, it does
 // NOT require the caller to be a tournament admin — any club account is allowed.
