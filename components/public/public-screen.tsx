@@ -26,6 +26,7 @@ import { getProgressiveHeadPoints, isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { buildModeRules, shouldShowModeRules } from "@/lib/timer/mode-rules";
+import { readTableFormat } from "@/lib/tables/seating";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
@@ -75,7 +76,6 @@ type GeneratedBlindAlertSound = Exclude<BlindAlertSound, "custom" | "off">;
 const CURSOR_IDLE_HIDE_MS = 2500;
 const PUBLIC_PLAYERS_LIMIT = 28;
 const PUBLIC_TABLE_ROTATION_MS = 20_000;
-const FINAL_TABLE_ACTIVE_PLAYERS = 9;
 // Re-entry info disappears once re-entry closes, and never shows past this
 // playing level (breaks excluded) as a safety net if no cutoff is configured.
 const REENTRY_INFO_MAX_ROUND = 10;
@@ -306,6 +306,14 @@ export function getRotatingPublicTableNumbers(
     .filter((tableNumber) => activeTableNumbers.has(tableNumber));
 
   return tableNumbers.length > 0 ? tableNumbers : [1];
+}
+
+/**
+ * How many players make the final table: as many as a table seats tonight, so nine at
+ * 9 max and ten at 10 max. A table the desk grew by a chair does not change it.
+ */
+export function getFinalTableSize(maxPlayersPerTable: number | null | undefined) {
+  return readTableFormat(maxPlayersPerTable);
 }
 
 export function getPublicChipBankTotal(state: PublicTournamentState) {
@@ -809,7 +817,8 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
   );
   const displayedTableNumber =
     rotatingTableNumbers[displayedTableIndex % rotatingTableNumbers.length] ?? 1;
-  const isFinalTableMode = activePlayers.length <= FINAL_TABLE_ACTIVE_PLAYERS;
+  const finalTableSize = getFinalTableSize(state.extras.settings.maxPlayersPerTable);
+  const isFinalTableMode = activePlayers.length <= finalTableSize;
   const playerOriginalOrder = new Map(
     state.extras.players.map((player, index) => [player.id, index]),
   );
@@ -828,7 +837,7 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
     ...(isFinalTableMode
       ? eliminatedPlayers.filter(
         (player) =>
-          player.finishPlace !== null && player.finishPlace <= FINAL_TABLE_ACTIVE_PLAYERS,
+          player.finishPlace !== null && player.finishPlace <= finalTableSize,
       )
       : eliminatedPlayers.filter((player) => player.table === displayedTableNumber)
     ).sort(compareEliminatedPublicPlayers),
