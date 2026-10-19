@@ -479,8 +479,8 @@ export default function TMABotPage() {
               return (
                 <div key={item.key} className="tma-card tma-card--inset !gap-2 !p-3">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-1.5 text-[13px] text-[color:var(--tma-hint)]">
-                      <Megaphone size={14} /> Карточка {index + 1}
+                    <span className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[13px] text-[color:var(--tma-hint)]">
+                      <Megaphone className="shrink-0" size={14} /> Карточка {index + 1}
                       {expired ? <span className="tma-badge">срок вышел</span> : null}
                     </span>
                     <span className="flex shrink-0 items-center gap-1">

@@ -153,7 +153,7 @@ export function AnnouncementCarousel({
           >
             <span
               className={`block h-1.5 rounded-full transition-all ${
-                index === active ? "w-4 bg-club-gold" : "w-1.5 bg-club-line"
+                index === active ? "w-4 bg-club-gold" : "w-1.5 bg-club-faint/60"
               }`}
             />
           </button>
