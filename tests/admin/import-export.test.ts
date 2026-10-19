@@ -139,4 +139,33 @@ describe("admin tournament import/export payload", () => {
     expect(parsed.data.extrasPatch.players).toBeUndefined();
     expect(parsed.data.blindLevels[0].ante).toBe(0);
   });
+
+  it("carries the PTS templates of each tournament type through an import", () => {
+    const presetTemplates = { mystery: { bounty: "30pts", places: "mystery summer 27" } };
+    const payload = buildTournamentExportPayload(
+      { ...baseState, extras: { ...baseState.extras, pts: { ...baseState.extras.pts, presetTemplates } } },
+      "2026-10-19T12:00:00.000Z",
+    );
+
+    const parsed = parseTournamentImportPayload(payload);
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.extrasPatch.pts?.presetTemplates).toEqual(presetTemplates);
+  });
+
+  it("leaves the PTS templates of each type alone when an older file has none", () => {
+    const payload = buildTournamentExportPayload(baseState, "2026-10-19T12:00:00.000Z");
+    const { presetTemplates, ...olderPts } = payload.extras.pts;
+    void presetTemplates;
+
+    const parsed = parseTournamentImportPayload({
+      ...payload,
+      extras: { ...payload.extras, pts: olderPts },
+    });
+
+    expect(parsed.success).toBe(true);
+    if (!parsed.success) return;
+    expect(parsed.data.extrasPatch.pts && "presetTemplates" in parsed.data.extrasPatch.pts).toBe(false);
+  });
 });

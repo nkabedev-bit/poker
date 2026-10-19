@@ -34,6 +34,15 @@ export type TournamentPresetName =
   | "freeroll"
   | "lastchance";
 
+/**
+ * The PTS templates a tournament type plays for, by name. Re-saving a template under its
+ * name gives it a new id, so the name is what stays put.
+ */
+export type PtsPresetTemplates = {
+  bounty: string | null;
+  places: string | null;
+};
+
 export type BlindLevel = {
   id: string;
   levelOrder: number;
@@ -264,6 +273,11 @@ export type TournamentExtras = {
       name: string;
       placePoints: number[];
     }>;
+    /**
+     * The saved templates each tournament type plays for. Picking that type in the
+     * settings puts its points in, so the scale cannot be left over from the last game.
+     */
+    presetTemplates: Partial<Record<TournamentPresetName, PtsPresetTemplates>>;
     secondPlace: number;
     templates: Array<{
       bountyPoints: number;

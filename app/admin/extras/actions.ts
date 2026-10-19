@@ -5,7 +5,11 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { saveDemoExtras } from "@/lib/demo-overrides";
 import { hasPublicEnv } from "@/lib/env";
-import { normalizePlacePoints, PTS_PLACE_COUNT } from "@/lib/pts-rating";
+import {
+  normalizePlacePoints,
+  normalizePtsPresetTemplates,
+  PTS_PLACE_COUNT,
+} from "@/lib/pts-rating";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
 
 const playerSchema = z.object({
@@ -56,6 +60,7 @@ export async function savePtsSettings(formData: FormData) {
     bountyPoints,
     firstPlace: placePoints[0] ?? 0,
     placePoints,
+    ...readPresetTemplates(formData),
     secondPlace: placePoints[1] ?? 0,
     thirdPlace: placePoints[2] ?? 0,
   };
@@ -105,6 +110,7 @@ export async function savePtsTemplate(formData: FormData) {
     firstPlace: placePoints[0] ?? 0,
     placePoints,
     placeTemplates: nextPlaceTemplates,
+    ...readPresetTemplates(formData),
     secondPlace: placePoints[1] ?? 0,
     thirdPlace: placePoints[2] ?? 0,
   };
@@ -150,6 +156,18 @@ async function saveExtras(
 function parseNumber(value: FormDataEntryValue | null) {
   const next = Number(String(value ?? 0).replace(",", "."));
   return Number.isFinite(next) ? next : 0;
+}
+
+// A form without the bindings (a page opened before they existed) leaves them as they are.
+function readPresetTemplates(formData: FormData) {
+  const raw = formData.get("presetTemplates");
+  if (typeof raw !== "string") return {};
+
+  try {
+    return { presetTemplates: normalizePtsPresetTemplates(JSON.parse(raw)) };
+  } catch {
+    return {};
+  }
 }
 
 function parsePlacePoints(formData: FormData) {

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { normalizePtsPresetTemplates } from "@/lib/pts-rating";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
 import type {
   BlindLevel,
@@ -127,6 +128,7 @@ const ptsSchema = z.object({
   firstPlace: z.number().optional(),
   placePoints: z.array(z.number()).optional(),
   placeTemplates: z.array(ptsPlaceTemplateSchema).optional(),
+  presetTemplates: z.unknown().transform(normalizePtsPresetTemplates).optional(),
   secondPlace: z.number().optional(),
   templates: z.array(ptsLegacyTemplateSchema).optional(),
   thirdPlace: z.number().optional(),

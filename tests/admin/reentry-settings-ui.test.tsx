@@ -5,7 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BlindsEditor } from "@/components/admin/blinds-editor";
 import { SettingsForm } from "@/components/admin/settings-form";
-import { defaultTournamentExtras } from "@/lib/tournament-extras-shared";
+import { defaultTournamentExtras, mergeTournamentExtras } from "@/lib/tournament-extras-shared";
 import type { BlindLevel, Tournament } from "@/lib/timer/types";
 
 const tournament: Tournament = {
@@ -327,5 +327,65 @@ describe("the ticket prices of a preset", () => {
     renderSettings({ buyIn: 1500, duoBuyIn: 2400, vipBuyIn: 2500 });
 
     expect(prices()).toEqual({ buyIn: "1500", duoBuyIn: "2400", vipBuyIn: "2500" });
+  });
+});
+
+describe("PTS of the picked tournament type", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  const extrasWithBindings = mergeTournamentExtras({
+    pts: {
+      bountyTemplates: [{ bountyPoints: 30, id: "b1", name: "30pts" }],
+      placeTemplates: [{ id: "p1", name: "mystery summer 27", placePoints: [550, 440] }],
+      presetTemplates: { mystery: { bounty: "30pts", places: "mystery summer 27" } },
+    },
+    settings: { tournamentPreset: "bounty" },
+  });
+
+  function renderForm() {
+    const { container } = render(
+      <SettingsForm
+        action={vi.fn()}
+        extras={extrasWithBindings}
+        publicUrl="/screen/demo"
+        tournament={tournament}
+      />,
+    );
+    return () => container.querySelector('input[name="applyPresetPts"]');
+  }
+
+  it("does not touch the rating when the settings are saved without picking a type", () => {
+    const applyFlag = renderForm();
+
+    expect(applyFlag()).toBeNull();
+    expect(screen.queryByText(/рейтинг PTS/i)).toBeNull();
+  });
+
+  it("names the templates it will put in when a type is picked", () => {
+    const applyFlag = renderForm();
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "mystery" } });
+
+    expect(applyFlag()).not.toBeNull();
+    expect(screen.getByText(/места — «mystery summer 27», баунти — «30pts»/)).toBeTruthy();
+  });
+
+  it("says the rating stays as it is for a type bound to no template", () => {
+    const applyFlag = renderForm();
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "phoenix" } });
+
+    expect(applyFlag()).not.toBeNull();
+    expect(screen.getByText(/Рейтинг PTS не изменится/)).toBeTruthy();
+  });
+
+  it("sends no flag when the type is cleared", () => {
+    const applyFlag = renderForm();
+
+    fireEvent.change(screen.getByLabelText(/тип турнира/i), { target: { value: "" } });
+
+    expect(applyFlag()).toBeNull();
   });
 });

@@ -1346,6 +1346,20 @@ p {
   width: min(220px, 100%);
 }
 
+.pts-table select {
+  width: min(260px, 100%);
+}
+
+.pts-preset-section {
+  display: grid;
+  gap: 8px;
+}
+
+.pts-preset-section > strong {
+  color: var(--poker-gold);
+  font-size: 16px;
+}
+
 .pts-dialog-backdrop {
   position: fixed;
   inset: 0;

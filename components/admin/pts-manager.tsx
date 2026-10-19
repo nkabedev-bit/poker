@@ -11,7 +11,15 @@ import {
   buildPtsStandingsRows,
   normalizePlacePoints,
 } from "@/lib/pts-rating";
-import type { TournamentExtras } from "@/lib/timer/types";
+import {
+  TOURNAMENT_PRESET_LABELS,
+  TOURNAMENT_PRESET_NAMES,
+} from "@/lib/timer/tournament-presets";
+import type {
+  PtsPresetTemplates,
+  TournamentExtras,
+  TournamentPresetName,
+} from "@/lib/timer/types";
 
 export function PtsManager({ extras }: { extras: TournamentExtras }) {
   const placeTemplates = extras.pts.placeTemplates;
@@ -20,6 +28,7 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
     normalizePlacePoints(extras.pts.placePoints).map(formatNumberInput),
   );
   const [bountyPoints, setBountyPoints] = useState(() => formatNumberInput(extras.pts.bountyPoints));
+  const [presetTemplates, setPresetTemplates] = useState(extras.pts.presetTemplates);
   const [templateDialog, setTemplateDialog] = useState<"places" | "bounty" | null>(null);
   const [templateName, setTemplateName] = useState("");
   const templateNameRef = useRef<HTMLInputElement>(null);
@@ -28,6 +37,8 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
 
   const placeTemplatesJson = useMemo(() => JSON.stringify(placeTemplates), [placeTemplates]);
   const bountyTemplatesJson = useMemo(() => JSON.stringify(bountyTemplates), [bountyTemplates]);
+  const placeTemplateNames = placeTemplates.map((template) => template.name);
+  const bountyTemplateNames = bountyTemplates.map((template) => template.name);
 
   function updatePlace(index: number, value: string) {
     const next = [...placePoints];
@@ -47,6 +58,17 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
     if (!template) return;
 
     setBountyPoints(formatNumberInput(template.bountyPoints));
+  }
+
+  function bindPresetTemplate(
+    preset: TournamentPresetName,
+    kind: keyof PtsPresetTemplates,
+    name: string,
+  ) {
+    setPresetTemplates((current) => ({
+      ...current,
+      [preset]: { bounty: null, places: null, ...current[preset], [kind]: name || null },
+    }));
   }
 
   function saveTemplate(kind: "places" | "bounty") {
@@ -75,6 +97,7 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
 
         <input name="placeTemplates" type="hidden" value={placeTemplatesJson} />
         <input name="bountyTemplates" type="hidden" value={bountyTemplatesJson} />
+        <input name="presetTemplates" type="hidden" value={JSON.stringify(presetTemplates)} />
         <input ref={templateNameRef} name="templateName" type="hidden" />
         <input ref={templateKindRef} name="templateKind" type="hidden" defaultValue="places" />
         <button
@@ -111,6 +134,58 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="pts-preset-section">
+          <strong>Рейтинг по типу турнира</strong>
+          <p className="muted">
+            Выбираешь тип турнира в настройках — при сохранении в рейтинг подставятся эти шаблоны.
+          </p>
+          <div className="admin-table-wrap">
+            <table className="pts-table">
+              <thead>
+                <tr>
+                  <th>Тип турнира</th>
+                  <th>Шаблон мест</th>
+                  <th>Шаблон баунти</th>
+                </tr>
+              </thead>
+              <tbody>
+                {TOURNAMENT_PRESET_NAMES.map((preset) => {
+                  const label = TOURNAMENT_PRESET_LABELS[preset];
+                  const binding = presetTemplates[preset];
+
+                  return (
+                    <tr key={preset}>
+                      <td>{label}</td>
+                      <td>
+                        <select
+                          aria-label={`Шаблон мест: ${label}`}
+                          value={binding?.places ?? ""}
+                          onChange={(event) =>
+                            bindPresetTemplate(preset, "places", event.target.value)
+                          }
+                        >
+                          {renderTemplateOptions(placeTemplateNames, binding?.places)}
+                        </select>
+                      </td>
+                      <td>
+                        <select
+                          aria-label={`Шаблон баунти: ${label}`}
+                          value={binding?.bounty ?? ""}
+                          onChange={(event) =>
+                            bindPresetTemplate(preset, "bounty", event.target.value)
+                          }
+                        >
+                          {renderTemplateOptions(bountyTemplateNames, binding?.bounty)}
+                        </select>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div className="pts-bounty-row">
@@ -211,6 +286,23 @@ export function PtsManager({ extras }: { extras: TournamentExtras }) {
 
 function formatNumberInput(value: number) {
   return Number.isFinite(value) ? String(value) : "";
+}
+
+// A bound template that is gone stays listed, so the binding is not dropped unseen.
+function renderTemplateOptions(names: string[], bound: string | null | undefined) {
+  return (
+    <>
+      <option value="">— не подставлять</option>
+      {bound && !names.includes(bound) ? (
+        <option value={bound}>{bound} (шаблона нет)</option>
+      ) : null}
+      {names.map((name) => (
+        <option key={name} value={name}>
+          {name}
+        </option>
+      ))}
+    </>
+  );
 }
 
 export function LeaderboardTables({ extras }: { extras: TournamentExtras }) {

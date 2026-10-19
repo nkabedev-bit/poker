@@ -1,5 +1,11 @@
-import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
+import type {
+  PtsPresetTemplates,
+  TournamentExtras,
+  TournamentPlayer,
+  TournamentPresetName,
+} from "@/lib/timer/types";
 import { REGISTRATION_NUMBERS_PER_EVENING } from "@/lib/player-registration-number";
+import { isTournamentPresetName } from "@/lib/timer/tournament-presets";
 
 /**
  * How many places the points scale and the game sheet's table run to: one for every
@@ -144,6 +150,71 @@ export function normalizePtsBountyTemplates(value: unknown): PtsBountyTemplate[]
       };
     })
     .filter((template): template is PtsBountyTemplate => Boolean(template));
+}
+
+type PtsPresetBindings = TournamentExtras["pts"]["presetTemplates"];
+
+export function normalizePtsPresetTemplates(value: unknown): PtsPresetBindings {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+
+  const bindings: PtsPresetBindings = {};
+  for (const [preset, binding] of Object.entries(value)) {
+    if (!isTournamentPresetName(preset) || !binding || typeof binding !== "object") continue;
+
+    const item = binding as Partial<Record<keyof PtsPresetTemplates, unknown>>;
+    const places = readTemplateName(item.places);
+    const bounty = readTemplateName(item.bounty);
+    if (places || bounty) bindings[preset] = { bounty, places };
+  }
+  return bindings;
+}
+
+function readTemplateName(value: unknown) {
+  const name = typeof value === "string" ? value.trim() : "";
+  return name || null;
+}
+
+type PtsTemplateBook = Pick<
+  TournamentExtras["pts"],
+  "bountyTemplates" | "placeTemplates" | "presetTemplates"
+>;
+
+/** The saved templates a tournament type plays for; a name no template answers to is none. */
+export function findPresetPtsTemplates(pts: PtsTemplateBook, preset: TournamentPresetName) {
+  const binding = pts.presetTemplates[preset];
+  const places = binding?.places
+    ? pts.placeTemplates.find((template) => template.name === binding.places)
+    : undefined;
+  const bounty = binding?.bounty
+    ? pts.bountyTemplates.find((template) => template.name === binding.bounty)
+    : undefined;
+
+  return { bounty: bounty ?? null, places: places ?? null };
+}
+
+/**
+ * The points a tournament type plays for, ready to save over the current scale. Null when
+ * the type is bound to no template that still exists, so the scale is left as it is.
+ */
+export function buildPresetPtsPatch(
+  pts: PtsTemplateBook,
+  preset: TournamentPresetName,
+): Partial<TournamentExtras["pts"]> | null {
+  const { bounty, places } = findPresetPtsTemplates(pts, preset);
+  if (!bounty && !places) return null;
+
+  const placePoints = places ? normalizePlacePoints(places.placePoints) : null;
+  return {
+    ...(placePoints
+      ? {
+          firstPlace: placePoints[0],
+          placePoints,
+          secondPlace: placePoints[1],
+          thirdPlace: placePoints[2],
+        }
+      : {}),
+    ...(bounty ? { bountyPoints: bounty.bountyPoints } : {}),
+  };
 }
 
 // Mirrors the record_player_elimination RPC (the live path is the database function;

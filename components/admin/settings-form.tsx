@@ -2,8 +2,10 @@
 
 import { useRef, useState } from "react";
 import { CopyPublicLinkButton } from "@/components/admin/copy-public-link-button";
+import { findPresetPtsTemplates } from "@/lib/pts-rating";
 import { TABLE_FORMATS } from "@/lib/tables/seating";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
+import { TOURNAMENT_PRESET_LABELS } from "@/lib/timer/tournament-presets";
 import type {
   BlindAlertSound,
   BountyType,
@@ -56,7 +58,6 @@ type TournamentPreset = {
    * freeroll would otherwise have kept its free ticket.
    */
   prices: PresetPrices;
-  label: string;
   maxAddons: number;
   maxReentries: number;
   startingStack: number;
@@ -69,7 +70,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   phoenix: {
     addonEnabled: false,
     bountyMode: "off",
-    label: "Феникс",
     maxAddons: 1,
     maxReentries: 1,
     prices: CLUB_PRICES,
@@ -79,7 +79,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   deepstack: {
     addonEnabled: false,
     bountyMode: "off",
-    label: "Дип стек",
     maxAddons: 1,
     maxReentries: 3,
     prices: CLUB_PRICES,
@@ -89,7 +88,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   bounty: {
     addonEnabled: true,
     bountyMode: "standard",
-    label: "Обычный баунти",
     maxAddons: 1,
     maxReentries: 3,
     prices: CLUB_PRICES,
@@ -99,7 +97,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   progressive: {
     addonEnabled: true,
     bountyMode: "progressive",
-    label: "Прогрессив",
     maxAddons: 1,
     maxReentries: 2,
     prices: CLUB_PRICES,
@@ -109,7 +106,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   mystery: {
     addonEnabled: true,
     bountyMode: "mystery",
-    label: "Мистери",
     maxAddons: 1,
     maxReentries: 3,
     prices: CLUB_PRICES,
@@ -119,7 +115,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   freeroll: {
     addonEnabled: true,
     bountyMode: "off",
-    label: "Фриролл",
     maxAddons: 1,
     maxReentries: 3,
     prices: FREEROLL_PRICES,
@@ -129,7 +124,6 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
   lastchance: {
     addonEnabled: true,
     bountyMode: "off",
-    label: "Ласт ченс",
     maxAddons: 1,
     maxReentries: 3,
     prices: CLUB_PRICES,
@@ -137,6 +131,17 @@ const tournamentPresets: Record<TournamentPresetName, TournamentPreset> = {
     tournamentFormat: "regular",
   },
 };
+
+function describePresetPts(extras: TournamentExtras, preset: TournamentPresetName) {
+  const { bounty, places } = findPresetPtsTemplates(extras.pts, preset);
+  if (!bounty && !places) {
+    return "Рейтинг PTS не изменится: для этого типа не выбраны шаблоны во вкладке «PTS Рейтинг»";
+  }
+
+  const placesText = places ? `места — «${places.name}»` : "места не меняются";
+  const bountyText = bounty ? `баунти — «${bounty.name}»` : "баунти не меняется";
+  return `При сохранении в рейтинг PTS подставится: ${placesText}, ${bountyText}`;
+}
 
 type LogoUpload = {
   dataUrl: string;
@@ -179,9 +184,16 @@ export function SettingsForm({
   // The picked type is saved with the tournament: it names the game (and so the medal its
   // winner earns), while the fields below stay free to edit afterwards.
   const [presetName, setPresetName] = useState<string>(settings.tournamentPreset ?? "");
+  // Only a type picked here puts its PTS in: saving the settings again keeps the scale
+  // the admin has since edited by hand.
+  const [presetPicked, setPresetPicked] = useState(false);
+  const pickedPreset = presetPicked
+    ? (presetName as TournamentPresetName | "") || null
+    : null;
 
   function applyPreset(name: string) {
     setPresetName(name);
+    setPresetPicked(true);
     const preset = tournamentPresets[name as TournamentPresetName];
     if (!preset) return;
 
@@ -275,12 +287,18 @@ export function SettingsForm({
             onChange={(event) => applyPreset(event.target.value)}
           >
             <option value="">Не выбран</option>
-            {Object.entries(tournamentPresets).map(([name, preset]) => (
+            {Object.keys(tournamentPresets).map((name) => (
               <option key={name} value={name}>
-                {preset.label}
+                {TOURNAMENT_PRESET_LABELS[name as TournamentPresetName]}
               </option>
             ))}
           </select>
+          {pickedPreset ? (
+            <>
+              <input name="applyPresetPts" type="hidden" value="yes" />
+              <span className="field-help">{describePresetPts(extras, pickedPreset)}</span>
+            </>
+          ) : null}
         </label>
         <label>
           🏆 Формат турнира

@@ -4,6 +4,7 @@ import {
   normalizePlacePoints,
   normalizePtsBountyTemplates,
   normalizePtsPlaceTemplates,
+  normalizePtsPresetTemplates,
 } from "@/lib/pts-rating";
 import { isEventTemplate } from "@/lib/events/templates";
 import { isKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
@@ -100,6 +101,7 @@ export const defaultTournamentExtras: TournamentExtras = {
     firstPlace: 100,
     placePoints: createDefaultPlacePoints(),
     placeTemplates: [],
+    presetTemplates: {},
     secondPlace: 50,
     templates: [],
     thirdPlace: 25,
@@ -174,6 +176,7 @@ export function mergeTournamentExtras(value: unknown): TournamentExtras {
       placeTemplates: normalizePtsPlaceTemplates(
         Array.isArray(ptsInput?.placeTemplates) ? ptsInput.placeTemplates : ptsInput?.templates,
       ),
+      presetTemplates: normalizePtsPresetTemplates(ptsInput?.presetTemplates),
     },
   };
 }

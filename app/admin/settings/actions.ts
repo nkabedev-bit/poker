@@ -8,10 +8,12 @@ import { z } from "zod";
 import { saveDemoExtras, saveDemoTournamentSettings } from "@/lib/demo-overrides";
 import { parseLogoDataUrl, prepareLogoImage, type LogoUploadPayload } from "@/lib/admin/logo-upload";
 import { hasPublicEnv } from "@/lib/env";
+import { buildPresetPtsPatch } from "@/lib/pts-rating";
 import { broadcastPublicState } from "@/lib/realtime/broadcast";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { saveTournamentExtras } from "@/lib/tournament-extras";
 import { blindAlertSounds } from "@/lib/timer/blind-alert";
+import type { TournamentExtras, TournamentPresetName } from "@/lib/timer/types";
 import { extname } from "path";
 
 const SOUND_STORAGE_BUCKET = "tournament-sounds";
@@ -66,6 +68,18 @@ type SoundUpload = {
   size: number;
   type: string;
 };
+
+// The PTS of a tournament type the admin picked in the form, saved along with the settings.
+function readPresetPts(
+  formData: FormData,
+  extras: TournamentExtras,
+  preset: TournamentPresetName | null,
+) {
+  if (formData.get("applyPresetPts") !== "yes" || !preset) return {};
+
+  const pts = buildPresetPtsPatch(extras.pts, preset);
+  return pts ? { pts } : {};
+}
 
 function cleanFileName(name: string) {
   return name.replace(/[^\wа-яА-ЯёЁ .()-]/g, "").trim().slice(0, 80) || "custom-sound";
@@ -221,6 +235,7 @@ export async function updateTournamentSettings(formData: FormData) {
           blindAlertCustomSoundName: finalSoundName,
         } : {}),
       },
+      ...readPresetPts(formData, existingExtras, parsed.data.tournamentPreset),
     });
     revalidatePath("/admin/settings");
     revalidatePath("/screen/demo");
@@ -325,6 +340,7 @@ export async function updateTournamentSettings(formData: FormData) {
           blindAlertCustomSoundName: finalSoundName,
         } : {}),
       },
+      ...readPresetPts(formData, existingExtras, parsed.data.tournamentPreset),
       // Tables the desk grew or shrank tonight follow a newly chosen format, not the old one.
       ...(existingExtras.settings.maxPlayersPerTable !== parsed.data.maxPlayersPerTable
         ? { tableFormats: [] }

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildPresetPtsPatch,
   buildPtsStandingsRows,
+  findPresetPtsTemplates,
   getProgressiveHeadPoints,
   isSideBountyPoints,
   recordPtsElimination,
@@ -316,5 +318,90 @@ describe("Progressive Bounty", () => {
       rebuys: 1,
       status: "active",
     });
+  });
+});
+
+describe("PTS by tournament type", () => {
+  const templateBook = () =>
+    mergeTournamentExtras({
+      pts: {
+        bountyTemplates: [
+          { bountyPoints: 30, id: "b1", name: "30pts" },
+          { bountyPoints: 0, id: "b2", name: "last chance" },
+        ],
+        placeTemplates: [
+          { id: "p1", name: "mystery summer 27", placePoints: [550, 440, 360, 290] },
+          { id: "p2", name: "last chance 27", placePoints: [720, 565, 465] },
+        ],
+        presetTemplates: {
+          lastchance: { bounty: "last chance", places: "last chance 27" },
+          mystery: { bounty: "30pts", places: "mystery summer 27" },
+          phoenix: { bounty: null, places: "deleted template" },
+          progressive: { bounty: "30pts", places: null },
+        },
+      },
+    }).pts;
+
+  it("starts with no type bound to a template", () => {
+    expect(mergeTournamentExtras({}).pts.presetTemplates).toEqual({});
+  });
+
+  it("keeps only known types, trims names and drops bindings with no template named", () => {
+    const { pts } = mergeTournamentExtras({
+      pts: {
+        presetTemplates: {
+          bounty: { bounty: "", places: "  bounty summer series 27 " },
+          deepstack: { bounty: null, places: "   " },
+          mystery: "30pts",
+          turbo: { bounty: "30pts", places: "turbo" },
+        },
+      },
+    });
+
+    expect(pts.presetTemplates).toEqual({
+      bounty: { bounty: null, places: "bounty summer series 27" },
+    });
+  });
+
+  it("reads anything but an object of bindings as none", () => {
+    expect(mergeTournamentExtras({ pts: { presetTemplates: [] } }).pts.presetTemplates).toEqual({});
+    expect(mergeTournamentExtras({ pts: { presetTemplates: "x" } }).pts.presetTemplates).toEqual({});
+  });
+
+  it("finds a type's templates by name and treats a missing one as none", () => {
+    const pts = templateBook();
+
+    expect(findPresetPtsTemplates(pts, "mystery")).toMatchObject({
+      bounty: { name: "30pts" },
+      places: { name: "mystery summer 27" },
+    });
+    expect(findPresetPtsTemplates(pts, "phoenix")).toEqual({ bounty: null, places: null });
+    expect(findPresetPtsTemplates(pts, "freeroll")).toEqual({ bounty: null, places: null });
+  });
+
+  it("puts a type's place scale and bounty points in, the top three included", () => {
+    const patch = buildPresetPtsPatch(templateBook(), "mystery");
+
+    expect(patch?.placePoints).toHaveLength(40);
+    expect(patch?.placePoints?.slice(0, 5)).toEqual([550, 440, 360, 290, 0]);
+    expect(patch).toMatchObject({
+      bountyPoints: 30,
+      firstPlace: 550,
+      secondPlace: 440,
+      thirdPlace: 360,
+    });
+  });
+
+  it("puts in a bounty template worth zero points", () => {
+    expect(buildPresetPtsPatch(templateBook(), "lastchance")).toMatchObject({ bountyPoints: 0 });
+  });
+
+  it("leaves the place scale alone when the type is bound to a bounty template only", () => {
+    expect(buildPresetPtsPatch(templateBook(), "progressive")).toEqual({ bountyPoints: 30 });
+  });
+
+  it("changes nothing for a type bound to no template that still exists", () => {
+    expect(buildPresetPtsPatch(templateBook(), "phoenix")).toBeNull();
+    expect(buildPresetPtsPatch(templateBook(), "freeroll")).toBeNull();
   });
 });
