@@ -11,6 +11,7 @@ import { findDuoInvitationEventIds } from "@/lib/events/duo";
 import { announcePublishedEvents, publishDueEvents } from "@/lib/events/scheduled-publication";
 import { readClientLiveState } from "@/lib/client-tma/live-state";
 import { readFavoriteHand } from "@/lib/players/favorite-hand";
+import { listShownHomeAnnouncements } from "@/lib/client/home-announcements-store";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,7 @@ export async function GET(request: Request) {
 
   const published = await listEvents(auth.supabase, { publishedOnly: true });
 
-  const [mySignups, live, favoriteHand] = await Promise.all([
+  const [mySignups, live, favoriteHand, announcements] = await Promise.all([
     getUserSignups(auth.supabase, auth.user.id),
     // Carried with the screen it is drawn on: a card for the game under way would
     // otherwise cost every phone an extra round trip the moment the app opens. The
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
     }),
     // The player's own hand, for the face at the top of the screen.
     readFavoriteHand(auth.supabase, auth.user.id),
+    // The club's cards for the carousel at the top, read with the screen they sit on.
+    listShownHomeAnnouncements(auth.supabase, now),
   ]);
 
   // The posters still to come, and — while the cards are in the air — the one being
@@ -64,6 +67,7 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({
+    announcements,
     // The game being played right now, or null when the room is quiet.
     live,
     events: upcoming.map((event) => {

@@ -151,4 +151,51 @@ describe("the client's event board", () => {
 
     expect(payload.live?.tournamentName).toBe("Mystery Bounty");
   });
+
+  // The carousel at the top rides with the posters; a card past its end stays behind.
+  it("carries the club's cards that are still being shown", async () => {
+    vi.setSystemTime(new Date("2026-11-19T20:00:00.000Z"));
+    const rows = [
+      {
+        id: "sochi",
+        link_url: "https://t.me/majesticpokerptz/1197",
+        message: "Majestic едет в Сочи",
+        show_until: "2026-11-19T21:00:00.000Z",
+      },
+      { id: "old", link_url: null, message: "Вчерашнее", show_until: "2026-11-18T21:00:00.000Z" },
+      { id: "season", link_url: null, message: "Новый сезон", show_until: null },
+    ];
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase: {
+        from(table: string) {
+          if (table !== "club_home_announcements") throw new Error(`unexpected ${table}`);
+          return { select: () => ({ order: () => ({ order: async () => ({ data: rows, error: null }) }) }) };
+        },
+      },
+      user: { avatar_url: null, display_name: "Игрок", id: "account-1" },
+    });
+
+    const { GET } = await import("@/app/api/client-tma/events/route");
+    const payload = (await (await GET(new Request("http://localhost/api/client-tma/events"))).json()) as {
+      announcements: unknown[];
+    };
+
+    expect(payload.announcements).toEqual([
+      { id: "sochi", linkUrl: "https://t.me/majesticpokerptz/1197", message: "Majestic едет в Сочи" },
+      { id: "season", linkUrl: null, message: "Новый сезон" },
+    ]);
+  });
+
+  it("still answers with the posters when the cards cannot be read", async () => {
+    vi.setSystemTime(new Date("2026-09-20T12:00:00.000Z"));
+
+    const { GET } = await import("@/app/api/client-tma/events/route");
+    const payload = (await (await GET(new Request("http://localhost/api/client-tma/events"))).json()) as {
+      announcements: unknown[];
+      events: unknown[];
+    };
+
+    expect(payload.announcements).toEqual([]);
+    expect(payload.events).toHaveLength(2);
+  });
 });
