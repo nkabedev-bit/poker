@@ -32,6 +32,34 @@ describe("computePlayerStats", () => {
     expect(stats).toMatchObject({ top3: 2, top9: 3, wins: 1 });
   });
 
+  it("takes tenth place to the final table of a ten-handed evening", () => {
+    const tenMax = { ...game(10), finalTableSize: 10 };
+
+    expect(computePlayerStats([tenMax]).top9).toBe(1);
+  });
+
+  it("keeps tenth place off the final table of a nine-handed evening", () => {
+    const nineMax = { ...game(10), finalTableSize: 9 };
+
+    expect(computePlayerStats([nineMax]).top9).toBe(0);
+  });
+
+  it("counts a game stored before the size was kept as nine-handed", () => {
+    const stats = computePlayerStats([game(9, 0, 1), game(10, 0, 2)]);
+
+    expect(stats).toMatchObject({ bestMissStreak: 1, top9: 1 });
+  });
+
+  it("runs the streak of final tables through evenings of either size", () => {
+    const stats = computePlayerStats([
+      game(9, 0, 1),
+      { ...game(10, 0, 2), finalTableSize: 10 },
+      { ...game(10, 0, 3), finalTableSize: 9 },
+    ]);
+
+    expect(stats).toMatchObject({ bestFinalsInWeek: 2, bestTop9Streak: 2 });
+  });
+
   // Streaks read the games in the order they were played, not the order they arrive in.
   it("finds the longest run of final tables", () => {
     const stats = computePlayerStats([

@@ -1,6 +1,11 @@
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 
 export type PlayerResultRow = {
+  /**
+   * How many places made the final table that evening; null for a game stored before
+   * the club kept it, which counts nine.
+   */
+  finalTableSize?: number | null;
   knockouts: number;
   place: number | null;
   /** Re-entries bought that evening; null when the game was stored before we kept them. */
@@ -44,7 +49,8 @@ export type ComputedPlayerStats = {
 /** The games the whole club has played, which a run of attendance is read against. */
 export type ClubGamesContext = { clubGames?: readonly string[] };
 
-const TOP_PLACES = 9;
+/** The final table of a game stored before its size was kept: the club dealt nine-handed. */
+const LEGACY_FINAL_TABLE_SIZE = 9;
 const PODIUM_PLACES = 3;
 /** How long the bad run has to be before winning counts as coming back from it. */
 const COMEBACK_MISSES = 3;
@@ -78,8 +84,12 @@ export function buildPlayerResultsFilter(telegramId: number | null, nickname: st
   return filters.length > 0 ? filters.join(",") : "telegram_id.eq.0";
 }
 
-function isTop9(place: number | null) {
-  return place !== null && place >= 1 && place <= TOP_PLACES;
+/** Whether the finish made that evening's final table: as deep as the tables were set. */
+export function isFinalTableFinish({
+  finalTableSize,
+  place,
+}: Pick<PlayerResultRow, "finalTableSize" | "place">) {
+  return place !== null && place >= 1 && place <= (finalTableSize ?? LEGACY_FINAL_TABLE_SIZE);
 }
 
 function isPodium(place: number | null) {
@@ -115,7 +125,7 @@ function countBestAttendanceStreak(played: PlayerResultRow[], clubGames?: readon
 /** The most final tables that fit inside any seven days. */
 function countBestFinalsInWeek(played: PlayerResultRow[]) {
   const finals = played
-    .filter((row) => isTop9(row.place))
+    .filter(isFinalTableFinish)
     .map((row) => timeOf(row.startedAt))
     .sort((a, b) => a - b);
 
@@ -164,7 +174,7 @@ export function computePlayerStats(
     // that came before it, and winning is itself a final table that ends that run.
     if (row.place === 1 && missStreak >= COMEBACK_MISSES) comebackWins += 1;
 
-    if (isTop9(row.place)) {
+    if (isFinalTableFinish(row)) {
       top9Streak += 1;
       missStreak = 0;
     } else {
@@ -206,7 +216,7 @@ export function computePlayerStats(
     ).size,
     reentryWins: wins.filter((row) => (row.rebuys ?? 0) > 0).length,
     top3: played.filter((row) => isPodium(row.place)).length,
-    top9: played.filter((row) => isTop9(row.place)).length,
+    top9: played.filter(isFinalTableFinish).length,
     wins: wins.length,
   };
 }

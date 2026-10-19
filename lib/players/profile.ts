@@ -13,6 +13,7 @@ import { readAllPages } from "@/lib/supabase/read-all-pages";
 const FIELD_GAMES_PER_REQUEST = 100;
 
 type StoredGame = {
+  final_table_size?: number | string | null;
   knockouts: number | string | null;
   place: number | null;
   rebuys?: number | string | null;
@@ -21,6 +22,8 @@ type StoredGame = {
 };
 
 export type PlayedGame = {
+  /** How many places made the final table that evening; null before it was kept. */
+  finalTableSize?: number | null;
   knockouts: number;
   place: number | null;
   /** Re-entries bought that evening; null when the game predates the column. */
@@ -41,12 +44,12 @@ export type PlayerProfileStats = ReturnType<typeof computePlayerStats> &
 export type ProfileOwner = { accountId: string | null; nickname: string; telegramId: number | null };
 
 /**
- * Re-entries and the seating order were added to the table later and the club runs its
- * migrations by hand, so a profile still opens where they are missing — those games
- * simply say they do not know.
+ * Re-entries, the seating order and the final table's size were added to the table later
+ * and the club runs its migrations by hand, so a profile still opens where they are
+ * missing — those games simply say they do not know.
  */
 const GAME_COLUMNS = "place, knockouts, started_at";
-const OPTIONAL_GAME_COLUMNS = ["rebuys", "seat_order"] as const;
+const OPTIONAL_GAME_COLUMNS = ["rebuys", "seat_order", "final_table_size"] as const;
 
 function readNullableNumber(value: unknown) {
   return value === null || value === undefined ? null : Number(value);
@@ -98,6 +101,7 @@ export async function readPlayerGames(
   }
 
   return games.map((record) => ({
+    finalTableSize: readNullableNumber(record.final_table_size),
     knockouts: Number(record.knockouts ?? 0),
     place: record.place,
     rebuys: readNullableNumber(record.rebuys),

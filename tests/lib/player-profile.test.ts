@@ -88,7 +88,7 @@ describe("readPlayerGames", () => {
     const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
 
     expect(played).toEqual([
-      { knockouts: 1, place: 1, rebuys: null, seatOrder: null, startedAt: startOf(0) },
+      { finalTableSize: null, knockouts: 1, place: 1, rebuys: null, seatOrder: null, startedAt: startOf(0) },
     ]);
   });
 
@@ -102,21 +102,35 @@ describe("readPlayerGames", () => {
     const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
 
     expect(played).toEqual([
-      { knockouts: 0, place: 3, rebuys: 1, seatOrder: null, startedAt: startOf(0) },
+      { finalTableSize: null, knockouts: 0, place: 3, rebuys: 1, seatOrder: null, startedAt: startOf(0) },
     ]);
   });
 
-  // Both came with migrations run by hand: an old database may have neither.
-  it("still reads the games when neither late column is there", async () => {
+  it("still reads the games where the final table's size has not been added", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { supabase } = resultsTable(
+      [{ knockouts: 0, place: 10, rebuys: 0, seat_order: 4, started_at: startOf(0) }],
+      { missingColumn: "final_table_size" },
+    );
+
+    const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
+
+    expect(played).toEqual([
+      { finalTableSize: null, knockouts: 0, place: 10, rebuys: 0, seatOrder: 4, startedAt: startOf(0) },
+    ]);
+  });
+
+  // They came with migrations run by hand: an old database may have none of them.
+  it("still reads the games when none of the late columns is there", async () => {
     vi.spyOn(console, "warn").mockImplementation(() => {});
     const { supabase } = resultsTable([{ knockouts: 2, place: 5, started_at: startOf(0) }], {
-      missingColumns: ["rebuys", "seat_order"],
+      missingColumns: ["rebuys", "seat_order", "final_table_size"],
     });
 
     const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
 
     expect(played).toEqual([
-      { knockouts: 2, place: 5, rebuys: null, seatOrder: null, startedAt: startOf(0) },
+      { finalTableSize: null, knockouts: 2, place: 5, rebuys: null, seatOrder: null, startedAt: startOf(0) },
     ]);
   });
 
@@ -128,6 +142,16 @@ describe("readPlayerGames", () => {
     const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
 
     expect(played[0]?.seatOrder).toBe(1);
+  });
+
+  it("reads how many places made the final table that evening", async () => {
+    const { supabase } = resultsTable([
+      { final_table_size: 10, knockouts: 0, place: 10, rebuys: 0, started_at: startOf(0) },
+    ]);
+
+    const played = await readPlayerGames(supabase, { nickname: "Kabedev", telegramId: 7 });
+
+    expect(played[0]?.finalTableSize).toBe(10);
   });
 });
 

@@ -26,7 +26,7 @@ import { getProgressiveHeadPoints, isSideBountyPoints } from "@/lib/pts-rating";
 import type { BlindAlertSound, PublicTournamentState, TournamentFormat, TournamentPlayer } from "@/lib/timer/types";
 import { getBreakChipRemovalNotice } from "@/lib/timer/break-chip-removal";
 import { buildModeRules, shouldShowModeRules } from "@/lib/timer/mode-rules";
-import { readTableFormat } from "@/lib/tables/seating";
+import { getFinalTableSize } from "@/lib/tables/seating";
 import { BlindsTable } from "@/components/public/blinds-table";
 import { RaffleStrip } from "@/components/public/raffle-strip";
 import { KnockoutOverlay } from "@/components/public/knockout-overlay";
@@ -306,14 +306,6 @@ export function getRotatingPublicTableNumbers(
     .filter((tableNumber) => activeTableNumbers.has(tableNumber));
 
   return tableNumbers.length > 0 ? tableNumbers : [1];
-}
-
-/**
- * How many players make the final table: as many as a table seats tonight, so nine at
- * 9 max and ten at 10 max. A table the desk grew by a chair does not change it.
- */
-export function getFinalTableSize(maxPlayersPerTable: number | null | undefined) {
-  return readTableFormat(maxPlayersPerTable);
 }
 
 export function getPublicChipBankTotal(state: PublicTournamentState) {

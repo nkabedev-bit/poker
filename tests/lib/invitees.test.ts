@@ -29,6 +29,16 @@ describe("summarizeInvitee", () => {
 
     expect(record).toEqual({ games: 2, top9: 1 });
   });
+
+  it("takes tenth place to the final table only on a ten-handed evening", () => {
+    const record = summarizeInvitee({ nickname: "Новенький", telegramId: 5 }, [
+      { finalTableSize: 10, place: 10, playerKey: "новенький", telegramId: 5 },
+      { finalTableSize: 9, place: 10, playerKey: "новенький", telegramId: 5 },
+      { place: 10, playerKey: "новенький", telegramId: 5 },
+    ]);
+
+    expect(record).toEqual({ games: 3, top9: 1 });
+  });
 });
 
 describe("readInviteStats", () => {
@@ -77,6 +87,43 @@ describe("readInviteStats", () => {
     );
 
     expect(stats).toEqual({ invitedFinalists: 1, invitedPlayers: 1, invitedRegulars: 0 });
+  });
+
+  // The final table's size came with a migration applied by hand.
+  it("counts the games nine-handed while the final table's size cannot be read", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const games = [
+      { place: 10, player_key: "новенький", telegram_id: 5 },
+      { place: 12, player_key: "новенький", telegram_id: 5 },
+    ];
+    const from = (table: string) => {
+      let columns = "";
+      const query = {
+        eq: () => query,
+        or: () => query,
+        order: () => query,
+        range: async () =>
+          columns.includes("final_table_size")
+            ? { data: null, error: { message: "column tournament_results.final_table_size does not exist" } }
+            : { data: games, error: null },
+        select: (selected: string) => {
+          columns = selected;
+          return query;
+        },
+        then: (resolve: (value: unknown) => unknown) =>
+          resolve({
+            data: table === "client_bot_users" ? [{ display_name: "Новенький", telegram_id: 5 }] : games,
+            error: null,
+          }),
+      };
+      return query;
+    };
+
+    const stats = await readInviteStats({ from } as never, "account-me");
+
+    expect(stats).toEqual({ invitedFinalists: 0, invitedPlayers: 1, invitedRegulars: 0 });
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 
   it("has nothing to count for a profile without an account", async () => {

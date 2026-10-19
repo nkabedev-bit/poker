@@ -1,8 +1,5 @@
-/**
- * @vitest-environment jsdom
- */
 import { describe, expect, it } from "vitest";
-import { getFinalTableSize } from "@/components/public/public-screen";
+import { getFinalTableSize } from "@/lib/tables/seating";
 
 describe("getFinalTableSize", () => {
   it("seats the final table the way tonight's tables are set", () => {

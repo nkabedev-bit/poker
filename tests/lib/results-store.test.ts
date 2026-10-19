@@ -59,9 +59,11 @@ function database(missing: string[]) {
   return { supabase: { from } as never, upserts };
 }
 
-async function finish(missing: string[]) {
+async function finish(missing: string[], { maxPlayersPerTable = 9 } = {}) {
   const { supabase, upserts } = database(missing);
-  const extras = mergeTournamentExtras({ settings: { sheetsSessionStartedAt: "2026-09-27T15:00:00.000Z" } });
+  const extras = mergeTournamentExtras({
+    settings: { maxPlayersPerTable, sheetsSessionStartedAt: "2026-09-27T15:00:00.000Z" },
+  });
   await saveTournamentResults({
     extras,
     players: [player({ finishPlace: 1, name: "Chura", rebuys: 1 }), player({ finishPlace: 2, name: "Vera" })],
@@ -86,6 +88,23 @@ describe("saveTournamentResults — columns the club has not added yet", () => {
     ]);
   });
 
+  it("writes the final table as big as the tables were set that evening", async () => {
+    const nineMax = await finish([], { maxPlayersPerTable: 9 });
+    const tenMax = await finish([], { maxPlayersPerTable: 10 });
+
+    expect(nineMax[0]?.map((row) => row.final_table_size)).toEqual([9, 9]);
+    expect(tenMax[0]?.map((row) => row.final_table_size)).toEqual([10, 10]);
+  });
+
+  it("leaves out only the final table size when that is what is missing", async () => {
+    const upserts = await finish(["final_table_size"]);
+    const stored = upserts.at(-1)?.[0] ?? {};
+
+    expect(upserts).toHaveLength(2);
+    expect(stored).not.toHaveProperty("final_table_size");
+    expect(stored).toMatchObject({ rebuys: 1, seat_order: 1 });
+  });
+
   // The newest migration missing must not cost the game its medal and its re-entries.
   it("leaves out only the seating order when that is what is missing", async () => {
     const upserts = await finish(["seat_order"]);
@@ -98,11 +117,12 @@ describe("saveTournamentResults — columns the club has not added yet", () => {
   });
 
   it("still stores the game when none of the late columns is there", async () => {
-    const upserts = await finish(["seat_order", "rebuys", "medal_key"]);
+    const late = ["final_table_size", "seat_order", "rebuys", "medal_key"];
+    const upserts = await finish(late);
     const stored = upserts.at(-1)?.[0] ?? {};
 
     expect(stored).toMatchObject({ place: 1, player_name: "Chura" });
-    for (const column of ["seat_order", "rebuys", "medal_key"]) {
+    for (const column of late) {
       expect(stored).not.toHaveProperty(column);
     }
   });

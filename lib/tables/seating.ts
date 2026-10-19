@@ -33,6 +33,14 @@ export function readTableFormat(value?: number | null) {
   return Number.isFinite(seats) && seats > 0 ? Math.min(seats, SEATS_PER_TABLE) : SEATS_PER_TABLE;
 }
 
+/**
+ * How many players make the final table: as many as a table seats tonight, so nine at
+ * 9 max and ten at 10 max. A table the desk grew by a chair does not change it.
+ */
+export function getFinalTableSize(maxPlayersPerTable: number | null | undefined) {
+  return readTableFormat(maxPlayersPerTable);
+}
+
 /** The places a table of this format has chairs at, in order round the table. */
 export function seatsOfFormat(format: number): number[] {
   const spread = SPREAD_FORMAT_SEATS[format];

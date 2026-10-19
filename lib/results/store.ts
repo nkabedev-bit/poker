@@ -3,6 +3,7 @@ import { buildTournamentResultRows } from "@/lib/results/tournament-results";
 import { getOpenRegularSeason } from "@/lib/seasons/store";
 import type { TournamentExtras, TournamentPlayer } from "@/lib/timer/types";
 import { resolveMedalKey } from "@/lib/client/medals";
+import { getFinalTableSize } from "@/lib/tables/seating";
 
 /**
  * Resolves what the game was called. A published poster for the same day gives the
@@ -82,7 +83,7 @@ export async function saveTournamentResults({
   // here is the medal, and deleting the game takes the medal with it.
   const medalKey = resolveMedalKey(extras.settings);
 
-  // Three columns arrived after the table did, and the club applies its migrations by
+  // Several columns arrived after the table did, and the club applies its migrations by
   // hand: the write leaves out whichever one the database says it does not have and
   // tries again, so a finished game is never lost to a migration nobody has run yet —
   // nor its medal and re-entries to the newest one.
@@ -100,7 +101,10 @@ export async function saveTournamentResults({
     title,
     tournament_id: tournamentId,
   }));
+  const finalTableSize = getFinalTableSize(extras.settings.maxPlayersPerTable);
   const optionalColumns = {
+    // How deep a finish made the final table that evening: 9 at 9 max, 10 at 10 max.
+    final_table_size: () => finalTableSize,
     medal_key: () => medalKey,
     // Null would say "nobody knows"; the roster knows, so zero is written as zero.
     rebuys: (index: number) => rows[index].rebuys,

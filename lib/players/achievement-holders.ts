@@ -29,7 +29,7 @@ const CACHE_TTL_MS = 5 * 60_000;
 
 const RESULT_COLUMNS = "telegram_id, player_key, player_name, place, knockouts, started_at";
 /** Added to the table later, by migrations the club runs by hand. */
-const OPTIONAL_RESULT_COLUMNS = ["rebuys", "seat_order"] as const;
+const OPTIONAL_RESULT_COLUMNS = ["rebuys", "seat_order", "final_table_size"] as const;
 
 export type ClubResultRow = PlayerResultRow & {
   playerKey: string;
@@ -79,6 +79,7 @@ export type ClubAchievementsContext = {
 };
 
 type RawResult = {
+  final_table_size?: number | string | null;
   knockouts: number | string | null;
   place: number | null;
   player_key: string | null;
@@ -228,9 +229,10 @@ async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]
       supabase.from("tournament_results").select(columns).order("id").range(from, to),
     );
 
-  // Re-entries and the seating order were added to the table later and the club runs its
-  // migrations by hand, so the count still runs where a column is missing — what hangs on
-  // it then goes to nobody, which is what the profile shows in that case too.
+  // Re-entries, the seating order and the final table's size were added to the table later
+  // and the club runs its migrations by hand, so the count still runs where a column is
+  // missing — what hangs on it then goes to nobody, which is what the profile shows in
+  // that case too.
   let optional: string[] = [...OPTIONAL_RESULT_COLUMNS];
   let rows: RawResult[];
   for (;;) {
@@ -248,6 +250,10 @@ async function readAllResults(supabase: SupabaseClient): Promise<ClubResultRow[]
   }
 
   return rows.map((row) => ({
+    finalTableSize:
+      row.final_table_size === null || row.final_table_size === undefined
+        ? null
+        : Number(row.final_table_size),
     knockouts: Number(row.knockouts ?? 0),
     place: row.place,
     playerKey: row.player_key ?? "",

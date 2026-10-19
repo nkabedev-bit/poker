@@ -172,6 +172,19 @@ describe("buildClubAchievements — the new achievements", () => {
     expect(namesOf(club.holders["first-knockout"])).toEqual(["Boris"]);
   });
 
+  it("hands the first final to tenth place only on a ten-handed evening", () => {
+    const tenHanded = (day: number, finalTableSize: number) =>
+      evening(
+        day,
+        Array.from({ length: 10 }, (_, index) => ({ name: index === 9 ? `Tenth ${day}` : `P${index}` })),
+      ).map((row) => ({ ...row, finalTableSize }));
+
+    const club = buildClubAchievements([...tenHanded(1, 10), ...tenHanded(2, 9)], []);
+
+    expect(namesOf(club.holders["first-final"])).toContain("Tenth 1");
+    expect(namesOf(club.holders["first-final"])).not.toContain("Tenth 2");
+  });
+
   // A newcomer counts for the one who brought them once they come back for a second game.
   it("credits an account with the newcomers it brought in", () => {
     const club = buildClubAchievements(

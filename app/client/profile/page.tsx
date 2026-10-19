@@ -273,7 +273,7 @@ export default function ClientProfilePage() {
             <StatStrip>
               <StatCell label="Игр" value={<CountUp value={stats.games} />} />
               <StatCell label="Нокаутов" value={<CountUp value={Math.round(stats.eliminations)} />} />
-              <StatCell label="Топ-9" value={<CountUp value={stats.top9} />} />
+              <StatCell label="Финалки" value={<CountUp value={stats.top9} />} />
             </StatStrip>
           </div>
 
