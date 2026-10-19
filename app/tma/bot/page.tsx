@@ -2,19 +2,30 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   CalendarDays,
   CalendarPlus,
   Clock,
   Link,
   Loader2,
+  Megaphone,
   Paperclip,
+  Plus,
   Send,
   Trash2,
+  X,
 } from "lucide-react";
 import { getTelegramWebApp, useTMA } from "../layout";
 import { MoreTabs } from "../more-tabs";
 import { ScreenHeader, SectionLabel, ToggleRow } from "../ui";
 import { moscowLocalToUtcISO, utcISOToMoscowLocal } from "@/lib/client-bot/schedule-time";
+import {
+  HOME_ANNOUNCEMENT_MAX_LENGTH,
+  HOME_ANNOUNCEMENTS_LIMIT,
+  isHomeAnnouncementShown,
+  type HomeAnnouncementDraft,
+} from "@/lib/client/home-announcements";
 
 type ScheduleVersion = { effectiveFrom: string; text: string };
 
@@ -32,6 +43,29 @@ type ScheduledBroadcast = {
   sent_at: string | null;
   result: { sent?: number; failed?: number; total?: number; error?: string } | null;
 };
+
+/** A card of the players' home carousel while the desk edits it; new ones have no id yet. */
+type AnnouncementEdit = {
+  id: string | null;
+  /** React's key: the id once saved, a made-up one before that. */
+  key: string;
+  linkUrl: string;
+  message: string;
+  /** ISO timestamp, or "" for no end of showing. */
+  showUntil: string;
+};
+
+let newAnnouncementCount = 0;
+
+function toAnnouncementEdits(items: HomeAnnouncementDraft[]): AnnouncementEdit[] {
+  return items.map((item) => ({
+    id: item.id,
+    key: item.id,
+    linkUrl: item.linkUrl ?? "",
+    message: item.message,
+    showUntil: item.showUntil ?? "",
+  }));
+}
 
 const emptySettings: ClientBotSettings = {
   ratingUrl: "",
@@ -74,6 +108,13 @@ export default function TMABotPage() {
   const [saving, setSaving] = useState(false);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState("");
+  const [announcements, setAnnouncements] = useState<AnnouncementEdit[]>([]);
+  // Why the carousel cannot be edited (no migration yet, no answer); "" when it can.
+  const [announcementsUnavailable, setAnnouncementsUnavailable] = useState("");
+  // The clock as the list arrived, for telling which cards have run out.
+  const [announcementsLoadedAt, setAnnouncementsLoadedAt] = useState<Date | null>(null);
+  const [savingAnnouncements, setSavingAnnouncements] = useState(false);
+  const [announcementsStatus, setAnnouncementsStatus] = useState("");
 
   const fetchSettings = useCallback(async () => {
     try {
@@ -99,13 +140,35 @@ export default function TMABotPage() {
     }
   }, [initData]);
 
+  const fetchAnnouncements = useCallback(async () => {
+    try {
+      const res = await fetch("/api/tma/client-bot/home-announcements", {
+        headers: { "X-Telegram-Init-Data": initData },
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        items?: HomeAnnouncementDraft[];
+      };
+      if (!res.ok) {
+        setAnnouncementsUnavailable(data.error ?? "Не удалось загрузить объявления");
+        return;
+      }
+      setAnnouncements(toAnnouncementEdits(data.items ?? []));
+      setAnnouncementsUnavailable("");
+      setAnnouncementsLoadedAt(new Date());
+    } catch {
+      setAnnouncementsUnavailable("Не удалось загрузить объявления");
+    }
+  }, [initData]);
+
   useEffect(() => {
     const timeout = window.setTimeout(() => {
       void fetchSettings();
       void fetchScheduled();
+      void fetchAnnouncements();
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, [fetchSettings, fetchScheduled]);
+  }, [fetchSettings, fetchScheduled, fetchAnnouncements]);
 
   const saveSettings = async () => {
     setSaving(true);
@@ -227,6 +290,77 @@ export default function TMABotPage() {
     }));
   };
 
+  const updateAnnouncement = (index: number, patch: Partial<AnnouncementEdit>) => {
+    setAnnouncements((current) =>
+      current.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  };
+
+  // A new card goes first: that is the slide players see without swiping.
+  const addAnnouncement = () => {
+    newAnnouncementCount += 1;
+    setAnnouncements((current) => [
+      { id: null, key: `new-${newAnnouncementCount}`, linkUrl: "", message: "", showUntil: "" },
+      ...current,
+    ]);
+  };
+
+  const moveAnnouncement = (index: number, step: -1 | 1) => {
+    setAnnouncements((current) => {
+      const target = index + step;
+      if (target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  };
+
+  const removeAnnouncement = (index: number) => {
+    setAnnouncements((current) => current.filter((_, i) => i !== index));
+  };
+
+  const saveAnnouncements = async () => {
+    setSavingAnnouncements(true);
+    setAnnouncementsStatus("");
+    try {
+      const res = await fetch("/api/tma/client-bot/home-announcements", {
+        body: JSON.stringify({
+          items: announcements.map((item) => ({
+            id: item.id,
+            linkUrl: item.linkUrl,
+            message: item.message,
+            showUntil: item.showUntil || null,
+          })),
+        }),
+        headers: {
+          "Content-Type": "application/json",
+          "X-Telegram-Init-Data": initData,
+        },
+        method: "PUT",
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        items?: HomeAnnouncementDraft[];
+      };
+      if (!res.ok) {
+        // The server names what is wrong ("Объявление 2: пустой текст"), so the desk sees it.
+        setAnnouncementsStatus(data.error ?? "Не удалось сохранить объявления");
+        getTelegramWebApp()?.HapticFeedback.notificationOccurred("error");
+        return;
+      }
+
+      setAnnouncements(toAnnouncementEdits(data.items ?? []));
+      setAnnouncementsLoadedAt(new Date());
+      setAnnouncementsStatus("Объявления сохранены");
+      getTelegramWebApp()?.HapticFeedback.notificationOccurred("success");
+    } catch {
+      setAnnouncementsStatus("Не удалось сохранить объявления");
+      getTelegramWebApp()?.HapticFeedback.notificationOccurred("error");
+    } finally {
+      setSavingAnnouncements(false);
+    }
+  };
+
   if (loading) return <div className="tma-empty">Загрузка…</div>;
 
   return (
@@ -318,6 +452,131 @@ export default function TMABotPage() {
           </div>
         </>
       ) : null}
+
+      <SectionLabel meta="карусель на главной у игроков" title="Объявления клуба" />
+      <div className="tma-card">
+        {announcementsUnavailable ? (
+          <p className="tma-hint">{announcementsUnavailable}</p>
+        ) : (
+          <>
+            <p className="tma-hint">
+              Первая карточка видна сразу, остальные игрок листает свайпом. Без ссылки карточка
+              просто текст. Срок пустой — висит, пока не удалите.
+            </p>
+
+            {announcements.length < HOME_ANNOUNCEMENTS_LIMIT ? (
+              <button className="tma-btn tma-btn--inset tma-btn--link" type="button" onClick={addAnnouncement}>
+                <Plus size={16} />
+                Добавить объявление
+              </button>
+            ) : null}
+
+            {announcements.map((item, index) => {
+              const expired = announcementsLoadedAt !== null
+                && Boolean(item.showUntil)
+                && !isHomeAnnouncementShown(item, announcementsLoadedAt);
+
+              return (
+                <div key={item.key} className="tma-card tma-card--inset !gap-2 !p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5 text-[13px] text-[color:var(--tma-hint)]">
+                      <Megaphone size={14} /> Карточка {index + 1}
+                      {expired ? <span className="tma-badge">срок вышел</span> : null}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <button
+                        aria-label="Выше"
+                        className="tma-icon-btn"
+                        disabled={index === 0}
+                        type="button"
+                        onClick={() => moveAnnouncement(index, -1)}
+                      >
+                        <ArrowUp size={16} />
+                      </button>
+                      <button
+                        aria-label="Ниже"
+                        className="tma-icon-btn"
+                        disabled={index === announcements.length - 1}
+                        type="button"
+                        onClick={() => moveAnnouncement(index, 1)}
+                      >
+                        <ArrowDown size={16} />
+                      </button>
+                      <button
+                        aria-label="Удалить объявление"
+                        className="tma-icon-btn tma-icon-btn--danger"
+                        type="button"
+                        onClick={() => removeAnnouncement(index)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </span>
+                  </div>
+
+                  <textarea
+                    aria-label="Текст объявления"
+                    className="min-h-20"
+                    maxLength={HOME_ANNOUNCEMENT_MAX_LENGTH}
+                    placeholder="Majestic едет в Сочи, нажмите для подробностей!"
+                    value={item.message}
+                    onChange={(event) => updateAnnouncement(index, { message: event.target.value })}
+                  />
+
+                  <label className="tma-field">
+                    <span className="tma-field__label flex items-center gap-1.5">
+                      <Link size={14} /> Куда ведёт (необязательно)
+                    </span>
+                    <input
+                      inputMode="url"
+                      placeholder="https://t.me/majesticpokerptz/..."
+                      value={item.linkUrl}
+                      onChange={(event) => updateAnnouncement(index, { linkUrl: event.target.value })}
+                    />
+                  </label>
+
+                  <div className="flex items-end gap-2">
+                    <label className="tma-field flex-1">
+                      <span className="tma-field__label flex items-center gap-1.5">
+                        <Clock size={14} /> Показывать до (МСК, необязательно)
+                      </span>
+                      <input
+                        type="datetime-local"
+                        value={item.showUntil ? utcISOToMoscowLocal(item.showUntil) : ""}
+                        onChange={(event) =>
+                          updateAnnouncement(index, {
+                            showUntil: event.target.value ? moscowLocalToUtcISO(event.target.value) : "",
+                          })
+                        }
+                      />
+                    </label>
+                    {item.showUntil ? (
+                      <button
+                        aria-label="Без срока"
+                        className="tma-icon-btn"
+                        type="button"
+                        onClick={() => updateAnnouncement(index, { showUntil: "" })}
+                      >
+                        <X size={16} />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+
+            <button
+              className="tma-btn tma-btn--primary"
+              disabled={savingAnnouncements}
+              type="button"
+              onClick={saveAnnouncements}
+            >
+              {savingAnnouncements ? <Loader2 className="animate-spin" size={18} /> : null}
+              Сохранить объявления
+            </button>
+            {announcementsStatus ? <p className="tma-hint text-center">{announcementsStatus}</p> : null}
+          </>
+        )}
+      </div>
 
       <SectionLabel title="Настройки бота" />
       <div className="tma-card">
