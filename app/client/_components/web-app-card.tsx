@@ -40,7 +40,7 @@ export function WebAppCard() {
 
   return (
     <button
-      className="flex w-full items-center gap-3.5 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
+      className="flex h-full w-full items-center gap-3.5 rounded-[20px] border border-club-gold/30 bg-club-gold/[0.08] px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
       type="button"
       onClick={() => void open()}
     >
