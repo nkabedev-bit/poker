@@ -2196,8 +2196,9 @@ p {
   gap: 3px;
 }
 
+/* A full table of ten still has to fit above the re-entry prices. */
 .public-player-mini-list--roomy > div {
-  height: clamp(28px, 3.8vh, 42px);
+  height: clamp(26px, 3.6vh, 38px);
   padding: 0 5px 0 13px;
 }
 
@@ -2206,7 +2207,7 @@ p {
 }
 
 .public-player-mini-list--roomy strong {
-  font-size: clamp(13px, 2vh, 19px);
+  font-size: clamp(12px, 1.8vh, 17px);
 }
 
 .public-player-mini-list--hero {
@@ -3040,7 +3041,7 @@ p {
 
   .public-player-mini-list--roomy > div {
     grid-template-columns: minmax(0, auto) minmax(46px, 1fr);
-    height: clamp(24px, 4.7vh, 34px);
+    height: clamp(24px, 3.8vh, 34px);
   }
 
   .public-player-mini-list--hero > div {
