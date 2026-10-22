@@ -26,8 +26,10 @@ services:
         tag: club-app
     extra_hosts:
       # DNS hands out Vercel addresses that Russian networks cut; this one gets through.
-      # Only the Telegram relay (TELEGRAM_API_ROOT) goes to Vercel.
-      - "poker-two-liart.vercel.app:76.76.21.21"
+      # Only the Telegram relay (TELEGRAM_API_ROOT) goes to Vercel. 76.76.21.21 was cut
+      # from the server on 13.10.2026; when the bots fall silent again, try other Vercel
+      # addresses with `curl --resolve` from the server and swap this one.
+      - "poker-two-liart.vercel.app:216.198.79.1"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/telegram-web-app.js').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
