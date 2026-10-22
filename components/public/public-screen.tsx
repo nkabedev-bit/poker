@@ -308,6 +308,25 @@ export function getRotatingPublicTableNumbers(
   return tableNumbers.length > 0 ? tableNumbers : [1];
 }
 
+/**
+ * Who the board lists: the players still in the game, at the table on show, or all of them
+ * once the final table is set (`tableNumber` null). A player who is out leaves the list,
+ * so a full table of ten still fits above the re-entry prices.
+ */
+export function getPublicListedPlayers(players: TournamentPlayer[], tableNumber: number | null) {
+  return players
+    .filter(
+      (player) =>
+        player.status === "active" && (tableNumber === null || player.table === tableNumber),
+    )
+    // The sort is stable, so seats that are not set keep the order the players came in.
+    .sort(
+      (a, b) =>
+        (a.table ?? Number.MAX_SAFE_INTEGER) - (b.table ?? Number.MAX_SAFE_INTEGER)
+        || (a.seat ?? Number.MAX_SAFE_INTEGER) - (b.seat ?? Number.MAX_SAFE_INTEGER),
+    );
+}
+
 export function getPublicChipBankTotal(state: PublicTournamentState) {
   const totalReentries = state.extras.players.reduce((sum, player) => sum + (player.rebuys || 0), 0);
   // Each "double" re-entry adds one extra starting stack on top of the stack
@@ -811,30 +830,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
     rotatingTableNumbers[displayedTableIndex % rotatingTableNumbers.length] ?? 1;
   const finalTableSize = getFinalTableSize(state.extras.settings.maxPlayersPerTable);
   const isFinalTableMode = activePlayers.length <= finalTableSize;
-  const playerOriginalOrder = new Map(
-    state.extras.players.map((player, index) => [player.id, index]),
-  );
-  const compareActivePublicPlayers = (a: TournamentPlayer, b: TournamentPlayer) =>
-    (a.table ?? Number.MAX_SAFE_INTEGER) - (b.table ?? Number.MAX_SAFE_INTEGER)
-    || (a.seat ?? Number.MAX_SAFE_INTEGER) - (b.seat ?? Number.MAX_SAFE_INTEGER)
-    || (playerOriginalOrder.get(a.id) ?? 0) - (playerOriginalOrder.get(b.id) ?? 0);
-  const compareEliminatedPublicPlayers = (a: TournamentPlayer, b: TournamentPlayer) =>
-    (a.finishPlace ?? Number.MAX_SAFE_INTEGER) - (b.finishPlace ?? Number.MAX_SAFE_INTEGER)
-    || (playerOriginalOrder.get(a.id) ?? 0) - (playerOriginalOrder.get(b.id) ?? 0);
-  const displayedPlayers = [
-    ...(isFinalTableMode
-      ? activePlayers
-      : activePlayers.filter((player) => player.table === displayedTableNumber)
-    ).sort(compareActivePublicPlayers),
-    ...(isFinalTableMode
-      ? eliminatedPlayers.filter(
-        (player) =>
-          player.finishPlace !== null && player.finishPlace <= finalTableSize,
-      )
-      : eliminatedPlayers.filter((player) => player.table === displayedTableNumber)
-    ).sort(compareEliminatedPublicPlayers),
-  ];
-  const visiblePublicPlayers = displayedPlayers.slice(0, PUBLIC_PLAYERS_LIMIT);
+  const visiblePublicPlayers = getPublicListedPlayers(
+    state.extras.players,
+    isFinalTableMode ? null : displayedTableNumber,
+  ).slice(0, PUBLIC_PLAYERS_LIMIT);
   const playersDensity = getPublicPlayersDensity(visiblePublicPlayers.length);
   const publicPlayersTitle = isFinalTableMode
     ? "🏆 ФИНАЛЬНЫЙ СТОЛ"

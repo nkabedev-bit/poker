@@ -6,6 +6,7 @@ import {
   getPublicChipBankTotal,
   getPublicPlayerBadges,
   getPublicPlayerHeadPrice,
+  getPublicListedPlayers,
   getPublicPlayerLabelKind,
   getRotatingPublicTableNumbers,
   getGeneratedBlindAlertAudioUrl,
@@ -99,6 +100,35 @@ describe("getRotatingPublicTableNumbers", () => {
         3,
       ),
     ).toEqual([1, 3]);
+  });
+});
+
+describe("getPublicListedPlayers", () => {
+  it("lists only the players still in the game at the table on show, by seat", () => {
+    const players = [
+      { ...player("seat-3", 2), seat: 3 },
+      { ...player("out", 2, "eliminated"), seat: 2, finishPlace: 14 },
+      { ...player("other-table", 1), seat: 1 },
+      { ...player("seat-1", 2), seat: 1 },
+    ];
+
+    expect(getPublicListedPlayers(players, 2).map((listed) => listed.id)).toEqual([
+      "seat-1",
+      "seat-3",
+    ]);
+  });
+
+  it("leaves knocked-out finalists off the final table", () => {
+    const players = [
+      { ...player("table-2", 2), seat: 1 },
+      { ...player("finalist-out", 1, "eliminated"), seat: 4, finishPlace: 3 },
+      { ...player("table-1", 1), seat: 5 },
+    ];
+
+    expect(getPublicListedPlayers(players, null).map((listed) => listed.id)).toEqual([
+      "table-1",
+      "table-2",
+    ]);
   });
 });
 
