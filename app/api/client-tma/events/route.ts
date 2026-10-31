@@ -12,6 +12,7 @@ import { announcePublishedEvents, publishDueEvents } from "@/lib/events/schedule
 import { readClientLiveState } from "@/lib/client-tma/live-state";
 import { readFavoriteHand } from "@/lib/players/favorite-hand";
 import { listShownHomeAnnouncements } from "@/lib/client/home-announcements-store";
+import { readRulesAccepted } from "@/lib/client/club-rules-store";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,7 @@ export async function GET(request: Request) {
 
   const published = await listEvents(auth.supabase, { publishedOnly: true });
 
-  const [mySignups, live, favoriteHand, announcements] = await Promise.all([
+  const [mySignups, live, favoriteHand, announcements, rulesAccepted] = await Promise.all([
     getUserSignups(auth.supabase, auth.user.id),
     // Carried with the screen it is drawn on: a card for the game under way would
     // otherwise cost every phone an extra round trip the moment the app opens. The
@@ -43,6 +44,8 @@ export async function GET(request: Request) {
     readFavoriteHand(auth.supabase, auth.user.id),
     // The club's cards for the carousel at the top, read with the screen they sit on.
     listShownHomeAnnouncements(auth.supabase, now),
+    // Whether the home screen opens with the reminder about the club's rules.
+    readRulesAccepted(auth.supabase, auth.user.id),
   ]);
 
   // The posters still to come, and — while the cards are in the air — the one being
@@ -104,6 +107,8 @@ export async function GET(request: Request) {
         regular: Number(auth.user.free_entries ?? 0),
       },
       profileSubmitted: Boolean(auth.user.profile_submitted_at),
+      // False until the player ticks «С правилами ознакомлен» for the current rules.
+      rulesAccepted,
       // Somebody who signed in on the web and has answered nothing yet may still be a
       // club member of years standing: they are asked first whether they have played
       // here, rather than being marched straight into a new questionnaire.

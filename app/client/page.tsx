@@ -7,6 +7,7 @@ import {
   ClipboardList,
   LifeBuoy,
   MapPin,
+  ScrollText,
   Spade,
   Trophy,
 } from "lucide-react";
@@ -27,6 +28,7 @@ import { RatingRow, withOwnPhoto, type RatingPlayer } from "./_components/rating
 import { LiveTournamentCard } from "./_components/live-tournament-card";
 import { WebAppCard } from "./_components/web-app-card";
 import { AnnouncementCarousel } from "./_components/announcement-carousel";
+import { ClubRulesSheet, openClubRules } from "./_components/club-rules";
 import { useLiveTournament } from "./_components/use-live-tournament";
 import { pickPlayerPhoto } from "@/lib/players/photo";
 import type { ClientLiveState } from "@/lib/client-tma/live-state-shared";
@@ -50,6 +52,8 @@ type EventsResponse = {
     /** The player's own favourite hand ("QsTs"), drawn on their avatar. */
     favoriteHand?: string | null;
     profileSubmitted: boolean;
+    /** False until the player agrees to the current rules; absent from an older server. */
+    rulesAccepted?: boolean;
     username: string | null;
   };
 };
@@ -61,6 +65,7 @@ export default function ClientHomePage() {
   const [data, setData] = useState<EventsResponse | null>(null);
   const [rating, setRating] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [rulesJustAccepted, setRulesJustAccepted] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -114,6 +119,7 @@ export default function ClientHomePage() {
   const announcements = data?.announcements ?? [];
   // Inside Telegram only, until the player also signs in on the web.
   const offerWebApp = Boolean(initData && data && !data.player.webLinked);
+  const askToAcceptRules = data?.player.rulesAccepted === false && !rulesJustAccepted;
 
   return (
     // On a computer the screen splits in two: the calendar on the left, the game on now,
@@ -285,9 +291,28 @@ export default function ClientHomePage() {
                 </div>
               </div>
             ) : null}
+
+            <button
+              className="flex items-center gap-3.5 rounded-[20px] border border-club-line bg-club-surface px-4 py-3.5 text-left transition-transform active:scale-[0.98]"
+              type="button"
+              onClick={() => openClubRules(Boolean(initData))}
+            >
+              <IconTile className="text-club-gold">
+                <ScrollText size={20} />
+              </IconTile>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <p className="text-[15px] font-extrabold">Правила клуба</p>
+                <p className="text-[13px] leading-snug text-club-muted">Регламент турниров · PDF</p>
+              </div>
+              <ChevronRight className="shrink-0 text-club-faint" size={18} />
+            </button>
           </div>
         </div>
       </div>
+
+      {askToAcceptRules ? (
+        <ClubRulesSheet initData={initData} onAccepted={() => setRulesJustAccepted(true)} />
+      ) : null}
     </div>
   );
 }
