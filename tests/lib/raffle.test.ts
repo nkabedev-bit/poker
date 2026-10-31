@@ -62,6 +62,29 @@ describe("listRaffleEntrants", () => {
     expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([6, 25]);
   });
 
+  // A nickname is the player's to change: the developer's account won a draw as «Кабачок».
+  it("leaves the developer out under any nickname, by account", () => {
+    const room = [
+      player(3, { accountId: "64955154-788e-4a3d-9c04-9a0080014eb9", name: "Кабачок", telegramId: null }),
+      player(4),
+    ];
+
+    expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([4]);
+  });
+
+  it("leaves the venue's owner out under any nickname, by Telegram", () => {
+    const room = [player(5, { name: "Новый ник", telegramId: 384428007 }), player(6)];
+
+    expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([6]);
+  });
+
+  // Once the developer is renamed, someone else may sign up as kabedev — and they play.
+  it("keeps another account that has taken an excluded nickname", () => {
+    const room = [player(3, { accountId: "account-other", name: "kabedev", telegramId: 777 }), player(4)];
+
+    expect(listRaffleEntrants(room).map((entrant) => entrant.number)).toEqual([3, 4]);
+  });
+
   it("carries the account the prize will go to", () => {
     const [entrant] = listRaffleEntrants([player(2, { accountId: "account-1", telegramId: 555 })]);
 

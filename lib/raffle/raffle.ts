@@ -101,8 +101,32 @@ export const RAFFLE_WIN_MESSAGE =
  * The people behind the draw, who stay out of it: the club's developer, who builds it and
  * sets it up, and the venue's owner, who hosts the evening. A prize won by either would
  * look rigged to the room, however fair the draw is.
+ *
+ * They are known by their club account and Telegram, not by nickname: a nickname is the
+ * player's to change, and the developer's account won a draw as «Кабачок» once kabedev
+ * was renamed. The nicknames remain only for a seat the admin typed in by hand, which
+ * carries no account to check.
  */
-const EXCLUDED_NICKNAME_KEYS = new Set(["kabedev", "Киберпсих"].map(buildNicknameKey));
+const EXCLUDED_PLAYERS = [
+  // The club's developer.
+  { accountId: "64955154-788e-4a3d-9c04-9a0080014eb9", nickname: "kabedev", telegramId: 511564749 },
+  // The venue's owner.
+  { accountId: "3b85b827-b657-44aa-ae96-799dafa6e77e", nickname: "Киберпсих", telegramId: 384428007 },
+];
+const EXCLUDED_ACCOUNT_IDS = new Set(EXCLUDED_PLAYERS.map((excluded) => excluded.accountId));
+const EXCLUDED_TELEGRAM_IDS = new Set(EXCLUDED_PLAYERS.map((excluded) => excluded.telegramId));
+const EXCLUDED_NICKNAME_KEYS = new Set(EXCLUDED_PLAYERS.map((excluded) => buildNicknameKey(excluded.nickname)));
+
+function isExcludedFromRaffle(
+  player: Pick<TournamentPlayer, "accountId" | "name" | "telegramId">,
+) {
+  if (player.accountId && EXCLUDED_ACCOUNT_IDS.has(player.accountId)) return true;
+  if (player.telegramId && EXCLUDED_TELEGRAM_IDS.has(player.telegramId)) return true;
+  // A seat with an account behind it is that account's, whatever it is called tonight.
+  if (player.accountId || player.telegramId) return false;
+
+  return EXCLUDED_NICKNAME_KEYS.has(buildNicknameKey(player.name));
+}
 
 /**
  * Everyone in tonight's draw.
@@ -117,7 +141,7 @@ export function listRaffleEntrants(
 ): RaffleEntrant[] {
   return players
     .filter((player) => {
-      if (EXCLUDED_NICKNAME_KEYS.has(buildNicknameKey(player.name))) return false;
+      if (isExcludedFromRaffle(player)) return false;
 
       const number = Number(player.registrationNumber);
       return Number.isInteger(number) && number > 0;
