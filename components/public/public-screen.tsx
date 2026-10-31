@@ -1058,20 +1058,9 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           eliminatedPlayers={eliminatedPlayers.length}
           levels={state.blindLevels}
         />
+        {/* No logo here: the header already carries it, and the far tables need the
+            centre for the blinds they are playing. */}
         <section className="public-main">
-          {state.tournament.logoUrl ? (
-            <div className="public-logo-spotlight" aria-label="Логотип турнира" role="img">
-              <span className="public-logo-halo" />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                alt=""
-                className="public-logo-clear"
-                src={toOwnOriginMediaUrl(state.tournament.logoUrl)}
-              />
-            </div>
-          ) : (
-            <span className="public-logo-placeholder">здесь будет ваш логотип</span>
-          )}
           <TimerDisplay
             current={current}
             next={next}
