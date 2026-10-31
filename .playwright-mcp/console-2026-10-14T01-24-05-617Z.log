@@ -1,0 +1,72 @@
+[     447ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[    4214ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[    5950ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[    7413ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[    8849ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[   10248ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[   11686ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:11
+[  121712ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  121714ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  126684ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  126684ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  131685ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  131685ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  136684ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  136684ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  141686ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  141686ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  146685ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  146685ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-142308947c713089.js:0
+[  157687ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  159144ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  160597ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  162009ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  163428ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  164860ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  166297ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  211296ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  211296ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:0
+[  216284ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  216284ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:0
+[  221284ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  221284ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:0
+[  226286ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  226286ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:0
+[  231287ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3101/api/public-state/demo:0
+[  231287ms] [ERROR] TypeError: Failed to fetch
+    at ep (http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:29890)
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:1:34557
+    at http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:12:1615 @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:0
+[  239319ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  253501ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11
+[  254401ms] [LOG] Wake Lock active @ http://localhost:3101/_next/static/chunks/app/screen/%5Btoken%5D/page-23709ec382740004.js:11

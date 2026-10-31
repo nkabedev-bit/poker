@@ -46,3 +46,6 @@ test-results
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# pnpm package store cache
+.pnpm-store

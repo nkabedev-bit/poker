@@ -1,0 +1,9 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e3]:
+      - button "Назад" [ref=e4]:
+        - img [ref=e5]
+        - text: Назад
+      - generic [ref=e7]: MAJESTIC
+    - generic [ref=e8]: Загрузка…
+  - alert [ref=e9]

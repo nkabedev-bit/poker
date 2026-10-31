@@ -1,0 +1,387 @@
+[      94ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[      95ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[      95ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[      95ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[      96ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[      96ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[      96ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[      96ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[      96ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[      96ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[      96ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[      96ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[     135ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[   95275ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[   95276ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[   95276ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[   95276ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[   95276ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[   95276ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[   95276ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[   95276ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[   95277ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[   96898ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  109988ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  109989ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  109989ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  109989ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  109989ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  109989ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  109989ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  109989ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  109994ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[  110600ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  111216ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  111218ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: true, is_active: true, is_progress_visible: false, icon_custom_emoji_id: false, text: ✅ ПОДТВЕРДИТЬ ВЫБЫВАНИЕ} @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  111787ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  111787ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  111787ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  111788ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  111788ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  111788ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  111788ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  111788ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  111788ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  111788ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  112449ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  112450ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  112450ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  112450ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  112450ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  112450ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  112450ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  112450ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  112450ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  112450ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  112450ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  112450ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  112450ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  147630ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  147630ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  147630ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  147630ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  147630ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  147630ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  147630ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  148834ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  148834ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  148834ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  148835ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  148835ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  148835ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  148835ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  148835ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  148835ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  148835ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150052ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150053ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150053ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150053ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150053ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150053ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150053ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150053ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150053ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150053ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150053ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150053ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150053ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150053ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  150655ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150656ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150656ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150656ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150656ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  150656ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  150656ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  150656ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  150658ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[  150716ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  150718ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: true, is_active: true, is_progress_visible: false, icon_custom_emoji_id: false, text: ДОБАВИТЬ ИГРОКА} @ http://localhost:3100/telegram-web-app.js:138
+[  204016ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  204016ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204017ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204017ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204017ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204017ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204017ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204017ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204017ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204687ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204687ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204687ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204688ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204688ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204688ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204688ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[  204688ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[  204688ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:772
+[  204688ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:828
+[  204688ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:866
+[  204692ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[  204729ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  204759ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3100/telegram-web-app.js:1481
+[  204760ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: true, is_active: true, is_progress_visible: false, icon_custom_emoji_id: false, text: ✅ ПОДТВЕРДИТЬ ВЫБЫВАНИЕ} @ http://localhost:3100/telegram-web-app.js:138
+[  205378ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[  205379ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: true, is_active: true, is_progress_visible: false, icon_custom_emoji_id: false, text: СОХРАНЯЕМ...} @ http://localhost:3100/telegram-web-app.js:138
+[  205394ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3100/telegram-web-app.js:138
+[ 3441088ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441091ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3441091ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3441091ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3441091ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441092ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441092ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3441092ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3441092ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3441092ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441092ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3441092ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3441092ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3441092ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3441108ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3110/telegram-web-app.js:138
+[ 3441212ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3441296ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443115ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443116ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443116ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443116ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443116ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443116ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443116ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443116ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443116ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443116ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443116ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443116ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443116ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443116ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443118ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443168ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443856ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443856ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443856ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443856ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443856ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443857ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443857ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3443857ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3443857ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3443857ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3443859ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3110/telegram-web-app.js:138
+[ 3443929ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3445125ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3445125ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3445125ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3445125ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3445125ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3445125ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3445125ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3445128ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3110/telegram-web-app.js:138
+[ 3445183ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3483135ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3483135ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3483136ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3483136ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3483136ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3483136ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3483136ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3483136ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3483136ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3483138ms] [LOG] [Telegram.WebView] > postEvent web_app_setup_main_button {is_visible: false} @ http://localhost:3110/telegram-web-app.js:138
+[ 3483199ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3483251ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3484252ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3484252ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3484252ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3484252ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3110/telegram-web-app.js:138
+[ 3484252ms] [WARNING] [Telegram.WebApp] Header color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:772
+[ 3484252ms] [WARNING] [Telegram.WebApp] Background color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:828
+[ 3484252ms] [WARNING] [Telegram.WebApp] Bottom bar color is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:866
+[ 3484412ms] [WARNING] [Telegram.WebApp] HapticFeedback is not supported in version 6.0 @ http://localhost:3110/telegram-web-app.js:1481

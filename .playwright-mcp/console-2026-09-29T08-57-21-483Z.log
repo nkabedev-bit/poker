@@ -1,0 +1,24 @@
+[    6588ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    6590ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[    6591ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    6591ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[    9706ms] [LOG] [Telegram.WebView] > postEvent web_app_set_header_color {color_key: bg_color} @ http://localhost:3100/telegram-web-app.js:138
+[    9706ms] [LOG] [Telegram.WebView] > postEvent web_app_set_bottom_bar_color {color: #ffffff} @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_request_theme  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_request_viewport  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_request_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_request_content_safe_area  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_ready  @ http://localhost:3100/telegram-web-app.js:138
+[    9707ms] [LOG] [Telegram.WebView] > postEvent web_app_expand  @ http://localhost:3100/telegram-web-app.js:138

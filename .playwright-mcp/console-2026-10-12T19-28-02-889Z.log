@@ -1,0 +1,17 @@
+[     348ms] [LOG] Wake Lock active @ http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:11
+[   30380ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3100/api/public-state/demo:0
+[   30380ms] [ERROR] Error: Unable to refresh public state
+    at z (http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:17122)
+    at async http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:19820 @ http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:0
+[   35348ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3100/api/public-state/demo:0
+[   35349ms] [ERROR] Error: Unable to refresh public state
+    at z (http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:17122)
+    at async http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:19820 @ http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:0
+[   40350ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3100/api/public-state/demo:0
+[   40350ms] [ERROR] Error: Unable to refresh public state
+    at z (http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:17122)
+    at async http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:19820 @ http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:0
+[   45348ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3100/api/public-state/demo:0
+[   45348ms] [ERROR] Error: Unable to refresh public state
+    at z (http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:17122)
+    at async http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:1:19820 @ http://localhost:3100/_next/static/chunks/app/screen/%5Btoken%5D/page-0e033cfa1a4a7d8d.js:0

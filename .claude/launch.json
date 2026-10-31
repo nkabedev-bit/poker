@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "poker-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "poker-demo",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_PUBLIC_SUPABASE_URL=",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY=",
+        "SUPABASE_SERVICE_ROLE_KEY=",
+        "npx",
+        "next",
+        "dev",
+        "-p",
+        "3001"
+      ],
+      "port": 3001
+    }
+  ]
+}

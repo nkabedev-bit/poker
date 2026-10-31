@@ -1,0 +1,188 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e3]:
+    - status [ref=e4]:
+      - generic [ref=e6]:
+        - generic [ref=e7]: Ур. 4 · 200 / 400 · 12:34
+        - generic [ref=e8]: Идёт · след. перерыв
+      - button "Пауза" [ref=e9] [cursor=pointer]:
+        - img [ref=e10]
+    - main [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - heading "Зал" [level=1] [ref=e16]
+          - generic [ref=e17]:
+            - button "Аддон списком" [ref=e18] [cursor=pointer]:
+              - img [ref=e19]
+            - button "Добавить игрока" [ref=e22] [cursor=pointer]:
+              - img [ref=e23]
+        - generic [ref=e24]:
+          - generic [ref=e25]:
+            - generic [ref=e26]: В игре
+            - generic [ref=e27]: "14"
+          - generic [ref=e28]:
+            - generic [ref=e29]: Выбыло
+            - generic [ref=e30]: "1"
+          - generic [ref=e31]:
+            - generic [ref=e32]: Без места
+            - generic [ref=e33]: "1"
+        - link "Заявки на турнир" [ref=e34] [cursor=pointer]:
+          - /url: /tma/signups
+          - img [ref=e35]
+          - generic [ref=e38]: Заявки на турнир
+          - img [ref=e39]
+        - generic [ref=e41]:
+          - img [ref=e42]
+          - searchbox "Поиск игрока" [ref=e45]
+        - group "Фильтр по столу" [ref=e46]:
+          - button "Все" [pressed] [ref=e47] [cursor=pointer]
+          - button "Стол 1" [ref=e48] [cursor=pointer]
+          - button "Стол 2" [ref=e49] [cursor=pointer]
+          - button "Стол 3" [ref=e50] [cursor=pointer]
+          - button "Выбывшие" [ref=e51] [cursor=pointer]
+        - generic [ref=e52]:
+          - generic [ref=e53]:
+            - generic [ref=e54]: Стол 1
+            - generic [ref=e55]: 7 игр.
+          - 'button "1 Алексей К. #7 A1 12 000" [ref=e56] [cursor=pointer]':
+            - generic [ref=e57]: "1"
+            - generic [ref=e58]:
+              - generic [ref=e59]:
+                - text: Алексей К.
+                - generic [ref=e60]: "#7"
+              - generic [ref=e62]: A1
+            - generic [ref=e63]: 12 000
+          - 'button "2 Марина #3 14 700" [ref=e64] [cursor=pointer]':
+            - generic [ref=e65]: "2"
+            - generic [ref=e67]:
+              - text: Марина
+              - generic [ref=e68]: "#3"
+            - generic [ref=e69]: 14 700
+          - 'button "3 Дима Шарк #11 R1 17 400" [ref=e70] [cursor=pointer]':
+            - generic [ref=e71]: "3"
+            - generic [ref=e72]:
+              - generic [ref=e73]:
+                - text: Дима Шарк
+                - generic [ref=e74]: "#11"
+              - generic [ref=e76]: R1
+            - generic [ref=e77]: 17 400
+          - 'button "5 Олег П. #5 A1 R1 20 100" [ref=e78] [cursor=pointer]':
+            - generic [ref=e79]: "5"
+            - generic [ref=e80]:
+              - generic [ref=e81]:
+                - text: Олег П.
+                - generic [ref=e82]: "#5"
+              - generic [ref=e83]:
+                - generic [ref=e84]: A1
+                - generic [ref=e85]: R1
+            - generic [ref=e86]: 20 100
+          - 'button "6 Катя #14 22 800" [ref=e87] [cursor=pointer]':
+            - generic [ref=e88]: "6"
+            - generic [ref=e90]:
+              - text: Катя
+              - generic [ref=e91]: "#14"
+            - generic [ref=e92]: 22 800
+          - 'button "7 Serg777 #9 25 500" [ref=e93] [cursor=pointer]':
+            - generic [ref=e94]: "7"
+            - generic [ref=e96]:
+              - text: Serg777
+              - generic [ref=e97]: "#9"
+            - generic [ref=e98]: 25 500
+          - 'button "9 Лёша #2 A1 28 200" [ref=e99] [cursor=pointer]':
+            - generic [ref=e100]: "9"
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - text: Лёша
+                - generic [ref=e103]: "#2"
+              - generic [ref=e105]: A1
+            - generic [ref=e106]: 28 200
+        - generic [ref=e107]:
+          - generic [ref=e108]:
+            - generic [ref=e109]: Стол 2
+            - generic [ref=e110]: 4 игр.
+          - 'button "1 Вадим #16 30 900" [ref=e111] [cursor=pointer]':
+            - generic [ref=e112]: "1"
+            - generic [ref=e114]:
+              - text: Вадим
+              - generic [ref=e115]: "#16"
+            - generic [ref=e116]: 30 900
+          - 'button "2 Ира М. #12 33 600" [ref=e117] [cursor=pointer]':
+            - generic [ref=e118]: "2"
+            - generic [ref=e120]:
+              - text: Ира М.
+              - generic [ref=e121]: "#12"
+            - generic [ref=e122]: 33 600
+          - 'button "4 Пётр #18 A1 36 300" [ref=e123] [cursor=pointer]':
+            - generic [ref=e124]: "4"
+            - generic [ref=e125]:
+              - generic [ref=e126]:
+                - text: Пётр
+                - generic [ref=e127]: "#18"
+              - generic [ref=e129]: A1
+            - generic [ref=e130]: 36 300
+          - 'button "6 Артём #6 39 000" [ref=e131] [cursor=pointer]':
+            - generic [ref=e132]: "6"
+            - generic [ref=e134]:
+              - text: Артём
+              - generic [ref=e135]: "#6"
+            - generic [ref=e136]: 39 000
+        - generic [ref=e137]:
+          - generic [ref=e138]:
+            - generic [ref=e139]: VIP · Стол 3
+            - generic [ref=e140]: 2 игр.
+          - 'button "1 Руслан #23 41 700" [ref=e141] [cursor=pointer]':
+            - generic [ref=e142]: "1"
+            - generic [ref=e144]:
+              - text: Руслан
+              - generic [ref=e145]: "#23"
+            - generic [ref=e146]: 41 700
+          - 'button "3 Елена В. #21 A1 44 400" [ref=e147] [cursor=pointer]':
+            - generic [ref=e148]: "3"
+            - generic [ref=e149]:
+              - generic [ref=e150]:
+                - text: Елена В.
+                - generic [ref=e151]: "#21"
+              - generic [ref=e153]: A1
+            - generic [ref=e154]: 44 400
+        - generic [ref=e155]:
+          - generic [ref=e156]:
+            - generic [ref=e157]: Без места
+            - generic [ref=e158]: "1"
+          - button "— Новичок 20 000" [ref=e159] [cursor=pointer]:
+            - generic [ref=e160]: —
+            - generic [ref=e162]: Новичок
+            - generic [ref=e163]: 20 000
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - generic [ref=e166]: Выбывшие
+            - generic [ref=e167]: "1"
+          - 'button "Глеб #4 выбыл R1" [ref=e168] [cursor=pointer]':
+            - img [ref=e170]
+            - generic [ref=e175]:
+              - generic [ref=e176]:
+                - text: Глеб
+                - generic [ref=e177]: "#4"
+              - generic [ref=e178]:
+                - generic [ref=e179]: выбыл
+                - generic [ref=e180]: R1
+    - navigation [ref=e181]:
+      - link "Зал" [ref=e182] [cursor=pointer]:
+        - /url: /tma/players
+        - img [ref=e183]
+        - generic [ref=e188]: Зал
+      - link "Вылеты" [ref=e189] [cursor=pointer]:
+        - /url: /tma/eliminations
+        - img [ref=e190]
+        - generic [ref=e195]: Вылеты
+      - link "Касса" [ref=e196] [cursor=pointer]:
+        - /url: /tma/cards
+        - img [ref=e197]
+        - generic [ref=e199]: Касса
+      - link "Турнир" [ref=e200] [cursor=pointer]:
+        - /url: /tma/control
+        - img [ref=e201]
+        - generic [ref=e204]: Турнир
+      - link "Ещё" [ref=e205] [cursor=pointer]:
+        - /url: /tma/events
+        - img [ref=e206]
+        - generic [ref=e208]: Ещё
