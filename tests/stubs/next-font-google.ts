@@ -5,3 +5,5 @@ function font(options: { variable?: string } = {}) {
 
 export const Manrope = font;
 export const Unbounded = font;
+export const Bebas_Neue = font;
+export const Montserrat = font;

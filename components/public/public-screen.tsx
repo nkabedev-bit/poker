@@ -791,6 +791,10 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
       .slice(0, currentLevelIndex + 1)
       .filter((level) => !level.isBreak).length;
   }, [state.blindLevels, currentLevelIndex]);
+  const roundsCount = useMemo(
+    () => state.blindLevels.filter((level) => !level.isBreak).length,
+    [state.blindLevels],
+  );
   // On a break the whole board turns into one announcement: the dealers have to see
   // which chips leave the tables from anywhere in the room.
   const breakChipNotice = useMemo(
@@ -1064,9 +1068,9 @@ export function PublicScreen({ initialState, serverNowIso, token }: PublicScreen
           <TimerDisplay
             current={current}
             next={next}
-            registrationStatus={state.tournament.registrationStatus}
             remainingSeconds={remainingSeconds}
             roundNumber={roundNumber}
+            roundsCount={roundsCount}
             secondsToBreak={secondsToBreak}
             timerState={state.timerState}
           />
