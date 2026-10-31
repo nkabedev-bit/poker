@@ -6,9 +6,15 @@ import {
   buildClientMiniAppReplyMarkup,
   CLIENT_BOT_WELCOME_TEXT,
 } from "@/lib/client-bot/registration";
-import { safeAnswerCallbackQuery } from "@/lib/client-bot/callback-query";
+import { safeAnswerCallbackQuery, safeEditMessageText } from "@/lib/client-bot/callback-query";
 import { shouldRefreshAvatar } from "@/lib/client-bot/avatar-policy";
 import { syncClientBotAvatar } from "@/lib/client-bot/avatar";
+import {
+  parsePassOfferCallback,
+  passOfferAnswerText,
+  type PassOfferAnswer,
+} from "@/lib/free-entries/pass-offer";
+import { switchSignupPass } from "@/lib/free-entries/switch-pass";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -134,9 +140,55 @@ bot.on("message", async (ctx) => {
   await sendWelcome(ctx);
 });
 
+/**
+ * The answer to "use the pass on your next game?" — the one question the bot still asks
+ * itself, because a pass won after the poster filled up is worth a tap, not a trip into
+ * the app. The question is replaced by what came of it, so it cannot be answered twice.
+ */
+async function answerPassOffer(ctx: Context, answer: PassOfferAnswer) {
+  await safeAnswerCallbackQuery(ctx);
+
+  const telegramId = ctx.from?.id;
+  if (!answer.accept || !telegramId) {
+    await safeEditMessageText(ctx, passOfferAnswerText(answer, null));
+    return;
+  }
+
+  const supabase = getAdminSupabase();
+  const { data: account } = await supabase
+    .from("client_bot_users")
+    .select("id, free_entries")
+    .eq("telegram_id", telegramId)
+    .maybeSingle();
+
+  const holder = account as { free_entries: number | null; id: string } | null;
+  let outcome = null;
+  try {
+    outcome = holder
+      ? await switchSignupPass(supabase, {
+          account: holder,
+          eventId: answer.eventId,
+          usePass: "regular",
+        })
+      : null;
+  } catch (error) {
+    console.error("Could not switch the ticket to the pass", error);
+    await safeEditMessageText(ctx, "Не получилось сменить билет. Попробуйте в афише.");
+    return;
+  }
+
+  await safeEditMessageText(ctx, passOfferAnswerText(answer, outcome));
+}
+
 // Menus from before the mini-app take-over may still be sitting in old chats. Answer
 // the callback so Telegram stops spinning, then point the player at the app.
 bot.on("callback_query", async (ctx) => {
+  const passOffer = parsePassOfferCallback(ctx.callbackQuery.data);
+  if (passOffer) {
+    await answerPassOffer(ctx, passOffer);
+    return;
+  }
+
   await safeAnswerCallbackQuery(ctx);
   await upsertClientBotUser(ctx);
   await sendWelcome(ctx);

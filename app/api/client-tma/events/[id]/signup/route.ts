@@ -25,6 +25,7 @@ import {
 } from "@/lib/events/types";
 import { buildDuoInviteLinks } from "@/lib/events/duo-invite-links";
 import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
+import { switchSignupPass } from "@/lib/free-entries/switch-pass";
 import {
   buildSignupBanMessage,
   isSignupBanned,
@@ -348,6 +349,39 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     ticketType,
     usePass,
   });
+}
+
+/**
+ * Switches what a ticket already held is paid with — a pass or money at the door —
+ * without giving the seat back. Cancelling to sign up again would hand the seat to the
+ * queue, and on a full poster the player would not get it back.
+ */
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await requireClientTmaAuth(request);
+  if (auth.error) return auth.error;
+
+  const body = await request.json().catch(() => ({}));
+  if (body.usePass !== "regular" && body.usePass !== "none") {
+    return NextResponse.json(
+      { error: "invalid_pass", message: "Выберите: по проходке или обычный билет." },
+      { status: 400 },
+    );
+  }
+
+  const outcome = await switchSignupPass(auth.supabase, {
+    account: auth.user,
+    eventId: (await params).id,
+    usePass: body.usePass,
+  });
+
+  if (!outcome.ok) {
+    return NextResponse.json(
+      { error: outcome.error, message: outcome.message },
+      { status: outcome.error === "not_found" ? 404 : 409 },
+    );
+  }
+
+  return NextResponse.json({ usePass: outcome.usePass });
 }
 
 export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {

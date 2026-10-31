@@ -24,6 +24,7 @@ import { DEALER_KNOCKOUT_POINTS, getProgressiveHeadPoints, WANTED_KNOCKOUT_POINT
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
 import { loadTimerContext } from "@/lib/tma/timer-context";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
+import { offerPassForNextSignup } from "@/lib/free-entries/pass-offer";
 import { grantWinnerPass } from "@/lib/free-entries/winner-pass";
 import { getFinishTournamentExtrasPatch } from "@/lib/timer/lifecycle";
 import { recordFinishedEveningDebts } from "@/lib/debts/store";
@@ -350,8 +351,22 @@ export async function POST(request: Request) {
       // A Joker can turn up two passes, and both are the killer's — each is credited on
       // its own.
       const passes = killer.prize ? countMysteryPrizePasses(killer.prize) : 0;
+      let credited = false;
       for (let pass = 0; pass < passes; pass += 1) {
-        mysteryPasses.push(await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers));
+        const result = await grantMysteryBountyPass(auth.supabase, killer, updatedPlayers);
+        mysteryPasses.push(result);
+        credited ||= result.granted;
+      }
+
+      // One question however many passes came out of the envelope: it names one game.
+      if (credited) {
+        const seat = updatedPlayers.find((player) => player.id === killer.id);
+        after(() =>
+          offerPassForNextSignup(auth.supabase, {
+            accountId: seat?.accountId ?? null,
+            telegramId: seat?.telegramId ?? null,
+          }),
+        );
       }
     }
 

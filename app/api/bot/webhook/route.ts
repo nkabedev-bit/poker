@@ -1,6 +1,7 @@
 import { webhookCallback, type Context } from "grammy";
 import { createBot } from "@/lib/telegram/bot-client";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
+import { offerPassForNextSignup } from "@/lib/free-entries/pass-offer";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
@@ -815,6 +816,11 @@ async function changeFreeEntries(ctx: Context, direction: 1 | -1) {
   const next = change.after;
   const changed = Math.abs(change.after - change.before);
   const action = direction === 1 ? "Выдано" : "Снято";
+
+  // The player is asked in the club's bot whether their next game goes on the new pass.
+  if (change.after > change.before) {
+    await offerPassForNextSignup(supabase, { accountId: match.user.id });
+  }
 
   return ctx.reply(
     `${action}: ${describeFreeEntries(changed)} игроку «${match.user.displayName}».\n` +

@@ -1,5 +1,6 @@
 import { randomInt } from "crypto";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
+import { offerPassForNextSignup } from "@/lib/free-entries/pass-offer";
 import { after, NextResponse } from "next/server";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { loadTournamentExtras } from "@/lib/tournament-extras";
@@ -307,6 +308,8 @@ export async function POST(request: Request) {
         // changes neither.
         console.error("Failed to tell the raffle winner", notifyError);
       }
+      // Right behind the win: the pass can go to a game already full since Monday.
+      await offerPassForNextSignup(auth.supabase, { accountId });
     });
   }
 

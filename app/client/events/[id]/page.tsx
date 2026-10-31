@@ -411,6 +411,36 @@ export default function ClientEventPage() {
     }
   };
 
+  /** Pays for the seat already held another way, without giving the seat back. */
+  const switchPass = async (pass: FreePassChoice) => {
+    if (!eventId || submitting || pass === event?.usePass) return;
+
+    tickClientSelection();
+    setSubmitting(true);
+    const tg = getClientTelegramWebApp();
+    try {
+      const res = await fetch(`/api/client-tma/events/${eventId}/signup`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ usePass: pass }),
+      });
+
+      if (res.ok) {
+        tg?.HapticFeedback?.notificationOccurred("success");
+        await load();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      tg?.HapticFeedback?.notificationOccurred("error");
+      showClientAlert(data?.message ?? "Не удалось сменить билет. Попробуйте ещё раз.");
+    } catch {
+      showClientAlert("Нет связи с сервером. Попробуйте ещё раз.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const toggleSignup = async (
     signUp: boolean,
     waitlist = false,
@@ -573,6 +603,13 @@ export default function ClientEventPage() {
       value: "none" as const,
     });
   }
+  // Only a regular ticket not yet played in, and only when there is a pass to talk about:
+  // one in use here, one free to take, or one held elsewhere that explains the grey row.
+  const canSwitchPass =
+    event.signedUp &&
+    event.ticketType === "regular" &&
+    !event.cancellationClosed &&
+    (event.usePass !== "none" || freeEntries.regular > 0 || Boolean(heldPass));
   // The ticket a signed-up player holds wears the stamp; it lands with a thud only at the
   // moment the seat is taken. A ticket the club is holding is not the player's yet.
   const heldStamp: TicketStamp | undefined = event.signedUp
@@ -970,7 +1007,44 @@ export default function ClientEventPage() {
             </section>
           ) : null}
 
-          {event.signedUp && event.usePass !== "none" ? (
+          {/* A pass won after the poster filled up still reaches a seat already held: the
+              ticket switches what it is paid with, and the seat stays the player's. */}
+          {canSwitchPass ? (
+            <section className="order-5 flex flex-col gap-2.5">
+              <SectionHeader title="Тип билета" />
+              <div className="flex flex-col gap-2">
+                <ChoiceRow
+                  chosen={event.usePass === "none"}
+                  disabled={submitting}
+                  note={event.buyIn ? `Оплата на месте · ${event.buyIn.toLocaleString("ru-RU")} ₽` : "Оплата на месте"}
+                  title="Обычный"
+                  onSelect={() => void switchPass("none")}
+                />
+                <ChoiceRow
+                  chosen={event.usePass === "regular"}
+                  disabled={submitting || (event.usePass !== "regular" && freeEntries.regular <= 0)}
+                  note={
+                    event.usePass === "regular"
+                      ? "Закреплена за этой записью"
+                      : freeEntries.regular > 0
+                        ? `Свободно проходок: ${freeEntries.regular}`
+                        : regularHeldNote
+                  }
+                  title="По проходке"
+                  onSelect={() => void switchPass("regular")}
+                />
+              </div>
+              {event.usePass === "regular" ? (
+                <div className="flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3">
+                  <Ticket className="shrink-0 text-club-rose" size={18} />
+                  <p className="text-[13px] text-club-muted">
+                    Проходку спишут, когда вы придёте на игру, а до тех пор она закреплена за этой
+                    записью.
+                  </p>
+                </div>
+              ) : null}
+            </section>
+          ) : event.signedUp && event.usePass !== "none" ? (
             <div className="order-6 flex items-center gap-3 rounded-[18px] border border-club-line bg-club-surface px-4 py-3">
               <Ticket className="shrink-0 text-club-rose" size={18} />
               <p className="text-[13px] text-club-muted">
@@ -1033,7 +1107,9 @@ export default function ClientEventPage() {
                     <p className="px-2 text-center text-[12px] text-club-faint">
                       {needsPartner
                         ? "Напарник не сможет прийти. Билет 1+1 остался за вами — позовите другого."
-                        : "Чтобы сменить билет или проходку, отмените запись и запишитесь заново."}
+                        : canSwitchPass
+                          ? "Чтобы сменить билет на 1+1, отмените запись и запишитесь заново."
+                          : "Чтобы сменить билет или проходку, отмените запись и запишитесь заново."}
                     </p>
                   </>
                 )}

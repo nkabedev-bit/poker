@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { notifyClientUser } from "@/lib/client-bot/notify";
+import { offerPassForNextSignup } from "@/lib/free-entries/pass-offer";
 import { findTournamentWinner, WINNER_PASS_MESSAGE } from "@/lib/free-entries/winner";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
@@ -39,11 +40,19 @@ export async function grantWinnerPass(supabase: SupabaseClient, players: Tournam
     console.error("Failed to log the winner pass", sheetError);
   }
 
-  if (!granted || !winner.accountId) return;
+  if (!granted) return;
 
-  try {
-    await notifyClientUser(supabase, winner.accountId, WINNER_PASS_MESSAGE);
-  } catch (notifyError) {
-    console.error("Failed to tell the winner about the pass", notifyError);
+  if (winner.accountId) {
+    try {
+      await notifyClientUser(supabase, winner.accountId, WINNER_PASS_MESSAGE);
+    } catch (notifyError) {
+      console.error("Failed to tell the winner about the pass", notifyError);
+    }
   }
+
+  // Asked after the congratulations, so the question reads as what to do with the prize.
+  await offerPassForNextSignup(supabase, {
+    accountId: winner.accountId ?? null,
+    telegramId: winner.telegramId ?? null,
+  });
 }
