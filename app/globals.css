@@ -5008,10 +5008,11 @@ p {
   }
 }
 
+/* Equal side columns keep the clock on the board's centre line, whatever stands beside it. */
 .tc__top {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
-  justify-content: space-between;
   gap: calc(var(--u) * 24);
 }
 
@@ -5044,9 +5045,12 @@ p {
 }
 
 .tc__break-in {
+  grid-column: 3;
+  justify-self: end;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: calc(var(--u) * 14);
+  gap: calc(var(--u) * 4);
   border: var(--tc-border) solid #5a4520;
   border-radius: calc(var(--u) * 14);
   background: #1a130c;
@@ -5156,31 +5160,18 @@ p {
   text-transform: uppercase;
 }
 
-.tc__bottom {
-  display: flex;
-  align-items: center;
-  gap: calc(var(--u) * 36);
-}
-
 .tc__clock {
-  flex: 1;
-  min-width: 0;
+  grid-column: 2;
   display: flex;
   flex-direction: column;
-  gap: calc(var(--u) * 12);
-}
-
-.tc__clock-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: calc(var(--u) * 24);
+  align-items: center;
+  gap: calc(var(--u) * 8);
 }
 
 .tc__time {
   color: #fff;
   font-family: var(--font-timer-digits), sans-serif;
-  font-size: calc(var(--u) * 190);
+  font-size: calc(var(--u) * 220);
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   line-height: 0.85;
@@ -5223,18 +5214,14 @@ p {
 }
 
 .tc__next {
-  width: calc(var(--u) * 320);
-  flex-shrink: 0;
-  align-self: stretch;
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: baseline;
   justify-content: center;
-  gap: calc(var(--u) * 6);
+  gap: calc(var(--u) * 24);
   border: var(--tc-border) solid var(--tc-line);
   border-radius: calc(var(--u) * 20);
   background: #120d0a;
-  padding: calc(var(--u) * 12) calc(var(--u) * 10);
+  padding: calc(var(--u) * 10) calc(var(--u) * 24);
 }
 
 .tc__next-label {
@@ -5248,7 +5235,7 @@ p {
 .tc__next-value {
   color: #d9cfc0;
   font-family: var(--font-timer-digits), sans-serif;
-  font-size: calc(var(--u) * var(--next-size));
+  font-size: calc(var(--u) * 76);
   font-variant-numeric: tabular-nums;
   font-weight: 400;
   line-height: 1;
@@ -5266,7 +5253,7 @@ p {
 
 .tc__next-ante {
   color: var(--tc-gold);
-  font-size: calc(var(--u) * 18);
+  font-size: calc(var(--u) * 22);
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;

@@ -35,6 +35,9 @@ function formatBreakClock(totalSeconds: number | null) {
   return hours > 0 ? `${hours}:${minutes}:${seconds}` : `${minutes}:${seconds}`;
 }
 
+/** The blinds give up this much height when the ante shares their card. */
+const ANTE_ROOM = 0.88;
+
 function countDigits(text: string) {
   return text.replace(/\D/g, "").length;
 }
@@ -53,22 +56,9 @@ function blindSize(smallBlind: string, bigBlind: string) {
   return 180;
 }
 
-/** The next level shares its card with a label, so it steps down sooner. */
-function nextSize(smallBlind: string, bigBlind: string) {
-  const digits = countDigits(smallBlind) + countDigits(bigBlind);
-  if (digits <= 4) return 92;
-  if (digits <= 7) return 76;
-  if (digits <= 9) return 60;
-  return 50;
-}
-
-function sizeStyle(name: string, size: number) {
-  return { [name]: size } as CSSProperties;
-}
-
 /**
- * The centre of the hall screen: the level and the time to the break on top, the blinds
- * filling the middle, the clock and the next level underneath.
+ * The centre of the hall screen: the clock first and dead centre, the level and the time
+ * to the break either side of it, the blinds filling the middle, the next level underneath.
  *
  * Drawn on a 1220 × 992 board and scaled as one piece to whatever room the centre column
  * has, so the proportions hold from a laptop to a television.
@@ -90,8 +80,6 @@ export function TimerDisplay({
   const smallBlind = formatNumber(current?.smallBlind);
   const bigBlind = formatNumber(current?.bigBlind);
   const ante = (current?.ante ?? 0) > 0 ? formatNumber(current?.ante) : null;
-  const nextSmallBlind = formatNumber(next?.smallBlind);
-  const nextBigBlind = formatNumber(next?.bigBlind);
 
   return (
     <section className={`tc ${TIMER_FONT_CLASSES}`}>
@@ -105,12 +93,23 @@ export function TimerDisplay({
             {roundsCount > 0 ? <span className="tc__level-label">из {roundsCount}</span> : null}
           </div>
         )}
+        <div className="tc__clock">
+          <strong className={isTicking ? "tc__time" : "tc__time tc__time--idle"}>
+            {formatClock(remainingSeconds)}
+          </strong>
+          <span className={`tc__status tc__status--${isTicking ? "running" : timerState.status}`}>
+            {STATUS_LABELS[timerState.status]}
+          </span>
+        </div>
         {breakClock ? (
           <div className="tc__break-in">
             <span>До перерыва</span>
             <strong>{breakClock}</strong>
           </div>
         ) : null}
+      </div>
+      <div className="tc__progress">
+        <span style={{ width: `${progress * 100}%` }} />
       </div>
 
       <div className="tc__blinds">
@@ -122,7 +121,7 @@ export function TimerDisplay({
         ) : (
           <>
             <div className="tc__blinds-title">Блайнды</div>
-            <div className="tc__blinds-row" style={sizeStyle("--blind-size", blindSize(smallBlind, bigBlind))}>
+            <div className="tc__blinds-row" style={{ "--blind-size": blindSize(smallBlind, bigBlind) * (ante ? ANTE_ROOM : 1) } as CSSProperties}>
               <div className="tc__blind">
                 <strong>{smallBlind}</strong>
                 <span>Малый</span>
@@ -143,45 +142,25 @@ export function TimerDisplay({
         )}
       </div>
 
-      <div className="tc__bottom">
-        <div className="tc__clock">
-          <div className="tc__clock-row">
-            <strong className={isTicking ? "tc__time" : "tc__time tc__time--idle"}>
-              {formatClock(remainingSeconds)}
+      <div className="tc__next">
+        <span className="tc__next-label">{next?.isBreak ? "Далее перерыв" : "Следующие"}</span>
+        {!next ? (
+          <strong className="tc__next-value">—</strong>
+        ) : next.isBreak ? (
+          <strong className="tc__next-value">
+            {Math.round(getLevelDuration(next) / 60)}
+            <small>мин</small>
+          </strong>
+        ) : (
+          <>
+            <strong className="tc__next-value">
+              {formatNumber(next.smallBlind)} / {formatNumber(next.bigBlind)}
             </strong>
-            <span className={`tc__status tc__status--${isTicking ? "running" : timerState.status}`}>
-              {STATUS_LABELS[timerState.status]}
-            </span>
-          </div>
-          <div className="tc__progress">
-            <span style={{ width: `${progress * 100}%` }} />
-          </div>
-        </div>
-        <div className="tc__next">
-          <span className="tc__next-label">{next?.isBreak ? "Далее перерыв" : "Следующие"}</span>
-          {!next ? (
-            <strong className="tc__next-value" style={sizeStyle("--next-size", 92)}>
-              —
-            </strong>
-          ) : next.isBreak ? (
-            <strong className="tc__next-value" style={sizeStyle("--next-size", 92)}>
-              {Math.round(getLevelDuration(next) / 60)}
-              <small>мин</small>
-            </strong>
-          ) : (
-            <>
-              <strong
-                className="tc__next-value"
-                style={sizeStyle("--next-size", nextSize(nextSmallBlind, nextBigBlind))}
-              >
-                {nextSmallBlind} / {nextBigBlind}
-              </strong>
-              {(next.ante ?? 0) > 0 ? (
-                <span className="tc__next-ante">Анте {formatNumber(next.ante)}</span>
-              ) : null}
-            </>
-          )}
-        </div>
+            {(next.ante ?? 0) > 0 ? (
+              <span className="tc__next-ante">Анте {formatNumber(next.ante)}</span>
+            ) : null}
+          </>
+        )}
       </div>
     </section>
   );
