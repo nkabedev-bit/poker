@@ -38,22 +38,23 @@ export const RATING_TABLE_COLUMNS = "desk:grid desk:grid-cols-[56px_minmax(0,1fr
 
 export function RatingRow({
   columns = false,
+  onSelect,
   player,
 }: {
   /** A row of the full table: on a computer it spreads into columns with the games. */
   columns?: boolean;
+  /** What a tap does instead of opening the player's profile. */
+  onSelect?: () => void;
   player: RatingPlayer;
 }) {
   const podiumColor = player.place && player.place <= 3 ? PODIUM_COLORS[player.place as 1 | 2 | 3] : null;
   const key = buildNicknameKey(player.name);
+  const className = `flex min-h-16 items-center gap-3 rounded-[18px] border px-3.5 py-2.5 transition active:scale-[0.99] ${
+    player.isMe ? "border-club-rose/45 bg-club-crimson/12" : "border-club-line bg-club-surface"
+  } ${columns ? `${RATING_TABLE_COLUMNS} desk:gap-0 desk:rounded-2xl desk:border-transparent desk:px-[18px] ${player.isMe ? "" : "desk:bg-transparent desk:hover:bg-white/[0.03]"}` : ""}`;
 
-  return (
-    <Link
-      className={`flex min-h-16 items-center gap-3 rounded-[18px] border px-3.5 py-2.5 transition active:scale-[0.99] ${
-        player.isMe ? "border-club-rose/45 bg-club-crimson/12" : "border-club-line bg-club-surface"
-      } ${columns ? `${RATING_TABLE_COLUMNS} desk:gap-0 desk:rounded-2xl desk:border-transparent desk:px-[18px] ${player.isMe ? "" : "desk:bg-transparent desk:hover:bg-white/[0.03]"}` : ""}`}
-      href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
-    >
+  const cells = (
+    <>
       <span
         className={`w-[26px] shrink-0 text-center font-display text-[14px] font-semibold text-club-muted ${
           columns ? "desk:w-auto desk:text-left desk:text-[15px]" : ""
@@ -124,6 +125,20 @@ export function RatingRow({
           player.points.toLocaleString("ru-RU")
         )}
       </span>
+    </>
+  );
+
+  if (onSelect) {
+    return (
+      <button className={`${className} w-full cursor-pointer text-left`} type="button" onClick={onSelect}>
+        {cells}
+      </button>
+    );
+  }
+
+  return (
+    <Link className={className} href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}>
+      {cells}
     </Link>
   );
 }

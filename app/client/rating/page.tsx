@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, Trophy } from "lucide-react";
 import { tickClientSelection, useClientTMA } from "../layout";
-import Link from "next/link";
 import { GlassCard, LoadingScreen, PageHeading } from "../_components/ui";
 import { PlayerAvatar } from "../_components/player-avatar";
 import { buildNicknameKey } from "@/lib/players/nickname-key";
 import { RATING_TABLE_COLUMNS, RatingRow, withOwnPhoto, type RatingPlayer } from "../_components/rating-row";
+import { SeasonGamesSheet } from "../_components/season-games-sheet";
 
 type RatingSeason = { id: string; status: "open" | "closed"; title: string };
 
@@ -28,16 +28,40 @@ function stillScreen() {
   return typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+/** The tab and the player's games the address names — what coming back from a game lands on. */
+function readRatingAddress() {
+  if (typeof window === "undefined") return { player: null, season: null };
+
+  const address = new URLSearchParams(window.location.search);
+  return {
+    // Reduced to the key's own letters: it goes into a selector when the row is looked for.
+    player: buildNicknameKey(address.get("player") ?? "") || null,
+    season: address.get("season"),
+  };
+}
+
+function writeRatingAddress(season: string | null, player: string | null) {
+  const address = new URLSearchParams();
+  if (season) address.set("season", season);
+  if (player) address.set("player", player);
+
+  const search = address.toString();
+  window.history.replaceState(null, "", search ? `?${search}` : window.location.pathname);
+}
+
 export default function ClientRatingPage() {
   const { initData, telegramUser } = useClientTMA();
   const [data, setData] = useState<RatingResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState("");
-  const [seasonId, setSeasonId] = useState<string | null>(null);
+  const [seasonId, setSeasonId] = useState(() => readRatingAddress().season);
+  const [openPlayerKey, setOpenPlayerKey] = useState(() => readRatingAddress().player);
   // Raised each time a table comes in, and on «Найти меня»: the player's own row is
   // brought into view and rings. A count, so a second tap looks again.
   const [findMe, setFindMe] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
+  // Back from a game or a profile: the table stands under the same player's sheet again.
+  const returningTo = useRef(openPlayerKey);
 
   const load = useCallback(async () => {
     try {
@@ -47,7 +71,7 @@ export default function ClientRatingPage() {
       });
       if (res.ok) {
         setData(await res.json());
-        setFindMe((count) => count + 1);
+        if (!returningTo.current) setFindMe((count) => count + 1);
       }
     } finally {
       setLoading(false);
@@ -92,6 +116,15 @@ export default function ClientRatingPage() {
     };
   }, [findMe]);
 
+  // Closing the sheet after coming back leaves the player where they had left the table.
+  useEffect(() => {
+    const key = returningTo.current;
+    if (!data || !key) return;
+
+    returningTo.current = null;
+    listRef.current?.querySelector<HTMLElement>(`[data-player="${key}"]`)?.scrollIntoView?.({ block: "center" });
+  }, [data]);
+
   if (loading) return <LoadingScreen shape="rating" />;
 
   const seasons = data?.seasons ?? [];
@@ -104,6 +137,26 @@ export default function ClientRatingPage() {
   const rows = podium.length > 0 ? players.slice(3) : players;
   const meVisible = players.some((player) => player.isMe);
   const finding = findMe > 0;
+
+  const ownRow = me ? [me] : [];
+  const openPlayer = openPlayerKey
+    ? [...withOwnPhoto(data?.players ?? [], telegramUser?.photo_url), ...ownRow].find(
+        (player) => buildNicknameKey(player.name) === openPlayerKey,
+      )
+    : undefined;
+
+  const showGames = (player: RatingPlayer) => {
+    const key = buildNicknameKey(player.name);
+    if (!key) return;
+
+    tickClientSelection();
+    setOpenPlayerKey(key);
+    writeRatingAddress(selected?.id ?? null, key);
+  };
+  const hideGames = () => {
+    setOpenPlayerKey(null);
+    writeRatingAddress(selected?.id ?? null, null);
+  };
 
   return (
     <div className="client-stagger flex flex-col gap-5 pt-1 md:pt-0 desk:gap-7">
@@ -126,6 +179,7 @@ export default function ClientRatingPage() {
 
                       tickClientSelection();
                       setSeasonId(season.id);
+                      writeRatingAddress(season.id, null);
                     }}
                   >
                     {season.title}
@@ -169,11 +223,27 @@ export default function ClientRatingPage() {
         {podium.length === 3 ? (
           <div className="flex items-end gap-2.5 pt-2 desk:col-start-1 desk:row-start-1 desk:gap-4">
             {[podium[1], podium[0], podium[2]].map((player) => (
-              <PodiumStep key={`${player.place}-${player.name}`} finding={finding} player={player} />
+              <PodiumStep
+                key={`${player.place}-${player.name}`}
+                finding={finding}
+                player={player}
+                onSelect={() => showGames(player)}
+              />
             ))}
           </div>
         ) : null}
       </div>
+
+      {selected ? (
+        <p className="px-1 text-[13px] leading-relaxed text-club-muted">
+          {selected.status === "closed"
+            ? "Сезон завершён — итоги окончательные."
+            : data?.countedGames
+              ? `В зачёт идут ${data.countedGames} лучших игр сезона.`
+              : "В зачёт идут все игры сезона."}
+          {selected.status === "open" && players.length > 0 ? " Нажмите на игрока, чтобы увидеть его игры." : ""}
+        </p>
+      ) : null}
 
       {/* The table is a panel of its own on a computer, its search in the corner. */}
       <div className="client-stagger contents desk:flex desk:flex-col desk:gap-2 desk:rounded-[26px] desk:border desk:border-club-line desk:bg-club-surface/60 desk:p-2.5">
@@ -229,9 +299,10 @@ export default function ClientRatingPage() {
                     key={key}
                     className={`relative rounded-[18px] ${finding && player.isMe ? "client-find" : ""}`}
                     data-me={player.isMe ? "true" : undefined}
+                    data-player={buildNicknameKey(player.name)}
                     data-row={key}
                   >
-                    <RatingRow columns player={player} />
+                    <RatingRow columns player={player} onSelect={() => showGames(player)} />
                   </div>
                 );
               })}
@@ -240,7 +311,7 @@ export default function ClientRatingPage() {
                 <>
                   <p className="text-center tracking-[0.3em] text-club-faint">· · ·</p>
                   <div className={`relative rounded-[18px] ${finding ? "client-find" : ""}`} data-me="true">
-                    <RatingRow columns player={me} />
+                    <RatingRow columns player={me} onSelect={() => showGames(me)} />
                   </div>
                 </>
               ) : null}
@@ -249,14 +320,14 @@ export default function ClientRatingPage() {
         )}
       </div>
 
-      {selected ? (
-        <p className="px-3 pb-2 text-center text-[12px] leading-relaxed text-club-faint">
-          {selected.status === "closed"
-            ? "Сезон завершён — итоги окончательные."
-            : data?.countedGames
-              ? `В зачёт идут ${data.countedGames} лучших игр сезона.`
-              : "В зачёт идут все игры сезона."}
-        </p>
+      {openPlayer && selected ? (
+        <SeasonGamesSheet
+          key={`${selected.id}:${openPlayerKey}`}
+          initData={initData}
+          player={openPlayer}
+          season={selected}
+          onClose={hideGames}
+        />
       ) : null}
     </div>
   );
@@ -269,16 +340,24 @@ const PODIUM_STYLE = {
 } as const;
 
 /** One step of the podium: the face, the name and a block as tall as the place is high. */
-function PodiumStep({ finding, player }: { finding: boolean; player: RatingPlayer }) {
+function PodiumStep({
+  finding,
+  onSelect,
+  player,
+}: {
+  finding: boolean;
+  onSelect: () => void;
+  player: RatingPlayer;
+}) {
   const place = (player.place && player.place <= 3 ? player.place : 3) as 1 | 2 | 3;
   const style = PODIUM_STYLE[place];
-  const key = buildNicknameKey(player.name);
 
   return (
-    <Link
-      className={`flex min-w-0 flex-1 basis-0 flex-col items-center gap-2 rounded-2xl ${finding && player.isMe ? "client-find" : ""}`}
+    <button
+      className={`flex min-w-0 flex-1 basis-0 cursor-pointer flex-col items-center gap-2 rounded-2xl ${finding && player.isMe ? "client-find" : ""}`}
       data-me={player.isMe ? "true" : undefined}
-      href={key ? `/client/players/${encodeURIComponent(key)}` : "/client/rating"}
+      type="button"
+      onClick={onSelect}
     >
       <span className="rounded-full" style={{ boxShadow: `0 0 0 2px #0d0a0b, 0 0 0 4px ${style.color}` }}>
         <PlayerAvatar hand={player.hand} name={player.name} photoUrl={player.avatarUrl ?? undefined} size={style.avatar} />
@@ -295,6 +374,6 @@ function PodiumStep({ finding, player }: { finding: boolean; player: RatingPlaye
           {player.points === null ? "—" : player.points.toLocaleString("ru-RU")}
         </span>
       </div>
-    </Link>
+    </button>
   );
 }

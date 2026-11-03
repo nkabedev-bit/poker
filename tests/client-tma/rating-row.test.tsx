@@ -1,8 +1,8 @@
 /**
  * @vitest-environment jsdom
  */
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { RatingRow, type RatingPlayer } from "@/app/client/_components/rating-row";
 
 afterEach(cleanup);
@@ -27,6 +27,16 @@ describe("RatingRow", () => {
     render(<RatingRow player={player({ name: "MAKS B" })} />);
 
     expect(screen.getByRole("link").getAttribute("href")).toBe("/client/players/maksb");
+  });
+
+  it("answers a tap itself instead of opening the profile when it is given something to do", () => {
+    const onSelect = vi.fn();
+    render(<RatingRow player={player()} onSelect={onSelect} />);
+
+    expect(screen.queryByRole("link")).toBeNull();
+    fireEvent.click(screen.getByRole("button"));
+
+    expect(onSelect).toHaveBeenCalledOnce();
   });
 
   // The card art belongs on the board in the hall; a phone list gets the name and a

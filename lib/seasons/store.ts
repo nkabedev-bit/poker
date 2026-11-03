@@ -1,11 +1,21 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildSeasonStandings,
+  groupSeasonLines,
   mapSeasonRow,
   type Season,
+  type SeasonLine,
+  type SeasonResultRow,
   type SeasonStanding,
 } from "@/lib/seasons/season";
 import { readAllPages } from "@/lib/supabase/read-all-pages";
+
+/** A result of a season's game with what the player's list of games shows about it. */
+export type SeasonGameRow = SeasonResultRow & {
+  place: number | null;
+  startedAt: string;
+  title: string;
+};
 
 // Every column rather than a list of them: `parallel` arrives with migration 202609140001,
 // and naming it here would break the rating screen for everyone until that is applied.
@@ -73,19 +83,19 @@ async function readAccountNames(
 }
 
 /**
- * Live standings of a season. A regular season holds the games stamped with it as they
- * finished; a parallel one holds every rating game played inside its dates.
+ * The results of a season's games, oldest first. A regular season holds the games stamped
+ * with it as they finished; a parallel one holds every rating game played inside its dates.
  */
-export async function computeSeasonStandings(
+async function readSeasonGameRows(
   supabase: SupabaseClient,
   season: Season,
-): Promise<SeasonStanding[]> {
+): Promise<SeasonGameRow[]> {
   // Read in pages: a season holds thousands of rows, and a single request is cut at a
   // thousand — oldest first, so the newest evenings were the ones silently dropped.
   const data = await readAllPages<unknown>((from, to) => {
     let query = supabase
       .from("tournament_results")
-      .select("telegram_id, player_name, points, knockouts")
+      .select("telegram_id, player_name, points, knockouts, place, started_at, title")
       .eq("counts_for_rating", true)
       // Oldest first: a line without an account name falls back to its latest game's.
       .order("started_at")
@@ -103,27 +113,51 @@ export async function computeSeasonStandings(
     return query.range(from, to);
   });
 
-  const rows = data.map((row) => {
+  return data.map((row) => {
     const record = row as {
       knockouts: number | string | null;
+      place: number | null;
       player_name: string;
       points: number | string | null;
+      started_at: string;
       telegram_id: number | null;
+      title: string;
     };
 
     return {
       knockouts: Number(record.knockouts ?? 0),
+      place: record.place,
       playerName: record.player_name,
       points: Number(record.points ?? 0),
+      startedAt: record.started_at,
       telegramId: record.telegram_id,
+      title: record.title,
     };
   });
+}
+
+/** Live standings of a season. */
+export async function computeSeasonStandings(
+  supabase: SupabaseClient,
+  season: Season,
+): Promise<SeasonStanding[]> {
+  const rows = await readSeasonGameRows(supabase, season);
 
   return buildSeasonStandings(
     rows,
     season.countedGames,
     await readAccountNames(supabase, rows.map((row) => row.telegramId)),
   );
+}
+
+/** The season's lines as the live table groups them, each with the games behind it. */
+export async function readSeasonLines(
+  supabase: SupabaseClient,
+  season: Season,
+): Promise<SeasonLine<SeasonGameRow>[]> {
+  const rows = await readSeasonGameRows(supabase, season);
+
+  return groupSeasonLines(rows, await readAccountNames(supabase, rows.map((row) => row.telegramId)));
 }
 
 /** The frozen table a closed season was left with. */

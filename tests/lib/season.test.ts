@@ -2,9 +2,13 @@ import { describe, expect, it } from "vitest";
 import {
   arrangeSeasonsForRating,
   buildSeasonStandings,
+  describeNextCountedGame,
   findSeasonForDate,
+  findSeasonLine,
   findSeasonsDueToClose,
+  groupSeasonLines,
   mapSeasonRow,
+  splitCountedGames,
 } from "@/lib/seasons/season";
 
 function result(points: number, overrides: Record<string, unknown> = {}) {
@@ -298,5 +302,103 @@ describe("findSeasonForDate", () => {
 
   it("leaves a game before every season unplaced", () => {
     expect(findSeasonForDate(seasons, "2026-06-01")).toBeNull();
+  });
+});
+
+describe("splitCountedGames", () => {
+  it("keeps the best games in the count and leaves the rest behind, each part best first", () => {
+    const { counted, dropped } = splitCountedGames(
+      [{ points: 10 }, { points: 50 }, { points: 30 }, { points: 20 }],
+      2,
+    );
+
+    expect(counted.map((game) => game.points)).toEqual([50, 30]);
+    expect(dropped.map((game) => game.points)).toEqual([20, 10]);
+  });
+
+  it("counts every game in a season without a limit", () => {
+    const { counted, dropped } = splitCountedGames([{ points: 10 }, { points: 50 }], null);
+
+    expect(counted.map((game) => game.points)).toEqual([50, 10]);
+    expect(dropped).toEqual([]);
+  });
+
+  it("leaves nothing behind while a player has fewer games than the limit", () => {
+    const { counted, dropped } = splitCountedGames([{ points: 10 }], 6);
+
+    expect(counted).toHaveLength(1);
+    expect(dropped).toEqual([]);
+  });
+
+  // Six players stood on such an edge in November 2026: whichever game goes grey, the sum
+  // is the same, but the list must not change its mind between two openings.
+  it("counts the earlier of two equal games on the edge", () => {
+    const { counted, dropped } = splitCountedGames(
+      [
+        { points: 40, startedAt: "october" },
+        { points: 40, startedAt: "november" },
+      ],
+      1,
+    );
+
+    expect(counted[0].startedAt).toBe("october");
+    expect(dropped[0].startedAt).toBe("november");
+  });
+
+  it("adds up to the points the table shows", () => {
+    const rows = [50, 10, 40, 30, 20, 5].map((points) => result(points));
+    const [line] = groupSeasonLines(rows);
+
+    const counted = splitCountedGames(line.rows, 5).counted;
+    const sum = counted.reduce((total, row) => total + row.points, 0);
+
+    expect(sum).toBe(buildSeasonStandings(rows, 5)[0].points);
+  });
+});
+
+describe("describeNextCountedGame", () => {
+  it("has nothing to say when the season counts every game", () => {
+    expect(describeNextCountedGame([{ points: 10 }], null)).toBeNull();
+  });
+
+  it("says how many more games count in any case below the limit", () => {
+    expect(describeNextCountedGame([{ points: 10 }], 3)).toEqual({ kind: "any", left: 2 });
+    expect(describeNextCountedGame([], 6)).toEqual({ kind: "any", left: 6 });
+  });
+
+  it("names the worst counted game to beat once the limit is reached", () => {
+    expect(describeNextCountedGame([{ points: 300 }, { points: 120 }], 2)).toEqual({
+      kind: "beat",
+      points: 120,
+    });
+  });
+});
+
+describe("findSeasonLine", () => {
+  const lines = groupSeasonLines(
+    [
+      result(10, { playerName: "Старый ник", telegramId: 1 }),
+      result(20, { playerName: "Гость", telegramId: null }),
+      result(30, { playerName: "Другой", telegramId: 2 }),
+    ],
+    new Map([[1, "Новый ник"]]),
+  );
+
+  it("finds a line by the name the table shows", () => {
+    expect(findSeasonLine(lines, { key: "новыйник" })?.telegramId).toBe(1);
+    expect(findSeasonLine(lines, { key: "гость" })?.name).toBe("Гость");
+  });
+
+  // A closed season's table keeps the nickname of the day it was frozen.
+  it("finds a renamed player by the nickname their games were played under", () => {
+    expect(findSeasonLine(lines, { key: "старыйник" })?.telegramId).toBe(1);
+  });
+
+  it("trusts a known account over a name someone else goes by now", () => {
+    expect(findSeasonLine(lines, { key: "новыйник", telegramId: 2 })?.name).toBe("Другой");
+  });
+
+  it("finds nobody for a stranger", () => {
+    expect(findSeasonLine(lines, { key: "никто" })).toBeNull();
   });
 });
