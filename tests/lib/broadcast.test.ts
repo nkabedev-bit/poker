@@ -38,6 +38,29 @@ describe("readBroadcastChats", () => {
     expect(chats).toHaveLength(2345);
     expect(chats.at(-1)).toBe(1000 + 2344);
   });
+
+  // The questionnaire asks whether the player wants to hear about upcoming games; a
+  // "no" there has to keep them out of every broadcast.
+  it("leaves out the players who said no to notifications", async () => {
+    const filters: unknown[][] = [];
+    const query = {
+      not: (...args: unknown[]) => {
+        filters.push(args);
+        return query;
+      },
+      order: () => query,
+      range: async () => ({ data: [], error: null }),
+      select: () => query,
+    };
+
+    await readBroadcastChats({ from: () => query } as unknown as SupabaseClient);
+
+    expect(filters).toContainEqual([
+      "pending_profile_answers",
+      "cs",
+      JSON.stringify({ notificationsConsent: false }),
+    ]);
+  });
 });
 
 describe("sendToChats", () => {

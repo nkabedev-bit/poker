@@ -19,10 +19,20 @@ export function getClientBot(): Bot | null {
 }
 
 /**
+ * The questionnaire answer of a player who asked not to be told about upcoming games.
+ * Matched by containment rather than by `->> <> 'false'`: a player who has not filled
+ * the questionnaire in yet has no answer at all, has refused nothing, and a comparison
+ * with a missing value would have quietly dropped them too.
+ */
+const NOTIFICATIONS_REFUSED = JSON.stringify({ notificationsConsent: false });
+
+/**
  * Every chat a broadcast goes to — only the accounts the bot can actually write to. A
  * player who signed in on the web has no chat, and sending to nothing would have counted
- * every one of them as a failed delivery. Read a page at a time: past a thousand
- * subscribers a single request quietly left the newest of them out.
+ * every one of them as a failed delivery. A player who answered "no" to notifications in
+ * the questionnaire is left out: broadcasts are exactly what that question asks about.
+ * Read a page at a time: past a thousand subscribers a single request quietly left the
+ * newest of them out.
  */
 export async function readBroadcastChats(supabase: SupabaseClient): Promise<number[]> {
   const rows = await readAllPages<{ chat_id: number | string }>((from, to) =>
@@ -30,6 +40,7 @@ export async function readBroadcastChats(supabase: SupabaseClient): Promise<numb
       .from("client_bot_users")
       .select("chat_id")
       .not("chat_id", "is", null)
+      .not("pending_profile_answers", "cs", NOTIFICATIONS_REFUSED)
       .order("created_at", { ascending: true })
       .order("id")
       .range(from, to),
