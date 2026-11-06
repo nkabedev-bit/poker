@@ -162,6 +162,47 @@ describe("client mini-app API: свой профиль", () => {
     expect(await response.json()).toMatchObject({ honorPlates: [], plate: null });
   });
 
+  // A player who never answered has refused nothing and gets the broadcasts.
+  it("says the broadcasts are on unless the player said no", async () => {
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ botNotifications: true });
+  });
+
+  it("says the broadcasts are off for a player who said no", async () => {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase: {
+        from: () => ({
+          select: (columns: string) => ({
+            eq: () => ({
+              maybeSingle: async () => ({
+                data: columns.includes("notificationsConsent") ? { consent: false } : null,
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      },
+      user: { display_name: "Kabedev", id: "me", telegram_id: 7 },
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ botNotifications: false });
+  });
+
+  // Without Telegram the bot has nowhere to write, and the settings show no switch.
+  it("has no broadcasts to switch for a player who signed in on the web", async () => {
+    mocks.requireClientTmaAuth.mockResolvedValue({
+      supabase,
+      user: { display_name: "Kabedev", id: "me", telegram_id: null },
+    });
+
+    const response = await GET(new Request("http://localhost/api/client-tma/me"));
+
+    expect(await response.json()).toMatchObject({ botNotifications: null });
+  });
+
   it("says the nickname may be changed when the player never changed it", async () => {
     const response = await GET(new Request("http://localhost/api/client-tma/me"));
 

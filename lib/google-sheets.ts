@@ -435,10 +435,11 @@ export async function appendClientBotProfileRow(data: {
 
 const PROFILE_SHEET_NAME = "анкеты";
 // 0-based column indexes into the "анкеты" sheet (CLIENT_BOT_PROFILE_SHEET_HEADERS):
-// C — Telegram ID, E — Игровой никнейм, G — Дата рождения.
+// C — Telegram ID, E — Игровой никнейм, G — Дата рождения, J — Согласие на уведомления.
 const PROFILE_TELEGRAM_ID_COLUMN_INDEX = 2;
 const PROFILE_NICKNAME_COLUMN_INDEX = 4;
 const PROFILE_BIRTH_DATE_COLUMN_INDEX = 6;
+const PROFILE_NOTIFICATIONS_COLUMN_INDEX = 9;
 
 type ProfileSheetOwner = { oldName: string; telegramId: number | null };
 
@@ -511,6 +512,70 @@ export async function renameInClientBotProfileSheet(
   });
 
   return { renamed: rows.length };
+}
+
+/**
+ * The rows of the "анкеты" sheet filled in under this Telegram ID — a player who sent
+ * the questionnaire twice has two. Row 0 is the header. Pure, for the tests.
+ */
+export function pickProfileSheetRowsOfTelegramId(grid: string[][], telegramId: number) {
+  const own = String(telegramId);
+  const rows: number[] = [];
+
+  grid.forEach((row, index) => {
+    if (index === 0) return;
+    if (String(row[PROFILE_TELEGRAM_ID_COLUMN_INDEX] ?? "").trim() === own) rows.push(index);
+  });
+
+  return rows;
+}
+
+/**
+ * Writes a player's new answer about notifications into their rows of the "анкеты"
+ * sheet, worded the way the questionnaire writes it, so the club's copy agrees with what
+ * the bot does. Only rows that carry the player's Telegram ID: a row without one cannot
+ * be told apart from a namesake's.
+ */
+export async function setNotificationsInClientBotProfileSheet(owner: {
+  enabled: boolean;
+  telegramId: number;
+}): Promise<{ updated: number }> {
+  if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) {
+    console.warn("Google Sheets not configured");
+    return { updated: 0 };
+  }
+
+  const auth = await getAuth();
+  const sheets = google.sheets({ version: "v4", auth });
+  const spreadsheetId = process.env.GOOGLE_SHEET_ID;
+  const telegramIdColumn = getSheetColumnName(PROFILE_TELEGRAM_ID_COLUMN_INDEX + 1);
+  const notificationsColumn = getSheetColumnName(PROFILE_NOTIFICATIONS_COLUMN_INDEX + 1);
+
+  // Unformatted, so a Telegram ID stored as a number reads as its digits.
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `'${PROFILE_SHEET_NAME}'!A1:${telegramIdColumn}`,
+    valueRenderOption: "UNFORMATTED_VALUE",
+  });
+  const grid = ((res.data.values ?? []) as unknown[][]).map((row) =>
+    row.map((cell) => String(cell ?? "")),
+  );
+
+  const rows = pickProfileSheetRowsOfTelegramId(grid, owner.telegramId);
+  if (rows.length === 0) return { updated: 0 };
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId,
+    requestBody: {
+      valueInputOption: "RAW",
+      data: rows.map((index) => ({
+        range: `'${PROFILE_SHEET_NAME}'!${notificationsColumn}${index + 1}`,
+        values: [[owner.enabled ? "Да" : "Нет"]],
+      })),
+    },
+  });
+
+  return { updated: rows.length };
 }
 
 // Game nicknames of players whose birthday is today (Moscow). Matches day+month only — the

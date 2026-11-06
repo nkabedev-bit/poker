@@ -7,6 +7,7 @@ import { countFreePasses, loadPassHolds } from "@/lib/free-entries/holds";
 import { getPersistedPlayerLabel } from "@/lib/player-labels";
 import { countMedalsFromResults, readArchiveMedals } from "@/lib/players/medal-counts";
 import { readFavoriteHand } from "@/lib/players/favorite-hand";
+import { readNotificationsConsent } from "@/lib/client-bot/notifications-consent";
 import { readPlayerPlate } from "@/lib/players/plate-store";
 import { listHonorPlates } from "@/lib/players/plate-honors";
 import { nextNicknameChangeAt, readLastNicknameChange } from "@/lib/players/nickname-change";
@@ -70,12 +71,17 @@ export async function GET(request: Request) {
       : isSameTelegramAccount(auth.user.telegram_id, item.telegramId),
   );
 
-  const [achievementStats, favoriteHand, lastNicknameChange, plate] = await Promise.all([
-    readAchievementStats(auth.supabase, auth.user.id),
-    readFavoriteHand(auth.supabase, auth.user.id),
-    readLastNicknameChange(auth.supabase, auth.user.id),
-    readPlayerPlate(auth.supabase, auth.user.id),
-  ]);
+  const [achievementStats, favoriteHand, lastNicknameChange, plate, notificationsConsent] =
+    await Promise.all([
+      readAchievementStats(auth.supabase, auth.user.id),
+      readFavoriteHand(auth.supabase, auth.user.id),
+      readLastNicknameChange(auth.supabase, auth.user.id),
+      readPlayerPlate(auth.supabase, auth.user.id),
+      // A player who signed in on the web has no chat for the bot to write to.
+      auth.user.telegram_id === null
+        ? Promise.resolve(null)
+        : readNotificationsConsent(auth.supabase, auth.user.id),
+    ]);
 
   const now = new Date();
 
@@ -146,6 +152,9 @@ export async function GET(request: Request) {
     honorPlates: listHonorPlates(auth.user.id),
     // When the nickname may be changed again; null when it may be changed now.
     nicknameChangeAvailableAt: nextNicknameChangeAt(lastNicknameChange, now),
+    // Whether the bot sends the player the club's broadcasts; null when there is no
+    // bot chat to send them to, or the answer could not be read — the switch is hidden.
+    botNotifications: notificationsConsent,
     history: {
       active: active.sort(byStartDate),
       past: past.sort((a, b) => byStartDate(b, a)),

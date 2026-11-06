@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Camera, Loader2, Pencil, RectangleHorizontal, RotateCcw, Spade } from "lucide-react";
-import { getClientTelegramWebApp, showClientAlert, useClientTMA } from "../../layout";
-import { LoadingScreen, MenuGroup, MenuRow, PageHeading } from "../../_components/ui";
+import { Bell, Camera, Loader2, Pencil, RectangleHorizontal, RotateCcw, Spade } from "lucide-react";
+import { getClientTelegramWebApp, showClientAlert, tickClientSelection, useClientTMA } from "../../layout";
+import { IconTile, LoadingScreen, MenuGroup, MenuRow, PageHeading } from "../../_components/ui";
 import { FavoriteHandPicker } from "../../_components/favorite-hand-picker";
 import { NicknameEditor } from "../../_components/nickname-editor";
 import { PhotoCropper } from "../../_components/photo-cropper";
@@ -17,6 +17,8 @@ import { countWord } from "@/lib/raffle/raffle-scenes";
 
 type Me = {
   avatarIsCustom?: boolean;
+  /** Whether the bot sends the club's broadcasts; null when the player has no bot chat. */
+  botNotifications?: boolean | null;
   displayName: string | null;
   favoriteHand?: string | null;
   nicknameChangeAvailableAt?: string | null;
@@ -28,7 +30,8 @@ type Me = {
 
 /**
  * Everything a player changes about themselves, kept off the profile so the profile only
- * shows: the nickname, the plate in the hall, the favourite hand and the photo.
+ * shows: the nickname, the plate in the hall, the favourite hand, the photo and whether
+ * the bot sends them the club's broadcasts.
  */
 export default function ClientSettingsPage() {
   const { initData } = useClientTMA();
@@ -37,6 +40,7 @@ export default function ClientSettingsPage() {
   const [nicknameEditorOpen, setNicknameEditorOpen] = useState(false);
   const [handPickerOpen, setHandPickerOpen] = useState(false);
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
   /** The picked photo while the player chooses which part of it goes in the circle. */
   const [cropSource, setCropSource] = useState<string | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
@@ -87,6 +91,36 @@ export default function ClientSettingsPage() {
     setMe((current) => (current ? { ...current, favoriteHand: result.hand } : current));
     setHandPickerOpen(false);
     return null;
+  };
+
+  /** Flips the switch at once and puts it back if the club did not take the answer. */
+  const setNotifications = async (enabled: boolean) => {
+    tickClientSelection();
+    setNotificationsBusy(true);
+    setMe((current) => (current ? { ...current, botNotifications: enabled } : current));
+
+    let failure: string | null = null;
+    try {
+      const res = await fetch("/api/client-tma/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        failure = data?.message ?? "Не удалось сохранить. Попробуйте ещё раз.";
+      }
+    } catch {
+      failure = "Нет связи с сервером. Попробуйте ещё раз.";
+    } finally {
+      setNotificationsBusy(false);
+    }
+
+    if (!failure) return;
+
+    // Put back before telling: the switch must not lie even if the alert cannot show.
+    setMe((current) => (current ? { ...current, botNotifications: !enabled } : current));
+    showClientAlert(failure);
   };
 
   /** Stores a profile photo; answers whether it was stored. */
@@ -207,7 +241,7 @@ export default function ClientSettingsPage() {
         />
       ) : null}
 
-      <PageHeading subtitle="Ник, плашка в зале, любимая рука и фото" title="Настройки" />
+      <PageHeading subtitle="Ник, плашка в зале, любимая рука, фото и уведомления" title="Настройки" />
 
       <MenuGroup>
         <MenuRow
@@ -268,6 +302,43 @@ export default function ClientSettingsPage() {
           />
         ) : null}
       </MenuGroup>
+
+      {typeof me?.botNotifications === "boolean" ? (
+        <MenuGroup>
+          <button
+            aria-checked={me.botNotifications}
+            className="flex min-h-[68px] w-full items-center gap-3.5 px-3.5 py-3 text-left transition active:bg-white/[0.03] disabled:opacity-60"
+            disabled={notificationsBusy}
+            role="switch"
+            type="button"
+            onClick={() => void setNotifications(!me.botNotifications)}
+          >
+            <IconTile>
+              <Bell size={20} />
+            </IconTile>
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <p className="text-[15px] font-bold">Уведомления об играх</p>
+              <p className="text-[12px] text-club-muted">
+                {me.botNotifications
+                  ? "Анонсы турниров и новости клуба в боте"
+                  : "Рассылок не будет — только сообщения лично вам"}
+              </p>
+            </div>
+            <span
+              aria-hidden
+              className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                me.botNotifications ? "bg-club-crimson" : "bg-club-raised"
+              }`}
+            >
+              <span
+                className={`absolute left-0.5 top-0.5 h-6 w-6 rounded-full bg-white shadow transition-transform ${
+                  me.botNotifications ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </span>
+          </button>
+        </MenuGroup>
+      ) : null}
 
       <input
         accept="image/*"
