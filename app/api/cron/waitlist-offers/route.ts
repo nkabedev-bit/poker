@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getServerEnv } from "@/lib/env";
-import { notifyClientUser } from "@/lib/client-bot/notify";
 import { getEvent } from "@/lib/events/store";
-import { waitlistOfferMessage, waitlistOfferMissedMessage } from "@/lib/events/waitlist";
-import { expireWaitlistOffers, offerFreedSeats } from "@/lib/events/waitlist-offers";
+import {
+  announceWaitlistOffer,
+  announceWaitlistOfferMissed,
+  expireWaitlistOffers,
+  offerFreedSeats,
+} from "@/lib/events/waitlist-offers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -62,14 +65,10 @@ export async function POST(request: Request) {
     const offers = await offerFreedSeats(supabase, event, now);
 
     for (const userId of missed) {
-      await notifyClientUser(supabase, userId, waitlistOfferMissedMessage(event.title));
+      await announceWaitlistOfferMissed(supabase, event, userId);
     }
     for (const offer of offers) {
-      await notifyClientUser(
-        supabase,
-        offer.userId,
-        waitlistOfferMessage(event.title, offer.ticketType, offer.expiresAt),
-      );
+      await announceWaitlistOffer(supabase, event, offer);
     }
 
     expired += missed.length;

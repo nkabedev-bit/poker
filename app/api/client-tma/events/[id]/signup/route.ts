@@ -2,8 +2,7 @@ import { after, NextResponse } from "next/server";
 import { requireClientTmaAuth } from "@/lib/client-tma/require-auth";
 import { notifyClientUser } from "@/lib/client-bot/notify";
 import { countActiveSignups, getEvent, getUserSignups } from "@/lib/events/store";
-import { waitlistOfferMessage } from "@/lib/events/waitlist";
-import { offerFreedSeats } from "@/lib/events/waitlist-offers";
+import { announceWaitlistOffer, offerFreedSeats } from "@/lib/events/waitlist-offers";
 import { countFreeSeats, hasFreeSeat, offersDuoTicket } from "@/lib/events/seats";
 import {
   cancelDuoPlusOne,
@@ -469,11 +468,7 @@ export async function DELETE(request: Request, { params }: { params: Promise<{ i
     if (offers.length > 0) {
       after(async () => {
         for (const offer of offers) {
-          await notifyClientUser(
-            auth.supabase,
-            offer.userId,
-            waitlistOfferMessage(event.title, offer.ticketType, offer.expiresAt),
-          );
+          await announceWaitlistOffer(auth.supabase, event, offer);
         }
       });
     }

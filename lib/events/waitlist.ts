@@ -20,11 +20,12 @@ export const WAITLIST_OFFER_MINUTES = 30;
 export function waitlistOfferDeadline(
   event: Pick<TournamentEvent, "lateEntryUntil" | "startsAt">,
   now: Date,
+  holdMinutes: number = WAITLIST_OFFER_MINUTES,
 ): Date | null {
   const closes = new Date(event.lateEntryUntil ?? event.startsAt).getTime();
   if (!Number.isFinite(closes) || closes <= now.getTime()) return null;
 
-  return new Date(Math.min(now.getTime() + WAITLIST_OFFER_MINUTES * 60_000, closes));
+  return new Date(Math.min(now.getTime() + holdMinutes * 60_000, closes));
 }
 
 /** Which allotment a ticket is counted against; both halves of a pair share one. */

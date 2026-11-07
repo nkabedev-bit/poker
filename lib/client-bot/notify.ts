@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { InlineKeyboardMarkup } from "grammy/types";
 import { getClientBot } from "@/lib/client-bot/broadcast";
 import { buildClientMiniAppReplyMarkup } from "@/lib/client-bot/registration";
 
@@ -17,11 +18,14 @@ import { buildClientMiniAppReplyMarkup } from "@/lib/client-bot/registration";
  * Addressed by account rather than by Telegram id: a player who signed in on the web
  * has no chat to write to, and falls out here on their own — they read the same news on
  * the screen they were invited from.
+ *
+ * A message that asks something of the player brings its own buttons instead.
  */
 export async function notifyClientUser(
   supabase: SupabaseClient,
   accountId: string | null,
   message: string,
+  replyMarkup?: InlineKeyboardMarkup,
 ): Promise<boolean> {
   const bot = getClientBot();
   if (!bot || !accountId) return false;
@@ -37,7 +41,7 @@ export async function notifyClientUser(
 
   try {
     await bot.api.sendMessage(chatId, message, {
-      reply_markup: buildClientMiniAppReplyMarkup(),
+      reply_markup: replyMarkup ?? buildClientMiniAppReplyMarkup(),
     });
     return true;
   } catch (error) {

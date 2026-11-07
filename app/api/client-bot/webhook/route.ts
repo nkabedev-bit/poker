@@ -15,6 +15,13 @@ import {
   type PassOfferAnswer,
 } from "@/lib/free-entries/pass-offer";
 import { switchSignupPass } from "@/lib/free-entries/switch-pass";
+import {
+  findRescheduleNotice,
+  parseRescheduleCallback,
+  rescheduleAnswerText,
+  type RescheduleAnswer,
+} from "@/lib/events/reschedule-notice";
+import { answerRescheduleNotice } from "@/lib/events/reschedule-answers";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
@@ -180,12 +187,51 @@ async function answerPassOffer(ctx: Context, answer: PassOfferAnswer) {
   await safeEditMessageText(ctx, passOfferAnswerText(answer, outcome));
 }
 
+/**
+ * "Can you still come?" after a game moved to another hour. The question is replaced
+ * by what came of the answer, so it cannot be answered twice; when the answer could
+ * not be saved, the buttons stay for another tap.
+ */
+async function answerReschedule(ctx: Context, answer: RescheduleAnswer) {
+  await safeAnswerCallbackQuery(ctx);
+
+  const notice = findRescheduleNotice(answer.eventId);
+  const telegramId = ctx.from?.id;
+  if (!notice || !telegramId) return;
+
+  try {
+    const outcome = await answerRescheduleNotice(getAdminSupabase(), { answer, telegramId });
+    if (!outcome) return;
+
+    console.info("Reschedule answer", {
+      accept: answer.accept,
+      eventId: answer.eventId,
+      outcome: outcome.kind,
+      telegramId,
+    });
+    await safeEditMessageText(ctx, rescheduleAnswerText(notice, outcome));
+  } catch (error) {
+    console.error("Could not save the answer to the reschedule notice", {
+      answer,
+      error,
+      telegramId,
+    });
+    await ctx.reply("Не получилось записать ответ. Нажмите кнопку ещё раз чуть позже.");
+  }
+}
+
 // Menus from before the mini-app take-over may still be sitting in old chats. Answer
 // the callback so Telegram stops spinning, then point the player at the app.
 bot.on("callback_query", async (ctx) => {
   const passOffer = parsePassOfferCallback(ctx.callbackQuery.data);
   if (passOffer) {
     await answerPassOffer(ctx, passOffer);
+    return;
+  }
+
+  const reschedule = parseRescheduleCallback(ctx.callbackQuery.data);
+  if (reschedule) {
+    await answerReschedule(ctx, reschedule);
     return;
   }
 

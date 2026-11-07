@@ -1,9 +1,23 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyClientUser } from "@/lib/client-bot/notify";
 import { countActiveSignups, listEventWaitlist } from "@/lib/events/store";
 import { countFreeSeats } from "@/lib/events/seats";
-import { pickWaitlistOffers, waitlistOfferDeadline } from "@/lib/events/waitlist";
+import {
+  pickWaitlistOffers,
+  WAITLIST_OFFER_MINUTES,
+  waitlistOfferDeadline,
+  waitlistOfferMessage,
+  waitlistOfferMissedMessage,
+} from "@/lib/events/waitlist";
+import {
+  buildRescheduleKeyboard,
+  findRescheduleNotice,
+  RESCHEDULE_ANSWER_MINUTES,
+  rescheduleMissedText,
+  rescheduleWaitlistText,
+} from "@/lib/events/reschedule-notice";
 import type { EventTicketType, TournamentEvent } from "@/lib/events/types";
 
 /** A place now held for one player in the queue, and until when. */
@@ -31,8 +45,12 @@ export async function offerFreedSeats(
 ): Promise<WaitlistOffer[]> {
   if (!event.isPublished) return [];
 
-  // Sign-ups close at some hour, and holding a seat past it helps nobody.
-  const deadline = waitlistOfferDeadline(event, now);
+  // Sign-ups close at some hour, and holding a seat past it helps nobody. A game that
+  // moved to another hour gives the queue longer: it is asked a question, not handed a seat.
+  const holdMinutes = findRescheduleNotice(event.id)
+    ? RESCHEDULE_ANSWER_MINUTES
+    : WAITLIST_OFFER_MINUTES;
+  const deadline = waitlistOfferDeadline(event, now, holdMinutes);
   if (!deadline) return [];
 
   const [waitlist, counts] = await Promise.all([
@@ -93,4 +111,61 @@ export async function expireWaitlistOffers(
   if (error) throw error;
 
   return (data ?? []).map((row) => String((row as { user_id: unknown }).user_id));
+}
+
+/**
+ * Tells the player in the queue that a seat is being held for them.
+ *
+ * A game that moved to another hour asks them the same question its seat holders were
+ * asked, with the same two buttons, so "yes" takes the seat without a trip into the app.
+ */
+export async function announceWaitlistOffer(
+  supabase: SupabaseClient,
+  event: Pick<TournamentEvent, "id" | "title">,
+  offer: WaitlistOffer,
+): Promise<boolean> {
+  const notice = findRescheduleNotice(event.id);
+  if (notice) {
+    const delivered = await notifyClientUser(
+      supabase,
+      offer.userId,
+      rescheduleWaitlistText(notice, offer.expiresAt),
+      buildRescheduleKeyboard(event.id),
+    );
+
+    // Nobody answers a question that never arrived — a player on the web, or one who
+    // blocked the bot. Their turn ends now, and the next tick of the cron passes the
+    // seat on instead of it sitting out the hour.
+    if (!delivered) {
+      const { error } = await supabase
+        .from("event_signups")
+        .update({ waitlist_offer_expires_at: new Date().toISOString() })
+        .eq("event_id", event.id)
+        .eq("user_id", offer.userId)
+        .eq("status", "waitlist");
+
+      if (error) console.error("Could not end an undelivered queue turn", { error, offer });
+    }
+
+    return delivered;
+  }
+
+  return notifyClientUser(
+    supabase,
+    offer.userId,
+    waitlistOfferMessage(event.title, offer.ticketType, offer.expiresAt),
+  );
+}
+
+/** Tells the player in the queue that their turn passed in silence. */
+export async function announceWaitlistOfferMissed(
+  supabase: SupabaseClient,
+  event: Pick<TournamentEvent, "id" | "title">,
+  userId: string,
+): Promise<boolean> {
+  const text = findRescheduleNotice(event.id)
+    ? rescheduleMissedText(event.title)
+    : waitlistOfferMissedMessage(event.title);
+
+  return notifyClientUser(supabase, userId, text);
 }
