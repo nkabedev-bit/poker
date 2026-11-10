@@ -3,12 +3,14 @@ import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { requireTmaAuth } from "@/lib/tma/require-auth";
 import { appendFreeEntryGrant, syncTournamentToSheets } from "@/lib/google-sheets";
+import { withdrawFinalTablePosts } from "@/lib/knockouts/channel";
 import { countMysteryPrizePasses, parseMysteryPrize } from "@/lib/mystery/prizes";
 import { getProgressiveKnockoutsBefore, getTargetedEliminationRollbackPlayers } from "@/lib/tma/elimination-rollback";
 import { loadTournamentExtras, saveTournamentExtras } from "@/lib/tournament-extras";
 import type { TournamentPlayer } from "@/lib/timer/types";
 
 type BountyLog = {
+  channel_message_ids?: unknown;
   eliminated_id: string;
   finish_place: number | null;
   id: string;
@@ -141,6 +143,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       .eq("tournament_id", t.id);
 
     if (deleteError) throw deleteError;
+
+    // A knockout that did not happen comes off the club's channel too.
+    after(() => withdrawFinalTablePosts(typedLog.channel_message_ids));
 
     after(async () => {
       try {

@@ -6,6 +6,7 @@ import {
   ensureRegistrationNumber,
   isRegistrationNumbersExhaustedError,
 } from "@/lib/tournament-player-registration";
+import { withdrawFinalTablePosts } from "@/lib/knockouts/channel";
 import { insertBountyLogRecord } from "@/lib/tma/bounty-log";
 import { getProgressiveKnockoutsBefore, type EliminationRollbackLog } from "@/lib/tma/elimination-rollback";
 import { resolveReentryEligibility } from "@/lib/tma/reentry-eligibility";
@@ -16,6 +17,7 @@ import type { TournamentPlayer } from "@/lib/timer/types";
 
 type BountyLog = EliminationRollbackLog & {
   bounty_split?: boolean | null;
+  channel_message_ids?: unknown;
   eliminated_name?: string | null;
   id: string;
   sheets_row_id?: number | null;
@@ -223,6 +225,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       .eq("tournament_id", t.id);
 
     if (deleteError) throw deleteError;
+
+    // The place is no longer taken — a mistake or a re-entry — so whatever the club's
+    // channel was told about it comes down.
+    after(() => withdrawFinalTablePosts(typedLog.channel_message_ids));
 
     if (reentryMode !== "none") {
       // The knockout itself stands — it is re-recorded as a re-entry, keeping the

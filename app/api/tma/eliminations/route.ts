@@ -31,7 +31,9 @@ import { recordFinishedEveningDebts } from "@/lib/debts/store";
 import { saveTournamentResults } from "@/lib/results/store";
 import type { TournamentPlayer } from "@/lib/timer/types";
 import { buildKnockoutBanner, KNOCKOUT_BANNER_HISTORY } from "@/lib/knockouts/banner";
+import { announceFinalTableKnockout } from "@/lib/knockouts/channel";
 import { loadPlayerAvatars } from "@/lib/players/avatars";
+import { getFinalTableSize } from "@/lib/tables/seating";
 
 type Killer = {
   id: string;
@@ -421,6 +423,20 @@ export async function POST(request: Request) {
         console.error("Non-critical knockout banner error:", bannerError);
       }
     });
+
+    // And the club's channel, which follows the final table. Same reason to wait for the
+    // response; the helper swallows its own failures.
+    after(() =>
+      announceFinalTableKnockout(auth.supabase, {
+        bountyLogId: typeof bountyRecord?.id === "string" ? bountyRecord.id : null,
+        finalTableSize: getFinalTableSize(extras.settings.maxPlayersPerTable),
+        place: usesReentry ? null : finishPlace,
+        playerName: eliminatedPlayer.name,
+        remaining: updatedPlayers
+          .filter((player) => player.status === "active")
+          .map((player) => player.name),
+      }),
+    );
 
     // Sync to Sheets asynchronously in the background
     after(async () => {
