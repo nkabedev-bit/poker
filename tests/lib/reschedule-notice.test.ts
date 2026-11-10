@@ -284,7 +284,9 @@ describe("an answer from the queue", () => {
 
   it("keeps a banned player out, as the app does", async () => {
     mocks.getUserSignups.mockResolvedValue([signup({ status: "waitlist" })]);
-    mocks.readSignupBan.mockResolvedValue("2026-11-10T00:00:00.000Z");
+    // Far ahead: the ban is checked against the real clock, and a date three days after
+    // NOW expired on 10.11.2026 and failed the deploy.
+    mocks.readSignupBan.mockResolvedValue("2099-01-01T00:00:00.000Z");
     const { supabase } = fakeSupabase();
 
     const outcome = await answerRescheduleNotice(supabase, answer(true), NOW);
