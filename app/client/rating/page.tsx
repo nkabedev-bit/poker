@@ -56,9 +56,11 @@ export default function ClientRatingPage() {
   const [query, setQuery] = useState("");
   const [seasonId, setSeasonId] = useState(() => readRatingAddress().season);
   const [openPlayerKey, setOpenPlayerKey] = useState(() => readRatingAddress().player);
-  // Raised each time a table comes in, and on «Найти меня»: the player's own row is
-  // brought into view and rings. A count, so a second tap looks again.
+  // Raised each time a table comes in, and on «Найти меня»: the player's own row rings.
+  // A count, so a second tap looks again.
   const [findMe, setFindMe] = useState(0);
+  // Only «Найти меня» brings the row into view; a table coming in leaves the page where it is.
+  const scrollToMe = useRef(false);
   const listRef = useRef<HTMLDivElement>(null);
   // Back from a game or a profile: the table stands under the same player's sheet again.
   const returningTo = useRef(openPlayerKey);
@@ -94,11 +96,15 @@ export default function ClientRatingPage() {
     return withOwnPhoto(filtered, telegramUser?.photo_url);
   }, [data, query, telegramUser]);
 
-  // "Here you are": a player far down the table is taken to their row, which rings.
+  // "Here you are": the player's row rings, and on «Найти меня» a player far down the
+  // table is taken to it.
   useEffect(() => {
     if (!findMe) return;
 
     const look = window.setTimeout(() => {
+      if (!scrollToMe.current) return;
+      scrollToMe.current = false;
+
       const row = listRef.current?.querySelector<HTMLElement>('[data-me="true"]');
       if (!row) return;
 
@@ -212,6 +218,7 @@ export default function ClientRatingPage() {
               type="button"
               onClick={() => {
                 setQuery("");
+                scrollToMe.current = true;
                 setFindMe((count) => count + 1);
               }}
             >

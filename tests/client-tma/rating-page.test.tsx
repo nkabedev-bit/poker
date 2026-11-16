@@ -86,6 +86,27 @@ describe("the rating", () => {
     expect(mine?.textContent).toContain("Ace");
   });
 
+  it("stays where it opened when the table comes in, and goes to the own row only on «Найти меня»", async () => {
+    // jsdom has no scrolling of its own.
+    const scrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      serve();
+      render(<ClientRatingPage />);
+      await screen.findByText("Mr.Shark");
+
+      // Past the moment the own row used to be looked for.
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      expect(scrollIntoView).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByRole("button", { name: "Найти меня" }));
+      await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1), { timeout: 1500 });
+    } finally {
+      delete (Element.prototype as Partial<Element>).scrollIntoView;
+    }
+  });
+
   it("keeps the table in the order of places, with no sorting to switch", async () => {
     serve();
     const { container } = render(<ClientRatingPage />);
