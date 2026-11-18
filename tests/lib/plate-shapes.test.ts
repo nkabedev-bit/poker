@@ -50,6 +50,16 @@ describe("drawing a plate", () => {
     expect(middle.style.width).toBe("321px");
   });
 
+  it("lets the championship's cards stand above the frame and keeps the nickname clear of them", () => {
+    const drawing = drawPlate("championship", "#000000", 410, 33);
+    const [left, middle, right] = drawing.layers;
+
+    expect(left.style).toMatchObject({ height: "33px", top: "0px" });
+    expect(middle.style).toMatchObject({ height: "33px", top: "0px" });
+    expect(right.style).toMatchObject({ height: "35.38px", top: "-2.37px", width: "81px" });
+    expect(drawing.padRight).toBe(85);
+  });
+
   it("blends colours and insets outlines exactly", () => {
     expect(mixColors("#ff0000", "#000000", 0.5)).toBe("#800000");
     expect(insetPolygon([[0, 0], [10, 0], [10, 10], [0, 10]], 2)).toEqual([

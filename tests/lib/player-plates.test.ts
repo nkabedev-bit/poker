@@ -33,7 +33,7 @@ describe("player plates", () => {
 
   it("gives the APC plates by account, whatever the tier", () => {
     expect(listHonorPlates(SECRET)).toEqual(["apc", "apc_second"]);
-    expect(listHonorPlates(SELLER)).toEqual(["apc"]);
+    expect(listHonorPlates(SELLER)).toEqual(["apc", "championship", "championship_finalist"]);
     expect(listHonorPlates("someone")).toEqual([]);
     expect(listHonorPlates(null)).toEqual([]);
 
@@ -41,6 +41,26 @@ describe("player plates", () => {
     expect(canUsePlate("apc", { honors: [], tier: "champion" })).toBe(false);
     expect(canUsePlate("apc_second", { honors: listHonorPlates(SECRET), tier: null })).toBe(true);
     expect(canUsePlate("apc_second", { honors: listHonorPlates(SELLER), tier: "legend" })).toBe(false);
+  });
+
+  it("gives the championship plates by account, the finalist's to Seller alone", () => {
+    const holders = {
+      chura: "842afd72-e8f7-4e3d-afbe-ddcc68ce8e31",
+      cyberpsycho: "3b85b827-b657-44aa-ae96-799dafa6e77e",
+      hunte: "0f78d620-c69b-4c02-82e2-b2d7ad6cbe1e",
+    };
+
+    expect(listHonorPlates(holders.cyberpsycho)).toEqual(["championship"]);
+    expect(listHonorPlates(holders.hunte)).toEqual(["apc", "championship"]);
+    expect(listHonorPlates(holders.chura)).toEqual(["apc"]);
+    expect(canUsePlate("championship", { honors: [], tier: "champion" })).toBe(false);
+    expect(
+      canUsePlate("championship_finalist", { honors: listHonorPlates(holders.hunte), tier: "champion" }),
+    ).toBe(false);
+    expect(readPlateChoice("championship_finalist", "teal")).toEqual({
+      color: null,
+      form: "championship_finalist",
+    });
   });
 
   it("reads a stored pick back, dropping the colour of a plate with its own art", () => {

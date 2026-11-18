@@ -21,7 +21,9 @@ export type PlateForm =
   | "triumph"
   | "royal_flush"
   | "apc"
-  | "apc_second";
+  | "apc_second"
+  | "championship"
+  | "championship_finalist";
 
 export type PlateColor =
   | "ruby"
@@ -65,6 +67,8 @@ export const PLATE_FORMS: readonly PlateFormInfo[] = [
   // Plates of honour: who holds them is kept on the server, in plate-honors.ts.
   { fixedArt: true, id: "apc", name: "APC", tier: null },
   { fixedArt: true, id: "apc_second", name: "2-ое место APC", tier: null },
+  { fixedArt: true, id: "championship", name: "КЧР", tier: null },
+  { fixedArt: true, id: "championship_finalist", name: "Финалист", tier: null },
 ];
 
 /**

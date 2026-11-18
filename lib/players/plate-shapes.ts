@@ -37,12 +37,38 @@ const CHAMPION_FORMS = new Set<PlateForm>(["jackpot", "nuts", "triumph", "royal_
 /** How much of the colour the body takes: past a sixth a column of players turns gaudy. */
 const BODY_TINT = 0.16;
 
-/** The 2nd-place APC art, cut in three so the laurels keep their shape at any height. */
-const APC_SECOND_ART = {
-  height: 330,
-  left: { src: "/plates/apc-second-left.webp", width: 190 },
-  middle: "/plates/apc-second-mid.webp",
-  right: { src: "/plates/apc-second-right.webp", width: 720 },
+type PlateImages = {
+  /** The height of the plate's frame in the art's pixels. */
+  height: number;
+  left: { src: string; width: number };
+  middle: string;
+  right: { src: string; width: number };
+  /** How far the right piece stands above the frame, in the art's pixels. */
+  rise?: number;
+};
+
+/** The club's drawn plates, cut in three so their ends keep their shape at any height. */
+const PLATE_IMAGES: Partial<Record<PlateForm, PlateImages>> = {
+  apc_second: {
+    height: 330,
+    left: { src: "/plates/apc-second-left.webp", width: 190 },
+    middle: "/plates/apc-second-mid.webp",
+    right: { src: "/plates/apc-second-right.webp", width: 720 },
+  },
+  championship: {
+    height: 264,
+    left: { src: "/plates/championship-left.webp", width: 174 },
+    middle: "/plates/championship-mid.webp",
+    right: { src: "/plates/championship-right.webp", width: 651 },
+    rise: 19,
+  },
+  championship_finalist: {
+    height: 264,
+    left: { src: "/plates/championship-finalist-left.webp", width: 169 },
+    middle: "/plates/championship-finalist-mid.webp",
+    right: { src: "/plates/championship-finalist-right.webp", width: 810 },
+    rise: 16,
+  },
 };
 
 function readRgb(hex: string): [number, number, number] {
@@ -165,6 +191,7 @@ export function drawPlate(form: PlateForm, accent: string, width: number, height
   // Cast, so the check at the end still sees what the outline helper assigns.
   let bodyPoints = null as Point[] | null;
   let innerPoints: Point[] = [];
+  const images = PLATE_IMAGES[form];
 
   /** A shape cut from one outline: edge, body, an optional second frame line, gloss. */
   const outline = (points: Point[], doubleFrame: boolean, withGlow = true) => {
@@ -818,21 +845,22 @@ export function drawPlate(form: PlateForm, accent: string, width: number, height
       padRight = 8;
     }
     padLeft = Math.min(18, basePad + (level >= 2 ? 2 : 0));
-  } else if (form === "apc_second") {
-    // The club's art for second place at the APC cup: both ends keep their proportions
-    // and only the plain middle stretches with the row.
-    const scale = h / APC_SECOND_ART.height;
-    const left = Math.round(APC_SECOND_ART.left.width * scale);
-    const right = Math.round(APC_SECOND_ART.right.width * scale);
+  } else if (images) {
+    // The club's own art: both ends keep their proportions and only the plain middle
+    // stretches with the row.
+    const scale = h / images.height;
+    const left = Math.round(images.left.width * scale);
+    const right = Math.round(images.right.width * scale);
+    const rise = (images.rise ?? 0) * scale;
     const art = (src: string): CSSProperties => ({
       backgroundImage: `url("${src}")`,
       backgroundRepeat: "no-repeat",
       backgroundSize: "100% 100%",
     });
-    add({ ...box(0, 0, left, h), ...art(APC_SECOND_ART.left.src) });
+    add({ ...box(0, 0, left, h), ...art(images.left.src) });
     // A pixel of overlap on each side hides the seams a fractional width would leave.
-    add({ ...box(left - 1, 0, w - left - right + 2, h), ...art(APC_SECOND_ART.middle) });
-    add({ ...box(w - right, 0, right, h), ...art(APC_SECOND_ART.right.src) });
+    add({ ...box(left - 1, 0, w - left - right + 2, h), ...art(images.middle) });
+    add({ ...box(w - right, -rise, right, h + rise), ...art(images.right.src) });
     padLeft = Math.min(18, Math.max(basePad, left + 2));
     padRight = right + 4;
   }
