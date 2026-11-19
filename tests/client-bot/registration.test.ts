@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildClientBotProfileSheetRow,
   buildClientMiniAppReplyMarkup,
+  buildClientWelcomeReplyMarkup,
   CLIENT_BOT_PROFILE_SHEET_HEADERS,
   CLIENT_BOT_WELCOME_TEXT,
   isValidBirthDate,
@@ -30,6 +31,51 @@ describe("client bot", () => {
     delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
 
     expect(buildClientMiniAppReplyMarkup()).toEqual({ inline_keyboard: [] });
+  });
+
+  it("offers the way in through the relay under the main button in the welcome", () => {
+    process.env.CLIENT_TMA_URL = "https://example.com/client";
+    process.env.TELEGRAM_API_ROOT = "https://relay.example.com/api/tg-relay";
+
+    expect(buildClientWelcomeReplyMarkup()).toEqual({
+      inline_keyboard: [
+        [{ text: "🎰 Открыть приложение", web_app: { url: "https://example.com/client" } }],
+        [
+          {
+            text: "Не открывается? Запасной вход",
+            web_app: { url: "https://relay.example.com/client" },
+          },
+        ],
+      ],
+    });
+    // Notifications keep the single button.
+    expect(buildClientMiniAppReplyMarkup().inline_keyboard).toHaveLength(1);
+
+    delete process.env.CLIENT_TMA_URL;
+    delete process.env.TELEGRAM_API_ROOT;
+  });
+
+  it("keeps the welcome to the main button when there is no relay", () => {
+    process.env.CLIENT_TMA_URL = "https://example.com/client";
+    delete process.env.TELEGRAM_API_ROOT;
+
+    expect(buildClientWelcomeReplyMarkup()).toEqual({
+      inline_keyboard: [
+        [{ text: "🎰 Открыть приложение", web_app: { url: "https://example.com/client" } }],
+      ],
+    });
+
+    delete process.env.CLIENT_TMA_URL;
+  });
+
+  it("sends no backup button when the main one cannot be built", () => {
+    delete process.env.CLIENT_TMA_URL;
+    delete process.env.VERCEL_PROJECT_PRODUCTION_URL;
+    process.env.TELEGRAM_API_ROOT = "https://relay.example.com/api/tg-relay";
+
+    expect(buildClientWelcomeReplyMarkup()).toEqual({ inline_keyboard: [] });
+
+    delete process.env.TELEGRAM_API_ROOT;
   });
 
   it("masks the birth date as digits are typed", () => {

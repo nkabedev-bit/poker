@@ -3,7 +3,7 @@ import { webhookCallback, type Context } from "grammy";
 import { createBot } from "@/lib/telegram/bot-client";
 import { createClient } from "@supabase/supabase-js";
 import {
-  buildClientMiniAppReplyMarkup,
+  buildClientWelcomeReplyMarkup,
   CLIENT_BOT_WELCOME_TEXT,
 } from "@/lib/client-bot/registration";
 import { safeAnswerCallbackQuery, safeEditMessageText } from "@/lib/client-bot/callback-query";
@@ -83,7 +83,7 @@ async function upsertClientBotUser(ctx: Context) {
 
 async function sendWelcome(ctx: Context) {
   await ctx.reply(CLIENT_BOT_WELCOME_TEXT, {
-    reply_markup: buildClientMiniAppReplyMarkup(),
+    reply_markup: buildClientWelcomeReplyMarkup(),
   });
 }
 

@@ -7,11 +7,24 @@
   "regions": [
     "fra1"
   ],
-  "redirects": [
+  "routes": [
     {
-      "source": "/:path((?!api/tg-relay/|api/tg-hook/).*)",
-      "destination": "https://pokerptz.ru/:path",
-      "permanent": false
+      "src": "^/(client(?:/.*)?|api/client-tma/.*)$",
+      "dest": "https://pokerptz.ru/$1",
+      "headers": {
+        "x-vercel-enable-rewrite-caching": "0"
+      }
+    },
+    {
+      "src": "^/(_next/.*|media/.*|plates/.*|tiers/.*|pwa/.*|rules/.*|about-club\\.jpg|telegram-web-app\\.js|client\\.webmanifest|favicon\\.ico|icon\\.png|apple-icon\\.png)$",
+      "dest": "https://pokerptz.ru/$1"
+    },
+    {
+      "src": "^/(?!api/tg-relay/|api/tg-hook/)(.*)$",
+      "status": 307,
+      "headers": {
+        "Location": "https://pokerptz.ru/$1"
+      }
     }
   ],
   "ignoreCommand": "git diff --quiet ${VERCEL_GIT_PREVIOUS_SHA:-HEAD^} HEAD -- app/api/tg-relay app/api/tg-hook lib/telegram vercel.json"

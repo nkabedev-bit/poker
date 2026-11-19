@@ -85,6 +85,34 @@ export function buildClientMiniAppReplyMarkup() {
   };
 }
 
+/**
+ * The mini-app by way of the Telegram relay on Vercel, which also proxies the player's
+ * app (vercel.json). Some VPN exits cannot hold a connection to the club's server in
+ * Russia, and the relay can. No relay configured means no second way in.
+ */
+export function getClientBackupMiniAppUrl() {
+  const relayRoot = process.env.TELEGRAM_API_ROOT?.trim();
+  return relayRoot ? `${new URL(relayRoot).origin}/client` : "";
+}
+
+/**
+ * The welcome's keyboard: the way in, and under it the way round for a player whose
+ * app will not open. The bot still answers them, because it runs through the relay.
+ * Every other message keeps the single button.
+ */
+export function buildClientWelcomeReplyMarkup() {
+  const { inline_keyboard: mainRows } = buildClientMiniAppReplyMarkup();
+  const backupUrl = getClientBackupMiniAppUrl();
+  if (mainRows.length === 0 || !backupUrl) return { inline_keyboard: mainRows };
+
+  return {
+    inline_keyboard: [
+      ...mainRows,
+      [{ text: "Не открывается? Запасной вход", web_app: { url: backupUrl } }],
+    ],
+  };
+}
+
 function formatProfileSubmittedAt(submittedAt: Date) {
   const parts = new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
