@@ -53,6 +53,14 @@ describe("player plates", () => {
     expect(listHonorPlates(holders.cyberpsycho)).toEqual(["championship"]);
     expect(listHonorPlates(holders.hunte)).toEqual(["apc", "championship"]);
     expect(listHonorPlates(holders.chura)).toEqual(["apc"]);
+    expect(listHonorPlates("64acbac6-5eb2-41d3-be2d-ec53450bb802")).toEqual([
+      "apc",
+      "championship",
+      "championship_captain",
+    ]);
+    expect(canUsePlate("championship_captain", { honors: listHonorPlates(SELLER), tier: "champion" })).toBe(
+      false,
+    );
     expect(canUsePlate("championship", { honors: [], tier: "champion" })).toBe(false);
     expect(
       canUsePlate("championship_finalist", { honors: listHonorPlates(holders.hunte), tier: "champion" }),

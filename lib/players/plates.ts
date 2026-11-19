@@ -23,7 +23,8 @@ export type PlateForm =
   | "apc"
   | "apc_second"
   | "championship"
-  | "championship_finalist";
+  | "championship_finalist"
+  | "championship_captain";
 
 export type PlateColor =
   | "ruby"
@@ -69,6 +70,7 @@ export const PLATE_FORMS: readonly PlateFormInfo[] = [
   { fixedArt: true, id: "apc_second", name: "2-ое место APC", tier: null },
   { fixedArt: true, id: "championship", name: "КЧР", tier: null },
   { fixedArt: true, id: "championship_finalist", name: "Финалист", tier: null },
+  { fixedArt: true, id: "championship_captain", name: "Капитан", tier: null },
 ];
 
 /**

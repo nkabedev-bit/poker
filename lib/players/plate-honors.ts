@@ -40,6 +40,8 @@ const PLATE_HONOR_ACCOUNTS: Partial<Record<PlateForm, readonly string[]>> = {
   ],
   // Seller reached the final of the championship's individual event.
   championship_finalist: ["ca9b21dc-aacc-42cf-b7dd-d2e455f31120"],
+  // The captain of Majestic at the championship.
+  championship_captain: ["64acbac6-5eb2-41d3-be2d-ec53450bb802"],
 };
 
 /** The plates of honour an account holds, in the picker's order. */

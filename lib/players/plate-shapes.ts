@@ -69,6 +69,13 @@ const PLATE_IMAGES: Partial<Record<PlateForm, PlateImages>> = {
     right: { src: "/plates/championship-finalist-right.webp", width: 810 },
     rise: 16,
   },
+  championship_captain: {
+    height: 264,
+    left: { src: "/plates/championship-captain-left.webp", width: 169 },
+    middle: "/plates/championship-captain-mid.webp",
+    right: { src: "/plates/championship-captain-right.webp", width: 810 },
+    rise: 18,
+  },
 };
 
 function readRgb(hex: string): [number, number, number] {
