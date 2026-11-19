@@ -13,6 +13,8 @@ import {
   type ClientBotProfileAnswers,
 } from "@/lib/client-bot/registration";
 import { readAttendanceRows, type AttendanceRow } from "@/lib/players/attendance";
+import { getPersistedPlayerLabel, readStoredPlayerLabels } from "@/lib/player-labels";
+import { resolvePlayerTier, TIER_TITLES } from "@/lib/players/tier";
 import { readCancellationRows, type CancellationRow } from "@/lib/players/cancellations";
 import { buildPtsStandingsRows, isSideBountyPoints, PTS_PLACE_COUNT, type PtsStandingRow } from "@/lib/pts-rating";
 import { hasRegistrationNumber } from "@/lib/player-registration-number";
@@ -717,16 +719,42 @@ function sumIfBought(line: ChargeLine): string | number {
 // lost for good the one time a write fails and counted twice the one time it runs twice;
 // a recount is right however often it runs, and a single successful sync repairs a tab
 // that fell behind.
+//
+// The status column follows from the same recount: a player crosses a threshold only when
+// an evening ends, which is when the tab is rewritten. A tier label given or taken in the
+// admin bot (a champion) rewrites it on the spot.
 // ---------------------------------------------------------------------------
 
 const ATTENDANCE_SHEET_NAME = "посещения";
-const ATTENDANCE_SHEET_HEADERS = ["Игрок", "Посещений", "Первая игра", "Последняя игра"];
+const ATTENDANCE_SHEET_HEADERS = ["Игрок", "Посещений", "Первая игра", "Последняя игра", "Статус"];
 
-export function buildAttendanceSheetGrid(rows: AttendanceRow[]): (string | number)[][] {
+/**
+ * The status the app shows beside the player's name: a tier label the desk gave (that is
+ * how a champion is crowned) wins over the count of evenings. Blank below member.
+ */
+function formatAttendanceStatus(row: AttendanceRow, playerLabels: Record<string, string> | null) {
+  const tier = resolvePlayerTier({
+    games: row.visits,
+    label: getPersistedPlayerLabel(playerLabels, row.player),
+  });
+
+  return tier ? TIER_TITLES[tier] : "";
+}
+
+export function buildAttendanceSheetGrid(
+  rows: AttendanceRow[],
+  playerLabels: Record<string, string> | null = null,
+): (string | number)[][] {
   return [
     ATTENDANCE_SHEET_HEADERS,
     ...padRowsToClearTail(
-      rows.map((row) => [row.player, row.visits, row.firstGame, row.lastGame]),
+      rows.map((row) => [
+        row.player,
+        row.visits,
+        row.firstGame,
+        row.lastGame,
+        formatAttendanceStatus(row, playerLabels),
+      ]),
       ATTENDANCE_SHEET_HEADERS.length,
       0,
     ),
@@ -812,7 +840,10 @@ export async function syncAttendanceSheet(
   if (!process.env.GOOGLE_SHEET_ID || !process.env.GOOGLE_SERVICE_ACCOUNT_KEY) return null;
 
   const spreadsheetId = process.env.GOOGLE_SHEET_ID;
-  const rows = await readAttendanceRows(supabase);
+  const [rows, playerLabels] = await Promise.all([
+    readAttendanceRows(supabase),
+    readStoredPlayerLabels(supabase),
+  ]);
 
   const auth = await getAuth();
   const sheets = google.sheets({ version: "v4", auth });
@@ -828,7 +859,7 @@ export async function syncAttendanceSheet(
     };
   }
 
-  const values = buildAttendanceSheetGrid(rows);
+  const values = buildAttendanceSheetGrid(rows, playerLabels);
 
   await withRateLimitRetry(() =>
     sheets.spreadsheets.values.update({

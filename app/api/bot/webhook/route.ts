@@ -4,7 +4,14 @@ import { adjustFreeEntries } from "@/lib/free-entries/adjust";
 import { offerPassForNextSignup } from "@/lib/free-entries/pass-offer";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
-import { removePersistedPlayerLabel, setPersistedPlayerLabel } from "@/lib/player-labels";
+import { after } from "next/server";
+import {
+  getPersistedPlayerLabel,
+  readStoredPlayerLabels,
+  removePersistedPlayerLabel,
+  setPersistedPlayerLabel,
+} from "@/lib/player-labels";
+import { readTierLabel } from "@/lib/players/tier";
 import {
   ADMIN_BOT_MENU_COMMANDS,
   buildAdminCommandsMessage,
@@ -737,6 +744,40 @@ async function applyPlayerLabelChange(
   return matched;
 }
 
+/** The label a nickname carries before a change; null when it has none or cannot be read. */
+async function readLabelBeforeChange(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  nickname: string,
+) {
+  try {
+    return getPersistedPlayerLabel(await readStoredPlayerLabels(supabase), nickname);
+  } catch (error) {
+    console.error("Failed to read the player's label before changing it", error);
+    return null;
+  }
+}
+
+// The attendance tab shows each player's status, and a tier label (how a champion is
+// crowned) wins over the count of games. A change that gives or takes one rebuilds the
+// tab at once rather than at the next finish. Any other label ("дилер") leaves the tab
+// alone: those are given during play, when the sheet's writes are spoken for.
+function refreshStatusesAfterLabelChange(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  labels: Array<string | null>,
+) {
+  if (!labels.some((label) => readTierLabel(label) !== null)) return;
+
+  // After the response: a slow spreadsheet must not hold up the bot's answer.
+  after(async () => {
+    try {
+      const { syncAttendanceSheet } = await import("@/lib/google-sheets");
+      await syncAttendanceSheet(supabase);
+    } catch (error) {
+      console.error("Failed to refresh statuses in the attendance sheet", error);
+    }
+  });
+}
+
 bot.command("givecolor", async (ctx) => {
   const adminId = ctx.from?.id;
   if (!adminId) return;
@@ -756,8 +797,10 @@ bot.command("givecolor", async (ctx) => {
   try {
     // Always stores the label by nickname (works even when no game is running) and
     // applies it to any matching player(s) currently in the roster.
+    const previousLabel = await readLabelBeforeChange(supabase, nickname);
     const matched = await applyPlayerLabelChange(supabase, nickname, label);
     if (matched === null) return ctx.reply("Ошибка: турнир не найден.");
+    refreshStatusesAfterLabelChange(supabase, [previousLabel, label]);
 
     const liveNote =
       matched > 0
@@ -855,8 +898,10 @@ bot.command("removecolor", async (ctx) => {
   try {
     // Always clears the stored label (works even when no game is running) and clears
     // it from any matching player(s) currently in the roster.
+    const previousLabel = await readLabelBeforeChange(supabase, nickname);
     const matched = await applyPlayerLabelChange(supabase, nickname, null);
     if (matched === null) return ctx.reply("Ошибка: турнир не найден.");
+    refreshStatusesAfterLabelChange(supabase, [previousLabel]);
 
     await ctx.reply(`Метка снята с "${nickname}" — и в текущей игре, и на будущих.`);
   } catch (err: unknown) {

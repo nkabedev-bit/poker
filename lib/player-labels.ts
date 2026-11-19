@@ -2,6 +2,33 @@
 // guest keeps their marker across games, even though the player roster is wiped when a
 // tournament finishes. The store lives on TournamentExtras.playerLabels.
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+/** The stored labels, read from the current tournament's extras; empty when there is none. */
+export async function readStoredPlayerLabels(
+  supabase: SupabaseClient,
+): Promise<Record<string, string>> {
+  const { data: tournament, error } = await supabase
+    .from("tournaments")
+    .select("id")
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  if (!tournament) return {};
+
+  const { data: extras, error: extrasError } = await supabase
+    .from("tournament_extras")
+    .select("data")
+    .eq("tournament_id", tournament.id)
+    .maybeSingle();
+  if (extrasError) throw extrasError;
+
+  const labels = (extras?.data as { playerLabels?: unknown } | null)?.playerLabels;
+  return labels && typeof labels === "object" && !Array.isArray(labels)
+    ? (labels as Record<string, string>)
+    : {};
+}
+
 export function normalizePlayerLabelKey(name: string | null | undefined): string {
   return String(name ?? "").trim().toLowerCase();
 }

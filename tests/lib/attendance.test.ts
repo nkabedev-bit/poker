@@ -126,10 +126,47 @@ describe("buildAttendanceSheetGrid", () => {
       { firstGame: "2026-03-05", lastGame: "2026-09-17", player: "inrikki", visits: 48 },
     ]);
 
-    expect(grid[0]).toEqual(["Игрок", "Посещений", "Первая игра", "Последняя игра"]);
-    expect(grid[1]).toEqual(["inrikki", 48, "2026-03-05", "2026-09-17"]);
+    expect(grid[0]).toEqual(["Игрок", "Посещений", "Первая игра", "Последняя игра", "Статус"]);
+    expect(grid[1]).toEqual(["inrikki", 48, "2026-03-05", "2026-09-17", "CORE"]);
     // The tail blanks whatever a longer previous list left behind.
-    expect(grid[2]).toEqual(["", "", "", ""]);
+    expect(grid[2]).toEqual(["", "", "", "", ""]);
     expect(grid).toHaveLength(52);
+  });
+
+  it("writes the status the visits have earned, blank below member", () => {
+    const row = (player: string, visits: number) => ({
+      firstGame: "2026-03-05",
+      lastGame: "2026-11-17",
+      player,
+      visits,
+    });
+
+    const statuses = buildAttendanceSheetGrid([
+      row("Gal", 50),
+      row("Seller", 49),
+      row("Саймон", 20),
+      row("Новичок", 5),
+      row("Гость", 4),
+    ])
+      .slice(1, 6)
+      .map((line) => line[4]);
+
+    expect(statuses).toEqual(["LEGEND", "CORE", "CORE", "MEMBER", ""]);
+  });
+
+  it("lets a tier label the desk gave win over the count", () => {
+    const grid = buildAttendanceSheetGrid(
+      [
+        { firstGame: "2026-03-05", lastGame: "2026-11-10", player: "Smartrichstyle", visits: 67 },
+        { firstGame: "2026-03-11", lastGame: "2026-11-12", player: "MaksBB", visits: 61 },
+        { firstGame: "2026-05-21", lastGame: "2026-11-10", player: "Олюшка", visits: 3 },
+      ],
+      // Keys are stored lowercased; a label that is not a tier changes nothing.
+      { smartrichstyle: "champion", maksbb: "дилер", "олюшка": "core" },
+    );
+
+    expect(grid[1][4]).toBe("CHAMPION");
+    expect(grid[2][4]).toBe("LEGEND");
+    expect(grid[3][4]).toBe("CORE");
   });
 });
